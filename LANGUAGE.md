@@ -185,6 +185,92 @@ A `plot` curve renders instantly by default; declare it `untraced(id)` and use
 
 ---
 
+## The algo kit
+
+Data-structure & algorithm vocabulary. v1 centrepiece: **`graph`** (Manim's
+`Graph` / `DiGraph`).
+
+| call | draws |
+|---|---|
+| `graph(id, "v1 v2 …", "edges", layout, (cx,cy), scale, [radius])` | a graph of labelled circle nodes + edges |
+
+- **vertices** — a whitespace-separated string of names → nodes `{id}.{name}`
+  (each with a name label).
+- **edges** — whitespace/comma-separated tokens: `a-b` (undirected line) or
+  `a>b` (directed arrow), trimmed to node borders → `{id}.{a}-{b}`.
+- **layout** — `circular`, `row`, or `grid`.
+- Every entity is tagged `id`, `{id}.nodes`, and `{id}.edges`.
+- Edges **reflow automatically**: `move(g.1, (x,y))` drags a vertex and its
+  incident edges stretch to follow (trimmed to the borders).
+
+```
+graph(g, "a b c d e f", "a>b b>c c>d d>e e>f f>a a>d", circular, (640,384), 210);
+hidden(g.nodes);   untraced(g.edges);   // broadcast at t=0
+show(g.nodes);     draw(g.edges);       // reveal the whole group
+flash(g.a, magenta);                    // address one node by id
+```
+
+## The geo kit (olympiad geometry)
+
+High-level Euclidean constructions in the spirit of Asymptote's
+`olympiad.asy` / `cse5.asy` — you write the *geometry*, not coordinates. Every
+construction reads points **declared earlier** and is **dynamic**: it recomputes
+as those points move, so `move(C, …)` drags a vertex and the circumcircle,
+incircle, centroid, foot, angle mark, and all sides update live.
+
+| call | makes |
+|---|---|
+| `point(id, (x,y), ["L"])` | a dot, optionally labelled `L` |
+| `segment(id, a, b)` | a line joining points `a`,`b` (reflows) |
+| `midpoint(id, a, b)` | midpoint of `a`,`b` |
+| `centroid(id, a, b, c)` | triangle centroid |
+| `circumcenter(id, a, b, c)` | centre of the circumscribed circle |
+| `incenter(id, a, b, c)` | centre of the inscribed circle |
+| `orthocenter(id, a, b, c)` | intersection of the altitudes |
+| `foot(id, p, a, b)` | foot of the perpendicular from `p` to line `ab` |
+| `meet(id, a, b, c, d)` | intersection of lines `ab` and `cd` |
+| `circumcircle(id, a, b, c)` | circle through the three points |
+| `incircle(id, a, b, c)` | circle inscribed in the triangle |
+| `anglemark(id, a, b, c)` | an arc marking the angle at vertex `b` |
+| `rightangle(id, a, b, c)` | a small square marking a right angle at `b` |
+
+```
+point(A, (380,560), "A");  point(B, (900,560), "B");  point(C, (640,140), "C");
+segment(ab, A, B);  segment(bc, B, C);  segment(ca, C, A);
+circumcircle(cc, A, B, C);   incircle(ic, A, B, C);   centroid(G, A, B, C);
+foot(F, C, A, B);   segment(alt, C, F);   anglemark(angC, A, C, B);
+```
+
+## Banner & watermark (brand kit)
+
+manic's own logo and mark (à la `ManimBanner`).
+
+| call | makes |
+|---|---|
+| `banner(id, (cx,cy), [scale])` | the manic logo: a cyan circle + magenta square + lime triangle icon trio (`{id}.dot`/`{id}.sq`/`{id}.tri`, tag `{id}.icon`) and the "manic" wordmark (`{id}.word`) |
+| `watermark(id, (x,y), ["text"])` | a small, glowing, **screen-fixed** mark that ignores camera moves and persists |
+
+Animate it `create → expand → unwrite` like the reference banner:
+
+```
+banner(logo, (600, 360), 1.1);
+untraced(logo.icon);  hidden(logo.word);
+watermark(wm, (1120, 690), "manic // synthwave");
+
+draw(logo.icon);      // create — trace the icons on (broadcasts over the trio)
+show(logo.word);      // expand — reveal the wordmark
+fade(logo.icon);  fade(logo.word);   // unwrite
+```
+
+## Groups & tag broadcast
+
+Any verb or modifier whose **first argument names a tag** (rather than a single
+entity) applies to *every* entity carrying that tag — in parallel for verbs.
+So `draw(g.edges)`, `flash(g.nodes, cyan)`, `hidden(g.nodes)` operate on the
+whole group. Individual members are still addressable by their dotted id
+(`g.a`, `g.a-b`). This is what makes graphs, cells, and other multi-entity
+groups practical to animate.
+
 ## Boolean shape ops
 
 Combine two **fillable** shapes (circle, rect, polygon, filled sector/annulus)

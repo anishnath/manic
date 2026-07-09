@@ -198,6 +198,8 @@ fn m_opacity(s: &mut Scene, a: &Args) -> Result<(), Error> {
 fn m_label(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let text = a.text(1)?;
+    // optional `(dx, dy)` offset so the label sits beside its anchor
+    let offset = if a.len() > 2 { a.pair(2)? } else { Vec2::ZERO };
     let (pz, psticky) = {
         let e = s
             .get(&id)
@@ -223,7 +225,7 @@ fn m_label(s: &mut Scene, a: &Args) -> Result<(), Error> {
     lbl.font = FontKind::MonoBold;
     lbl.z = pz + 1;
     lbl.sticky = psticky;
-    lbl.follow = Some((id, Vec2::ZERO));
+    lbl.follow = Some((id, offset));
     s.add(lbl);
     Ok(())
 }

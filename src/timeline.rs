@@ -309,9 +309,60 @@ impl Timeline {
             }
         }
 
-        // Followers pin to their target's position and inherit its opacity
-        // (multiplied with their own animated opacity). Two passes so a
-        // follower-of-a-follower still lands.
+        // --- constraint resolution, each a pure function of t ---
+
+        // 1. Derived constructions: recompute an entity from its deps' current
+        //    positions (e.g. a circumcircle tracks its three vertices). A few
+        //    passes let a construction that depends on another settle.
+        for _ in 0..3 {
+            for i in 0..scene.entities.len() {
+                let Some(f) = scene.entities[i].derive else {
+                    continue;
+                };
+                let deps = scene.entities[i].deps.clone();
+                let mut pts = Vec::with_capacity(deps.len());
+                let mut ok = true;
+                for d in &deps {
+                    match scene.get(d) {
+                        Some(e) => pts.push(e.pos),
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                if ok {
+                    f(&mut scene.entities[i], &pts);
+                }
+            }
+        }
+
+        // 2. Linked edges: endpoints follow two entities, trimmed inward, so an
+        //    edge/segment reflows when its endpoints (including derived ones)
+        //    move.
+        for i in 0..scene.entities.len() {
+            let Some(link) = scene.entities[i].link.clone() else {
+                continue;
+            };
+            let (Some(a), Some(b)) = (
+                scene.get(&link.from).map(|e| e.pos),
+                scene.get(&link.to).map(|e| e.pos),
+            ) else {
+                continue;
+            };
+            let dir = (b - a).normalize_or_zero();
+            scene.entities[i].pos = a + dir * link.trim;
+            let to = b - dir * link.trim;
+            if let Shape::Line { to: t } | Shape::Arrow { to: t } | Shape::Curve { to: t, .. } =
+                &mut scene.entities[i].shape
+            {
+                *t = to;
+            }
+        }
+
+        // 3. Followers pin to a target's position + offset and inherit its
+        //    opacity. Two passes so a follower-of-a-follower settles. Last, so
+        //    labels sit on the final positions of everything above.
         for _ in 0..2 {
             for i in 0..scene.entities.len() {
                 let Some((target, offset)) = scene.entities[i].follow.clone() else {

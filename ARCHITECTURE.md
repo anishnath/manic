@@ -46,6 +46,10 @@ src/
 ├── layout.rs      pure geometry helpers: row, grid, ring, tree
 ├── geom.rs        2D polygon boolean ops (union/∩/−/xor) via `geo` + `earcutr`
 │
+│  Per-frame constraint resolution in Timeline::apply (all pure fns of t):
+│  derive (Entity.deps + Entity.derive hook — dynamic constructions) →
+│  link (edges track two entities) → follow (labels ride a target).
+│
 │  LANGUAGE FRONT END (domain-agnostic)
 ├── lang/
 │   ├── diag.rs    Span + Error + render() (line/col caret diagnostics)

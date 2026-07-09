@@ -96,6 +96,26 @@ impl Default for StrokeStyle {
     }
 }
 
+/// Makes a line/arrow's endpoints track two other entities: `pos` follows
+/// `from`, the shape's `to` follows `to`, each trimmed inward by `trim` px
+/// (so it meets node borders). Resolved every frame in
+/// [`crate::timeline::Timeline::apply`], so linked edges reflow when their
+/// nodes move — an updater expressed as a pure function of `t`.
+#[derive(Debug, Clone)]
+pub struct Link {
+    pub from: String,
+    pub to: String,
+    pub trim: f32,
+}
+
+/// A recompute hook for a *derived* entity: given the current positions of its
+/// [`Entity::deps`], mutate the entity (its `pos`, and shape params like a
+/// circle's radius or an arc's angles). Run every frame in
+/// [`crate::timeline::Timeline::apply`], so derived constructions track their
+/// inputs — the general form of the `follow`/`link` updaters, kept
+/// domain-agnostic (the core just calls the hook; kits supply the geometry).
+pub type DeriveFn = fn(&mut Entity, &[Vec2]);
+
 /// One drawable object in a [`crate::scene::Scene`].
 #[derive(Debug, Clone)]
 pub struct Entity {
@@ -139,6 +159,12 @@ pub struct Entity {
     /// Pin `pos` to `pos_of(other) + offset` each frame; opacity is
     /// multiplied by the followed entity's opacity. Used by labels.
     pub follow: Option<(String, Vec2)>,
+    /// Track two entities as a reflowing edge (see [`Link`]).
+    pub link: Option<Link>,
+    /// Input entity ids for [`Entity::derive`].
+    pub deps: Vec<String>,
+    /// Recompute this entity from its `deps` each frame (see [`DeriveFn`]).
+    pub derive: Option<DeriveFn>,
 }
 
 impl Entity {
@@ -162,6 +188,9 @@ impl Entity {
             sticky: false,
             glow: 1.0,
             follow: None,
+            link: None,
+            deps: Vec::new(),
+            derive: None,
         }
     }
 }

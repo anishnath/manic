@@ -5,6 +5,9 @@
 //! new file here plus one line in [`default_registry`]; the core never
 //! changes.
 
+pub mod algo;
+pub mod brand;
+pub mod geo;
 pub mod math;
 pub mod std;
 
@@ -15,5 +18,8 @@ pub fn default_registry() -> Registry {
     let mut r = Registry::new();
     std::register(&mut r);
     math::register(&mut r);
+    algo::register(&mut r);
+    geo::register(&mut r);
+    brand::register(&mut r);
     r
 }

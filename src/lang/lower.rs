@@ -297,7 +297,7 @@ fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
     // phase A — constructors, in source order
     for s in &prog.stmts {
         if let Some(f) = registry.ctors.get(s.name.as_str()) {
-            f(&mut movie.scene, &args_of(s))?;
+            run_ctor(*f, &mut movie.scene, s)?;
         }
     }
 
@@ -368,11 +368,83 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
         _ => {
             // a verb; needs a read of the (now complete) base scene
             let f = registry.verbs.get(s.name.as_str()).expect("classified as verb");
-            let clip = f(&movie.scene, &a)?;
+            let clip = run_verb(*f, &movie.scene, s)?;
             movie.play(clip);
             Ok(())
         }
     }
+}
+
+/// Ids of entities carrying `tag` (empty if none).
+fn tagged_ids(scene: &Scene, tag: &str) -> Vec<String> {
+    scene
+        .entities
+        .iter()
+        .filter(|e| e.tags.iter().any(|t| t == tag))
+        .map(|e| e.id.clone())
+        .collect()
+}
+
+/// Invoke a constructor/modifier, broadcasting over a tag group if the first
+/// argument names a tag rather than an entity — so `hidden(g.nodes)` or
+/// `color(g.edges, dim)` apply to the whole group at t=0.
+fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
+    if let Some(first) = s.args.first() {
+        if let ExprKind::Ident(name) = &first.kind {
+            if !scene.contains(name) {
+                let ids = tagged_ids(scene, name);
+                if !ids.is_empty() {
+                    for id in ids {
+                        let mut args2 = s.args.clone();
+                        args2[0] = Expr {
+                            kind: ExprKind::Ident(id),
+                            span: first.span,
+                        };
+                        let a2 = Args {
+                            name: &s.name,
+                            name_span: s.name_span,
+                            exprs: &args2,
+                        };
+                        f(scene, &a2)?;
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
+    f(scene, &args_of(s))
+}
+
+/// Invoke a verb, broadcasting over a tag group if the first argument names a
+/// tag rather than an entity. So `draw(g.edges)` runs `draw` on every entity
+/// tagged `g.edges`, in parallel — the ergonomic that makes graphs, cells, and
+/// other groups usable in the language.
+fn run_verb(f: VerbFn, scene: &Scene, s: &Stmt) -> Result<Clip, Error> {
+    if let Some(first) = s.args.first() {
+        if let ExprKind::Ident(name) = &first.kind {
+            if !scene.contains(name) {
+                let ids = tagged_ids(scene, name);
+                if !ids.is_empty() {
+                    let mut clips = Vec::with_capacity(ids.len());
+                    for id in ids {
+                        let mut args2 = s.args.clone();
+                        args2[0] = Expr {
+                            kind: ExprKind::Ident(id),
+                            span: first.span,
+                        };
+                        let a2 = Args {
+                            name: &s.name,
+                            name_span: s.name_span,
+                            exprs: &args2,
+                        };
+                        clips.push(f(scene, &a2)?);
+                    }
+                    return Ok(Clip::par(clips));
+                }
+            }
+        }
+    }
+    f(scene, &args_of(s))
 }
 
 /// Lower a statement that appears *inside* a `par`/`seq`/`stagger` block into a
@@ -387,7 +459,7 @@ fn lower_inner(movie_scene: &Scene, s: &Stmt, registry: &Registry) -> Result<Cli
             s.name_span,
         )),
         _ => match registry.verbs.get(s.name.as_str()) {
-            Some(f) => f(movie_scene, &a),
+            Some(f) => run_verb(*f, movie_scene, s),
             None => {
                 // constructor or unknown used in a timeline block
                 if registry.ctors.contains_key(s.name.as_str()) {

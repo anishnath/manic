@@ -75,7 +75,9 @@ fn is_ident_start(c: char) -> bool {
 }
 
 fn is_ident_continue(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c == '_'
+    // `.` lets ids address kit-generated children and tag groups
+    // (`g.nodes`, `code.line1`, `run0a.tag`).
+    c.is_ascii_alphanumeric() || c == '_' || c == '.'
 }
 
 /// Tokenize `src`. Returns tokens ending in a single [`Tok::Eof`], or the
