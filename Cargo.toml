@@ -1,0 +1,28 @@
+[package]
+name = "manic"
+version = "0.1.0"
+edition = "2021"
+description = "Neon-terminal 2D animation engine for Math & algorithm & data-structure explainer videos"
+license = "MIT"
+authors = ["Anish Nath <anish2good@yahoo.co.in>"]
+readme = "README.md"
+keywords = ["animation", "visualization", "macroquad", "explainer", "algorithms"]
+categories = ["graphics", "multimedia::video", "visualization"]
+include = [
+    "src/**",
+    "examples/**",
+    "assets/fonts/*",
+    "README.md",
+    "ARCHITECTURE.md",
+    "LICENSE",
+    "LICENSE-FONTS",
+]
+
+[dependencies]
+macroquad = "0.4"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

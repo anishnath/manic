@@ -1,0 +1,8 @@
+/target
+/renders
+/out
+Cargo.lock
+.DS_Store
+*.png
+/.claude/
+/.idea/
