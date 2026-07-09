@@ -65,6 +65,8 @@ Each takes the target id as the first argument.
 | `rot(id, deg)` | start rotated by `deg` degrees |
 | `opacity(id, n)` | explicit starting opacity 0..1 |
 | `color(id, name)` | fill / primary color |
+| `outlined(id)` | outline only (no fill) |
+| `filled(id)` | fill only (no outline) |
 | `outline(id, name)` | outline color (and turn the outline on) |
 | `size(id, n)` | text size (text entities only) |
 | `stroke(id, n)` | stroke / outline width in px |
@@ -182,6 +184,29 @@ A `plot` curve renders instantly by default; declare it `untraced(id)` and use
 `draw(id)` to trace it on.
 
 ---
+
+## Boolean shape ops
+
+Combine two **fillable** shapes (circle, rect, polygon, filled sector/annulus)
+into a new filled region:
+
+| call | result |
+|---|---|
+| `union(id, a, b, [color])` | `a ∪ b` |
+| `intersect(id, a, b, [color])` (alias `intersection`) | `a ∩ b` |
+| `difference(id, a, b, [color])` (alias `subtract`) | `a − b` |
+| `exclusion(id, a, b, [color])` (alias `xor`) | `a ⊕ b` (both, minus overlap) |
+
+Operands `a` and `b` must be **declared before** the op — booleans read their
+geometry at build time. The result is a `Region` entity (default color lime,
+holes and multiple pieces handled) that you can `move` / `scale` / `rotate` /
+`show` / `fade` as one shape.
+
+```
+rect(sq, (330, 300), 130, 130);   outlined(sq);
+circle(cr, (400, 250), 78);       outlined(cr);
+difference(bite, sq, cr, lime);   // the square with a circular bite removed
+```
 
 ## Colors
 

@@ -20,6 +20,8 @@ include = [
 
 [dependencies]
 macroquad = "0.4"
+geo = "0.29"        # robust 2D polygon boolean ops (union/intersection/…)
+earcutr = "0.4"     # triangulate holed/multi-piece boolean results for fill
 
 [profile.dev]
 opt-level = 1

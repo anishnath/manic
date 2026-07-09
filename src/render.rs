@@ -547,6 +547,39 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                 draw_path(&outer, trace, width * e.scale, stroke_c);
             }
         }
+        Shape::Region { tris, rings } => {
+            // world → (optional scale/rotate about the region's centroid) →
+            // physical. Centroid taken from the first outline ring.
+            let cw = rings.first().map(|r| centroid(r)).unwrap_or(Vec2::ZERO) + e.pos;
+            let place = |q: Vec2| -> Vec2 {
+                let mut w = q + e.pos;
+                if e.scale != 1.0 || rotated {
+                    w = cw + (w - cw) * e.scale;
+                    if rotated {
+                        w = rot_pt(w, cw, rad);
+                    }
+                }
+                view.xform(w)
+            };
+            if e.stroke.fill {
+                for t in tris {
+                    draw_triangle(place(t[0]), place(t[1]), place(t[2]), fill);
+                }
+            }
+            if e.stroke.outline {
+                for ring in rings {
+                    if ring.len() < 2 {
+                        continue;
+                    }
+                    let mut phys: Vec<Vec2> = ring.iter().map(|&q| place(q)).collect();
+                    phys.push(phys[0]);
+                    if glow_on {
+                        draw_path(&phys, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                    }
+                    draw_path(&phys, trace, width, outline);
+                }
+            }
+        }
         Shape::Text { content, size } => {
             let phys_size = size * e.scale * k;
             let raster = size * view.ss;

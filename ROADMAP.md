@@ -69,12 +69,16 @@ neon frame, live or to mp4. 16 unit tests pass, no warnings.
       tree}`. Proves the "tomorrow it's algorithms" claim: a new file +
       one line in `default_registry()`, zero core changes.
 
-### Boolean shape ops (from Manim: Union/Intersection/Difference/Exclusion)
+### Boolean shape ops — done
 
-- [ ] 2D polygon boolean ops on filled paths — needs a clipping algorithm
-      (Weiler–Atherton / Martinez) and a path representation richer than the
-      current sampled outlines. A real project; deferred until there's a clear
-      need. `Ellipse` (a cheap scaled-circle primitive) can land any time.
+- [x] **Boolean ops** (Manim's Union/Intersection/Difference/Exclusion) —
+      `union` / `intersect` / `difference` / `exclusion(xor)` combine two
+      fillable shapes into a `Region`. Robust 2D clipping via the `geo` crate
+      (`i_overlay` under the hood); results (with holes + multiple pieces)
+      triangulated with `earcutr` for fill. Core: `src/geom.rs` +
+      `Shape::Region`. See `examples/boolean.manic`.
+- [ ] Follow-ups: allow booleans on booleans (nested ops — needs structured
+      Region data, not just baked triangles); `Ellipse` primitive (cheap).
 
 ### The hard 20%
 

@@ -44,6 +44,7 @@ src/
 │                  CRT shader; render-target capture (+ vertical flip on export)
 ├── record.rs      raw-RGBA → ffmpeg pipe (mp4/gif) or PNG sequence; markers.json
 ├── layout.rs      pure geometry helpers: row, grid, ring, tree
+├── geom.rs        2D polygon boolean ops (union/∩/−/xor) via `geo` + `earcutr`
 │
 │  LANGUAGE FRONT END (domain-agnostic)
 ├── lang/

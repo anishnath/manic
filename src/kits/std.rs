@@ -8,6 +8,7 @@ use macroquad::prelude::Vec2;
 
 use crate::animate::act;
 use crate::easing::Easing;
+use crate::geom;
 use crate::lang::diag::Error;
 use crate::lang::lower::{apply_dur_ease, resolve_color, resolve_easing, Args, Registry};
 use crate::primitives::{Entity, FontKind, Shape, StrokeStyle};
@@ -110,6 +111,20 @@ fn m_hidden(s: &mut Scene, a: &Args) -> Result<(), Error> {
 fn m_color(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let c = resolve_color(&a.ident(1)?, a.span_of(1))?;
     ent_mut(s, a)?.color = c;
+    Ok(())
+}
+
+fn m_outlined(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let e = ent_mut(s, a)?;
+    e.stroke.fill = false;
+    e.stroke.outline = true;
+    Ok(())
+}
+
+fn m_filled(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let e = ent_mut(s, a)?;
+    e.stroke.fill = true;
+    e.stroke.outline = false;
     Ok(())
 }
 
@@ -420,6 +435,57 @@ fn v_zoom(_s: &Scene, a: &Args) -> Result<Clip, Error> {
     Ok(apply_dur_ease(act().cam_zoom(z), a, 1)?.into())
 }
 
+// ---- boolean shape ops ----------------------------------------------------
+
+/// `op(id, a, b, [color])` — combine two fillable shapes into a new region.
+/// Operands `a`/`b` must already be declared (booleans read their geometry at
+/// build time). The result is a filled `Region` entity `id`.
+fn boolean(op: &str, s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let ida = a.ident(1)?;
+    let idb = a.ident(2)?;
+    let color = if a.len() > 3 {
+        resolve_color(&a.ident(3)?, a.span_of(3))?
+    } else {
+        style::LIME
+    };
+    let (mpa, mpb) = {
+        let ea = s
+            .get(&ida)
+            .ok_or_else(|| Error::new(format!("no entity named `{ida}`"), a.span_of(1)))?;
+        let eb = s
+            .get(&idb)
+            .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(2)))?;
+        let mpa = geom::entity_to_multipolygon(ea).map_err(|m| Error::new(m, a.span_of(1)))?;
+        let mpb = geom::entity_to_multipolygon(eb).map_err(|m| Error::new(m, a.span_of(2)))?;
+        (mpa, mpb)
+    };
+    let (tris, rings) =
+        geom::boolean_region(op, &mpa, &mpb).map_err(|m| Error::new(m, a.name_span))?;
+    let mut e = Entity::new(id, Shape::Region { tris, rings }, Vec2::ZERO, color);
+    e.stroke = StrokeStyle {
+        fill: true,
+        outline: true,
+        width: 2.5,
+        outline_color: Some(style::FG),
+    };
+    s.add(e);
+    Ok(())
+}
+
+fn c_union(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    boolean("union", s, a)
+}
+fn c_intersect(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    boolean("intersection", s, a)
+}
+fn c_difference(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    boolean("difference", s, a)
+}
+fn c_exclusion(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    boolean("xor", s, a)
+}
+
 /// Register the std kit into `r`.
 pub fn register(r: &mut Registry) {
     // constructors
@@ -435,6 +501,8 @@ pub fn register(r: &mut Registry) {
     r.ctor("rot", m_rot);
     r.ctor("opacity", m_opacity);
     r.ctor("color", m_color);
+    r.ctor("outlined", m_outlined);
+    r.ctor("filled", m_filled);
     r.ctor("outline", m_outline);
     r.ctor("size", m_size);
     r.ctor("stroke", m_stroke);
@@ -444,6 +512,14 @@ pub fn register(r: &mut Registry) {
     r.ctor("bold", m_bold);
     r.ctor("display", m_display);
     r.ctor("label", m_label);
+    // boolean shape ops → a new filled region
+    r.ctor("union", c_union);
+    r.ctor("intersect", c_intersect);
+    r.ctor("intersection", c_intersect);
+    r.ctor("difference", c_difference);
+    r.ctor("subtract", c_difference);
+    r.ctor("exclusion", c_exclusion);
+    r.ctor("xor", c_exclusion);
     // verbs
     r.verb("show", v_show);
     r.verb("fade", v_fade);

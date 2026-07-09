@@ -40,6 +40,7 @@
 
 pub mod animate;
 pub mod easing;
+pub mod geom;
 pub mod kits;
 pub mod lang;
 pub mod layout;

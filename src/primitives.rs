@@ -37,6 +37,13 @@ pub enum Shape {
         start: f32,
         sweep: f32,
     },
+    /// A baked boolean-op result: `tris` fill it (from triangulation), `rings`
+    /// are its outline loops (exterior + holes). Points are absolute (offset
+    /// by `pos`). Produced by `crate::geom` for union/intersection/etc.
+    Region {
+        tris: Vec<[Vec2; 3]>,
+        rings: Vec<Vec<Vec2>>,
+    },
     /// Text anchored on `pos`.
     Text { content: String, size: f32 },
 }
