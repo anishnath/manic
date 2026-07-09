@@ -296,6 +296,20 @@ struct Ctx {
 /// these features pass through unchanged.
 fn expand(prog: &Program) -> Result<Program, Error> {
     let mut env = Env::new();
+    // Seed canvas-relative variables so authors can position with `cx`/`cy`/
+    // `w`/`h` and stay canvas-independent. A later `let w = ...` may shadow them.
+    let (cw, ch) = prog
+        .stmts
+        .iter()
+        .find(|s| s.ctrl.is_none() && s.name == "canvas")
+        .map(|s| canvas_dims(&s.args, s.name_span))
+        .transpose()?
+        .unwrap_or((1280, 720));
+    env.insert("w".into(), cw as f32);
+    env.insert("h".into(), ch as f32);
+    env.insert("cx".into(), cw as f32 / 2.0);
+    env.insert("cy".into(), ch as f32 / 2.0);
+
     let mut ctx = Ctx {
         macros: HashMap::new(),
         depth: 0,
@@ -303,6 +317,47 @@ fn expand(prog: &Program) -> Result<Program, Error> {
     };
     let stmts = expand_stmts(&prog.stmts, &mut env, &mut ctx)?;
     Ok(Program { stmts })
+}
+
+/// A numeric literal, if `e` is one.
+fn num_of(e: &Expr) -> Option<f32> {
+    match &e.kind {
+        ExprKind::Num(n) => Some(*n),
+        _ => None,
+    }
+}
+
+/// Resolve a `canvas(...)` call's args to `(width, height)` — either a named
+/// preset string or two numbers. Shared by the expand seed and movie setup.
+fn canvas_dims(exprs: &[Expr], _span: Span) -> Result<(u32, u32), Error> {
+    if let Some(first) = exprs.first() {
+        if let ExprKind::Str(name) = &first.kind {
+            return canvas_preset(name, first.span);
+        }
+    }
+    let w = exprs.first().and_then(num_of).unwrap_or(1280.0);
+    let h = exprs.get(1).and_then(num_of).unwrap_or(720.0);
+    Ok((w.max(1.0) as u32, h.max(1.0) as u32))
+}
+
+/// Named canvas shapes so authors pick a format, not raw pixels.
+fn canvas_preset(name: &str, span: Span) -> Result<(u32, u32), Error> {
+    Ok(match name.trim().to_ascii_lowercase().as_str() {
+        "16:9" | "widescreen" | "720p" => (1280, 720),
+        "1080p" | "fullhd" | "hd" => (1920, 1080),
+        "4k" | "2160p" => (3840, 2160),
+        "square" | "1:1" => (1080, 1080),
+        "portrait" | "9:16" | "vertical" | "story" | "reel" => (1080, 1920),
+        "4:3" => (1280, 960),
+        other => {
+            return Err(Error::new(
+                format!(
+                    "unknown canvas preset {other:?} — try 16:9, 1080p, 4k, square, portrait, 4:3, or give width, height"
+                ),
+                span,
+            ))
+        }
+    })
 }
 
 fn expand_stmts(stmts: &[Stmt], env: &mut Env, ctx: &mut Ctx) -> Result<Vec<Stmt>, Error> {
@@ -586,9 +641,9 @@ fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
         match s.name.as_str() {
             "title" => title = args_of(s).text(0)?,
             "canvas" => {
-                let a = args_of(s);
-                w = a.num(0)? as u32;
-                h = a.num(1)? as u32;
+                let (cw, ch) = canvas_dims(&s.args, s.name_span)?;
+                w = cw;
+                h = ch;
             }
             _ => {}
         }

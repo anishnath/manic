@@ -254,6 +254,54 @@ Separately tracked, larger and orthogonal: **LaTeX/math typesetting** (approach
 under evaluation, see Typography), **selectable fonts**, and **3D** (deferred by
 design).
 
+## Templates / themes (planned)
+
+**Requirement.** Today the neon-terminal identity is hard-coded (palette
+constants in `style.rs`, terminal-window chrome + glow in `render.rs`, CRT in
+`player.rs`). It should become **one selectable template**, so an author can
+switch the whole look — palette, fonts, chrome, glow, post-fx — without touching
+their `.manic` content. Neon stays the default.
+
+**What a template bundles:**
+- palette + the named-colour map (what `cyan`/`magenta`/`lime`/`fg`/`dim`/`bg`/
+  `panel` resolve to — each theme can retint these semantic roles);
+- fonts (mono / display);
+- chrome style (terminal window frame · plain · paper/notebook · blueprint);
+- glow factor and CRT default (on for neon, off for a print look);
+- masthead text/format.
+
+**Chrome is developer branding — must be optional.** Today every frame bakes in
+the terminal frame, traffic-light dots, the accent rule, and the masthead text
+`manic ~ %` / `60FPS · DETERMINISTIC` (all in `render.rs::draw_page_chrome`).
+A *content author* (the target user) doesn't want engine branding in their
+video. So chrome needs levels — at minimum **`full`** (frame + dots + masthead,
+today's look), **`minimal`** (masthead only, no window frame), and **`clean`**
+(nothing but the author's content on the background). The masthead is
+**author-set or empty** — never baked technical text like "60FPS ·
+DETERMINISTIC". Selectable per-movie (`chrome("clean")` / part of the template)
+and via a `--clean` CLI flag. This is small and independently useful — worth
+shipping ahead of the full theme refactor.
+
+**How to address it (extend, don't fork the renderer):**
+1. Replace the `pub const` palette in `style.rs` with a runtime `Theme` struct;
+   `Theme::neon()` holds today's exact values (zero visual change by default).
+   Ship a few built-ins: `neon` (default), `paper` (light ink-on-cream, no glow/
+   CRT), `blueprint` (cyan-on-navy grid), `slate` (muted dark).
+2. Make colour resolution theme-aware: `resolve_color(name)` and kit default
+   colours read the active theme's role map instead of the constants. (Kits keep
+   using semantic names — `style::CYAN` becomes `theme.cyan`.)
+3. Carry the chosen `Theme` on the `Movie`; `render.rs`/`player.rs` read chrome/
+   glow/CRT from it instead of hard-coded values.
+4. Selection: a top-level `template("neon")` statement (reserved control name)
+   with a `--theme <name>` CLI override.
+
+**Effort:** medium — a focused refactor (style → runtime `Theme`; thread through
+`resolve_color`, `render`, `player`; one language keyword), not a rewrite.
+**Note:** existing examples assume dark-bg + glow, so a light theme intentionally
+changes their look — that's the feature; neon remains default so nothing breaks.
+Composes with the separately-planned **selectable fonts** (a theme picks fonts;
+custom fonts refine within a theme).
+
 ## Where manic is ahead of Asymptote
 - A **first-class animation timeline** — asy `animate` stitches frames; manic
   scripts beats (`par`/`seq`/`stagger`, sections, marker export) with

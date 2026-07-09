@@ -34,9 +34,21 @@ time 0, and **timeline** statements (verbs and blocks), which play in order.
 | call | meaning |
 |---|---|
 | `title("...")` | window title + the masthead shown on every frame |
-| `canvas(w, h)` | logical canvas size (default `1280, 720`) |
+| `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
+| `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
 
 Put these first. (It's `canvas`, not `size` — `size` sets text size.)
+
+**Canvas variables.** After `canvas`, four variables are predefined so you can
+place things relative to the frame and stay canvas-independent: `w` (width),
+`h` (height), `cx` (centre x = w/2), `cy` (centre y = h/2). Prefer these over
+hard-coded pixels — then `canvas("square")` re-centres everything for free:
+
+```
+canvas("square");
+text(title, (cx, cy), "Hello");       // always centred
+dot(corner, (cx - w/4, cy - h/4));    // relative placement
+```
 
 ---
 
