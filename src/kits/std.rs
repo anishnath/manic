@@ -101,6 +101,102 @@ fn c_arrow(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// Sample a quadratic Bézier `a`→(control `c`)→`b` into `n + 1` points.
+fn quad(a: Vec2, c: Vec2, b: Vec2, n: usize) -> Vec<Vec2> {
+    (0..=n)
+        .map(|i| {
+            let t = i as f32 / n as f32;
+            let u = 1.0 - t;
+            a * (u * u) + c * (2.0 * u * t) + b * (t * t)
+        })
+        .collect()
+}
+
+/// A curly-brace polyline spanning `p1`→`p2`, bulging `depth` px to one side
+/// (negative flips the side). Returns `(points, tip)` — `tip` is the central
+/// cusp, a natural anchor for a label. Two smooth quadratic-Bézier halves meet
+/// at the cusp (the classic SVG-brace construction).
+fn brace_path(p1: Vec2, p2: Vec2, depth: f32) -> (Vec<Vec2>, Vec2) {
+    let d = p1 - p2;
+    let len = d.length().max(1e-3);
+    let u = d / len; // unit vector p2 -> p1
+    let perp = Vec2::new(u.y, -u.x); // outward normal
+    let w = depth;
+    let q = 0.6;
+    let along = |frac: f32| p1 - u * (frac * len);
+
+    let c1 = p1 + perp * (q * w);
+    let e1 = along(0.25) + perp * ((1.0 - q) * w);
+    let tip = along(0.5) + perp * w;
+    let c3 = p2 + perp * (q * w);
+    let e2 = along(0.75) + perp * ((1.0 - q) * w);
+
+    let mut pts = quad(p1, c1, e1, 12);
+    pts.extend(quad(e1, e1 * 2.0 - c1, tip, 12)); // smooth ("T") continuation
+    let mut right = quad(p2, c3, e2, 12);
+    right.extend(quad(e2, e2 * 2.0 - c3, tip, 12));
+    right.reverse(); // tip -> ... -> p2
+    pts.extend(right);
+    (pts, tip)
+}
+
+fn brace_style() -> StrokeStyle {
+    StrokeStyle {
+        fill: false,
+        outline: true,
+        width: 3.0,
+        outline_color: Some(style::FG),
+    }
+}
+
+/// `brace(id, (x1,y1), (x2,y2), [depth])` — a curly brace spanning the two
+/// points, bulging `depth` px to one side (default 22; negative flips it).
+fn c_brace(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let p1 = a.pair(1)?;
+    let p2 = a.pair(2)?;
+    let depth = a.opt_num(3)?.unwrap_or(22.0);
+    let (pts, _) = brace_path(p1, p2, depth);
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::FG);
+    e.stroke = brace_style();
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `bracelabel(id, (x1,y1), (x2,y2), "text", [depth])` (alias `bracetext`) — a
+/// brace with a text label centred just beyond its cusp. Child `{id}.label`.
+fn c_bracelabel(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let p1 = a.pair(1)?;
+    let p2 = a.pair(2)?;
+    let text = a.text(3)?;
+    let depth = a.opt_num(4)?.unwrap_or(22.0);
+    let (pts, tip) = brace_path(p1, p2, depth);
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::FG);
+    e.stroke = brace_style();
+    e.tags.push(id.clone());
+    s.add(e);
+
+    // label sits just beyond the cusp, along the same outward normal
+    let u = (p1 - p2) / (p1 - p2).length().max(1e-3);
+    let perp = Vec2::new(u.y, -u.x);
+    let sign = if depth >= 0.0 { 1.0 } else { -1.0 };
+    let lp = tip + perp * (sign * 24.0);
+    let mut t = Entity::new(
+        format!("{id}.label"),
+        Shape::Text {
+            content: text,
+            size: 24.0,
+        },
+        lp,
+        style::FG,
+    );
+    t.tags.push(id);
+    s.add(t);
+    Ok(())
+}
+
 // ---- modifiers ------------------------------------------------------------
 
 fn m_hidden(s: &mut Scene, a: &Args) -> Result<(), Error> {
@@ -497,6 +593,9 @@ pub fn register(r: &mut Registry) {
     r.ctor("rect", c_rect);
     r.ctor("line", c_line);
     r.ctor("arrow", c_arrow);
+    r.ctor("brace", c_brace);
+    r.ctor("bracelabel", c_bracelabel);
+    r.ctor("bracetext", c_bracelabel);
     // modifiers (also constructors: they touch the base scene)
     r.ctor("hidden", m_hidden);
     r.ctor("untraced", m_untraced);

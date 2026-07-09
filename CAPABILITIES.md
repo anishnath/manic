@@ -23,15 +23,19 @@ are occurrences across the `geometry/` samples.
   constructions — drag a vertex and dependents recompute).
 
 ### Kits
-- **std** — `dot`, `circle`, `rect`, `line`, `arrow`, `text`; modifiers
+- **std** — `dot`, `circle`, `rect`, `line`, `arrow`, `brace` / `bracelabel`
+  (curly brace between two points, optional label), `text`; modifiers
   (`hidden`, `untraced`, `color`, `outline`/`outlined`/`filled`, `size`,
   `stroke`, `glow`, `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
   `tag`); ~20 verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
   `type`, `say`, `recolor`, `flash`, `pulse`, `shake`, `scale`, `rotate`,
   `spin`, `to`/`set`, `cam`, `zoom`); boolean ops `union`/`intersect`/
   `difference`/`exclusion`.
-- **math** — `axes`, `plot` (12 named functions), `numberline`, `vector`,
-  `arc`, `sector`, `annulus`, `pie`.
+- **math** — `axes` (optional ticks + labels), `plane`/`numberplane`,
+  `complexplane`, `polarplane`, `plot` (12 named functions), `numberline`,
+  `vector`, `arc`, `sector`, `annulus`, `pie`, `arrowfield` (8 named vector
+  fields, magnitude-coloured), `matrix` (bracketed, row/column addressable via
+  tags).
 - **algo** — `graph` (undirected `a-b` / directed `a>b`, circular/row/grid
   layouts, reflowing edges, tag groups).
 - **geo** — `point`, `segment` (reflows), derived points `midpoint`,
@@ -65,9 +69,18 @@ are occurrences across the `geometry/` samples.
 - **Minor:** a `circle` centred on a *point* (dynamic) — cheap add.
 
 ### Graphing (math) — partial
-- No expression plots (`"x^2 - 3"`) — named functions only.
-- No axis limits / tick / tick-label control, multiple styled axes.
+- Expression plots DONE — `plot` takes a formula string in `x`/`t`
+  (`"cos(x) + 0.5*cos(7*x)"`, arithmetic + ~20 functions), manic's
+  `FunctionGraph`. (`arrowfield` still takes named fields only — its lambda
+  would want the same evaluator extended to two variables.)
+- Coordinate frames done: `axes` (ticks + integer labels), `plane`/
+  `numberplane`, `complexplane`, `polarplane`. Still missing: custom
+  tick-label values / non-integer steps, per-axis limits, multiple styled axes,
+  3D axes (deferred).
 - No area fill under a curve, legends, or data/scatter plots.
+- Vector fields: `arrowfield` done; **`StreamLines`** (flowing-agent traces)
+  not done — needs a flow simulation + the animation flow (a good fit for a
+  future updater-driven feature).
 
 ### 3D — none (deferred by design)
 `graph3` / `three` / `solids` / `tube` / `grid3` ≈ 96 asy files. Planned:

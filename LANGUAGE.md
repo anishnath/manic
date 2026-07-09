@@ -53,6 +53,8 @@ address.
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
 | `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point |
+| `brace(id, (x1,y1), (x2,y2), [depth])` | a curly brace spanning the two points, bulging `depth` px to one side (default 22; negative flips the side) |
+| `bracelabel(id, (x1,y1), (x2,y2), "text", [depth])` (alias `bracetext`) | a brace with a text label centred just beyond its cusp; child `{id}.label` |
 
 ### Modifiers (apply to an existing entity, at t = 0)
 
@@ -167,21 +169,42 @@ entities named `{id}.x`, `{id}.tN`, etc.
 
 | call | draws |
 |---|---|
-| `axes(id, (cx,cy), halfw, halfh)` | a coordinate cross with arrowheads on +x and +y |
-| `plot(id, (cx,cy), sx, sy, fn, [domain])` | the named function `fn` over `x ∈ [-domain, domain]` (default 6), mapped as `(cx + x·sx, cy − f(x)·sy)`, as a glowing polyline |
+| `axes(id, (cx,cy), halfw, halfh, [unit])` | a coordinate cross with arrowheads on +x and +y; with `unit` (px per step) it also gets tick marks and integer labels. Children `{id}.x` / `{id}.y`; tags `{id}.ticks` / `{id}.labels` |
+| `plane(id, (cx,cy), halfw, halfh, [unit])` (alias `numberplane`) | a NumberPlane: a faint grid every `unit` px (default 50) with brighter axes through the centre. Grid tagged `{id}.grid`; axes `{id}.x` / `{id}.y` |
+| `complexplane(id, (cx,cy), halfw, halfh, [unit])` | a NumberPlane labelled with cyan `Re` / `Im` axes |
+| `polarplane(id, (cx,cy), radius, [rings], [spokes])` | a PolarPlane: faint concentric rings (default 4) and radial spokes (default 12), tagged `{id}.grid` |
+| `plot(id, (cx,cy), sx, sy, fn, [domain])` | plot `fn` over `x ∈ [-domain, domain]` (default 6), mapped as `(cx + x·sx, cy − f(x)·sy)`, as a glowing polyline. `fn` is either a **named** function (below) or a **formula string** in `x` (alias `t`) — e.g. `"cos(x) + 0.5*cos(7*x)"` (manic's `FunctionGraph`) |
 | `vector(id, (cx,cy), (dx,dy), [color])` | an arrow from the origin to `(cx+dx, cy−dy)` (dy is up); default magenta |
 | `numberline(id, (cx,cy), halfw, from, to, step)` | an axis with ticks and labels from `from` to `to` |
+| `arrowfield(id, (cx,cy), halfw, halfh, field, [n])` | a grid of arrows sampling a named vector `field`, coloured by magnitude (cyan→lime→magenta); `n` arrows across |
+| `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space/comma); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
 | `arc(id, (cx,cy), r, start, sweep)` | a circular arc line (angles in degrees) |
 | `sector(id, (cx,cy), r, start, sweep)` | a filled pie slice |
 | `annulus(id, (cx,cy), outer, inner)` | a filled ring between two radii |
 | `pie(id, (cx,cy), r, n)` | a circle cut into `n` equal filled sectors, each addressable as `{id}0 … {id}{n-1}` (tag `id`) |
 
-`plot` functions (`fn`): `sin`, `cos`, `tan`, `parabola` (`sq`, `square`),
+Named `plot` functions (`fn`): `sin`, `cos`, `tan`, `parabola` (`sq`, `square`),
 `cubic` (`cube`), `line` (`id`, `identity`), `abs`, `exp`, `sqrt`, `log`
 (`ln`), `recip` (`inv`), `gauss` (`bell`).
 
+Formula strings accept the variable `x` (alias `t`); constants `pi`, `e`, `tau`;
+operators `+ - * / ^` and unary `-`; and the functions `sin`, `cos`, `tan`,
+`asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `exp`, `ln`/`log`, `log10`,
+`log2`, `sqrt`, `abs`, `floor`, `ceil`, `round`, `sign`. Multiplication is
+explicit (`7*x`, not `7x`). Example: `plot(f,(640,384),70,70,"cos(x) +
+0.5*cos(7*x) + (1/7)*cos(14*x)", 7)`.
+
 A `plot` curve renders instantly by default; declare it `untraced(id)` and use
 `draw(id)` to trace it on.
+
+`arrowfield` functions (`field`): `radial` (`source`/`out`), `sink`
+(`attract`/`in`), `swirl` (`rotational`/`curl`), `saddle`, `wave`, `shear`,
+`uniform` (`flow`), `spiral`.
+
+A `matrix`'s rows and columns are tag groups, so you colour or highlight a
+whole column with `recolor(m.col1, magenta)` (= `set_column_colors`) or a row
+with `flash(m.row0, cyan)` (= `set_row_colors`). Entries are mono text (no
+LaTeX yet — write `pi` or a literal `π`, not `\pi`).
 
 ---
 
