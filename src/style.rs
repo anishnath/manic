@@ -28,6 +28,29 @@ pub const MASTHEAD_LEFT: &str = "manic ~ %";
 /// Status printed at the top-right of every frame.
 pub const MASTHEAD_RIGHT: &str = "60FPS · DETERMINISTIC";
 
+/// HSL → RGB (`h` in degrees, `s`/`l` in 0..1), full opacity. The shared basis
+/// for the `hue` modifier and the animatable `Prop::Hue` track.
+pub fn hsl(h: f32, s: f32, l: f32) -> Color {
+    let h = h.rem_euclid(360.0);
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = if h < 60.0 {
+        (c, x, 0.0)
+    } else if h < 120.0 {
+        (x, c, 0.0)
+    } else if h < 180.0 {
+        (0.0, c, x)
+    } else if h < 240.0 {
+        (0.0, x, c)
+    } else if h < 300.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    Color::new(r + m, g + m, b + m, 1.0)
+}
+
 /// Loaded font set. `None` fields fall back to macroquad's built-in font.
 ///
 /// The neon-terminal look is all monospace: `display` (headlines) and

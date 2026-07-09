@@ -57,6 +57,8 @@ pub enum Prop {
     Rot,
     /// Draw-on / typewriter progress ([`crate::primitives::Entity::trace`]).
     Trace,
+    /// HSL hue angle in degrees — drives `color` for colour cycling.
+    Hue,
 }
 
 /// Where a track ends up. `Rel` and `Revert` are resolved to absolute values
@@ -179,6 +181,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
         Prop::Scale => Value::F(e.scale),
         Prop::Rot => Value::F(e.rot),
         Prop::Trace => Value::F(e.trace),
+        Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
         Prop::To => match &e.shape {
             Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
             _ => return None,
@@ -195,6 +198,14 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
         (Prop::Scale, Value::F(s)) => e.scale = s,
         (Prop::Rot, Value::F(r)) => e.rot = r,
         (Prop::Trace, Value::F(f)) => e.trace = f,
+        (Prop::Hue, Value::F(h)) => {
+            e.hue = Some(h);
+            let c = crate::style::hsl(h, 1.0, 0.6);
+            e.color = c;
+            if e.stroke.outline_color.is_some() {
+                e.stroke.outline_color = Some(c);
+            }
+        }
         (Prop::To, Value::V(p)) => {
             if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &mut e.shape
             {

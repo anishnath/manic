@@ -23,6 +23,22 @@ pub enum Tok {
     RBrace,
     Comma,
     Semi,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Caret,
+    Eq,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    EqEq,
+    Ne,
+    AndAnd,
+    OrOr,
+    /// `..` — a range, used by `for`.
+    DotDot,
     Eof,
 }
 
@@ -50,6 +66,10 @@ impl<'a> Lexer<'a> {
 
     fn peek(&mut self) -> Option<char> {
         self.chars.peek().copied()
+    }
+
+    fn peek2(&self) -> Option<char> {
+        self.chars.clone().nth(1)
     }
 
     fn bump(&mut self) -> Option<char> {
@@ -93,23 +113,15 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 Some(c) if c.is_whitespace() => {
                     lx.bump();
                 }
-                Some('/') => {
-                    // could be a comment `//`; peek the char after
-                    let start = lx.here();
-                    lx.bump(); // consume first '/'
-                    if lx.peek() == Some('/') {
-                        // line comment: consume to end of line
-                        while let Some(c) = lx.peek() {
-                            if c == '\n' {
-                                break;
-                            }
-                            lx.bump();
+                Some('/') if lx.peek2() == Some('/') => {
+                    // line comment `//`: consume to end of line
+                    lx.bump();
+                    lx.bump();
+                    while let Some(c) = lx.peek() {
+                        if c == '\n' {
+                            break;
                         }
-                    } else {
-                        return Err(Error::new(
-                            "unexpected `/` (did you mean `//` for a comment?)",
-                            start,
-                        ));
+                        lx.bump();
                     }
                 }
                 _ => break,
@@ -149,6 +161,108 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
             ';' => {
                 lx.bump();
                 Tok::Semi
+            }
+            '+' => {
+                lx.bump();
+                Tok::Plus
+            }
+            '-' => {
+                lx.bump();
+                Tok::Minus
+            }
+            '*' => {
+                lx.bump();
+                Tok::Star
+            }
+            '/' => {
+                lx.bump();
+                Tok::Slash
+            }
+            '^' => {
+                lx.bump();
+                Tok::Caret
+            }
+            '=' => {
+                lx.bump();
+                if lx.peek() == Some('=') {
+                    lx.bump();
+                    Tok::EqEq
+                } else {
+                    Tok::Eq
+                }
+            }
+            '<' => {
+                lx.bump();
+                if lx.peek() == Some('=') {
+                    lx.bump();
+                    Tok::Le
+                } else {
+                    Tok::Lt
+                }
+            }
+            '>' => {
+                lx.bump();
+                if lx.peek() == Some('=') {
+                    lx.bump();
+                    Tok::Ge
+                } else {
+                    Tok::Gt
+                }
+            }
+            '!' => {
+                lx.bump();
+                if lx.peek() == Some('=') {
+                    lx.bump();
+                    Tok::Ne
+                } else {
+                    return Err(Error::new("unexpected `!` (did you mean `!=`?)", start));
+                }
+            }
+            '&' => {
+                lx.bump();
+                if lx.peek() == Some('&') {
+                    lx.bump();
+                    Tok::AndAnd
+                } else {
+                    return Err(Error::new("unexpected `&` (did you mean `&&`?)", start));
+                }
+            }
+            '|' => {
+                lx.bump();
+                if lx.peek() == Some('|') {
+                    lx.bump();
+                    Tok::OrOr
+                } else {
+                    return Err(Error::new("unexpected `|` (did you mean `||`?)", start));
+                }
+            }
+            // `..` range, or a `.5`-style number, or an error
+            '.' => {
+                lx.bump(); // first '.'
+                if lx.peek() == Some('.') {
+                    lx.bump();
+                    Tok::DotDot
+                } else if matches!(lx.peek(), Some(d) if d.is_ascii_digit()) {
+                    let mut s = String::from("0.");
+                    while let Some(ch) = lx.peek() {
+                        if ch.is_ascii_digit() {
+                            s.push(ch);
+                            lx.bump();
+                        } else {
+                            break;
+                        }
+                    }
+                    let n: f32 = s
+                        .parse()
+                        .map_err(|_| Error::new(format!("invalid number `{s}`"), start))?;
+                    out.push(Token {
+                        tok: Tok::Num(n),
+                        span: Span::new(start.line, start.col, s.chars().count() as u32),
+                    });
+                    continue;
+                } else {
+                    return Err(Error::new("unexpected `.`", start));
+                }
             }
             '"' => {
                 lx.bump(); // opening quote
@@ -194,23 +308,15 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 });
                 continue;
             }
-            c if c.is_ascii_digit() || c == '-' || c == '.' => {
+            c if c.is_ascii_digit() => {
                 let mut s = String::new();
-                if c == '-' {
-                    s.push('-');
-                    lx.bump();
-                    // must be followed by a digit or dot to be a number
-                    match lx.peek() {
-                        Some(d) if d.is_ascii_digit() || d == '.' => {}
-                        _ => return Err(Error::new("expected a number after `-`", start)),
-                    }
-                }
                 let mut seen_dot = false;
                 while let Some(ch) = lx.peek() {
                     if ch.is_ascii_digit() {
                         s.push(ch);
                         lx.bump();
-                    } else if ch == '.' && !seen_dot {
+                    } else if ch == '.' && !seen_dot && lx.peek2() != Some('.') {
+                        // a lone `.` is a decimal point; `..` is a range (leave it)
                         seen_dot = true;
                         s.push(ch);
                         lx.bump();
@@ -276,8 +382,21 @@ mod tests {
         assert_eq!(toks[0], Tok::Ident("par".into()));
         assert_eq!(toks[1], Tok::LBrace);
         assert!(toks.contains(&Tok::Str("hi\n".into())));
-        assert!(toks.contains(&Tok::Num(-5.0)));
+        // `-5` now lexes as a Minus operator + Num(5) (unary minus in the parser)
+        assert!(toks.contains(&Tok::Minus));
+        assert!(toks.contains(&Tok::Num(5.0)));
         assert_eq!(*toks.last().unwrap(), Tok::Eof);
+    }
+
+    #[test]
+    fn lexes_operators_and_ranges() {
+        let toks = kinds("let n = 2 + 3*4 / 2 ^ i .. m;");
+        assert!(toks.contains(&Tok::Eq));
+        assert!(toks.contains(&Tok::Plus));
+        assert!(toks.contains(&Tok::Star));
+        assert!(toks.contains(&Tok::Slash));
+        assert!(toks.contains(&Tok::Caret));
+        assert!(toks.contains(&Tok::DotDot));
     }
 
     #[test]
@@ -289,7 +408,16 @@ mod tests {
     }
 
     #[test]
-    fn bare_slash_is_an_error() {
-        assert!(lex("a / b").is_err());
+    fn single_slash_is_division() {
+        let toks = kinds("a / b");
+        assert_eq!(
+            toks,
+            vec![
+                Tok::Ident("a".into()),
+                Tok::Slash,
+                Tok::Ident("b".into()),
+                Tok::Eof,
+            ]
+        );
     }
 }

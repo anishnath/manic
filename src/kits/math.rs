@@ -587,13 +587,20 @@ fn c_polarplane(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// screen space: `(cx + x*sx, cy - f(x)*sy)`. `fn` is either a **named**
 /// function (`sin`, `cos`, `parabola`, …) or a **formula string** in the
 /// variable `x`/`t` — e.g. `plot(f,(cx,cy),40,40,"cos(x)+0.5*cos(7*x)",7)`,
-/// manic's `FunctionGraph(lambda t: …)`.
+/// manic's `FunctionGraph(lambda t: …)`. The range arg may also be an
+/// **asymmetric pair** `(x0, x1)` — e.g. `plot(g,(cx,cy),200,52,"x*x",(0,2.5))`.
 fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let c = a.pair(1)?;
     let sx = a.num(2)?;
     let sy = a.num(3)?;
-    let domain = a.opt_num(5)?.unwrap_or(6.0);
+    // range: either a scalar `domain` -> [-d, d], or an explicit `(x0, x1)`
+    let (x0, x1) = if let Ok(p) = a.pair(5) {
+        (p.x, p.y)
+    } else {
+        let d = a.opt_num(5)?.unwrap_or(6.0);
+        (-d, d)
+    };
 
     // arg 4 is either a "formula string" or a bare named-function word.
     enum F {
@@ -626,7 +633,7 @@ fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     const N: usize = 600;
     let mut pts = Vec::with_capacity(N + 1);
     for i in 0..=N {
-        let x = -domain + 2.0 * domain * i as f32 / N as f32;
+        let x = x0 + (x1 - x0) * i as f32 / N as f32;
         if let Some(y) = sample(x) {
             pts.push(Vec2::new(c.x + x * sx, c.y - y * sy));
         }

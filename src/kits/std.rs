@@ -210,6 +210,24 @@ fn m_color(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `hue(id, deg, [sat], [light])` — set the colour from an HSL hue in degrees
+/// (sat default 1.0, light default 0.6 for a bright neon). Perfect with a loop:
+/// `hue(bar{i}, 360*i/n)` gives each entity its own colour. The angle is also
+/// stored so it can be animated (`to(id, hue, deg)`) for colour cycling.
+fn m_hue(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let deg = a.num(1)?;
+    let sat = a.opt_num(2)?.unwrap_or(1.0).clamp(0.0, 1.0);
+    let light = a.opt_num(3)?.unwrap_or(0.6).clamp(0.0, 1.0);
+    let c = style::hsl(deg, sat, light);
+    let e = ent_mut(s, a)?;
+    e.color = c;
+    e.hue = Some(deg);
+    if e.stroke.outline_color.is_some() {
+        e.stroke.outline_color = Some(c);
+    }
+    Ok(())
+}
+
 fn m_outlined(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let e = ent_mut(s, a)?;
     e.stroke.fill = false;
@@ -459,10 +477,11 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
             TargetValue::Abs(Value::C(resolve_color(&a.ident(2)?, a.span_of(2))?)),
         ),
         "angle" | "rot" | "rotation" => (Prop::Rot, TargetValue::Abs(Value::F(a.num(2)?))),
+        "hue" => (Prop::Hue, TargetValue::Abs(Value::F(a.num(2)?))),
         other => {
             return Err(Error::new(
                 format!(
-                    "can't animate property `{other}` (try: x, y, opacity, scale, trace, color)"
+                    "can't animate property `{other}` (try: x, y, opacity, scale, trace, color, hue, angle)"
                 ),
                 a.span_of(1),
             ))
@@ -602,6 +621,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("rot", m_rot);
     r.ctor("opacity", m_opacity);
     r.ctor("color", m_color);
+    r.ctor("hue", m_hue);
     r.ctor("outlined", m_outlined);
     r.ctor("filled", m_filled);
     r.ctor("outline", m_outline);

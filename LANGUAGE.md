@@ -40,6 +40,41 @@ Put these first. (It's `canvas`, not `size` — `size` sets text size.)
 
 ---
 
+## Variables, arithmetic & loops
+
+manic has a small computation layer. It runs *before* the animation is built —
+every expression is evaluated to a plain number/point/name, so anywhere a
+number or `(x, y)` goes you can write a formula instead.
+
+```
+let n  = 8;              // a numeric variable
+let r  = 220;
+let cx = 640;  let cy = 380;
+
+for i in 0..n {          // i walks the integers 0, 1, ... n-1
+  let a = 6.283185 * i / n;             // arithmetic: + - * / ^ and functions
+  dot(p{i}, (cx + r*cos(a), cy + r*sin(a)));   // id interpolation: p{i} -> p0, p1, ...
+  tag(p{i}, ring);
+}
+show(ring);              // the whole generated group, by tag
+```
+
+- **`let name = expr;`** binds a number. Bindings are visible to later
+  statements; a `let` inside a loop/block is scoped to it.
+- **Expressions** support `+ - * / ^`, unary `-`, parentheses, the constants
+  `pi` / `e` / `tau`, and the functions `sin cos tan asin acos atan sinh cosh
+  tanh exp ln log log10 log2 sqrt abs floor ceil round sign`. Multiplication is
+  explicit (`3*i`, not `3i`). A bare word is a *variable* if bound, otherwise a
+  literal name (a colour, easing, id, or tag).
+- **`for v in a..b { … }`** repeats the body with `v = a, a+1, … b-1` (integers).
+- **`bar{i}`** — id interpolation: `{expr}` glued into an identifier is replaced
+  by its value, so each iteration makes a unique id (and you `tag` them into a
+  group to animate together). Glued only — `foo {` with a space is still a block.
+
+It's all additive: a program with no `let`/`for` behaves exactly as before.
+
+---
+
 ## Constructors — the cast (t = 0)
 
 Every entity has a unique **id** (its first argument) that later statements
@@ -70,6 +105,7 @@ Each takes the target id as the first argument.
 | `outlined(id)` | outline only (no fill) |
 | `filled(id)` | fill only (no outline) |
 | `outline(id, name)` | outline color (and turn the outline on) |
+| `hue(id, deg, [sat], [light])` | set the color from an HSL hue in degrees (sat 1.0, light 0.6 by default) — computable, so `hue(bar{i}, 360*i/n)` gives each looped entity its own color |
 | `size(id, n)` | text size (text entities only) |
 | `stroke(id, n)` | stroke / outline width in px |
 | `glow(id, n)` | neon halo intensity (0 = crisp, 1 = default) |
@@ -173,11 +209,12 @@ entities named `{id}.x`, `{id}.tN`, etc.
 | `plane(id, (cx,cy), halfw, halfh, [unit])` (alias `numberplane`) | a NumberPlane: a faint grid every `unit` px (default 50) with brighter axes through the centre. Grid tagged `{id}.grid`; axes `{id}.x` / `{id}.y` |
 | `complexplane(id, (cx,cy), halfw, halfh, [unit])` | a NumberPlane labelled with cyan `Re` / `Im` axes |
 | `polarplane(id, (cx,cy), radius, [rings], [spokes])` | a PolarPlane: faint concentric rings (default 4) and radial spokes (default 12), tagged `{id}.grid` |
-| `plot(id, (cx,cy), sx, sy, fn, [domain])` | plot `fn` over `x ∈ [-domain, domain]` (default 6), mapped as `(cx + x·sx, cy − f(x)·sy)`, as a glowing polyline. `fn` is either a **named** function (below) or a **formula string** in `x` (alias `t`) — e.g. `"cos(x) + 0.5*cos(7*x)"` (manic's `FunctionGraph`) |
+| `plot(id, (cx,cy), sx, sy, fn, [range])` | plot `fn`, mapped as `(cx + x·sx, cy − f(x)·sy)`, as a glowing polyline. `fn` is either a **named** function (below) or a **formula string** in `x` (alias `t`) — e.g. `"cos(x) + 0.5*cos(7*x)"` (manic's `FunctionGraph`). `range` is a scalar `domain` → `x ∈ [-domain, domain]` (default 6) **or** an explicit pair `(x0, x1)` for a one-sided range, e.g. `plot(g,(cx,cy),200,52,"x*x",(0,2.5))` |
 | `vector(id, (cx,cy), (dx,dy), [color])` | an arrow from the origin to `(cx+dx, cy−dy)` (dy is up); default magenta |
 | `numberline(id, (cx,cy), halfw, from, to, step)` | an axis with ticks and labels from `from` to `to` |
 | `arrowfield(id, (cx,cy), halfw, halfh, field, [n])` | a grid of arrows sampling a named vector `field`, coloured by magnitude (cyan→lime→magenta); `n` arrows across |
 | `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space/comma); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
+| `table(id, "a b; c d", (cx,cy), [cellw], [cellh], [col-labels], [row-labels])` (aliases `mathtable`/`decimaltable`/`integertable`) | a ruled grid of single-token entries; body cell `{id}.r{i}c{j}` (tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`); optional header strings add a top label row (`{id}.collabel{j}`) / left label column (`{id}.rowlabel{i}`), tagged `{id}.labels`; grid lines `{id}.h{k}` / `{id}.v{k}`, tagged `{id}.hlines` / `{id}.vlines` / `{id}.lines` |
 | `arc(id, (cx,cy), r, start, sweep)` | a circular arc line (angles in degrees) |
 | `sector(id, (cx,cy), r, start, sweep)` | a filled pie slice |
 | `annulus(id, (cx,cy), outer, inner)` | a filled ring between two radii |

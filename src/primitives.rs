@@ -165,6 +165,9 @@ pub struct Entity {
     pub deps: Vec<String>,
     /// Recompute this entity from its `deps` each frame (see [`DeriveFn`]).
     pub derive: Option<DeriveFn>,
+    /// If set, an HSL hue angle (degrees) that drives `color`; animatable via
+    /// [`crate::timeline::Prop::Hue`] for colour cycling.
+    pub hue: Option<f32>,
 }
 
 impl Entity {
@@ -191,6 +194,7 @@ impl Entity {
             link: None,
             deps: Vec::new(),
             derive: None,
+            hue: None,
         }
     }
 }
