@@ -62,7 +62,17 @@ impl Registry {
 fn is_reserved(name: &str) -> bool {
     matches!(
         name,
-        "title" | "canvas" | "par" | "seq" | "stagger" | "section" | "wait" | "beat" | "mark"
+        "title"
+            | "canvas"
+            | "template"
+            | "masthead"
+            | "par"
+            | "seq"
+            | "stagger"
+            | "section"
+            | "wait"
+            | "beat"
+            | "mark"
     )
 }
 
@@ -634,9 +644,11 @@ fn args_of<'a>(s: &'a Stmt) -> Args<'a> {
 }
 
 fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
-    // phase 0 — movie metadata (title/size); first occurrence wins
+    // phase 0 — movie metadata (title/size/template); first occurrence wins
     let mut title = "manic".to_string();
     let (mut w, mut h) = (1280u32, 720u32);
+    let mut template: Option<(String, Span)> = None;
+    let mut masthead: Option<(String, Option<String>)> = None;
     for s in &prog.stmts {
         match s.name.as_str() {
             "title" => title = args_of(s).text(0)?,
@@ -645,10 +657,36 @@ fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
                 w = cw;
                 h = ch;
             }
+            "template" => {
+                if template.is_none() {
+                    template = Some((args_of(s).text(0)?, s.name_span));
+                }
+            }
+            "masthead" => {
+                if masthead.is_none() {
+                    let a = args_of(s);
+                    let right = if a.len() > 1 { Some(a.text(1)?) } else { None };
+                    masthead = Some((a.text(0)?, right));
+                }
+            }
             _ => {}
         }
     }
     let mut movie = Movie::new(&title, w, h);
+    if let Some((name, span)) = template {
+        movie.template = crate::style::Template::by_name(&name).ok_or_else(|| {
+            Error::new(
+                format!("unknown template `{name}` — try `plain` or `terminal`"),
+                span,
+            )
+        })?;
+    }
+    if let Some((left, right)) = masthead {
+        movie.template.masthead_left = left;
+        if let Some(right) = right {
+            movie.template.masthead_right = right;
+        }
+    }
 
     // classify + fail fast on unknown names
     for s in &prog.stmts {
@@ -682,7 +720,7 @@ enum Class {
 
 impl Class {
     fn of(name: &str, registry: &Registry) -> Class {
-        if matches!(name, "title" | "canvas") {
+        if matches!(name, "title" | "canvas" | "template" | "masthead") {
             Class::Meta
         } else if registry.ctors.contains_key(name) {
             Class::Ctor

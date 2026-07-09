@@ -334,15 +334,21 @@ fn draw_text_glow(
 // ---- entities -----------------------------------------------------------------
 
 /// Draw one entity through `view`.
-pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
+pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template) {
     if e.opacity <= 0.001 || e.id == crate::movie::CAMERA_ID {
         return;
     }
     let trace = e.trace.clamp(0.0, 1.0);
+    // retint the neon-baked colour to the active template's palette; bespoke
+    // colours (hues, explicit RGB) pass through unchanged
+    let base = tpl.palette.remap(e.color);
+    let outline_base = tpl.palette.remap(e.stroke.outline_color.unwrap_or(e.color));
+    // the template scales every entity's glow (0 = crisp, for print looks)
+    let glow = e.glow * tpl.glow;
     // fills fade in as their outline is traced
-    let fill = style::with_opacity(e.color, e.opacity * trace);
-    let stroke_c = style::with_opacity(e.color, e.opacity);
-    let outline = style::with_opacity(e.stroke.outline_color.unwrap_or(e.color), e.opacity);
+    let fill = style::with_opacity(base, e.opacity * trace);
+    let stroke_c = style::with_opacity(base, e.opacity);
+    let outline = style::with_opacity(outline_base, e.opacity);
     let k = view.k();
     let p = view.xform(e.pos);
     let width = e.stroke.width * k;
@@ -350,7 +356,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
     let rotated = e.rot.abs() > 1e-3;
     // glow only once a shape/text is fully drawn — a halo over a half-traced
     // path reads as a rendering bug
-    let glow_on = e.glow > 0.01 && trace >= 0.999;
+    let glow_on = glow > 0.01 && trace >= 0.999;
 
     match &e.shape {
         Shape::Circle { r } => {
@@ -361,7 +367,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
             if e.stroke.outline {
                 if trace >= 1.0 {
                     if glow_on {
-                        draw_circle_lines(p.x, p.y, r, width * 3.0, halo(outline, e.opacity, e.glow));
+                        draw_circle_lines(p.x, p.y, r, width * 3.0, halo(outline, e.opacity, glow));
                     }
                     draw_circle_lines(p.x, p.y, r, width, outline);
                 } else {
@@ -379,7 +385,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                 if e.stroke.outline {
                     if trace >= 1.0 {
                         if glow_on {
-                            draw_rectangle_lines(x, y, w, h, width * 5.0, halo(outline, e.opacity, e.glow));
+                            draw_rectangle_lines(x, y, w, h, width * 5.0, halo(outline, e.opacity, glow));
                         }
                         draw_rectangle_lines(x, y, w, h, width * 2.0, outline);
                     } else {
@@ -411,7 +417,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                 if e.stroke.outline {
                     let closed = [cs[0], cs[1], cs[2], cs[3], cs[0]];
                     if glow_on {
-                        draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                        draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
                     }
                     draw_path(&closed, trace, width, outline);
                 }
@@ -420,14 +426,14 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
         Shape::Line { to } => {
             let q = rot_pt(view.xform(*to), p, rad);
             if glow_on {
-                draw_path(&[p, q], trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, e.glow));
+                draw_path(&[p, q], trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow));
             }
             draw_path(&[p, q], trace, width * e.scale, stroke_c);
         }
         Shape::Arrow { to } => {
             let pts = [p, rot_pt(view.xform(*to), p, rad)];
             if glow_on {
-                draw_stroke_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, e.glow), true);
+                draw_stroke_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow), true);
             }
             draw_stroke_path(&pts, trace, width * e.scale, stroke_c, true);
         }
@@ -436,7 +442,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
             let to_p = rot_pt(view.xform(*to), p, rad);
             let pts = bezier_pts(p, ctrl_p, to_p, 32);
             if glow_on {
-                draw_stroke_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, e.glow), *arrow);
+                draw_stroke_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow), *arrow);
             }
             draw_stroke_path(&pts, trace, width * e.scale, stroke_c, *arrow);
         }
@@ -460,7 +466,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                 let mut closed = phys.clone();
                 closed.push(phys[0]);
                 if glow_on {
-                    draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                    draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
                 }
                 draw_path(&closed, trace, width, outline);
             }
@@ -477,7 +483,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                 }
             }
             if glow_on {
-                draw_path(&phys, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, e.glow));
+                draw_path(&phys, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow));
             }
             draw_path(&phys, trace, width * e.scale, stroke_c);
         }
@@ -528,13 +534,13 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                         b.push(outer[0]);
                     }
                     if glow_on {
-                        draw_path(&b, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                        draw_path(&b, trace, width * 3.0, halo(outline, e.opacity, glow));
                     }
                     draw_path(&b, trace, width, outline);
                     if full && !solid {
                         // inner ring for a full annulus
                         if glow_on {
-                            draw_path(&inner_pts, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                            draw_path(&inner_pts, trace, width * 3.0, halo(outline, e.opacity, glow));
                         }
                         draw_path(&inner_pts, trace, width, outline);
                     }
@@ -542,7 +548,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
             } else {
                 // plain arc: just the outer curve, no radii
                 if glow_on {
-                    draw_path(&outer, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, e.glow));
+                    draw_path(&outer, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow));
                 }
                 draw_path(&outer, trace, width * e.scale, stroke_c);
             }
@@ -574,7 +580,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
                     let mut phys: Vec<Vec2> = ring.iter().map(|&q| place(q)).collect();
                     phys.push(phys[0]);
                     if glow_on {
-                        draw_path(&phys, trace, width * 3.0, halo(outline, e.opacity, e.glow));
+                        draw_path(&phys, trace, width * 3.0, halo(outline, e.opacity, glow));
                     }
                     draw_path(&phys, trace, width, outline);
                 }
@@ -587,7 +593,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
             let wrap = e.wrap.map(|w| w * k);
             if glow_on {
                 draw_text_glow(
-                    content, p, phys_size, raster, stroke_c, e.opacity, e.glow, font, e.rot,
+                    content, p, phys_size, raster, stroke_c, e.opacity, glow, font, e.rot,
                     wrap, e.align,
                 );
             }
@@ -601,7 +607,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View) {
 }
 
 /// Draw a whole scene in z-order (stable within equal z).
-pub fn draw_scene(scene: &Scene, fonts: &Fonts, view: &View) {
+pub fn draw_scene(scene: &Scene, fonts: &Fonts, view: &View, tpl: &style::Template) {
     let mut order: Vec<usize> = (0..scene.entities.len()).collect();
     order.sort_by_key(|&i| scene.entities[i].z);
     let sticky_view = View {
@@ -615,18 +621,32 @@ pub fn draw_scene(scene: &Scene, fonts: &Fonts, view: &View) {
             entity,
             fonts,
             if entity.sticky { &sticky_view } else { view },
+            tpl,
         );
     }
 }
 
 // ---- terminal chrome ------------------------------------------------------
 
-/// The neon terminal chrome drawn under every frame: a glowing border with
-/// corner brackets, three synthwave "window dots", the title, a fake shell
-/// prompt, and a two-tone rule. It lives in world coordinates, so camera
-/// moves treat it as part of the page rather than as sticky UI.
-pub fn draw_page_chrome(title: &str, w: f32, h: f32, fonts: &Fonts, view: &View) {
-    clear_background(style::VOID);
+/// Draw the background and (per the template's chrome level) the page chrome:
+/// a glowing border with corner brackets, three "window dots", the title, a
+/// masthead, and a two-tone rule. `Chrome::None` (the default `plain` template)
+/// draws only the background — a blank screen. It lives in world coordinates,
+/// so camera moves treat the chrome as part of the page rather than sticky UI.
+pub fn draw_page_chrome(
+    tpl: &style::Template,
+    title: &str,
+    w: f32,
+    h: f32,
+    fonts: &Fonts,
+    view: &View,
+) {
+    clear_background(tpl.palette.bg);
+    if tpl.chrome == style::Chrome::None {
+        return; // plain: blank screen, content only
+    }
+    let full = tpl.chrome == style::Chrome::Full;
+    let pal = tpl.palette;
     let k = view.k();
     let line = |a: Vec2, b: Vec2, width: f32, color: Color| {
         let a = view.xform(a);
@@ -634,12 +654,14 @@ pub fn draw_page_chrome(title: &str, w: f32, h: f32, fonts: &Fonts, view: &View)
         draw_line(a.x, a.y, b.x, b.y, width * k, color);
     };
 
+    // --- Full-only: border, corner brackets, window dots, title ---
+    if full {
     // outer border: faint glowing cyan frame
     let (bx, by, bw, bh) = (18.0, 18.0, w - 36.0, h - 36.0);
     {
         let p = view.xform(Vec2::new(bx, by));
-        draw_rectangle_lines(p.x, p.y, bw * k, bh * k, 4.0 * k, halo(style::CYAN, 1.0, 1.0));
-        draw_rectangle_lines(p.x, p.y, bw * k, bh * k, 1.5 * k, style::with_opacity(style::CYAN, 0.5));
+        draw_rectangle_lines(p.x, p.y, bw * k, bh * k, 4.0 * k, halo(pal.cyan, 1.0, 1.0));
+        draw_rectangle_lines(p.x, p.y, bw * k, bh * k, 1.5 * k, style::with_opacity(pal.cyan, 0.5));
     }
     // corner brackets, brighter neon
     let br = 26.0;
@@ -649,12 +671,12 @@ pub fn draw_page_chrome(title: &str, w: f32, h: f32, fonts: &Fonts, view: &View)
         (bx, by + bh, 1.0, -1.0),
         (bx + bw, by + bh, -1.0, -1.0),
     ] {
-        line(Vec2::new(cx, cy), Vec2::new(cx + br * sx, cy), 2.5, style::CYAN);
-        line(Vec2::new(cx, cy), Vec2::new(cx, cy + br * sy), 2.5, style::CYAN);
+        line(Vec2::new(cx, cy), Vec2::new(cx + br * sx, cy), 2.5, pal.cyan);
+        line(Vec2::new(cx, cy), Vec2::new(cx, cy + br * sy), 2.5, pal.cyan);
     }
 
     // three window dots, top-left inside the frame
-    for (i, c) in [style::MAGENTA, style::LIME, style::CYAN].iter().enumerate() {
+    for (i, c) in [pal.magenta, pal.lime, pal.cyan].iter().enumerate() {
         let d = view.xform(Vec2::new(44.0 + i as f32 * 22.0, 50.0));
         draw_circle(d.x, d.y, 6.0 * k, halo(*c, 1.0, 1.4));
         draw_circle(d.x, d.y, 4.0 * k, *c);
@@ -669,7 +691,7 @@ pub fn draw_page_chrome(title: &str, w: f32, h: f32, fonts: &Fonts, view: &View)
             tpos + off,
             34.0 * k,
             34.0 * view.ss,
-            halo(style::CYAN, 1.0, 1.6),
+            halo(pal.cyan, 1.0, 1.6),
             fonts.display.as_ref(),
             0.0,
             None,
@@ -682,50 +704,57 @@ pub fn draw_page_chrome(title: &str, w: f32, h: f32, fonts: &Fonts, view: &View)
         tpos,
         34.0 * k,
         34.0 * view.ss,
-        style::CYAN,
+        pal.cyan,
         fonts.display.as_ref(),
         0.0,
         None,
         Align::Center,
         1.0,
     );
+    } // end Full-only
 
-    // fake shell prompt (left) + status (right), dim mono
+    // masthead: shell prompt (left) + status (right), dim mono — Full & Minimal
     if let Some(mono) = fonts.mono.as_ref() {
         let fs = (14.0 * view.ss).round() as u16;
         let fscale = 14.0 * k / fs as f32;
-        let left = view.xform(Vec2::new(150.0, 54.0));
-        draw_text_ex(
-            style::MASTHEAD_LEFT,
-            left.x,
-            left.y,
-            TextParams {
-                font: Some(mono),
-                font_size: fs,
-                font_scale: fscale,
-                font_scale_aspect: 1.0,
-                rotation: 0.0,
-                color: style::DIM,
-            },
-        );
-        let rdims = measure_text(style::MASTHEAD_RIGHT, Some(mono), fs, fscale);
-        let right = view.xform(Vec2::new(w - 44.0, 54.0));
-        draw_text_ex(
-            style::MASTHEAD_RIGHT,
-            right.x - rdims.width,
-            right.y,
-            TextParams {
-                font: Some(mono),
-                font_size: fs,
-                font_scale: fscale,
-                font_scale_aspect: 1.0,
-                rotation: 0.0,
-                color: style::DIM,
-            },
-        );
+        if !tpl.masthead_left.is_empty() {
+            let left = view.xform(Vec2::new(150.0, 54.0));
+            draw_text_ex(
+                &tpl.masthead_left,
+                left.x,
+                left.y,
+                TextParams {
+                    font: Some(mono),
+                    font_size: fs,
+                    font_scale: fscale,
+                    font_scale_aspect: 1.0,
+                    rotation: 0.0,
+                    color: pal.dim,
+                },
+            );
+        }
+        if !tpl.masthead_right.is_empty() {
+            let rdims = measure_text(&tpl.masthead_right, Some(mono), fs, fscale);
+            let right = view.xform(Vec2::new(w - 44.0, 54.0));
+            draw_text_ex(
+                &tpl.masthead_right,
+                right.x - rdims.width,
+                right.y,
+                TextParams {
+                    font: Some(mono),
+                    font_size: fs,
+                    font_scale: fscale,
+                    font_scale_aspect: 1.0,
+                    rotation: 0.0,
+                    color: pal.dim,
+                },
+            );
+        }
     }
 
-    // two-tone synthwave rule under the header
-    line(Vec2::new(40.0, 84.0), Vec2::new(w - 40.0, 84.0), 2.0, style::CYAN);
-    line(Vec2::new(40.0, 89.0), Vec2::new(w - 40.0, 89.0), 1.0, style::MAGENTA);
+    // two-tone synthwave rule under the header (Full only)
+    if full {
+        line(Vec2::new(40.0, 84.0), Vec2::new(w - 40.0, 84.0), 2.0, pal.cyan);
+        line(Vec2::new(40.0, 89.0), Vec2::new(w - 40.0, 89.0), 1.0, pal.magenta);
+    }
 }

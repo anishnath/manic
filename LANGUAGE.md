@@ -20,12 +20,19 @@ Arguments are:
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
 
 Coordinates are in pixels, origin **top-left**, y increases **downward** (the
-math kit flips y for you where it matters). A statement may reference an entity
-declared anywhere in the file — declare the cast and script the beats in
-whatever order reads best.
+math kit flips y for you where it matters).
 
-There are two kinds of statement: **constructors**, which build the cast at
-time 0, and **timeline** statements (verbs and blocks), which play in order.
+Statements fall into three groups:
+
+- **Control / computation** — `let`, `for`, `if`, `def`, and macro calls. These
+  are resolved **at build time** (see the computation layer below) and expand
+  into the other two kinds; they produce nothing on their own.
+- **Constructors** — build the cast at time 0 (shapes, modifiers, kit figures).
+- **Timeline** — verbs and `par`/`seq`/`stagger` blocks, which play in order.
+
+Constructors and timeline statements may appear in any order in the file — the
+cast is gathered first, then the script runs — so you can reference an entity in
+a beat written above its declaration.
 
 ---
 
@@ -36,6 +43,8 @@ time 0, and **timeline** statements (verbs and blocks), which play in order.
 | `title("...")` | window title + the masthead shown on every frame |
 | `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
 | `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
+| `template("name")` | the overall look. `"plain"` (default) is a blank screen — background + your content only. `"terminal"` neon window chrome (border, dots, title, rule); `"paper"` ink on cream; `"blueprint"` white/cyan on navy. Each **retints** the palette (`cyan`/`fg`/`bg`…). Override at render with `--template <name>`. |
+| `masthead("left", ["right"])` | your own header text in the top corners (shown by `terminal`). Empty by default — no engine branding is ever baked in. |
 
 Put these first. (It's `canvas`, not `size` — `size` sets text size.)
 
@@ -52,51 +61,94 @@ dot(corner, (cx - w/4, cy - h/4));    // relative placement
 
 ---
 
-## Variables, arithmetic, loops & macros
+## The computation layer (evaluated before the animation)
 
-manic has a small computation layer. It runs *before* the animation is built —
-every expression is evaluated to a plain number/point/name, so anywhere a
-number or `(x, y)` goes you can write a formula instead.
+manic runs in two phases, and it helps to keep them separate:
+
+1. **Computation layer** — variables, arithmetic, loops, conditionals, macros,
+   reductions. Evaluated **once, at build time**, *before any frame is drawn*.
+   It decides **what entities exist and where**. Everything here collapses to
+   plain values, so it has no per-frame cost and **cannot refer to time**.
+2. **Animation timeline** — verbs (`show`, `move`, `to`, …) that animate entity
+   **properties over time**. This is the runtime part (see below).
+
+> Rule of thumb: use the computation layer to *lay out* a scene; use the
+> timeline to *animate* it. A `let` is a fixed build-time number — to make a
+> number change on screen over time, use a `counter` + `to(id, value, …)`, not
+> a `let`.
 
 ```
-let n  = 8;              // a numeric variable
-let r  = 220;
-let cx = 640;  let cy = 380;
+let n = 8;                 // a variable: a build-time number
+let r = 220;
 
-for i in 0..n {          // i walks the integers 0, 1, ... n-1
-  let a = 6.283185 * i / n;             // arithmetic: + - * / ^ and functions
-  dot(p{i}, (cx + r*cos(a), cy + r*sin(a)));   // id interpolation: p{i} -> p0, p1, ...
+for i in 0..n {            // a loop: repeats the body for i = 0,1,...,n-1
+  let a = tau * i / n;                          // arithmetic + a constant
+  dot(p{i}, (cx + r*cos(a), cy + r*sin(a)));    // interpolation: p{i} -> p0,p1,...
   tag(p{i}, ring);
 }
-show(ring);              // the whole generated group, by tag
+show(ring);                // animate the whole generated group by tag
 ```
 
-- **`let name = expr;`** binds a number. Bindings are visible to later
-  statements; a `let` inside a loop/block is scoped to it.
-- **Expressions** support arithmetic `+ - * / ^` and unary `-`, comparisons
-  `< <= > >= == !=`, logic `&& ||` (all yielding `1`/`0`), parentheses, the
-  constants `pi` / `e` / `tau`, and the functions `sin cos tan asin acos atan
-  sinh cosh tanh exp ln log log10 log2 sqrt abs floor ceil round sign`.
-  Multiplication is explicit (`3*i`, not `3i`). A bare word is a *variable* if
-  bound, otherwise a literal name (a colour, easing, id, or tag).
-- **`for v in a..b { … }`** repeats the body with `v = a, a+1, … b-1` (integers).
-- **`if cond { … } else { … }`** (and `else if`) run a branch when `cond` is
-  nonzero — the base case for recursion.
-- **`def name(p1, p2, …) { … }`** defines a reusable macro; call it like any
-  other statement. Params are numbers; a macro may call itself (recursion), so
-  fractals and trees are a few lines. (Give a base case, or it stops at the
-  recursion-depth guard.)
-- **`bar{i}`** — id interpolation: `{expr}` glued into an identifier is replaced
-  by its value, so each iteration/call makes a unique id (then `tag` them into a
-  group to animate together). Glued only — `foo {` with a space is still a block.
-- **Reductions** — `sum(i in a..b : expr)` aggregates `expr` over the range;
-  also `prod`, `min`, `max`. Use in a `let`: `let area = sum(i in 0..n :
-  f(i)*dx);`. This is how you compute a total in-language.
+### Values
+Every expression evaluates to one of four things:
+- **number** — the only thing arithmetic produces (booleans are numbers: `1`
+  true, `0` false);
+- **point** — an `(x, y)` pair, each component its own expression;
+- **string** — `"..."`;
+- **name** — a bare word that is *not* a bound variable: an entity id, colour,
+  easing, or function name.
 
-It's all additive: a program using none of these behaves exactly as before.
+### Variable — `let name = expr;`
+Binds `name` to the **number** that `expr` evaluates to; use it anywhere a
+number or coordinate is expected. **Scope is lexical**: a top-level `let` is
+visible to the statements after it; a `let` inside a `for` / `if` / block /
+macro is confined to that body. Variables are **immutable** within a scope —
+there is no reassignment; a later `let name = …` *shadows* the earlier one.
+**Predefined:** `w`, `h`, `cx`, `cy` (from `canvas`) and the constants `pi`,
+`e`, `tau` (a `let` of the same name shadows them).
 
-To show a computed number that **counts up on screen**, pair a reduction with a
-`counter` (below): `counter(total, (x,y), 0, 3, "area = ", "")` then
+### Expression & operators
+Arithmetic `+ - * / ^` (`^` right-associative) and unary `-`; comparisons
+`< <= > >= == !=` and logic `&& ||` (all yield `1`/`0`); parentheses; and the
+functions `sin cos tan asin acos atan sinh cosh tanh exp ln log log10 log2 sqrt
+abs floor ceil round sign`.
+
+**Implicit multiplication** is allowed where it's unambiguous: a number or `)`
+directly followed by a name or `(` multiplies — `2sx`, `3(x+1)`, `(a+b)c`,
+`2pi` all mean what they look like. The one thing you *must* write with `*` is a
+product of two variable names: `dx*sx`, because `dxsx` is a single identifier
+(there's no boundary to split). Two number literals are never joined either, so
+a missing comma like `(0 0)` stays a clear error.
+
+### Loop — `for v in a..b { … }`
+**Build-time repetition** (unrolling): expands the body once for each integer
+`v` in `[a, b)` — i.e. `a, a+1, … b-1`. It is not a runtime loop; the body's
+statements are generated before rendering.
+
+### Conditional — `if cond { … } [else { … }]`
+**Build-time branch**: keeps one arm's statements depending on `cond` (nonzero =
+true). Chains with `else if`.
+
+### Macro — `def name(p1, p2, …) { … }`
+A named, parameterised **block of statements**. Calling `name(args)` **expands**
+the body with each parameter bound to the corresponding argument number — a
+macro *emits statements*, it is **not** a value-returning function. Parameters
+are numbers. A macro **may call itself** (recursion), bounded by a depth guard,
+so a self-recursive macro needs a base case via `if`.
+
+### Reduction — `sum(v in a..b : expr)`
+An **expression** (returns a number) that aggregates `expr` over the integer
+range `[a, b)`; also `prod`, `min`, `max`. This is how you compute a total
+in-language: `let area = sum(i in 0..n : f(i)*dx);`.
+
+### Id interpolation — `name{expr}`
+Builds an **identifier** by substituting the value of `{expr}` into it (glued,
+no space — `foo {` with a space is still a block). Gives each loop iteration or
+macro call a unique id; `tag` those into a group to animate together.
+
+Everything here is additive: a program that uses none of it behaves exactly as
+a plain list of calls. To show a computed number **counting up on screen**, pair
+a reduction with a `counter`: `counter(total, (x,y), 0, 3, "area = ", "")` then
 `to(total, value, area)` tweens the readout from 0 to `area`.
 
 ---
@@ -192,14 +244,13 @@ to(A, trace, 0.5);                // half-draw a stroke
 to(A, hue, 480, 2, linear);       // cycle colour around the wheel (needs hue set)
 ```
 
-The animatable properties are `x`, `y`, `opacity`, `scale`, `angle`, `trace`,
-`color`, `hue`, and `value`. `hue` travels around the colour wheel (set an
-initial hue with the `hue` modifier first), so it cycles smoothly where `color`
-would interpolate through grey. `value` drives a `counter`'s displayed number.
-
-Animatable **properties**: `x`, `y`, `opacity` (`alpha`), `scale`, `angle`
-(`rot`), `trace`, `color`. Combine any of them with `par`/`seq`/`stagger` and
-any easing — that's the full freedom to animate however you like.
+The animatable **properties** are `x`, `y`, `opacity` (alias `alpha`), `scale`,
+`angle` (alias `rot`/`rotation`), `trace`, `color`, `hue`, and `value` (alias
+`count`). `hue` travels around the colour wheel (set an initial hue with the
+`hue` modifier first), so it cycles smoothly where `color` would interpolate
+through grey; `value` drives a `counter`'s displayed number. Combine any of them
+with `par`/`seq`/`stagger` and any easing — that is the full freedom to animate
+however you like.
 
 ---
 
@@ -214,8 +265,9 @@ any easing — that's the full freedom to animate however you like.
 | `seq { ... }` | run the inner beats **one after another** |
 | `stagger(d) { ... }` | run in parallel, each starting `d` seconds after the previous |
 
-Blocks nest, and may contain verbs, `wait`, and other blocks — but not
-constructors, `section`, or `mark`.
+Blocks nest, and may contain verbs, `wait`, other blocks, and **control
+constructs** (`for` / `if` / macro calls — which expand into verbs). They may
+**not** contain constructors, `section`, or `mark`.
 
 ```
 par {

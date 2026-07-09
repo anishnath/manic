@@ -41,6 +41,7 @@ pub(crate) struct Opts {
     pub png: bool,
     pub gif: bool,
     pub crt: bool,
+    pub template: Option<String>,
 }
 
 pub(crate) fn parse_opts() -> Opts {
@@ -57,6 +58,7 @@ pub(crate) fn parse_opts() -> Opts {
         png: false,
         gif: false,
         crt: false,
+        template: None,
     };
     let mut i = 1;
     let value = |args: &[String], i: usize, flag: &str| -> String {
@@ -110,6 +112,10 @@ pub(crate) fn parse_opts() -> Opts {
             "--png" => opts.png = true,
             "--gif" => opts.gif = true,
             "--crt" => opts.crt = true,
+            "--template" | "--theme" => {
+                opts.template = Some(value(&args, i, "--template"));
+                i += 1;
+            }
             _ => {}
         }
         i += 1;
@@ -191,10 +197,17 @@ fn fullscreen_pressed() -> bool {
         || (command_down && control_down && is_key_pressed(KeyCode::F))
 }
 
-pub async fn run_loop(movie: Movie) {
+pub async fn run_loop(mut movie: Movie) {
     let fonts = Fonts::load();
     let (base, timeline) = movie.finalize();
     let opts = parse_opts();
+    // CLI template override (e.g. `--template terminal`)
+    if let Some(name) = &opts.template {
+        match crate::style::Template::by_name(name) {
+            Some(t) => movie.template = t,
+            None => eprintln!("unknown template `{name}` — keeping `{}`", movie.template.name),
+        }
+    }
     let (w, h) = (movie.width as f32, movie.height as f32);
     let s = opts.scale;
     let (pw, ph) = ((w * s).round(), (h * s).round());
@@ -217,7 +230,7 @@ pub async fn run_loop(movie: Movie) {
         ..Default::default()
     };
 
-    let crt = if opts.crt {
+    let crt = if opts.crt || movie.template.crt {
         load_material(
             ShaderSource::Glsl {
                 vertex: CRT_VERT,
@@ -244,9 +257,9 @@ pub async fn run_loop(movie: Movie) {
         if opts.alpha {
             clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
         } else {
-            render::draw_page_chrome(&movie.title, w, h, &fonts, &view);
+            render::draw_page_chrome(&movie.template, &movie.title, w, h, &fonts, &view);
         }
-        render::draw_scene(&scene, &fonts, &view);
+        render::draw_scene(&scene, &fonts, &view, &movie.template);
     };
 
     // crt bake: rt -> rt_post through the material; both passes flip, so

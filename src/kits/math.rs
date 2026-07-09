@@ -179,6 +179,11 @@ mod expr {
                         self.i += 1;
                         lhs = Node::Div(Box::new(lhs), Box::new(self.unary()?));
                     }
+                    // implicit multiplication before a name or `(`: `2x`, `2pi`,
+                    // `3(x+1)` — matches the main DSL. Not before a digit.
+                    Some(c) if (c as char).is_ascii_alphabetic() || c == b'_' || c == b'(' => {
+                        lhs = Node::Mul(Box::new(lhs), Box::new(self.unary()?));
+                    }
                     _ => break,
                 }
             }

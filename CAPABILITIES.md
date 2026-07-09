@@ -254,13 +254,34 @@ Separately tracked, larger and orthogonal: **LaTeX/math typesetting** (approach
 under evaluation, see Typography), **selectable fonts**, and **3D** (deferred by
 design).
 
-## Templates / themes (planned)
+## Templates / themes
 
-**Requirement.** Today the neon-terminal identity is hard-coded (palette
-constants in `style.rs`, terminal-window chrome + glow in `render.rs`, CRT in
-`player.rs`). It should become **one selectable template**, so an author can
-switch the whole look — palette, fonts, chrome, glow, post-fx — without touching
-their `.manic` content. Neon stays the default.
+**Shipped (v1).** The look is now a selectable **template**, chosen with
+`template("name")` (or `--template <name>` at render time). Chrome is driven by
+`style::Template` (`Chrome::None|Minimal|Full` + background + masthead strings),
+carried on the `Movie` and read by `render::draw_page_chrome`.
+- **`plain` (default)** — a blank screen: background + content only, no frame /
+  dots / masthead / rule. This is now the out-of-the-box look.
+- **`terminal`** — the neon terminal-window chrome (border, corner brackets,
+  window dots, centred title, masthead, two-tone rule), now opt-in.
+
+**Runtime palette DONE.** Each template carries a `style::Palette` (bg/fg/cyan/
+magenta/lime/dim/panel). The engine still bakes neon everywhere; the renderer
+**remaps** each palette colour to the active template's at draw time
+(`Palette::remap`, in `draw_entity`), so `--template` retints **content** too,
+while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`
+(default, neon palette), `terminal` (neon + chrome), `paper` (ink on cream),
+`blueprint` (white/cyan on navy). **Masthead is author-set** (`masthead(...)`),
+empty by default — no `manic ~ %` / `60FPS` branding is baked into any template.
+
+**Per-template glow + CRT DONE.** Each template has a `glow` multiplier (applied
+to every entity's halo at render) and a `crt` default. `plain`/`terminal` glow
+= 1 (neon); `paper`/`blueprint` glow = 0 (crisp, flat — right for print). `--crt`
+still forces the post-process on regardless of the template default.
+
+**Still to do:** template-controlled **fonts** (needs alternate font assets
+bundled — the separate "selectable fonts" work); more palettes; a `minimal`
+chrome level exposed as a template.
 
 **What a template bundles:**
 - palette + the named-colour map (what `cyan`/`magenta`/`lime`/`fg`/`dim`/`bg`/

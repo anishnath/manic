@@ -31,6 +31,8 @@ pub struct Movie {
     /// Named beat markers from [`Movie::mark`], exported to `markers.json`
     /// alongside recordings for narration alignment.
     pub marks: Vec<(f32, String)>,
+    /// The visual template (look/chrome). Defaults to `plain` (blank screen).
+    pub template: style::Template,
     section_n: usize,
 }
 
@@ -56,6 +58,7 @@ impl Movie {
             cursor: 0.0,
             sections: Vec::new(),
             marks: Vec::new(),
+            template: style::Template::plain(),
             section_n: 0,
         }
     }

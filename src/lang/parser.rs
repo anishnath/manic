@@ -353,12 +353,21 @@ impl Parser {
     fn mul(&mut self) -> Result<Expr, Error> {
         let mut lhs = self.pow()?;
         loop {
-            let op = match self.peek_tok() {
-                Tok::Star => BinOp::Mul,
-                Tok::Slash => BinOp::Div,
+            // (operator, is it an explicit token to consume?)
+            // Implicit multiplication: a factor directly followed by a name or
+            // `(` multiplies — natural maths like `2sx`, `3(x+1)`, `(a+b)c`,
+            // `2pi`. Deliberately NOT triggered before a number literal, so a
+            // missing comma (`(0 0)`) still errors clearly. Two glued names are
+            // one identifier (`dxsx`) — write `dx*sx`.
+            let (op, explicit) = match self.peek_tok() {
+                Tok::Star => (BinOp::Mul, true),
+                Tok::Slash => (BinOp::Div, true),
+                Tok::Ident(_) | Tok::LParen => (BinOp::Mul, false),
                 _ => break,
             };
-            self.bump();
+            if explicit {
+                self.bump();
+            }
             let rhs = self.pow()?;
             lhs = self.bin(op, lhs, rhs);
         }
@@ -670,5 +679,35 @@ mod tests {
     fn unterminated_block_errors() {
         let e = parse("par { wait(1);").unwrap_err();
         assert!(e.msg.contains("unterminated"), "{}", e.msg);
+    }
+
+    // implicit multiplication (2sx, 3(x+1), (a+b)c) parses; edge cases hold
+    #[test]
+    fn implicit_multiplication_parses() {
+        // number * name, number * paren, paren * name, paren * paren
+        for src in [
+            "dot(p, (2sx, 0));",
+            "dot(p, (3(x+1), 0));",
+            "dot(p, ((a+b)c, 0));",
+            "dot(p, ((a)(b), 0));",
+            "dot(p, (2pi, 0));",
+            "dot(p, (2sin(x), 0));",
+            "dot(p, (-2x, 0));",
+        ] {
+            assert!(parse(src).is_ok(), "should parse: {src}");
+        }
+    }
+
+    #[test]
+    fn for_range_before_block_not_eaten() {
+        // `n {` must NOT be read as implicit multiplication of a block
+        let p = parse("for i in 0..n { dot(d{i}, (i, 0)); }").unwrap();
+        assert!(matches!(p.stmts[0].ctrl, Some(Ctrl::For { .. })));
+    }
+
+    #[test]
+    fn missing_comma_between_numbers_still_errors() {
+        // `(0 0)` is a missing comma, not implicit mult — should still error
+        assert!(parse("dot(p, (0 0));").is_err());
     }
 }
