@@ -51,6 +51,36 @@ fn c_text(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` — a text
+/// showing a number, animatable with `to(id, value, target)` so it counts
+/// live. Defaults: 0 decimals, empty prefix/suffix.
+fn c_counter(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let value = a.num(2)?;
+    let decimals = a.opt_num(3)?.unwrap_or(0.0).max(0.0) as u8;
+    let prefix = if a.len() > 4 { a.text(4)? } else { String::new() };
+    let suffix = if a.len() > 5 { a.text(5)? } else { String::new() };
+    let counter = crate::primitives::Counter {
+        value,
+        decimals,
+        prefix,
+        suffix,
+    };
+    let mut e = Entity::new(
+        id,
+        Shape::Text {
+            content: counter.render(),
+            size: 28.0,
+        },
+        pos,
+        style::FG,
+    );
+    e.counter = Some(counter);
+    s.add(e);
+    Ok(())
+}
+
 fn c_dot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let pos = a.pair(1)?;
@@ -478,6 +508,7 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
         ),
         "angle" | "rot" | "rotation" => (Prop::Rot, TargetValue::Abs(Value::F(a.num(2)?))),
         "hue" => (Prop::Hue, TargetValue::Abs(Value::F(a.num(2)?))),
+        "value" | "count" => (Prop::Value, TargetValue::Abs(Value::F(a.num(2)?))),
         other => {
             return Err(Error::new(
                 format!(
@@ -607,6 +638,7 @@ fn c_exclusion(s: &mut Scene, a: &Args) -> Result<(), Error> {
 pub fn register(r: &mut Registry) {
     // constructors
     r.ctor("text", c_text);
+    r.ctor("counter", c_counter);
     r.ctor("dot", c_dot);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);

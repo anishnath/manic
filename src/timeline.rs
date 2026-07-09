@@ -59,6 +59,9 @@ pub enum Prop {
     Trace,
     /// HSL hue angle in degrees — drives `color` for colour cycling.
     Hue,
+    /// A live numeric readout ([`crate::primitives::Counter::value`]); the
+    /// text content re-renders each frame as it tweens.
+    Value,
 }
 
 /// Where a track ends up. `Rel` and `Revert` are resolved to absolute values
@@ -182,6 +185,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
         Prop::Rot => Value::F(e.rot),
         Prop::Trace => Value::F(e.trace),
         Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
+        Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
         Prop::To => match &e.shape {
             Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
             _ => return None,
@@ -204,6 +208,15 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             e.color = c;
             if e.stroke.outline_color.is_some() {
                 e.stroke.outline_color = Some(c);
+            }
+        }
+        (Prop::Value, Value::F(v)) => {
+            if let Some(c) = &mut e.counter {
+                c.value = v;
+                let text = c.render();
+                if let Shape::Text { content, .. } = &mut e.shape {
+                    *content = text;
+                }
             }
         }
         (Prop::To, Value::V(p)) => {

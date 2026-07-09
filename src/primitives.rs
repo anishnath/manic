@@ -168,6 +168,29 @@ pub struct Entity {
     /// If set, an HSL hue angle (degrees) that drives `color`; animatable via
     /// [`crate::timeline::Prop::Hue`] for colour cycling.
     pub hue: Option<f32>,
+    /// If set, a live numeric readout: the `Shape::Text` content is
+    /// `prefix + value + suffix`. Animate `value` via
+    /// [`crate::timeline::Prop::Value`] and the text updates each frame.
+    pub counter: Option<Counter>,
+}
+
+/// A live numeric readout attached to a text entity.
+#[derive(Debug, Clone)]
+pub struct Counter {
+    pub value: f32,
+    pub decimals: u8,
+    pub prefix: String,
+    pub suffix: String,
+}
+
+impl Counter {
+    /// Format `value` with the given decimals, wrapped in prefix/suffix.
+    pub fn render(&self) -> String {
+        format!(
+            "{}{:.*}{}",
+            self.prefix, self.decimals as usize, self.value, self.suffix
+        )
+    }
 }
 
 impl Entity {
@@ -195,6 +218,7 @@ impl Entity {
             deps: Vec::new(),
             derive: None,
             hue: None,
+            counter: None,
         }
     }
 }

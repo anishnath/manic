@@ -25,7 +25,7 @@ use crate::scene::Scene;
 use crate::style;
 use crate::timeline::Clip;
 
-use super::ast::{BinOp, Ctrl, Expr, ExprKind, Program, Seg, Stmt};
+use super::ast::{BinOp, Ctrl, Expr, ExprKind, Program, ReduceOp, Seg, Stmt};
 use super::diag::{Error, Span};
 use super::parser::parse;
 
@@ -438,7 +438,7 @@ fn resolve_arg(e: &Expr, env: &Env) -> Result<Expr, Error> {
         },
         ExprKind::PairE(a, b) => ExprKind::Pair(eval_expr(a, env)?, eval_expr(b, env)?),
         ExprKind::Interp(segs) => ExprKind::Ident(interp(segs, env)?),
-        ExprKind::Bin(..) | ExprKind::Neg(_) | ExprKind::Call(..) => {
+        ExprKind::Bin(..) | ExprKind::Neg(_) | ExprKind::Call(..) | ExprKind::Reduce { .. } => {
             ExprKind::Num(eval_expr(e, env)?)
         }
     };
@@ -475,6 +475,39 @@ fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
             let x = eval_expr(arg, env)?;
             call_fn(name, x)
                 .ok_or_else(|| Error::new(format!("unknown function `{name}`"), e.span))
+        }
+        ExprKind::Reduce {
+            op,
+            var,
+            start,
+            end,
+            body,
+        } => {
+            let lo = eval_expr(start, env)?.round() as i64;
+            let hi = eval_expr(end, env)?.round() as i64;
+            if hi.saturating_sub(lo) > MAX_ITERS {
+                return Err(Error::new(
+                    format!("reduction range is too large (max {MAX_ITERS})"),
+                    e.span,
+                ));
+            }
+            let mut acc: Option<f32> = None;
+            for k in lo..hi {
+                let mut child = env.clone();
+                child.insert(var.clone(), k as f32);
+                let v = eval_expr(body, &child)?;
+                acc = Some(match (op, acc) {
+                    (_, None) => v,
+                    (ReduceOp::Sum, Some(a)) => a + v,
+                    (ReduceOp::Prod, Some(a)) => a * v,
+                    (ReduceOp::Min, Some(a)) => a.min(v),
+                    (ReduceOp::Max, Some(a)) => a.max(v),
+                });
+            }
+            Ok(acc.unwrap_or(match op {
+                ReduceOp::Prod => 1.0,
+                _ => 0.0,
+            }))
         }
         ExprKind::Str(_) => Err(Error::new("a string can't be used in arithmetic", e.span)),
         ExprKind::Pair(..) | ExprKind::PairE(..) => {

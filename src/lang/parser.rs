@@ -25,7 +25,7 @@
 //! a known builtin, a color, or a bound variable. Meaning (and evaluation of
 //! `let`/`for`/arithmetic) is the lowering pass's job, so this stays generic.
 
-use super::ast::{BinOp, Ctrl, Expr, ExprKind, Program, Seg, Stmt};
+use super::ast::{BinOp, Ctrl, Expr, ExprKind, Program, ReduceOp, Seg, Stmt};
 use super::diag::{Error, Span};
 use super::lexer::{lex, Tok, Token};
 
@@ -431,6 +431,12 @@ impl Parser {
     /// After a leading identifier: a glued math call `f(x)`, a glued
     /// interpolated id `bar{i}`, or a plain name / variable.
     fn after_ident(&mut self, first: String, span: Span) -> Result<Expr, Error> {
+        // reduction: sum/prod/min/max ( VAR in EXPR .. EXPR : EXPR )
+        if let Some(op) = reduce_op(&first) {
+            if self.peek_tok() == &Tok::LParen && self.glued(span) {
+                return self.reduction(op, span);
+            }
+        }
         // math function call: IDENT "(" expr ")" — must be glued (`sin(x)`)
         if self.peek_tok() == &Tok::LParen && self.glued(span) {
             self.bump();
@@ -472,6 +478,32 @@ impl Parser {
             ExprKind::Interp(segs)
         };
         Ok(Expr { kind, span })
+    }
+
+    /// `sum ( VAR in EXPR .. EXPR : EXPR )` — a range reduction.
+    fn reduction(&mut self, op: ReduceOp, span: Span) -> Result<Expr, Error> {
+        self.expect(&Tok::LParen)?;
+        let var = self.ident_name("a reduction variable, e.g. `sum(i in 0..n : ...)`")?;
+        match self.ident_name("`in`") {
+            Ok(kw) if kw == "in" => {}
+            _ => return Err(Error::new("expected `in` in a reduction", self.span())),
+        }
+        let start = self.expr()?;
+        self.expect_msg(&Tok::DotDot, "expected `..` in the reduction range")?;
+        let end = self.expr()?;
+        self.expect_msg(&Tok::Colon, "expected `:` before the reduction body")?;
+        let body = self.expr()?;
+        self.expect_msg(&Tok::RParen, "expected `)` to close the reduction")?;
+        Ok(Expr {
+            kind: ExprKind::Reduce {
+                op,
+                var,
+                start: Box::new(start),
+                end: Box::new(end),
+                body: Box::new(body),
+            },
+            span,
+        })
     }
 
     /// `(` already peeked: either `(expr)` grouping or `(x, y)` pair.
@@ -529,6 +561,16 @@ impl Parser {
     }
 }
 
+fn reduce_op(name: &str) -> Option<ReduceOp> {
+    Some(match name {
+        "sum" => ReduceOp::Sum,
+        "prod" => ReduceOp::Prod,
+        "min" => ReduceOp::Min,
+        "max" => ReduceOp::Max,
+        _ => return None,
+    })
+}
+
 fn describe(t: &Tok) -> String {
     match t {
         Tok::Ident(s) => format!("`{s}`"),
@@ -555,6 +597,7 @@ fn describe(t: &Tok) -> String {
         Tok::AndAnd => "`&&`".to_string(),
         Tok::OrOr => "`||`".to_string(),
         Tok::DotDot => "`..`".to_string(),
+        Tok::Colon => "`:`".to_string(),
         Tok::Eof => "end of file".to_string(),
     }
 }

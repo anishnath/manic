@@ -63,6 +63,23 @@ pub enum ExprKind {
     PairE(Box<Expr>, Box<Expr>),
     /// An interpolated identifier, e.g. `bar{i}`.
     Interp(Vec<Seg>),
+    /// A reduction over a range: `sum(i in a..b : body)` (also `prod`/`min`/`max`).
+    Reduce {
+        op: ReduceOp,
+        var: String,
+        start: Box<Expr>,
+        end: Box<Expr>,
+        body: Box<Expr>,
+    },
+}
+
+/// A range reduction operator.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ReduceOp {
+    Sum,
+    Prod,
+    Min,
+    Max,
 }
 
 /// An argument expression with its source span (for error reporting).

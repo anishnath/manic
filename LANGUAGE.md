@@ -40,7 +40,7 @@ Put these first. (It's `canvas`, not `size` — `size` sets text size.)
 
 ---
 
-## Variables, arithmetic & loops
+## Variables, arithmetic, loops & macros
 
 manic has a small computation layer. It runs *before* the animation is built —
 every expression is evaluated to a plain number/point/name, so anywhere a
@@ -61,17 +61,31 @@ show(ring);              // the whole generated group, by tag
 
 - **`let name = expr;`** binds a number. Bindings are visible to later
   statements; a `let` inside a loop/block is scoped to it.
-- **Expressions** support `+ - * / ^`, unary `-`, parentheses, the constants
-  `pi` / `e` / `tau`, and the functions `sin cos tan asin acos atan sinh cosh
-  tanh exp ln log log10 log2 sqrt abs floor ceil round sign`. Multiplication is
-  explicit (`3*i`, not `3i`). A bare word is a *variable* if bound, otherwise a
-  literal name (a colour, easing, id, or tag).
+- **Expressions** support arithmetic `+ - * / ^` and unary `-`, comparisons
+  `< <= > >= == !=`, logic `&& ||` (all yielding `1`/`0`), parentheses, the
+  constants `pi` / `e` / `tau`, and the functions `sin cos tan asin acos atan
+  sinh cosh tanh exp ln log log10 log2 sqrt abs floor ceil round sign`.
+  Multiplication is explicit (`3*i`, not `3i`). A bare word is a *variable* if
+  bound, otherwise a literal name (a colour, easing, id, or tag).
 - **`for v in a..b { … }`** repeats the body with `v = a, a+1, … b-1` (integers).
+- **`if cond { … } else { … }`** (and `else if`) run a branch when `cond` is
+  nonzero — the base case for recursion.
+- **`def name(p1, p2, …) { … }`** defines a reusable macro; call it like any
+  other statement. Params are numbers; a macro may call itself (recursion), so
+  fractals and trees are a few lines. (Give a base case, or it stops at the
+  recursion-depth guard.)
 - **`bar{i}`** — id interpolation: `{expr}` glued into an identifier is replaced
-  by its value, so each iteration makes a unique id (and you `tag` them into a
+  by its value, so each iteration/call makes a unique id (then `tag` them into a
   group to animate together). Glued only — `foo {` with a space is still a block.
+- **Reductions** — `sum(i in a..b : expr)` aggregates `expr` over the range;
+  also `prod`, `min`, `max`. Use in a `let`: `let area = sum(i in 0..n :
+  f(i)*dx);`. This is how you compute a total in-language.
 
-It's all additive: a program with no `let`/`for` behaves exactly as before.
+It's all additive: a program using none of these behaves exactly as before.
+
+To show a computed number that **counts up on screen**, pair a reduction with a
+`counter` (below): `counter(total, (x,y), 0, 3, "area = ", "")` then
+`to(total, value, area)` tweens the readout from 0 to `area`.
 
 ---
 
@@ -83,6 +97,7 @@ address.
 | call | draws |
 |---|---|
 | `text(id, (x,y), "str")` | text centred at `(x,y)`, mono, size 28 |
+| `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` | a numeric readout; animate with `to(id, value, target)` so it counts live |
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
@@ -162,7 +177,13 @@ to(A, scale, 1.5, 0.6, bounce);
 to(A, angle, 90);                 // rotate to 90°
 to(A, color, magenta, 0.5);
 to(A, trace, 0.5);                // half-draw a stroke
+to(A, hue, 480, 2, linear);       // cycle colour around the wheel (needs hue set)
 ```
+
+The animatable properties are `x`, `y`, `opacity`, `scale`, `angle`, `trace`,
+`color`, `hue`, and `value`. `hue` travels around the colour wheel (set an
+initial hue with the `hue` modifier first), so it cycles smoothly where `color`
+would interpolate through grey. `value` drives a `counter`'s displayed number.
 
 Animatable **properties**: `x`, `y`, `opacity` (`alpha`), `scale`, `angle`
 (`rot`), `trace`, `color`. Combine any of them with `par`/`seq`/`stagger` and

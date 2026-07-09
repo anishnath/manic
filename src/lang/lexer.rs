@@ -39,6 +39,8 @@ pub enum Tok {
     OrOr,
     /// `..` — a range, used by `for`.
     DotDot,
+    /// `:` — separates the range from the body in a reduction (`sum(i in a..b: e)`).
+    Colon,
     Eof,
 }
 
@@ -161,6 +163,10 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
             ';' => {
                 lx.bump();
                 Tok::Semi
+            }
+            ':' => {
+                lx.bump();
+                Tok::Colon
             }
             '+' => {
                 lx.bump();
