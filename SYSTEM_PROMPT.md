@@ -189,9 +189,18 @@ animates node states (discovered cyan → current magenta → done lime), lights
 edges, and shows live `queue:`/`stack:` + `visited:` readouts. BFS=queue, DFS=stack;
 directed edges (`a>b`) one way. `recolor(g.nodes, panel)` resets between runs. See
 examples/bfs_dfs.manic.
+Weighted edges: write `a-b:7` (weight label drawn). `dijkstra(g, start)` — shortest
+paths: each node shows a live distance (`inf`→final), nearest node settles (magenta→
+lime), relaxed edges light, tree edges stay lit. See examples/dijkstra.manic.
+`hashmap(id, n, (cx,cy))` — `n` buckets (separate chaining). `put(id,"k","v")` hashes
+the key (byte-sum mod n) to a bucket and chains a `k:v` entry on; `get(id,"k")` scans
+that bucket's chain (lime = found, magenta = miss). See examples/hashmap.manic.
 
 ### Brand kit
 `banner(id,(cx,cy),[scale])` · `watermark(id,(x,y),["text"])`.
+**Don't add manic branding yourself** — no intro card, "Made With Manic", or
+`https://8gwifi.org/manic`. The engine injects a branded intro + watermark
+automatically on export (branded presets); branding is not part of the DSL.
 
 ---
 

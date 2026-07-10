@@ -39,6 +39,7 @@
 //!   and rings.
 
 pub mod animate;
+pub mod branding;
 pub mod easing;
 pub mod geom;
 pub mod kits;
@@ -46,6 +47,7 @@ pub mod lang;
 pub mod layout;
 pub mod movie;
 pub mod player;
+pub mod preset;
 pub mod primitives;
 pub mod record;
 pub mod render;

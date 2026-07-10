@@ -6,7 +6,7 @@
 //! their meaning is resolved later against the builtin registry. That is what
 //! keeps the front end domain-agnostic.
 
-use super::diag::{Error, Span};
+use crate::diag::{Error, Span};
 
 /// A lexical token.
 #[derive(Debug, Clone, PartialEq)]

@@ -1,0 +1,216 @@
+<!doctype html>
+<!--
+  manic — language-services PROTOTYPE (throwaway UI).
+
+  A bare HTML/JS harness over the `manic-lang` WASM to prove highlighting +
+  diagnostics + autocomplete work in a browser. NOT the production editor — that
+  gets its own design (CodeMirror/Monaco, real completion UI, etc.).
+
+  Run:  cargo/ …/wasm-pack build crates/manic-lang --target web --features wasm
+        python3 -m http.server         # from the repo root
+        open  http://localhost:8000/web/
+-->
+<meta charset="utf-8" />
+<title>manic — lang services prototype</title>
+<style>
+  :root {
+    --bg:#0d0b1a; --fg:#e0e1f3; --cyan:#00e6ff; --magenta:#ff2d95;
+    --lime:#7cff6b; --dim:#6b6890; --gold:#ffd166;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:10px 16px; border-bottom:1px solid #241f3a; color:var(--dim); }
+  header b { color:var(--cyan); }
+  main { display:grid; grid-template-columns:1fr 320px; gap:0; height:calc(100vh - 44px); }
+  /* editor = transparent textarea over a highlighted <pre> */
+  .editor { position:relative; overflow:hidden; }
+  .editor pre, .editor textarea {
+    margin:0; padding:14px 16px; border:0; width:100%; height:100%;
+    font:inherit; white-space:pre; overflow:auto; tab-size:2;
+  }
+  .editor pre { position:absolute; inset:0; pointer-events:none; color:var(--fg); }
+  .editor textarea { position:absolute; inset:0; background:transparent;
+    color:transparent; caret-color:var(--cyan); resize:none; outline:none; }
+  aside { border-left:1px solid #241f3a; overflow:auto; padding:12px 14px; }
+  aside h3 { margin:0 0 8px; font-size:12px; letter-spacing:.08em; color:var(--dim);
+             text-transform:uppercase; }
+  .diag { padding:6px 8px; border-left:2px solid var(--magenta); margin-bottom:6px;
+          background:#1a1530; border-radius:0 4px 4px 0; }
+  .diag .msg { color:#ffb3cf; }
+  .diag button { margin-top:4px; font:inherit; font-size:12px; cursor:pointer;
+    background:#241f3a; color:var(--lime); border:1px solid #3a3358; border-radius:4px;
+    padding:2px 8px; }
+  .ok { color:var(--lime); }
+  /* completion popup */
+  #pop { position:absolute; z-index:9; background:#171233; border:1px solid #3a3358;
+    border-radius:6px; max-height:220px; overflow:auto; min-width:220px; display:none;
+    box-shadow:0 8px 24px #0008; }
+  #pop div { padding:4px 10px; cursor:pointer; display:flex; gap:8px; }
+  #pop div.sel { background:#2a2350; }
+  #pop .k { color:var(--dim); font-size:11px; margin-left:auto; }
+  #pop .d { color:var(--dim); font-size:11px; }
+  /* token colours */
+  .tok-builtin{color:var(--cyan)} .tok-call{color:var(--cyan)}
+  .tok-keyword{color:var(--magenta)} .tok-constant{color:var(--gold)}
+  .tok-color{color:var(--lime)} .tok-ease{color:var(--lime)}
+  .tok-number{color:#9be7ff} .tok-string{color:var(--gold)}
+  .tok-variable{color:var(--fg)} .tok-comment{color:var(--dim);font-style:italic}
+  .err { text-decoration: wavy underline var(--magenta); text-underline-offset:3px; }
+</style>
+
+<header><b>manic</b> · language-services prototype — highlight · check · complete
+  <span style="float:right" id="status">loading wasm…</span></header>
+<main>
+  <div class="editor" id="ed">
+    <pre id="hl"></pre>
+    <textarea id="ta" spellcheck="false" autocomplete="off"></textarea>
+    <div id="pop"></div>
+  </div>
+  <aside>
+    <h3>Diagnostics</h3>
+    <div id="diags"></div>
+  </aside>
+</main>
+
+<script type="module">
+import init, { tokenize, check, complete } from '../crates/manic-lang/pkg/manic_lang.js';
+
+const ta = document.getElementById('ta');
+const hl = document.getElementById('hl');
+const diags = document.getElementById('diags');
+const pop = document.getElementById('pop');
+const status = document.getElementById('status');
+
+const SAMPLE = `title("Playground");
+canvas(1280, 720);
+
+// a builtin (cyan), a variable id (white), a color (green)
+circle(sun, (640, 360), 90);
+color(sun, cyan);
+
+for i in 0..5 {
+  dot(p{i}, (200 + i*180, 620), 6);
+}
+
+show(sun, 0.6);
+flash(sun, cyn);      // typo -> diagnostic + fix
+crcle(x, (0,0), 5);   // unknown builtin -> fix
+`;
+
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function highlight(src) {
+  const toks = JSON.parse(tokenize(src)).sort((a,b)=>a.start-b.start);
+  const errs = JSON.parse(check(src));
+  let out = '', i = 0;
+  for (const t of toks) {
+    if (t.start < i) continue;            // skip overlaps
+    out += esc(src.slice(i, t.start));
+    const piece = esc(src.slice(t.start, t.start + t.len));
+    out += `<span class="tok-${t.kind}">${piece}</span>`;
+    i = t.start + t.len;
+  }
+  out += esc(src.slice(i));
+  hl.innerHTML = out + '\n';
+  showDiags(src, errs);
+}
+
+function showDiags(src, errs) {
+  if (!errs.length) { diags.innerHTML = '<div class="ok">✓ no problems</div>'; return; }
+  diags.innerHTML = '';
+  for (const e of errs) {
+    const div = document.createElement('div');
+    div.className = 'diag';
+    const loc = lineCol(src, e.start);
+    div.innerHTML = `<div class="msg">${esc(e.message)} <span style="color:#6b6890">(${loc.line}:${loc.col})</span></div>`;
+    if (e.fix) {
+      const b = document.createElement('button');
+      b.textContent = e.fix.label;
+      b.onclick = () => {
+        ta.value = ta.value.slice(0, e.fix.start) + e.fix.replacement + ta.value.slice(e.fix.start + e.fix.len);
+        render();
+      };
+      div.appendChild(b);
+    }
+    diags.appendChild(div);
+  }
+}
+
+function lineCol(src, off) {
+  let line = 1, col = 1;
+  for (let k = 0; k < off && k < src.length; k++) {
+    if (src[k] === '\n') { line++; col = 1; } else col++;
+  }
+  return { line, col };
+}
+
+// ---- autocomplete ----
+let items = [], sel = 0;
+function showComplete() {
+  const off = ta.selectionStart;
+  items = JSON.parse(complete(ta.value, off));
+  if (!items.length) { pop.style.display = 'none'; return; }
+  sel = 0;
+  pop.innerHTML = items.map((c,i) =>
+    `<div class="${i===0?'sel':''}" data-i="${i}"><span>${esc(c.label)}</span>` +
+    (c.detail?`<span class="d">${esc(c.detail)}</span>`:'') +
+    `<span class="k">${c.kind}</span></div>`).join('');
+  // position near the caret (rough: below the editor top-left; fine for a prototype)
+  const r = caretXY();
+  pop.style.left = r.x + 'px'; pop.style.top = r.y + 'px'; pop.style.display = 'block';
+  pop.querySelectorAll('div').forEach(d => d.onclick = () => accept(+d.dataset.i));
+}
+function accept(i) {
+  const c = items[i]; if (!c) return;
+  const off = ta.selectionStart;
+  // replace the word being typed
+  const before = ta.value.slice(0, off);
+  const wordStart = before.length - (before.match(/[A-Za-z0-9_]*$/)[0].length);
+  ta.value = ta.value.slice(0, wordStart) + c.insert + ta.value.slice(off);
+  const caret = wordStart + c.insert.length;
+  ta.selectionStart = ta.selectionEnd = caret;
+  pop.style.display = 'none';
+  render();
+}
+function caretXY() {
+  // crude caret position via a mirror div
+  const m = document.createElement('div');
+  const s = getComputedStyle(ta);
+  for (const p of ['font','padding','lineHeight','whiteSpace','tabSize','width'])
+    m.style[p] = s[p];
+  m.style.position='absolute'; m.style.visibility='hidden'; m.style.whiteSpace='pre-wrap';
+  m.textContent = ta.value.slice(0, ta.selectionStart);
+  const span = document.createElement('span'); span.textContent='​'; m.appendChild(span);
+  document.getElementById('ed').appendChild(m);
+  const x = span.offsetLeft - ta.scrollLeft, y = span.offsetTop - ta.scrollTop + 20;
+  m.remove();
+  return { x, y };
+}
+
+function render() {
+  highlight(ta.value);
+  hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft;
+}
+
+ta.addEventListener('input', () => { render(); showComplete(); });
+ta.addEventListener('scroll', () => { hl.scrollTop = ta.scrollTop; hl.scrollLeft = ta.scrollLeft; });
+ta.addEventListener('keydown', (e) => {
+  if (pop.style.display === 'block') {
+    if (e.key === 'ArrowDown') { sel = (sel+1)%items.length; paintSel(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = (sel-1+items.length)%items.length; paintSel(); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { accept(sel); e.preventDefault(); }
+    else if (e.key === 'Escape') { pop.style.display='none'; }
+  }
+  if (e.ctrlKey && e.key === ' ') { showComplete(); e.preventDefault(); }
+});
+function paintSel() {
+  pop.querySelectorAll('div').forEach((d,i)=>d.className = i===sel?'sel':'');
+}
+
+init().then(() => {
+  status.textContent = 'wasm ready';
+  ta.value = SAMPLE;
+  render();
+});
+</script>

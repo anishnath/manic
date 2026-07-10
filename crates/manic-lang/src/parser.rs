@@ -25,9 +25,9 @@
 //! a known builtin, a color, or a bound variable. Meaning (and evaluation of
 //! `let`/`for`/arithmetic) is the lowering pass's job, so this stays generic.
 
-use super::ast::{BinOp, Ctrl, Expr, ExprKind, Program, ReduceOp, Seg, Stmt};
-use super::diag::{Error, Span};
-use super::lexer::{lex, Tok, Token};
+use crate::ast::{BinOp, Ctrl, Expr, ExprKind, Program, ReduceOp, Seg, Stmt};
+use crate::diag::{Error, Span};
+use crate::lexer::{lex, Tok, Token};
 
 /// Parse manic source into a [`Program`] (lexes first).
 pub fn parse(src: &str) -> Result<Program, Error> {

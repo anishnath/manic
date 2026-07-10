@@ -10,7 +10,7 @@
 //! and `for` loops, collapsing every expression to a literal (`Num`, `Str`,
 //! `Ident`, `Pair`) before a kit ever sees it. So kits stay literal-only.
 
-use super::diag::Span;
+use crate::diag::Span;
 
 /// A binary operator. Comparisons and logicals evaluate to `1.0` / `0.0`.
 #[derive(Debug, Clone, Copy, PartialEq)]

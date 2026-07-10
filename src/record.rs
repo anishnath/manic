@@ -113,8 +113,12 @@ impl Recorder {
     pub fn capture(&mut self, img: &Image) {
         match &mut self.sink {
             Sink::Png => {
+                // frames arrive top-down (ffmpeg's orientation), but `export_png`
+                // flips internally — so pre-flip to land upright on disk.
+                let mut im = img.clone();
+                flip_rows(&mut im);
                 let path = self.dir.join(format!("frame_{:05}.png", self.frame));
-                img.export_png(path.to_str().expect("non-utf8 record path"));
+                im.export_png(path.to_str().expect("non-utf8 record path"));
             }
             Sink::Pipe { child, .. } => {
                 child
@@ -180,4 +184,17 @@ fn markers_json(fps: u32, sections: &[(f32, String)], marks: &[(f32, String)]) -
         list(sections),
         list(marks)
     )
+}
+
+/// Mirror an image top-to-bottom in place (row-swap of RGBA pixels). Used to
+/// cancel `Image::export_png`'s internal flip so PNG frames land upright.
+fn flip_rows(img: &mut Image) {
+    let (w, h) = (img.width as usize, img.height as usize);
+    let stride = w * 4;
+    for y in 0..h / 2 {
+        let (top, bot) = (y * stride, (h - 1 - y) * stride);
+        for i in 0..stride {
+            img.bytes.swap(top + i, bot + i);
+        }
+    }
 }

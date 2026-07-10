@@ -1,0 +1,7 @@
+target
+crates/manic-lang/pkg
+crates/manic-lang/pkg-node
+.git
+out
+still_*.png
+web

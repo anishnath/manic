@@ -368,6 +368,28 @@ across the stateless timeline without any render-time state.
 
 See `examples/bubble_sort.manic` — real in-place sort, no `say`.
 
+## Presets & branding (output)
+
+**Shipped.** Rendering is driven by named **presets** (`--preset <name>`) — the
+baseline for quality, frame rate, container, and branding; any runtime flag
+(`--scale`, `--fps`, `--gif`, `--no-brand`, …) overrides the preset's fields
+(`src/preset.rs`).
+- **`studio`** (default) — branded, `scale 1.5` (→1080p), 60fps, MP4.
+- **`test`** — unbranded, `scale 1.0`, 30fps; the fast verify preset.
+- **`reel`** — branded, for vertical/social clips (pair with a `canvas("9:16")`).
+
+**Branding** (`src/branding.rs`) is injected by the **engine, never authored in
+the DSL**, and applies only to **recorded** output under a branded preset (so the
+live preview + stills stay clean and fast):
+- a **pre-roll intro** — the hue-graded fractal tree grows (yellow trunk →
+  magenta/blue tips) while the `Manic` wordmark typewrites in beside it over the
+  link `https://8gwifi.org/manic`; authored internally in manic (a recursive
+  `def`) and composed ahead of the user's timeline;
+- a pinned **"Made With Manic"** watermark for the whole DSL portion.
+
+Disable with `--no-brand`. (Also fixed: the `--png`/`--alpha` sequence now writes
+frames upright — `export_png`'s internal flip is cancelled in `record.rs`.)
+
 ## Templates / themes
 
 **Shipped (v1).** The look is now a selectable **template**, chosen with
@@ -453,6 +475,104 @@ shipping ahead of the full theme refactor.
 changes their look — that's the feature; neon remains default so nothing breaks.
 Composes with the separately-planned **selectable fonts** (a theme picks fonts;
 custom fonts refine within a theme).
+
+## Web / editor language services — **shipped** (prototype UI)
+
+The editor half of the beta: a browser-loadable build of manic's **language
+front-end** that powers an in-page code editor — **syntax highlighting**,
+**autocomplete / intelligence**, and **live error-checking with fix
+suggestions** — so an author writes `.manic` in the browser and sees exactly
+what the renderer would say.
+
+**Status.** All four phases done:
+1. `manic-lang` — a macroquad-free workspace crate (lexer/parser/ast/diag),
+   publishable, native engine unchanged (depends on it via a re-export).
+2. **catalog** — `BuiltinSpec` for all 130 builtins + fixed vocab, kept honest by
+   a test asserting the catalog == the live registry (zero drift).
+3. **expand** extracted into `manic-lang` (so the browser runs `let`/`for`/`def`).
+4. **WASM API** — `tokenize` / `check` / `complete` (`crates/manic-lang/src/services.rs`,
+   thin `wasm-bindgen` JSON wrappers under `--features wasm`), built with
+   `wasm-pack` (~190 KB), plus a throwaway HTML/JS harness in `web/` (see
+   `web/README.md`). The real editor UI is a separate, later design.
+
+All service logic is unit-tested natively (31 `manic-lang` tests) and verified
+end-to-end through the compiled WASM. What follows is the design rationale.
+
+### Approach — compile the Rust front-end to WASM (single source of truth)
+
+**Do not re-port the parser to JavaScript.** A hand-written JS parser would drift
+from the Rust engine, and the whole point is that what the editor validates is
+*exactly* what renders. Instead compile the existing Rust lexer / parser /
+expander to `wasm32-unknown-unknown` and expose a thin JS/TS API. One grammar,
+one lexer, one set of diagnostics — no divergence, and new builtins light up in
+the editor the moment they're added to the engine.
+
+### Prerequisite refactor — a macroquad-free `lang-core`
+
+The renderer pulls in macroquad (graphics), which shouldn't compile into a
+headless parser. Split the pure front-end into a crate/feature with no macroquad
+dependency:
+- **in**: `lexer`, `parser`, `ast`, the **`expand`** pass of `lower`
+  (`let`/`for`/`if`/`def`/reductions/interpolation — pure arithmetic over the
+  AST), `diag`;
+- **out**: `Scene`/`Entity`/`Clip`, `render`, `player`, and the ctor/verb
+  *function bodies* (they touch macroquad types);
+- the **catalog** (below) replaces the executable registry for validation.
+
+This is the one real structural cost — and it cleanly separates "language" from
+"engine", which the architecture already aspires to.
+
+### The builtin catalog (the key new artifact)
+
+Autocomplete + arg-checking need machine-readable specs for every builtin; today
+those live in doc comments and hand-written `a.ident(0)?`/`a.num(1)?` calls.
+Introduce a structured catalog —
+`BuiltinSpec { name, kind: ctor|verb|mut_verb, params:[{name, ty:
+name|num|str|point|color|ease|ident, optional}], summary, kit }` — plus the fixed
+vocabularies already in the engine: **colors** (`fg void cyan magenta lime dim
+panel`), **easings**, **canvas presets**, **template names**, **reserved vars**
+(`w h cx cy pi e tau`). Source of truth: generate it where kits already register
+(a registration macro that records the signature next to the fn, or a build step
+emitting catalog JSON consumed by *both* Rust checks and the WASM API) so it
+can't drift.
+
+### WASM API (thin)
+
+- `tokenize(src) -> [{kind, start, len}]` — from the lexer, for highlighting.
+- `check(src) -> [{message, start, len, severity, fix?}]` — lex + parse + expand
+  + name/arg validation; `fix = {label, replacement, range}` when auto-fixable.
+- `complete(src, offset) -> [{label, kind, insertText, detail, doc}]` —
+  context-aware (builtins at statement start; the param's type inside a call).
+- `signature(src, offset) -> {label, params, activeParam}` — signature help.
+
+### Language services (on CodeMirror 6 or Monaco)
+
+- **Highlighting** — token kinds → classes (keyword `let/for/if/def`, builtin,
+  number, string, ident, point punctuation, comment).
+- **Diagnostics** — `diag::Error` already localizes precisely by span, and
+  several messages already suggest (`try: circular, row, grid`); surface inline.
+- **Autocomplete** — builtins by kit at statement start; inside a call the
+  expected param type drives suggestions (palette after a color param, easings
+  after an ease param, **in-file entity ids + tags** after an id param); reserved
+  vars + constants.
+- **Quick-fixes** (from the catalog): unknown builtin/color/easing → nearest by
+  edit distance (`magena`→`magenta`); reserved id used as an entity name (`h`) →
+  offer a rename; missing comma / unmatched paren or brace → insert; wrong arg
+  count/type → show the signature and flag the offending arg.
+
+### Boundaries
+
+A language service, **not** a renderer: it validates *syntax, names, arg shape,
+and the build-time `expand` pass* — it won't catch issues that only surface at
+render (a circle radius overflowing the canvas). Full validation still comes from
+`manic check` / a render. A WASM **renderer** (macroquad → WebGL) is a separate,
+larger future step.
+
+### Effort / order
+
+Catalog + registration macro (medium, touches each kit once) → `lang-core` split
+(medium; the front-end is already fairly decoupled) → WASM API + build (small) →
+editor glue (small–medium).
 
 ## Where manic is ahead of Asymptote
 - A **first-class animation timeline** — asy `animate` stitches frames; manic

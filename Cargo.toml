@@ -18,7 +18,11 @@ include = [
     "LICENSE-FONTS",
 ]
 
+[workspace]
+members = ["crates/manic-lang"]
+
 [dependencies]
+manic-lang = { path = "crates/manic-lang" }  # macroquad-free DSL front-end (lexer/parser/ast/diag)
 macroquad = "0.4"
 geo = "0.29"        # robust 2D polygon boolean ops (union/intersection/…)
 earcutr = "0.4"     # triangulate holed/multi-piece boolean results for fill

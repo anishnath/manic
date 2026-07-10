@@ -357,7 +357,8 @@ Data-structure & algorithm vocabulary. v1 centrepiece: **`graph`** (Manim's
 - **vertices** — a whitespace-separated string of names → nodes `{id}.{name}`
   (each with a name label).
 - **edges** — whitespace/comma-separated tokens: `a-b` (undirected line) or
-  `a>b` (directed arrow), trimmed to node borders → `{id}.{a}-{b}`.
+  `a>b` (directed arrow), trimmed to node borders → `{id}.{a}-{b}`. Add `:w` for
+  a weight (`a-b:7`) — drawn as a midpoint label and read by `dijkstra`.
 - **layout** — `circular`, `row`, or `grid`.
 - Every entity is tagged `id`, `{id}.nodes`, and `{id}.edges`.
 - Edges **reflow automatically**: `move(g.1, (x,y))` drags a vertex and its

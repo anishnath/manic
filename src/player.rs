@@ -42,13 +42,40 @@ pub(crate) struct Opts {
     pub gif: bool,
     pub crt: bool,
     pub template: Option<String>,
+    /// Apply branding (intro + watermark) — true only for a branded preset on a
+    /// `--record`, and not disabled by `--no-brand`.
+    pub branded: bool,
 }
 
 pub(crate) fn parse_opts() -> Opts {
     let args: Vec<String> = std::env::args().collect();
+
+    // pre-scan the preset + branding toggle so they seed the defaults below
+    let mut preset_name = String::from("studio");
+    let mut no_brand = false;
+    {
+        let mut j = 1;
+        while j < args.len() {
+            match args[j].as_str() {
+                "--preset" => {
+                    if let Some(v) = args.get(j + 1) {
+                        preset_name = v.clone();
+                    }
+                }
+                "--no-brand" | "--nobrand" => no_brand = true,
+                _ => {}
+            }
+            j += 1;
+        }
+    }
+    let preset = crate::preset::by_name(&preset_name).unwrap_or_else(|| {
+        eprintln!("unknown preset `{preset_name}` — using `studio`");
+        crate::preset::default()
+    });
+
     let mut opts = Opts {
         record: None,
-        fps: 60,
+        fps: preset.fps,
         max_frames: None,
         scale: 0.0,
         still: None,
@@ -56,9 +83,10 @@ pub(crate) fn parse_opts() -> Opts {
         to: None,
         alpha: false,
         png: false,
-        gif: false,
+        gif: preset.gif,
         crt: false,
         template: None,
+        branded: false,
     };
     let mut i = 1;
     let value = |args: &[String], i: usize, flag: &str| -> String {
@@ -116,17 +144,23 @@ pub(crate) fn parse_opts() -> Opts {
                 opts.template = Some(value(&args, i, "--template"));
                 i += 1;
             }
+            "--preset" => {
+                i += 1; // already handled in the pre-scan
+            }
+            "--no-brand" | "--nobrand" => {} // already handled in the pre-scan
             _ => {}
         }
         i += 1;
     }
     if opts.scale <= 0.0 {
         opts.scale = if opts.record.is_some() || opts.still.is_some() {
-            1.5
+            preset.scale
         } else {
             1.0
         };
     }
+    // branding: recorded output only, under a branded preset, unless --no-brand
+    opts.branded = preset.branded && !no_brand && opts.record.is_some();
     opts
 }
 
@@ -199,7 +233,6 @@ fn fullscreen_pressed() -> bool {
 
 pub async fn run_loop(mut movie: Movie) {
     let fonts = Fonts::load();
-    let (base, timeline) = movie.finalize();
     let opts = parse_opts();
     // CLI template override (e.g. `--template terminal`)
     if let Some(name) = &opts.template {
@@ -208,6 +241,26 @@ pub async fn run_loop(mut movie: Movie) {
             None => eprintln!("unknown template `{name}` — keeping `{}`", movie.template.name),
         }
     }
+    // branding (recorded output under a branded preset): pin the watermark into
+    // the base scene, and build the pre-roll intro as its own little movie.
+    if opts.branded {
+        crate::branding::add_watermark(&mut movie);
+    }
+    let (base, timeline) = movie.finalize();
+    let title = movie.title.clone();
+    let intro_tpl = crate::style::Template::plain();
+    let intro: Option<(crate::scene::Scene, crate::timeline::Timeline)> = if opts.branded {
+        let src = crate::branding::intro_source(movie.width, movie.height);
+        match crate::parse(&src) {
+            Ok(im) => Some(im.finalize()),
+            Err(e) => {
+                eprintln!("branding intro failed to build: {e:?}");
+                None
+            }
+        }
+    } else {
+        None
+    };
     let (w, h) = (movie.width as f32, movie.height as f32);
     let s = opts.scale;
     let (pw, ph) = ((w * s).round(), (h * s).round());
@@ -250,16 +303,19 @@ pub async fn run_loop(mut movie: Movie) {
         c.set_uniform("TexSize", vec2(pw, ph));
     }
 
-    let render_canvas = |t: f32| {
+    let render_at = |base: &crate::scene::Scene,
+                     tl: &crate::timeline::Timeline,
+                     template: &style::Template,
+                     t: f32| {
         set_camera(&rt_cam);
-        let scene = timeline.apply(&base, t);
+        let scene = tl.apply(base, t);
         let view = View::from_scene(&scene, w, h, s);
         if opts.alpha {
             clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
         } else {
-            render::draw_page_chrome(&movie.template, &movie.title, w, h, &fonts, &view);
+            render::draw_page_chrome(template, &title, w, h, &fonts, &view);
         }
-        render::draw_scene(&scene, &fonts, &view, &movie.template);
+        render::draw_scene(&scene, &fonts, &view, template);
     };
 
     // crt bake: rt -> rt_post through the material; both passes flip, so
@@ -294,7 +350,7 @@ pub async fn run_loop(mut movie: Movie) {
 
     // ---- single still frame ----
     if let Some(ts) = opts.still {
-        render_canvas(ts);
+        render_at(&base, &timeline, &movie.template, ts);
         next_frame().await;
         let mut img = capture(&crt);
         // export_png flips internally, so flip once here to cancel it
@@ -316,12 +372,25 @@ pub async fn run_loop(mut movie: Movie) {
             opts.gif,
         )
         .expect("cannot create record dir");
+        // branded pre-roll: render the intro's frames first (trim the ~1s tail
+        // that `finalize` pads on, so it cuts cleanly to the content)
+        if let Some((ibase, itl)) = &intro {
+            let idur = (itl.dur - 1.0).max(0.3);
+            let iframes = (idur * opts.fps as f32).ceil() as u32;
+            for f in 0..iframes {
+                let t = f as f32 / opts.fps as f32;
+                render_at(ibase, itl, &intro_tpl, t);
+                let img = capture(&crt);
+                rec.capture(&img);
+                next_frame().await;
+            }
+        }
         let end_t = opts.to.unwrap_or(timeline.dur).min(timeline.dur);
         let total = (((end_t - opts.from).max(0.0) * opts.fps as f32).ceil() as u32)
             .min(opts.max_frames.unwrap_or(u32::MAX));
         for f in 0..total {
             let t = opts.from + f as f32 / opts.fps as f32;
-            render_canvas(t);
+            render_at(&base, &timeline, &movie.template, t);
             let img = capture(&crt); // top-down already — correct for ffmpeg
             rec.capture(&img);
             next_frame().await;
@@ -393,7 +462,7 @@ pub async fn run_loop(mut movie: Movie) {
         }
         t = t.clamp(0.0, timeline.dur);
 
-        render_canvas(t);
+        render_at(&base, &timeline, &movie.template, t);
 
         // blit to window: fit, centred, letterboxed
         set_default_camera();
