@@ -125,6 +125,24 @@ for lining narration up in an editor.
 - `ffmpeg` on `PATH` for mp4/gif output (optional — without it, recording
   writes a PNG sequence and prints the stitch command).
 
+## Linux binaries & deploy (Docker / EC2)
+
+manic runs headless on Linux (e.g. an Ubuntu EC2 box). macroquad loads
+OpenGL/X11 at runtime, so **rendering** needs a virtual display + software GL +
+ffmpeg; **`check`** (parsing) needs none of that.
+
+- **Docker** (self-contained render service): `docker build -t manic -f
+  docker/Dockerfile .`, then `docker run --rm -v "$PWD/out:/work/out" manic
+  manic examples/hashmap.manic --record out`. Recording is deterministic, so
+  container output is byte-identical to a desktop run.
+- **Prebuilt binary on a box:** cross-build both Linux arches into `dist/` with
+  [`scripts/build-linux.sh`](scripts/build-linux.sh) (`arm64` for Graviton,
+  `amd64` for Intel/AMD — match `uname -m`), scp the arch-matched binary over,
+  then run [`scripts/ec2-setup.sh`](scripts/ec2-setup.sh) (installs xvfb + mesa +
+  ffmpeg and a `manic-render` wrapper). Fonts are embedded, so only the `.manic`
+  file is needed. (Binaries are built on glibc 2.36 → Ubuntu 24.04; for 22.04,
+  rebuild on an older base.)
+
 ## License
 
 MIT (see [LICENSE](LICENSE)). The embedded fonts are under the SIL Open Font
