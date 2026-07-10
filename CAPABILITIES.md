@@ -53,7 +53,38 @@ are occurrences across the `geometry/` samples.
   addressable via tags), `table` (ruled grid + optional row/col labels; cells,
   rows, columns, labels and grid lines all addressable via tags).
 - **algo** — `graph` (undirected `a-b` / directed `a>b`, circular/row/grid
-  layouts, reflowing edges, tag groups).
+  layouts, reflowing edges, tag groups); `array` (row of fixed slot boxes
+  `{id}.box{k}` + value cells `{id}.c{k}`) with `compare(a,i,j)` (flash the
+  values now in two slots) and stateful `swap(a,i,j)` (slide them into the
+  swapped slots, chaining correctly across a whole sort — see
+  `examples/bubble_sort.manic`); `pointer(id, arr, slot, [label])` + `pointat(id,
+  arr, slot)` — a labelled index caret that slides between slots (two-pointer /
+  traversal, `examples/two_pointer.manic`); `stack`/`queue` with `push`/`pop`
+  and `enqueue`/`dequeue` — dynamic structures that add cells and animate them
+  in/out, tracking occupancy so chains of ops compose (`dequeue` also advances
+  the cells behind); `caret(id, (x,y), "label", dir)` — a rigid labelled marker
+  you `move` to track an action point (stack top, queue front/back). See
+  `examples/stack_queue.manic`. `list(id, "3 8 5", (cx,cy), kind, [cw], [ch])` —
+  a **linked list** with the classic node anatomy: framed boxes split into
+  compartments (`[data│•next]` singly, `[•prev│data│next•]` doubly) with pointer
+  dots, a `head` pointer and a `NULL` terminator (or a wrap-to-head curve).
+  `kind` ∈ `singly`/`doubly`/`circular`. `insert(id, after, "v")` splices a node
+  in below the gap and re-threads the pointers (no row shift); `remove(id, i)`
+  unlinks and re-points around it. See `examples/linked_list.manic`. `bfs(g,
+  start)` / `dfs(g, start)` — graph traversal: reads the graph's adjacency,
+  runs the algorithm, and animates the classic states (discovered → current →
+  done) with tree edges lighting up and live `queue:`/`stack:` + `visited:`
+  readouts (BFS = queue, DFS = stack; directed edges followed one way). See
+  `examples/bfs_dfs.manic`. **Weighted** edges: `a-b:7` gives an edge a weight
+  (drawn as a midpoint label). `dijkstra(g, start)` — single-source shortest
+  paths: each node shows a live distance (`inf` → final), the nearest unsettled
+  node settles (magenta → lime), relaxed edges light, and the shortest-path-tree
+  edges stay lit. See `examples/dijkstra.manic`. `hashmap(id, n, (cx,cy))` — `n`
+  buckets in a column; `put(id, k, v)` hashes the key (byte-sum mod n) to a
+  bucket and chains the `k:v` entry on (collisions extend the chain);
+  `get(id, k)` hashes then scans that bucket's chain, flashing each entry until
+  the key matches (lime) or the chain ends (miss). Separate chaining, composed
+  from the array (buckets) + list (chains). See `examples/hashmap.manic`.
 - **geo** — all **dynamic** (recompute as inputs move): `point`, `segment`;
   centres `midpoint`/`centroid`/`circumcenter`/`incenter`/`orthocenter`/`foot`;
   intersections `meet` (line∩line), `linecircle`, `circlecircle` (two points
@@ -143,7 +174,8 @@ and entity `copy` — now covered too. Essentially the whole family; only
     on `morph(a, b, spin)` winds the blend (positive = clockwise, negative = CCW).
   - **`TransformFromCopy`** → **`copy(new, src)`** duplicates an entity (standalone,
     no group tags); `copy(c, a)` then morph/move `c` while `a` stays put.
-  - **`Swap`** → **`swap(a, b, [dur], [ease])`** exchanges two entities' positions.
+  - **`Swap`** → **`swap(a, b, [dur], [ease])`** exchanges two entities' positions;
+    the array form `swap(arr, i, j)` slides slot values and chains across a sort.
 - **Partial (expressible, no dedicated builtin):**
   - `CyclicReplace` → a `for` loop of `move`s.
   - `FadeTransform` / `FadeTransformPieces` → crossfade `par { fade(a); show(b); }`
@@ -315,6 +347,26 @@ of modest extensions. Two prerequisites recur and are the real leverage:
 Separately tracked, larger and orthogonal: **LaTeX/math typesetting** (approach
 under evaluation, see Typography), **selectable fonts**, and **3D** (deferred by
 design).
+
+### Stateful structures — done (mutating verbs)
+
+The timeline is a pure function of `t`, so an ordinary verb sees only the base
+scene: a *chain* of swaps would each read stale positions. This is now solved
+with a **mutating-verb** kind — `MutVerbFn = fn(&mut Scene, &Args) -> Clip` — and
+a build-time occupancy map `Scene::occ` (structure id → entity per slot). A
+mutating verb produces its clip *and* updates `occ`, so the next step sees the
+current state. This is the general primitive for stateful data structures
+(sorting today; stack push/pop, queue, pointer moves next), and it composes
+across the stateless timeline without any render-time state.
+
+- **`swap(arr, i, j)`** (std, mutating) — the values in slots `i`/`j` **slide**
+  past each other (one hops over the top) into the swapped slots, and `occ`
+  updates so a whole sort chains correctly. `swap(a, b)` (two entity ids) still
+  does the plain position swap.
+- **`compare(arr, i, j, [color])`** (algo) — flashes the values *currently* in
+  those slots (reads live `occ`), the comparison step of a sort.
+
+See `examples/bubble_sort.manic` — real in-place sort, no `say`.
 
 ## Templates / themes
 

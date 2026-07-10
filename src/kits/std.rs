@@ -834,12 +834,72 @@ fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
 }
 
 /// `swap(a, b, [dur], [ease])` — animate two entities into each other's position.
-fn v_swap(s: &Scene, a: &Args) -> Result<Clip, Error> {
-    let ida = a.ident(0)?;
+///
+/// **Array form:** if the first argument is an `array` (has slot occupancy),
+/// the call is `swap(arr, i, j, [dur])`: the values currently in slots `i` and
+/// `j` **slide** past each other into the swapped slots (one hops over the top),
+/// and the array's live occupancy is updated. Because occupancy carries forward,
+/// a *chain* of swaps composes correctly — real in-place sorting, no `say`.
+fn v_swap(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    let id0 = a.ident(0)?;
+
+    // ---- array slot-swap (stateful, chains across a sort) ----
+    if s.occ.contains_key(&id0) {
+        let i = a.num(1)? as usize;
+        let j = a.num(2)? as usize;
+        let dur = a.opt_num(3)?.unwrap_or(0.62);
+        let (ei, ej, n) = {
+            let occ = &s.occ[&id0];
+            let n = occ.len();
+            if i >= n || j >= n {
+                return Err(Error::new(
+                    format!("slot out of range for `{id0}` (have 0..{n})"),
+                    a.span_of(if i >= n { 1 } else { 2 }),
+                ));
+            }
+            (occ[i].clone(), occ[j].clone(), n)
+        };
+        let _ = n;
+        if i == j {
+            return Ok(Clip::wait(0.0));
+        }
+        let slot_pos = |k: usize| -> Result<Vec2, Error> {
+            s.get(&format!("{id0}.box{k}"))
+                .map(|e| e.pos)
+                .ok_or_else(|| Error::new(format!("`{id0}` has no slot box {k}"), a.span_of(0)))
+        };
+        let pi = slot_pos(i)?;
+        let pj = slot_pos(j)?;
+        let lift = 54.0;
+        let tr = |id: &str, to: Vec2, start: f32, d: f32, e: Easing| TrackSpec {
+            id: id.into(),
+            prop: Prop::Pos,
+            target: TargetValue::Abs(Value::V(to)),
+            start,
+            dur: d,
+            easing: e,
+        };
+        let h = dur * 0.5;
+        let tracks = vec![
+            // ei rises and travels across the top, then drops into slot j
+            tr(&ei, Vec2::new(pj.x, pi.y - lift), 0.0, h, Easing::OutQuad),
+            tr(&ei, pj, h, dur - h, Easing::InQuad),
+            // ej slides along the baseline into slot i (passes under ei)
+            tr(&ej, pi, 0.0, dur, Easing::InOutCubic),
+        ];
+        s.occ.get_mut(&id0).unwrap().swap(i, j);
+        return Ok(Clip {
+            dur,
+            tracks,
+            events: Vec::new(),
+        });
+    }
+
+    // ---- generic two-entity position swap ----
     let idb = a.ident(1)?;
     let pa = s
-        .get(&ida)
-        .ok_or_else(|| Error::new(format!("no entity named `{ida}`"), a.span_of(0)))?
+        .get(&id0)
+        .ok_or_else(|| Error::new(format!("no entity named `{id0}`"), a.span_of(0)))?
         .pos;
     let pb = s
         .get(&idb)
@@ -861,7 +921,7 @@ fn v_swap(s: &Scene, a: &Args) -> Result<Clip, Error> {
     };
     Ok(Clip {
         dur,
-        tracks: vec![track(ida, pb), track(idb, pa)],
+        tracks: vec![track(id0, pb), track(idb, pa)],
         events: Vec::new(),
     })
 }
@@ -1026,7 +1086,7 @@ pub fn register(r: &mut Registry) {
     r.verb("cam", v_cam);
     r.verb("zoom", v_zoom);
     r.verb("transform", v_transform); // apply a 2x2 matrix (ApplyMatrix)
-    r.verb("swap", v_swap); // exchange two entities' positions
+    r.mut_verb("swap", v_swap); // two entities, or stateful array slot-swap
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
     r.verb("wordpop", v_wordpop); // pop caption words in one at a time
 }

@@ -33,6 +33,13 @@ use super::parser::parse;
 pub type CtorFn = fn(&mut Scene, &Args) -> Result<(), Error>;
 /// A verb builtin: produce a timeline clip (reads the base scene for id lookups).
 pub type VerbFn = fn(&Scene, &Args) -> Result<Clip, Error>;
+/// A **mutating** verb builtin: produces a clip like a verb, but also gets
+/// `&mut Scene` so it can carry build-time state forward between calls (e.g.
+/// `swap` updating `Scene::occ`). This is what lets a chain of stateful steps —
+/// sorting, stack push/pop, pointer moves — compose across the stateless
+/// timeline. Usable inside `par`/`seq`/`stagger` too; block children lower in
+/// source order, so the occupancy each one sees stays deterministic.
+pub type MutVerbFn = fn(&mut Scene, &Args) -> Result<Clip, Error>;
 
 /// The builtin table. Kits call [`Registry::ctor`] / [`Registry::verb`] to add
 /// vocabulary; the lowerer dispatches call names through it.
@@ -40,6 +47,7 @@ pub type VerbFn = fn(&Scene, &Args) -> Result<Clip, Error>;
 pub struct Registry {
     ctors: HashMap<&'static str, CtorFn>,
     verbs: HashMap<&'static str, VerbFn>,
+    mut_verbs: HashMap<&'static str, MutVerbFn>,
 }
 
 impl Registry {
@@ -55,6 +63,11 @@ impl Registry {
     /// Register a verb (produces a timeline clip).
     pub fn verb(&mut self, name: &'static str, f: VerbFn) {
         self.verbs.insert(name, f);
+    }
+
+    /// Register a mutating verb (produces a clip *and* may update `Scene::occ`).
+    pub fn mut_verb(&mut self, name: &'static str, f: MutVerbFn) {
+        self.mut_verbs.insert(name, f);
     }
 }
 
@@ -724,7 +737,10 @@ impl Class {
             Class::Meta
         } else if registry.ctors.contains_key(name) {
             Class::Ctor
-        } else if is_reserved(name) || registry.verbs.contains_key(name) {
+        } else if is_reserved(name)
+            || registry.verbs.contains_key(name)
+            || registry.mut_verbs.contains_key(name)
+        {
             Class::Timeline
         } else {
             Class::Unknown
@@ -760,12 +776,18 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
             Ok(())
         }
         "par" | "seq" | "stagger" => {
-            let clip = build_block_scene(&movie.scene, s, registry)?;
+            let clip = build_block_scene(&mut movie.scene, s, registry)?;
             movie.play(clip);
             Ok(())
         }
         _ => {
-            // a verb; needs a read of the (now complete) base scene
+            // a mutating verb carries state forward, so it gets `&mut scene`
+            if let Some(f) = registry.mut_verbs.get(s.name.as_str()) {
+                let clip = f(&mut movie.scene, &args_of(s))?;
+                movie.play(clip);
+                return Ok(());
+            }
+            // a plain verb; needs a read of the (now complete) base scene
             let f = registry.verbs.get(s.name.as_str()).expect("classified as verb");
             let clip = run_verb(*f, &movie.scene, s)?;
             movie.play(clip);
@@ -848,36 +870,41 @@ fn run_verb(f: VerbFn, scene: &Scene, s: &Stmt) -> Result<Clip, Error> {
 
 /// Lower a statement that appears *inside* a `par`/`seq`/`stagger` block into a
 /// clip. Only timeline-producing statements are legal here.
-fn lower_inner(movie_scene: &Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
-    let a = args_of(s);
+fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
     match s.name.as_str() {
-        "wait" | "beat" => Ok(Clip::wait(a.num(0)?)),
-        "par" | "seq" | "stagger" => build_block_scene(movie_scene, s, registry),
+        "wait" | "beat" => Ok(Clip::wait(args_of(s).num(0)?)),
+        "par" | "seq" | "stagger" => build_block_scene(scene, s, registry),
         "section" | "mark" => Err(Error::new(
             format!("`{}` can't appear inside a par/seq/stagger block", s.name),
             s.name_span,
         )),
-        _ => match registry.verbs.get(s.name.as_str()) {
-            Some(f) => run_verb(*f, movie_scene, s),
-            None => {
-                // constructor or unknown used in a timeline block
-                if registry.ctors.contains_key(s.name.as_str()) {
-                    Err(Error::new(
-                        format!(
-                            "`{}` declares an entity and can't appear inside a par/seq/stagger block",
-                            s.name
-                        ),
-                        s.name_span,
-                    ))
-                } else {
-                    Err(Error::new(format!("unknown builtin `{}`", s.name), s.name_span))
+        _ => {
+            // a mutating verb carries state forward, so it gets `&mut scene`
+            if let Some(f) = registry.mut_verbs.get(s.name.as_str()) {
+                return f(scene, &args_of(s));
+            }
+            match registry.verbs.get(s.name.as_str()) {
+                Some(f) => run_verb(*f, scene, s),
+                None => {
+                    // constructor or unknown used in a timeline block
+                    if registry.ctors.contains_key(s.name.as_str()) {
+                        Err(Error::new(
+                            format!(
+                                "`{}` declares an entity and can't appear inside a par/seq/stagger block",
+                                s.name
+                            ),
+                            s.name_span,
+                        ))
+                    } else {
+                        Err(Error::new(format!("unknown builtin `{}`", s.name), s.name_span))
+                    }
                 }
             }
-        },
+        }
     }
 }
 
-fn build_block_scene(scene: &Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
+fn build_block_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
     let block = s
         .block
         .as_ref()

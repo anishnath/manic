@@ -54,9 +54,14 @@ Constructors and timeline may be written in any order.
    for a fade-in; `untraced` + `draw` for a draw-on.
 2. **Top-level verbs run in SEQUENCE** (one after another). For simultaneous
    motion wrap them in `par { ... }`.
-3. **Multiplication:** implicit is fine where unambiguous — `2sx`, `3(x+1)`,
-   `(a+b)c`, `2pi` all work. But **two variable names must use `*`**: write
-   `dx*sx`, not `dxsx` (glued letters are one identifier).
+3. **Multiplication:** implicit works only after a **number** — `2sx`, `3(x+1)`,
+   `(a+b)c`, `2pi`, `110cos(x)` all fine. Everywhere else use an explicit `*`:
+   - **Two names/constants** → `dx*sx` (not `dxsx`), `tau*i` (not `taui`), `r*x`.
+     Glued letters are read as ONE identifier — even a constant like `tau`/`pi`/`e`
+     glued to a letter (`taui`) is a single unknown name, not `tau*i`.
+   - **A name/constant before `(`** is a **function call**, not a product:
+     `tau(i+1)` calls a function `tau`, and `rcos(x)` is the name `rcos`. Write
+     `tau*(i+1)` and `r*cos(x)`. (A number before `(` is fine: `2(x+1)`.)
 4. **Colors are a fixed palette**: `fg`, `void`, `cyan`, `magenta`, `lime`,
    `dim`, `panel`. No hex/RGB and no other names. For a computed/per-item colour
    use `hue(id, degrees)` (0–360).
@@ -118,7 +123,7 @@ or `hidden(id.words)` then `wordpop(id,[delay])` = pop each in) ·
 · `cam((x,y),[d],[ease])` · `zoom(f,[d],[ease])` ·
 `transform(id,(ox,oy),a,b,c,d,[d],[ease])` (apply 2×2 matrix about origin;
 broadcast over a tag to shear/rotate a grid+vectors — ApplyMatrix) ·
-`swap(a,b,[d],[ease])` ·
+`swap(a,b,[d],[ease])` (two entities; array form `swap(arr,i,j)` slides slot values) ·
 `to(id, prop, value,[d],[ease])` (alias `set`) where prop ∈
 `x y opacity scale angle trace color hue value morph`.
 Shape morph: `morph(a, b, [spin])` (constructor — sets `a` up to morph into `b`'s
@@ -160,6 +165,30 @@ keep them close enough that the circle fits the canvas.
 `graph(id, "v1 v2 v3", "a-b a>c", layout, (cx,cy), scale, [radius])` — a node/edge
 graph. Edges: `a-b` (line), `a>b` (arrow). `layout` is `circular`/`row`/`grid`.
 Nodes `{id}.{name}`, tags `{id}.nodes` / `{id}.edges`. Edges reflow if nodes move.
+`array(id, "5 2 8 1", (cx,cy), [cellw], [cellh])` — a row of value cells `{id}.c{k}`
+in fixed slot boxes `{id}.box{k}` (tags `{id}.cells`/`.boxes`). Two slot-index verbs:
+`compare(a, i, j, [color])` flashes the values now in slots i and j; `swap(a, i, j)`
+slides them into each other's slots. `swap` is stateful — it tracks occupancy, so a
+whole chain of swaps sorts correctly (no `say` needed). See examples/bubble_sort.manic.
+`pointer(id, arr, slot, [label])` drops a labelled index caret under a slot;
+`pointat(id, arr, slot)` slides it to another (label follows). Pointers track slot
+positions, so they stay as values swap through. See examples/two_pointer.manic.
+`stack(id,(x,y),[cw],[ch])` / `queue(id,(x,y),[cw],[ch])` are dynamic: `push`/`pop`
+(LIFO, grows up) and `enqueue`/`dequeue` (FIFO, grows right) add a cell and animate
+it in/out (`dequeue` also advances the rest). `caret(id,(x,y),"label",dir)` (dir ∈
+up/down/left/right) is a labelled marker you `move` to ride an action point (stack
+top, queue front/back). Mutating verbs (push/pop/swap/…) may go inside par/seq/stagger.
+See examples/stack_queue.manic.
+`list(id, "3 8 5", (cx,cy), kind, [cw], [ch])` — a linked list with classic node
+anatomy (split `[data│•next]` / `[•prev│data│next•]` boxes, `head` pointer, `NULL`
+terminator or wrap curve). `kind` ∈ `singly`/`doubly`/`circular`. `insert(id, after,
+"v")` splices a node in below the gap and re-threads pointers (no shift); `remove(id,
+i)` unlinks it. See examples/linked_list.manic.
+`bfs(g, start)` / `dfs(g, start)` — run a traversal on a `graph`: reads its adjacency,
+animates node states (discovered cyan → current magenta → done lime), lights tree
+edges, and shows live `queue:`/`stack:` + `visited:` readouts. BFS=queue, DFS=stack;
+directed edges (`a>b`) one way. `recolor(g.nodes, panel)` resets between runs. See
+examples/bfs_dfs.manic.
 
 ### Brand kit
 `banner(id,(cx,cy),[scale])` · `watermark(id,(x,y),["text"])`.

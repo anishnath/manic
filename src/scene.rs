@@ -14,6 +14,12 @@ use crate::style;
 pub struct Scene {
     pub entities: Vec<Entity>,
     index: HashMap<String, usize>,
+    /// Build-time slot occupancy for stateful structures (e.g. `array`): maps a
+    /// structure id to the entity id sitting in each slot. Seeded by the
+    /// constructor and updated by mutating verbs like `swap`, so a chain of
+    /// swaps knows the *current* occupant of each slot. Build-time only — the
+    /// renderer never reads it.
+    pub occ: HashMap<String, Vec<String>>,
 }
 
 impl Scene {

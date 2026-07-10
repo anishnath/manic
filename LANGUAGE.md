@@ -225,7 +225,7 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `cam((x,y), [dur], [ease])` | pan the camera centre |
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
 | `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` | apply the 2×2 matrix `[[a,b],[c,d]]` about origin `(ox,oy)` — broadcast over a tag to shear/rotate a whole grid + vectors (Manim `ApplyMatrix`) |
-| `swap(a, b, [dur], [ease])` | animate two entities into each other's position |
+| `swap(a, b, [dur], [ease])` | animate two entities into each other's position (array form `swap(arr, i, j)` slides slot values & chains across a sort) |
 | `karaoke(id, [delay], [color])` | highlight a `caption`'s words in sequence (lyrics-style) |
 | `wordpop(id, [delay])` | pop a `caption`'s words in one at a time (TikTok-style; `hidden(id.words)` first) |
 | `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
@@ -346,6 +346,13 @@ Data-structure & algorithm vocabulary. v1 centrepiece: **`graph`** (Manim's
 | call | draws |
 |---|---|
 | `graph(id, "v1 v2 …", "edges", layout, (cx,cy), scale, [radius])` | a graph of labelled circle nodes + edges |
+| `array(id, "5 2 8 1", (cx,cy), [cellw], [cellh])` | a row of value cells in fixed slot boxes |
+| `pointer(id, arr, slot, [label])` | an index caret under a slot of `arr` |
+| `stack(id, (x,y), [cw], [ch])` | an empty stack (bottom cell centre; grows up) |
+| `queue(id, (x,y), [cw], [ch])` | an empty queue (front cell centre; grows right) |
+| `caret(id, (x,y), "label", [dir])` | a labelled triangle marker (`dir` ∈ up/down/left/right) |
+| `list(id, "3 8 5", (cx,cy), [kind], [cw], [ch])` | a linked list (`kind` ∈ singly/doubly/circular) |
+| `hashmap(id, n, (cx,cy), [ew], [ch])` | `n` buckets (separate chaining) |
 
 - **vertices** — a whitespace-separated string of names → nodes `{id}.{name}`
   (each with a name label).
@@ -363,7 +370,107 @@ show(g.nodes);     draw(g.edges);       // reveal the whole group
 flash(g.a, magenta);                    // address one node by id
 ```
 
-## The geo kit (olympiad geometry)
+**`array`** lays out values in fixed slot boxes. Each value is a text cell
+`{id}.c{k}` and each box is `{id}.box{k}` (tags `{id}.cells`, `{id}.boxes`). Two
+verbs work by **slot index**:
+
+| call | does |
+|---|---|
+| `compare(a, i, j, [color])` | flash the values *currently* in slots `i` and `j` |
+| `swap(a, i, j, [dur])` | slide those two values into each other's slots |
+
+`swap` is **stateful**: it updates the array's occupancy, so a whole chain of
+swaps composes correctly (real in-place sorting) and `compare` always highlights
+whatever value sits in a slot *now*:
+
+```
+array(a, "3 1 2", (cx, 360), 100, 100);
+compare(a, 0, 1);  swap(a, 0, 1);   // 3 > 1 -> slide, now 1 3 2
+compare(a, 1, 2);  swap(a, 1, 2);   // 3 > 2 -> slide, now 1 2 3
+```
+
+(`swap(a, b)` with two *entity ids* still does a plain position swap. The array
+form is triggered when the first argument names an `array`.)
+
+**`pointer`** drops a labelled index caret below a slot and `pointat(id, arr, slot)`
+slides it to another (its `{id}.label` follows). Pointers track slot *positions*,
+so they stay put as values swap through (the verb is `pointat`, not `point` —
+geo's `point` owns that word):
+
+```
+pointer(lo, a, 0, "lo");   pointer(hi, a, 5, "hi");
+par { pointat(lo, a, 1);  pointat(hi, a, 4); }   // both step inward
+```
+
+**`stack` / `queue`** are *dynamic*: `push(id, "v")` / `pop(id)` (stack, LIFO,
+grows up) and `enqueue(id, "v")` / `dequeue(id)` (queue, FIFO, grows right) are
+mutating verbs that add a cell and animate it in/out, tracking occupancy so a
+chain of ops composes (`dequeue` also advances the cells behind the one that
+left). Pair them with a `caret` — a rigid labelled marker you `move` to ride the
+action point:
+
+```
+stack(st, (300, 500));
+caret(top, (362, 500), "top", left);           // sits right of the column
+push(st, "5");
+par { push(st, "3");  move(top, (362, 436)); }  // caret rises with the top
+pop(st);                                         // top value leaves
+```
+
+(Mutating verbs like `push`/`swap` may appear inside `par`/`seq`/`stagger` — block
+steps lower in source order, so occupancy stays deterministic.)
+
+**`list`** is a **linked list** with the classic node anatomy — framed boxes split
+into compartments with pointer dots, a `head` pointer, and a `NULL` terminator (or
+a wrap-to-head curve). `kind` ∈ `singly` (`[data│•]`, next + NULL), `doubly`
+(`[•│data│•]`, next & prev, NULL both ends), `circular` (tail loops to head).
+`insert(id, after, "v")` splices a node in **below** the gap and re-threads the
+pointers (the row never shifts); `remove(id, i)` unlinks and re-points around it:
+
+```
+list(l, "3 8 5", (cx, cy), doubly);
+insert(l, 1, "7");   // node 7 drops in below the 8-5 gap, pointers weave through
+remove(l, 0);        // head unlinks; head pointer slides to the new first node
+```
+
+**`bfs` / `dfs`** run a traversal on a `graph` and animate it. They read the
+graph's adjacency from its edges, so you just point them at a start node. Each
+node cycles through colour states — discovered (cyan) → current (magenta) → done
+(lime) — tree edges light up as they're taken, and two readouts track the
+frontier (`queue:` for BFS, `stack:` for DFS) and the `visited:` order. BFS and
+DFS are the *same* verb shape; only the frontier differs (queue vs stack):
+
+```
+graph(g, "a b c d e f g", "a-b a-c b-d b-e c-f c-g", circular, (cx,cy), 200);
+bfs(g, a);   // level order: a, then b c, then d e f g
+// ...recolor(g.nodes, panel) to reset, then:
+dfs(g, a);   // depth first: dives down one branch before backtracking
+```
+
+Directed edges (`a>b`) are followed one way; undirected (`a-b`) both ways.
+
+**Weighted edges + `dijkstra`.** Give an edge a weight with `a-b:7` (shown as a
+midpoint label). `dijkstra(g, start)` runs single-source shortest paths: each
+node carries a live distance label (`inf` → its final shortest distance), the
+nearest unsettled node settles (magenta → lime) while its edges relax, and the
+shortest-path-tree edges stay lit:
+
+```
+graph(g, "a b c d", "a-b:1 a-c:4 b-c:2 c-d:1", circular, (cx,cy), 200);
+dijkstra(g, a);   // a=0, b=1, c=3, d=4
+```
+
+**`hashmap`** is separate chaining. `hashmap(id, n, (cx,cy))` draws `n` numbered
+buckets; `put(id, "key", "val")` hashes the key (sum of its bytes, mod `n`) to a
+bucket and chains the `key:val` entry on; `get(id, "key")` hashes, then scans
+that bucket's chain, flashing entries until the key matches (lime) or the chain
+runs out (bucket flashes magenta — a miss):
+
+```
+hashmap(ht, 5, (cx, cy));
+put(ht, "cat", "7");   put(ht, "act", "9");   // anagrams collide -> same bucket, chained
+get(ht, "act");        // scans bucket 2: cat, then act (found)
+```
 
 High-level Euclidean constructions in the spirit of Asymptote's
 `olympiad.asy` / `cse5.asy` — you write the *geometry*, not coordinates. Every
