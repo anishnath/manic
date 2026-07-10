@@ -114,11 +114,30 @@ fn sample_outline(e: &Entity, n: usize) -> Vec<Vec2> {
     }
 }
 
-/// `morph(a, b)` — set `a` up to morph into `b`'s outline. Samples both outlines
-/// now; animate with `to(a, morph, 1, dur)`. `a` becomes a stroked polyline.
+/// `copy(new_id, src)` — duplicate an existing entity under a new id (standalone:
+/// the copy inherits the source's shape/style/position but not its group tags).
+/// Enables Manim's `TransformFromCopy`: `copy(c, a)` then morph/move `c`.
+fn c_copy(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let newid = a.ident(0)?;
+    let srcid = a.ident(1)?;
+    let mut e = s
+        .get(&srcid)
+        .ok_or_else(|| Error::new(format!("no entity named `{srcid}`"), a.span_of(1)))?
+        .clone();
+    e.id = newid;
+    e.tags.clear();
+    s.add(e);
+    Ok(())
+}
+
+/// `morph(a, b, [spin_deg])` — set `a` up to morph into `b`'s outline. Samples
+/// both outlines now; animate with `to(a, morph, 1, dur)`. `a` becomes a stroked
+/// polyline. Optional `spin_deg` winds the blend (clockwise if positive) —
+/// Manim's Clockwise/CounterclockwiseTransform.
 fn c_morph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let ida = a.ident(0)?;
     let idb = a.ident(1)?;
+    let spin = a.opt_num(2)?.unwrap_or(0.0);
     let mut from = {
         let ea = s
             .get(&ida)
@@ -139,7 +158,7 @@ fn c_morph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     ea.pos = Vec2::ZERO; // polyline points are absolute (like geo shapes)
     ea.stroke.fill = false;
     ea.stroke.outline = true;
-    ea.morph = Some((from, to));
+    ea.morph = Some((from, to, spin));
     Ok(())
 }
 
@@ -416,6 +435,13 @@ fn m_display(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
 fn m_untraced(s: &mut Scene, a: &Args) -> Result<(), Error> {
     ent_mut(s, a)?.trace = 0.0;
+    Ok(())
+}
+
+/// `cursor(id)` — give a text entity a typewriter cursor (`_`) at the end of its
+/// revealed text; pairs with `type`/`trace` for a terminal-prompt look.
+fn m_cursor(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    ent_mut(s, a)?.type_cursor = true;
     Ok(())
 }
 
@@ -807,6 +833,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("text", c_text);
     r.ctor("counter", c_counter);
     r.ctor("morph", c_morph);
+    r.ctor("copy", c_copy);
     r.ctor("dot", c_dot);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
@@ -818,6 +845,7 @@ pub fn register(r: &mut Registry) {
     // modifiers (also constructors: they touch the base scene)
     r.ctor("hidden", m_hidden);
     r.ctor("untraced", m_untraced);
+    r.ctor("cursor", m_cursor);
     r.ctor("rot", m_rot);
     r.ctor("opacity", m_opacity);
     r.ctor("color", m_color);

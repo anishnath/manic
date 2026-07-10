@@ -238,6 +238,7 @@ pub fn draw_text_block(
     wrap: Option<f32>,
     align: Align,
     trace: f32,
+    cursor: bool,
 ) {
     let font_size = raster.max(1.0).round() as u16;
     let font_scale = size.max(0.01) / font_size as f32;
@@ -259,14 +260,18 @@ pub fn draw_text_block(
             break;
         }
         let n_chars = line.chars().count();
-        let shown: String = if char_budget >= n_chars {
+        let (mut shown, typing_here): (String, bool) = if char_budget >= n_chars {
             char_budget -= n_chars;
-            line.clone()
+            (line.clone(), false)
         } else {
             let s: String = line.chars().take(char_budget).collect();
             char_budget = 0;
-            s
+            (s, true)
         };
+        // a typewriter cursor rides the line being typed (or the last line once done)
+        if cursor && (typing_here || i == lines.len() - 1) {
+            shown.push('_');
+        }
         let x = match align {
             Align::Center => {
                 // anchor on the full line so typing doesn't shift the block
@@ -327,6 +332,7 @@ fn draw_text_glow(
             wrap,
             align,
             1.0,
+            false,
         );
     }
 }
@@ -601,6 +607,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             // pulses scale glyphs smoothly instead of re-rasterizing
             draw_text_block(
                 content, p, phys_size, raster, stroke_c, font, e.rot, wrap, e.align, trace,
+                e.type_cursor,
             );
         }
     }
@@ -697,6 +704,7 @@ pub fn draw_page_chrome(
             None,
             Align::Center,
             1.0,
+            false,
         );
     }
     draw_text_block(
@@ -710,6 +718,7 @@ pub fn draw_page_chrome(
         None,
         Align::Center,
         1.0,
+        false,
     );
     } // end Full-only
 

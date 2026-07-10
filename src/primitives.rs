@@ -172,10 +172,13 @@ pub struct Entity {
     /// `prefix + value + suffix`. Animate `value` via
     /// [`crate::timeline::Prop::Value`] and the text updates each frame.
     pub counter: Option<Counter>,
-    /// If set, `(from, to)` outline point-sets (same length) for a shape morph.
-    /// Animate [`crate::timeline::Prop::Morph`] `0→1` to blend the `Polyline`
-    /// from one outline into the other.
-    pub morph: Option<(Vec<Vec2>, Vec<Vec2>)>,
+    /// If set, `(from, to, spin_deg)` for a shape morph: two outline point-sets
+    /// (same length) and a winding angle. Animate [`crate::timeline::Prop::Morph`]
+    /// `0→1` to blend the `Polyline` between the outlines, rotating by `spin_deg`
+    /// (clockwise if positive) as it goes.
+    pub morph: Option<(Vec<Vec2>, Vec<Vec2>, f32)>,
+    /// Draw a typewriter cursor at the end of the revealed text (`Shape::Text`).
+    pub type_cursor: bool,
 }
 
 /// A live numeric readout attached to a text entity.
@@ -224,6 +227,7 @@ impl Entity {
             hue: None,
             counter: None,
             morph: None,
+            type_cursor: false,
         }
     }
 }

@@ -100,7 +100,7 @@ log10 log2 sqrt abs floor ceil round sign`. Id interpolation: `name{expr}`.
 · booleans `union/intersect/difference/exclusion(id, a, b)`.
 
 ### Modifiers (t=0; first arg = target id or a tag)
-`hidden` · `untraced` · `opacity(id,n)` · `color(id,name)` ·
+`hidden` · `untraced` · `cursor(id)` (typewriter `_` on text) · `opacity(id,n)` · `color(id,name)` ·
 `hue(id,deg,[sat],[light])` · `outlined` · `filled` · `outline(id,name)` ·
 `size(id,n)` (text) · `stroke(id,n)` · `glow(id,n)` · `z(id,n)` · `rot(id,deg)`
 · `bold` · `display` · `tag(id,name)` · `label(id,"s",[(dx,dy)])`.
@@ -118,8 +118,10 @@ broadcast over a tag to shear/rotate a grid+vectors — ApplyMatrix) ·
 `swap(a,b,[d],[ease])` ·
 `to(id, prop, value,[d],[ease])` (alias `set`) where prop ∈
 `x y opacity scale angle trace color hue value morph`.
-Shape morph: `morph(a, b)` (constructor — sets `a` up to morph into `b`'s
-outline) then `to(a, morph, 1, dur)` to animate (outline-only; `a` becomes a polyline).
+Shape morph: `morph(a, b, [spin])` (constructor — sets `a` up to morph into `b`'s
+outline; `spin` degrees winds the blend) then `to(a, morph, 1, dur)` to animate
+(outline-only; `a` becomes a polyline). `copy(new, src)` duplicates an entity
+(standalone) — copy then morph/move it while the original stays.
 Easings: `smooth linear in out overshoot bounce elastic`.
 
 ### Math kit

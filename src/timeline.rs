@@ -229,15 +229,26 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             }
         }
         (Prop::Morph, Value::F(f)) => {
-            let pts = match &e.morph {
-                Some((from, to)) => from
+            let rebuilt = e.morph.as_ref().map(|(from, to, spin)| {
+                let mut pts: Vec<Vec2> = from
                     .iter()
                     .zip(to)
                     .map(|(a, b)| *a + (*b - *a) * f)
-                    .collect::<Vec<_>>(),
-                None => return,
-            };
-            e.shape = Shape::Polyline { pts };
+                    .collect();
+                // winding: rotate the blend by `f * spin` about its centroid
+                if spin.abs() > 1e-3 && !pts.is_empty() {
+                    let c = pts.iter().copied().sum::<Vec2>() / pts.len() as f32;
+                    let (s, cc) = (f * *spin).to_radians().sin_cos();
+                    for p in &mut pts {
+                        let d = *p - c;
+                        *p = c + Vec2::new(d.x * cc - d.y * s, d.x * s + d.y * cc);
+                    }
+                }
+                pts
+            });
+            if let Some(pts) = rebuilt {
+                e.shape = Shape::Polyline { pts };
+            }
         }
         (Prop::To, Value::V(p)) => {
             if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &mut e.shape

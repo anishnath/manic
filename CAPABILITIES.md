@@ -35,15 +35,15 @@ are occurrences across the `geometry/` samples.
 
 ### Kits
 - **std** — `dot`, `circle`, `rect`, `line`, `arrow`, `brace` / `bracelabel`
-  (curly brace between two points, optional label), `text`, `counter` (live
-  numeric readout); modifiers
-  (`hidden`, `untraced`, `color`, `hue` (HSL, computable per-entity),
-  `outline`/`outlined`/`filled`, `size`,
+  (curly brace, optional label), `text`, `counter` (live numeric readout),
+  `morph` (set a shape up to morph into another), `copy` (duplicate an entity);
+  modifiers (`hidden`, `untraced`, `cursor` (typewriter `_` on text), `color`,
+  `hue` (HSL, computable per-entity), `outline`/`outlined`/`filled`, `size`,
   `stroke`, `glow`, `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
-  `tag`); ~20 verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
+  `tag`); verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
   `type`, `say`, `recolor`, `flash`, `pulse`, `shake`, `scale`, `rotate`,
-  `spin`, `to`/`set`, `cam`, `zoom`); boolean ops `union`/`intersect`/
-  `difference`/`exclusion`.
+  `spin`, `swap`, `transform` (2×2 matrix / ApplyMatrix), `to`/`set`, `cam`,
+  `zoom`); boolean ops `union`/`intersect`/`difference`/`exclusion`.
 - **math** — `axes` (optional ticks + labels), `plane`/`numberplane`,
   `complexplane`, `polarplane`, `plot` (named functions **or a formula string**
   like `"cos(x)+0.5*sin(3*x)"`; symmetric or one-sided `(x0,x1)` range),
@@ -117,8 +117,9 @@ Still missing (minor):
 ### Transforms / morphing (Manim `Transform` family)
 Two kinds: **property** transforms (position, endpoint, colour, scale, rotation,
 opacity, trace, hue, value) — all covered; and **geometry** transforms — a
-linear map of space (`transform`) and outline shape-morph (`morph`) now covered
-too, leaving only entity-copy and animation-of-animations.
+linear map of space (`transform`), outline shape-morph (`morph`, with winding),
+and entity `copy` — now covered too. Essentially the whole family; only
+`TransformAnimations` is N/A by design (see below).
 
 - **Have (full):**
   - `ApplyMethod` → our verbs `move`/`shift`/`scale`/`rotate`/`spin`/`recolor`/
@@ -132,11 +133,15 @@ too, leaving only entity-copy and animation-of-animations.
     rotate together (the 3b1b linear-map-of-space visual). See
     `examples/linear_transform.manic`. Correct for dots/lines/vectors/axes;
     curves/circles move by anchor only (approximate).
-  - **`Transform` / `ReplacementTransform`** → **`morph(a, b)`** sets `a` up to
-    morph into `b`'s outline (both sampled to the same points); `to(a, morph, t)`
-    blends (`t=0` is `a`, `1` is `b`). See `examples/morph.manic`. Caveats:
-    outline-only (stroke, not filled area); one target per setup; sampled at
-    build time; a slight rotational offset in the point correspondence.
+  - **`Transform` / `ReplacementTransform`** → **`morph(a, b, [spin])`** sets `a`
+    up to morph into `b`'s outline (both sampled to the same points);
+    `to(a, morph, t)` blends. See `examples/morph.manic`. Caveats: outline-only
+    (stroke, not filled area); one target per setup; sampled at build time; naive
+    index correspondence (slight rotational offset).
+  - **`ClockwiseTransform` / `CounterclockwiseTransform`** → the optional `spin`
+    on `morph(a, b, spin)` winds the blend (positive = clockwise, negative = CCW).
+  - **`TransformFromCopy`** → **`copy(new, src)`** duplicates an entity (standalone,
+    no group tags); `copy(c, a)` then morph/move `c` while `a` stays put.
   - **`Swap`** → **`swap(a, b, [dur], [ease])`** exchanges two entities' positions.
 - **Partial (expressible, no dedicated builtin):**
   - `CyclicReplace` → a `for` loop of `move`s.
@@ -148,13 +153,14 @@ too, leaving only entity-copy and animation-of-animations.
     a **set of dots** via the loop+expression layer (compute `f(z)` per point and
     `to` it); `transform` covers only the *linear* (2×2) case, not a general
     per-point formula.
-- **None (missing):**
-  - `TransformFromCopy` — no entity-copy primitive.
-  - `ClockwiseTransform` / `CounterclockwiseTransform` — `morph` doesn't control
-    the winding direction of the blend.
-  - `TransformAnimations` — transforming between two animations; rare/advanced.
-  - `morph` correspondence is naive (index-matched) — mismatched topologies /
-    holes can twist; and it can't morph *filled* regions or text glyphs.
+- **N/A by design:**
+  - `TransformAnimations` — Manim interpolates between two *animation objects*.
+    manic's timeline is stateless property tracks with no first-class animation
+    object to blend, so the literal form doesn't fit. The practical use —
+    smoothly hand off / cross-blend two animations — is covered by `par`/`seq`
+    composition plus `morph` / crossfade (`par { fade(a); show(b); }`).
+- **Known `morph` limits:** naive index correspondence (mismatched topologies /
+  holes can twist), and it can't morph *filled* regions or text glyphs.
 
 ### Creation / reveal (Manim `Creation` family)
 Built on manic's `trace` property (draw-on for strokes = fraction of path/
@@ -168,22 +174,24 @@ outline traced with fills fading in; for text = typewriter char count).
   - `AddTextLetterByLetter` → `type(id)` (typewriter).
   - `RemoveTextLetterByLetter` → reverse typewriter (`erase` / `to(id, trace,
     0)` on text).
-- **Partial (expressible / approximate, no dedicated builtin):**
-  - `Write` / `Unwrite` → `draw`/`type` in, `erase` out. We do path-trace +
-    fill-fade / typewriter, **not** calligraphic stroke-by-stroke handwriting of
-    glyph outlines (that needs glyph-outline stroking, tied to the font/LaTeX
-    work).
-  - `DrawBorderThenFill` → `draw` traces the border and fades the fill *together*;
-    sequencing border-fully-then-fill is scriptable but not one call.
-  - `AddTextWordByWord` → typewriter is char-by-char only; no word granularity.
-  - `TypeWithCursor` / `UntypeWithCursor` → typewriter without a cursor glyph.
+  - **`TypeWithCursor` / `UntypeWithCursor`** → the **`cursor(id)`** modifier adds
+    a `_` typewriter cursor that rides the revealed text (terminal-prompt look).
   - `ShowIncreasingSubsets` → `stagger { for i in 0..n { show(x{i}); } }` over a
     tagged group (cumulative reveal).
   - `ShowSubmobjectsOneByOne` → a `seq` of show/hide (flipbook, one at a time).
-- **None (missing):**
-  - `SpiralIn` → no path-based entrance (positions interpolate linearly). Fakeable
-    by placing pieces at spiral offsets and moving them in with a loop, but there
-    is no spiral/path-motion builtin.
+- **Partial / not one call:**
+  - `DrawBorderThenFill` → `draw` traces the border and fades the fill *together*;
+    sequencing border-fully-then-fill is scriptable (`seq`) but not one builtin
+    (fill opacity isn't a track separate from `trace`).
+  - `AddTextWordByWord` → typewriter is char-by-char only; no word granularity.
+    Low value; char typewriter reads fine.
+- **Blocked / needs other machinery:**
+  - `Write` / `Unwrite` → we do path-trace + typewriter, **not** calligraphic
+    stroke-by-stroke handwriting of glyph outlines — needs glyph-outline stroking
+    (tied to the font/LaTeX work).
+  - `SpiralIn` → a path-based entrance. Needs **path-motion** (a `Pos` track that
+    follows a curve) + the entrance/initial-state machinery (the Growing
+    `growin`/`popin` cheap win). Fakeable today by loop-placing offsets + `move`.
 
 ### Growing (Manim `Growing` family)
 manic can animate `scale`, `spin`, and the line/arrow endpoint (`grow`), but has

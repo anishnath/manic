@@ -178,6 +178,7 @@ Each takes the target id as the first argument.
 |---|---|
 | `hidden(id)` | start invisible (reveal later with `show`) |
 | `untraced(id)` | start with the stroke undrawn (reveal with `draw`) |
+| `cursor(id)` | give a text entity a `_` typewriter cursor (pairs with `type`/`trace`) |
 | `rot(id, deg)` | start rotated by `deg` degrees |
 | `opacity(id, n)` | explicit starting opacity 0..1 |
 | `color(id, name)` | fill / primary color |
@@ -224,7 +225,8 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
 | `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` | apply the 2×2 matrix `[[a,b],[c,d]]` about origin `(ox,oy)` — broadcast over a tag to shear/rotate a whole grid + vectors (Manim `ApplyMatrix`) |
 | `swap(a, b, [dur], [ease])` | animate two entities into each other's position |
-| `morph(a, b)` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
+| `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
+| `copy(new, src)` (constructor) | duplicate entity `src` as `new` (standalone, no group tags) — copy then morph/move it while the original stays |
 
 `move`/`grow` accept an entity id as the target (`move(A, B)` moves A to B's
 position); everything else takes a literal `(x, y)`.
