@@ -51,6 +51,98 @@ fn c_text(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// How many points a morph outline is sampled to (both shapes match this).
+const MORPH_N: usize = 96;
+
+/// Resample a point list to exactly `n` points, evenly by arc length.
+fn resample(pts: &[Vec2], n: usize, closed: bool) -> Vec<Vec2> {
+    let mut poly = pts.to_vec();
+    if closed && poly.len() > 1 && poly[0] != poly[poly.len() - 1] {
+        poly.push(poly[0]);
+    }
+    if poly.len() < 2 {
+        return vec![poly.first().copied().unwrap_or(Vec2::ZERO); n];
+    }
+    let mut cum = vec![0.0f32];
+    for w in poly.windows(2) {
+        cum.push(cum.last().unwrap() + (w[1] - w[0]).length());
+    }
+    let total = *cum.last().unwrap();
+    if total < 1e-6 {
+        return vec![poly[0]; n];
+    }
+    (0..n)
+        .map(|k| {
+            let d = total * k as f32 / n as f32;
+            let mut i = 0;
+            while i + 1 < cum.len() && cum[i + 1] < d {
+                i += 1;
+            }
+            let seg = cum[i + 1] - cum[i];
+            let t = if seg > 1e-6 { (d - cum[i]) / seg } else { 0.0 };
+            poly[i] + (poly[i + 1] - poly[i]) * t
+        })
+        .collect()
+}
+
+/// Sample an entity's outline to `n` points (for a morph).
+fn sample_outline(e: &Entity, n: usize) -> Vec<Vec2> {
+    use std::f32::consts::TAU;
+    match &e.shape {
+        Shape::Circle { r } => (0..n)
+            .map(|k| {
+                let a = TAU * k as f32 / n as f32;
+                e.pos + Vec2::new(r * a.cos(), r * a.sin())
+            })
+            .collect(),
+        Shape::Rect { w, h } => {
+            let (hw, hh) = (w / 2.0, h / 2.0);
+            let corners = [
+                e.pos + Vec2::new(hw, -hh),
+                e.pos + Vec2::new(hw, hh),
+                e.pos + Vec2::new(-hw, hh),
+                e.pos + Vec2::new(-hw, -hh),
+            ];
+            resample(&corners, n, true)
+        }
+        Shape::Polyline { pts } => resample(pts, n, false),
+        Shape::Polygon { pts, .. } => resample(pts, n, true),
+        Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => {
+            resample(&[e.pos, *to], n, false)
+        }
+        _ => vec![e.pos; n], // text / arc / region: degenerate, holds a point
+    }
+}
+
+/// `morph(a, b)` — set `a` up to morph into `b`'s outline. Samples both outlines
+/// now; animate with `to(a, morph, 1, dur)`. `a` becomes a stroked polyline.
+fn c_morph(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let ida = a.ident(0)?;
+    let idb = a.ident(1)?;
+    let mut from = {
+        let ea = s
+            .get(&ida)
+            .ok_or_else(|| Error::new(format!("no entity named `{ida}`"), a.span_of(0)))?;
+        sample_outline(ea, MORPH_N)
+    };
+    let mut to = {
+        let eb = s
+            .get(&idb)
+            .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(1)))?;
+        sample_outline(eb, MORPH_N)
+    };
+    // close the loop so the outline has no gap
+    from.push(from[0]);
+    to.push(to[0]);
+    let ea = s.get_mut(&ida).unwrap();
+    ea.shape = Shape::Polyline { pts: from.clone() };
+    ea.pos = Vec2::ZERO; // polyline points are absolute (like geo shapes)
+    ea.stroke.fill = false;
+    ea.stroke.outline = true;
+    ea.morph = Some((from, to));
+    Ok(())
+}
+
 /// `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` — a text
 /// showing a number, animatable with `to(id, value, target)` so it counts
 /// live. Defaults: 0 decimals, empty prefix/suffix.
@@ -509,6 +601,7 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
         "angle" | "rot" | "rotation" => (Prop::Rot, TargetValue::Abs(Value::F(a.num(2)?))),
         "hue" => (Prop::Hue, TargetValue::Abs(Value::F(a.num(2)?))),
         "value" | "count" => (Prop::Value, TargetValue::Abs(Value::F(a.num(2)?))),
+        "morph" => (Prop::Morph, TargetValue::Abs(Value::F(a.num(2)?))),
         other => {
             return Err(Error::new(
                 format!(
@@ -535,6 +628,80 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
             dur,
             easing,
         }],
+        events: Vec::new(),
+    })
+}
+
+/// `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` — apply the 2×2 matrix
+/// `[[a,b],[c,d]]` to the entity about origin `(ox,oy)`: its anchor moves to
+/// `origin + M·(pos − origin)`, and a line/arrow/curve endpoint moves the same
+/// way. Broadcast over a tag to transform a whole group (a grid, vectors, a dot
+/// cloud) at once — Manim's `ApplyMatrix` / a linear map of the plane.
+fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    let id = a.ident(0)?;
+    let o = a.pair(1)?;
+    let (m00, m01, m10, m11) = (a.num(2)?, a.num(3)?, a.num(4)?, a.num(5)?);
+    let dur = a.opt_num(6)?.unwrap_or(0.9);
+    let easing = if a.len() > 7 {
+        resolve_easing(&a.ident(7)?, a.span_of(7))?
+    } else {
+        Easing::InOutCubic
+    };
+    let e = s
+        .get(&id)
+        .ok_or_else(|| Error::new(format!("no entity named `{id}`"), a.span_of(0)))?;
+    let apply = |v: Vec2| {
+        let w = v - o;
+        o + Vec2::new(m00 * w.x + m01 * w.y, m10 * w.x + m11 * w.y)
+    };
+    let track = |prop, v: Vec2| TrackSpec {
+        id: id.clone(),
+        prop,
+        target: TargetValue::Abs(Value::V(apply(v))),
+        start: 0.0,
+        dur,
+        easing,
+    };
+    let mut tracks = vec![track(Prop::Pos, e.pos)];
+    if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &e.shape {
+        tracks.push(track(Prop::To, *to));
+    }
+    Ok(Clip {
+        dur,
+        tracks,
+        events: Vec::new(),
+    })
+}
+
+/// `swap(a, b, [dur], [ease])` — animate two entities into each other's position.
+fn v_swap(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    let ida = a.ident(0)?;
+    let idb = a.ident(1)?;
+    let pa = s
+        .get(&ida)
+        .ok_or_else(|| Error::new(format!("no entity named `{ida}`"), a.span_of(0)))?
+        .pos;
+    let pb = s
+        .get(&idb)
+        .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(1)))?
+        .pos;
+    let dur = a.opt_num(2)?.unwrap_or(0.6);
+    let easing = if a.len() > 3 {
+        resolve_easing(&a.ident(3)?, a.span_of(3))?
+    } else {
+        Easing::InOutCubic
+    };
+    let track = |id: String, to: Vec2| TrackSpec {
+        id,
+        prop: Prop::Pos,
+        target: TargetValue::Abs(Value::V(to)),
+        start: 0.0,
+        dur,
+        easing,
+    };
+    Ok(Clip {
+        dur,
+        tracks: vec![track(ida, pb), track(idb, pa)],
         events: Vec::new(),
     })
 }
@@ -639,6 +806,7 @@ pub fn register(r: &mut Registry) {
     // constructors
     r.ctor("text", c_text);
     r.ctor("counter", c_counter);
+    r.ctor("morph", c_morph);
     r.ctor("dot", c_dot);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
@@ -694,4 +862,6 @@ pub fn register(r: &mut Registry) {
     r.verb("set", v_to); // alias
     r.verb("cam", v_cam);
     r.verb("zoom", v_zoom);
+    r.verb("transform", v_transform); // apply a 2x2 matrix (ApplyMatrix)
+    r.verb("swap", v_swap); // exchange two entities' positions
 }

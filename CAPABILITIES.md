@@ -15,9 +15,20 @@ are occurrences across the `geometry/` samples.
   `//` comments, `par` / `seq` / `stagger` blocks, `section`, `wait`/`beat`,
   `mark`; dotted ids; **tag broadcast** (a verb/modifier on a tag hits the whole
   group); line/column error diagnostics.
+- **Computation layer** (evaluated at build time): `let` variables; arithmetic
+  `+ - * / ^` with **implicit multiplication** (`2sx`, `3(x+1)`), comparisons,
+  logic, `pi`/`e`/`tau`, ~20 functions; `for v in a..b` loops; `if/else`;
+  recursive `def` macros; reductions `sum`/`prod`/`min`/`max`; id interpolation
+  (`bar{i}`). All collapse to literals before rendering — kits are unaffected.
+- **Look / config**: `canvas` accepts pixels or presets (`"16:9"`/`"square"`/
+  `"portrait"`/`"1080p"`/`"4k"`); `w`/`h`/`cx`/`cy` predefined. Selectable
+  **templates** — `plain` (default, blank screen), `terminal`, `paper`,
+  `blueprint` — each retints the palette and sets chrome/glow/CRT; author-set
+  `masthead` (no engine branding baked in). Same content renders in any template.
 - Animation: named verbs + a general `to(id, property, value)` (x, y, opacity,
-  scale, angle, trace, color, **hue** — cycles around the colour wheel);
-  `rotate`/`spin`; friendly easings; per-act duration.
+  scale, angle, trace, color, **hue** — cycles around the colour wheel, and
+  **value** — a live `counter`'s number); `rotate`/`spin`; camera `cam`/`zoom`;
+  friendly easings; per-act duration.
 - Updaters (pure functions of `t`): `follow` (ride a target), `link`
   (edge tracks two entities), and the general `derive` hook (dynamic
   constructions — drag a vertex and dependents recompute).
@@ -34,17 +45,21 @@ are occurrences across the `geometry/` samples.
   `spin`, `to`/`set`, `cam`, `zoom`); boolean ops `union`/`intersect`/
   `difference`/`exclusion`.
 - **math** — `axes` (optional ticks + labels), `plane`/`numberplane`,
-  `complexplane`, `polarplane`, `plot` (12 named functions), `numberline`,
-  `vector`, `arc`, `sector`, `annulus`, `pie`, `arrowfield` (8 named vector
-  fields, magnitude-coloured), `matrix` (bracketed, row/column addressable via
-  tags), `table` (ruled grid + optional row/col labels; cells, rows, columns,
-  labels and grid lines all addressable via tags).
+  `complexplane`, `polarplane`, `plot` (named functions **or a formula string**
+  like `"cos(x)+0.5*sin(3*x)"`; symmetric or one-sided `(x0,x1)` range),
+  `numberline`, `vector`, `arc`, `sector`, `annulus`, `pie`, `arrowfield` (8
+  named vector fields, magnitude-coloured), `matrix` (bracketed, row/column
+  addressable via tags), `table` (ruled grid + optional row/col labels; cells,
+  rows, columns, labels and grid lines all addressable via tags).
 - **algo** — `graph` (undirected `a-b` / directed `a>b`, circular/row/grid
   layouts, reflowing edges, tag groups).
-- **geo** — `point`, `segment` (reflows), derived points `midpoint`,
-  `centroid`, `circumcenter`, `incenter`, `orthocenter`, `foot`, `meet`;
-  `circumcircle`, `incircle`; `anglemark`, `rightangle`. All constructions are
-  **dynamic** (recompute as their inputs move).
+- **geo** — all **dynamic** (recompute as inputs move): `point`, `segment`;
+  centres `midpoint`/`centroid`/`circumcenter`/`incenter`/`orthocenter`/`foot`;
+  intersections `meet` (line∩line), `linecircle`, `circlecircle` (two points
+  each); `tangent` (touch points from an external point); `reflect`, `bisector`,
+  `rotpoint`, `between`, `anglepoint`; circles `circumcircle`/`incircle`/
+  `circle2`; conics `ellipse`/`parabola`/`hyperbola`; `fullline` (infinite);
+  `anglemark`, `rightangle`.
 - **brand** — `banner` (icon trio + "manic" wordmark, create→expand→unwrite)
   and `watermark` (screen-fixed persistent mark).
 
@@ -54,24 +69,30 @@ are occurrences across the `geometry/` samples.
 
 ## Gaps
 
-### Geometry (olympiad) — core covered; missing
-- **Intersections** beyond line∩line — line∩circle, circle∩circle
-  (`intersectionpoints`, 73). We have only `meet` (line∩line).
-- **Tangents** (`tangent`/`tangents`, 36) — tangent to a circle; tangents from
-  an external point.
-- **`bisector`** (14); **`reflect`**; rotate/transform a whole object.
-- **Infinite `line`** that extends to the frame vs. our finite `segment`
-  (`line`/`drawline`, ~68).
-- **Conics:** `ellipse` (32), `parabola` (20), `hyperbola` (14) — none.
-- **Point-on-curve by parameter** (`angpoint`/`curpoint`/`relpoint`/
-  `*abscissa`, ~300 combined) — a point at an angle / arc-length / relative
-  position along a path. Common in asy; advanced.
+### Geometry (olympiad) — largely covered now
+Done (all **dynamic** unless noted): `meet` (line∩line), **`linecircle`**
+(line∩circle), **`circlecircle`** (circle∩circle) — the last two output two
+points `{id}0/1`; **`tangent`** (two touch-points from an external point);
+**`reflect`** (point across a line); **`bisector`** (point on the internal angle
+bisector); **`circle2`** (circle by centre + a point on it); **`rotpoint`**
+(point rotated about another by θ — gives equilateral apexes, regular figures);
+**`between`** (point at fraction `t` along a segment — relpoint); **`anglepoint`**
+(point on a circle at an angle); **`fullline`** (line extended across the frame);
+**`ellipse`** (rotatable outline, static). Circles are given as centre + a point
+on them so the radius stays dynamic. Examples `examples/tangents.manic`.
+**Conics complete:** `ellipse`, `parabola` (vertex + width/height), `hyperbola`
+(two branches `{id}.r`/`{id}.l`) — see `examples/conics.manic`.
+Still missing (minor):
+- **Rotate a whole construction** at once (you can `rotpoint` each vertex).
+- **Point-on-curve by arc-length** (`between` covers relative position on a
+  segment; arc-length along an arbitrary path is not done).
+- Foci/directrix as *constructed* elements of a conic (the conics are drawn
+  outlines, not point-defined loci).
 - **Skew coordinate systems** (`cartesiansystem`, 113) — niche.
 - **Numeric labels** — `markangle` with a degree value, `distance` (16). The
   `counter` readout + `value` track cover *animated* / computed numbers; what's
   still missing is binding one to a *live geometry measurement* (a length that
   updates as a vertex is dragged) — would wire the `derive` hook into a counter.
-- **Minor:** a `circle` centred on a *point* (dynamic) — cheap add.
 
 ### Graphing (math) — partial
 - Expression plots DONE — `plot` takes a formula string in `x`/`t`
@@ -94,35 +115,46 @@ are occurrences across the `geometry/` samples.
   future updater-driven feature).
 
 ### Transforms / morphing (Manim `Transform` family)
-The dividing line: manic animates entity **properties** (position, endpoint,
-color, scale, rotation, opacity, trace, hue, value) but does **not** morph one
-shape's **geometry** into another's.
+Two kinds: **property** transforms (position, endpoint, colour, scale, rotation,
+opacity, trace, hue, value) — all covered; and **geometry** transforms — a
+linear map of space (`transform`) and outline shape-morph (`morph`) now covered
+too, leaving only entity-copy and animation-of-animations.
 
 - **Have (full):**
   - `ApplyMethod` → our verbs `move`/`shift`/`scale`/`rotate`/`spin`/`recolor`/
     `to`/`set`.
   - `ScaleInPlace` → `scale(id, f)`; `ShrinkToCenter` → `scale(id, 0)`.
   - `FadeToColor` → `recolor`.
-  - `MoveToTarget` → `to`/`move` straight to the target (no `generate_target`
-    two-step, same result).
+  - `MoveToTarget` → `to`/`move` straight to the target.
+  - **`ApplyMatrix`** → **`transform(group, (ox,oy), a,b,c,d, [dur], [ease])`** —
+    applies a 2×2 matrix about an origin to every entity in a tagged group
+    (anchor + line/arrow endpoints), so a grid + basis vectors + points shear /
+    rotate together (the 3b1b linear-map-of-space visual). See
+    `examples/linear_transform.manic`. Correct for dots/lines/vectors/axes;
+    curves/circles move by anchor only (approximate).
+  - **`Transform` / `ReplacementTransform`** → **`morph(a, b)`** sets `a` up to
+    morph into `b`'s outline (both sampled to the same points); `to(a, morph, t)`
+    blends (`t=0` is `a`, `1` is `b`). See `examples/morph.manic`. Caveats:
+    outline-only (stroke, not filled area); one target per setup; sampled at
+    build time; a slight rotational offset in the point correspondence.
+  - **`Swap`** → **`swap(a, b, [dur], [ease])`** exchanges two entities' positions.
 - **Partial (expressible, no dedicated builtin):**
-  - `Swap`, `CyclicReplace` → hand-written `move`s (a `for` loop for cycles).
+  - `CyclicReplace` → a `for` loop of `move`s.
   - `FadeTransform` / `FadeTransformPieces` → crossfade `par { fade(a); show(b); }`
     — not point-matched.
   - `Restore` → the revert machinery exists internally (`pulse`/`flash`
     auto-restore) but there is no user-facing `save`/`restore` verb.
-  - `ApplyMatrix`, `ApplyPointwiseFunction[ToCenter]`, `ApplyComplexFunction` →
-    now expressible over a **set of dots/vectors** via the loop+expression layer
-    (compute `M·p` / `f(z)` per point and `to` it). Cannot warp a single
-    parametric shape, and there is no builtin (a `transform(group, a,b,c,d)`
-    linear-transform verb is the highest-value candidate — 3b1b-style).
+  - `ApplyPointwiseFunction[ToCenter]`, `ApplyComplexFunction` → expressible over
+    a **set of dots** via the loop+expression layer (compute `f(z)` per point and
+    `to` it); `transform` covers only the *linear* (2×2) case, not a general
+    per-point formula.
 - **None (missing):**
-  - `Transform` / `ReplacementTransform` — true shape morph (e.g. circle outline
-    → square outline). Needs primitives to expose sampled points + a
-    correspondence rule; the core prerequisite for this whole row.
   - `TransformFromCopy` — no entity-copy primitive.
-  - `ClockwiseTransform` / `CounterclockwiseTransform` — depend on morph.
+  - `ClockwiseTransform` / `CounterclockwiseTransform` — `morph` doesn't control
+    the winding direction of the blend.
   - `TransformAnimations` — transforming between two animations; rare/advanced.
+  - `morph` correspondence is naive (index-matched) — mismatched topologies /
+    holes can twist; and it can't morph *filled* regions or text glyphs.
 
 ### Creation / reveal (Manim `Creation` family)
 Built on manic's `trace` property (draw-on for strokes = fraction of path/
@@ -175,6 +207,25 @@ out of nothing" and edge/point origins are scriptable rather than one call.
 - **Cheap win:** an initial `scale` modifier + a `growin`/`popin` verb (scale
   0→1 about the anchor) would move `GrowFromCenter` / `SpinInFromNothing` to
   full support in a few lines.
+
+### Deeper math — numeric & symbolic (future, via a crate)
+Not needed for anything built so far (our own expression evaluator covers
+numeric plotting/computation, and shape-morph needs only lerp). Tracked so we
+don't miss them when a feature calls for one:
+- **Numeric linear algebra — `nalgebra`** (mature, low-risk). Add *when* we build
+  linear-algebra visuals that need real matrix math: **eigenvectors/eigenvalues**
+  of the `transform` matrix, determinant-as-signed-area, matrix
+  decompositions, solving `Ax=b`. High value, contained; pull it in at that point,
+  not speculatively.
+- **Symbolic math / mini-CAS** (`symbolica` or hand-rolled) — a bigger, separate
+  decision. Would enable **step-by-step algebra**, **auto-differentiation** (a
+  tangent line straight from a formula), and **equation solving** shown on
+  screen. The Rust symbolic ecosystem is thin and some options are commercially
+  licensed, so this is a *direction* to commit to deliberately, only if
+  "show the algebra" animations become a goal. Our numeric evaluator already
+  handles evaluation; symbolic adds *manipulation*.
+Precedent: we already add a focused crate when a feature needs it (`geo` for
+booleans, `earcutr` for triangulation) — same policy here.
 
 ### 3D — none (deferred by design)
 `graph3` / `three` / `solids` / `tube` / `grid3` ≈ 96 asy files. Planned:
@@ -282,6 +333,23 @@ still forces the post-process on regardless of the template default.
 **Still to do:** template-controlled **fonts** (needs alternate font assets
 bundled — the separate "selectable fonts" work); more palettes; a `minimal`
 chrome level exposed as a template.
+
+### Hand-drawn / chalkboard look (planned, undecided)
+Requested idea: make the output *look* hand-drawn — chalk on a blackboard,
+student/teacher style — not just clean neon geometry. Two independent layers:
+- **Chalkboard colours** — a `chalkboard` **template** (dark slate bg + chalky
+  off-white/pastel palette + glow off). Small; fits the current template
+  structure. Gets the *vibe* but lines stay crisp.
+- **Hand-drawn line quality** — a new **`sketch`/rough render style** (NOT
+  built): at draw time, perturb every stroke's polyline points with a little
+  noise so lines wobble like a human hand, vary width unevenly, and overlay a
+  subtle chalk grain/texture (the RoughJS / Manim-xkcd effect). This is what
+  actually makes it look hand-drawn. Doable as a render-time pass over paths +
+  a grain overlay; medium effort.
+- Note: the *motion* already reads as "being drawn" (`draw` traces strokes on,
+  `type` reveals text like handwriting) — this is only about the static *texture*.
+- The two compose: `chalkboard` template + `sketch` style = teacher-at-the-board.
+Decide later.
 
 **What a template bundles:**
 - palette + the named-colour map (what `cyan`/`magenta`/`lime`/`fg`/`dim`/`bg`/

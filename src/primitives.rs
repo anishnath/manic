@@ -172,6 +172,10 @@ pub struct Entity {
     /// `prefix + value + suffix`. Animate `value` via
     /// [`crate::timeline::Prop::Value`] and the text updates each frame.
     pub counter: Option<Counter>,
+    /// If set, `(from, to)` outline point-sets (same length) for a shape morph.
+    /// Animate [`crate::timeline::Prop::Morph`] `0→1` to blend the `Polyline`
+    /// from one outline into the other.
+    pub morph: Option<(Vec<Vec2>, Vec<Vec2>)>,
 }
 
 /// A live numeric readout attached to a text entity.
@@ -219,6 +223,7 @@ impl Entity {
             derive: None,
             hue: None,
             counter: None,
+            morph: None,
         }
     }
 }

@@ -62,6 +62,9 @@ pub enum Prop {
     /// A live numeric readout ([`crate::primitives::Counter::value`]); the
     /// text content re-renders each frame as it tweens.
     Value,
+    /// Shape-morph fraction `0→1` — blends the entity's `Polyline` between the
+    /// two outlines in [`crate::primitives::Entity::morph`].
+    Morph,
 }
 
 /// Where a track ends up. `Rel` and `Revert` are resolved to absolute values
@@ -186,6 +189,12 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
         Prop::Trace => Value::F(e.trace),
         Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
         Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
+        Prop::Morph => {
+            if e.morph.is_none() {
+                return None;
+            }
+            Value::F(0.0) // base fraction; the track animates it to 1
+        }
         Prop::To => match &e.shape {
             Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
             _ => return None,
@@ -218,6 +227,17 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                     *content = text;
                 }
             }
+        }
+        (Prop::Morph, Value::F(f)) => {
+            let pts = match &e.morph {
+                Some((from, to)) => from
+                    .iter()
+                    .zip(to)
+                    .map(|(a, b)| *a + (*b - *a) * f)
+                    .collect::<Vec<_>>(),
+                None => return,
+            };
+            e.shape = Shape::Polyline { pts };
         }
         (Prop::To, Value::V(p)) => {
             if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &mut e.shape

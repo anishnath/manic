@@ -222,6 +222,9 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `spin(id, degrees, [dur], [ease])` | rotate *by* a relative angle |
 | `cam((x,y), [dur], [ease])` | pan the camera centre |
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
+| `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` | apply the 2×2 matrix `[[a,b],[c,d]]` about origin `(ox,oy)` — broadcast over a tag to shear/rotate a whole grid + vectors (Manim `ApplyMatrix`) |
+| `swap(a, b, [dur], [ease])` | animate two entities into each other's position |
+| `morph(a, b)` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
 
 `move`/`grow` accept an entity id as the target (`move(A, B)` moves A to B's
 position); everything else takes a literal `(x, y)`.
@@ -374,10 +377,28 @@ incircle, centroid, foot, angle mark, and all sides update live.
 | `orthocenter(id, a, b, c)` | intersection of the altitudes |
 | `foot(id, p, a, b)` | foot of the perpendicular from `p` to line `ab` |
 | `meet(id, a, b, c, d)` | intersection of lines `ab` and `cd` |
+| `reflect(id, p, a, b)` | reflection of point `p` across line `ab` |
+| `bisector(id, a, b, c)` | a point on the internal angle bisector at vertex `b` (draw `segment(b, id)`) |
+| `rotpoint(id, p, center, deg)` | `p` rotated about `center` by `deg` degrees (e.g. an equilateral apex with `deg = -60`) |
+| `between(id, a, b, t)` | the point a fraction `t` of the way from `a` to `b` (`t = 0.5` = midpoint) |
+| `anglepoint(id, center, on, deg)` | a point on circle `(center, on)` at absolute angle `deg` |
+| `fullline(id, a, b)` | a line through `a`,`b` extended across the frame (looks infinite) |
+| `ellipse(id, (cx,cy), rx, ry, [deg])` | an ellipse outline, optionally rotated `deg` degrees |
+| `parabola(id, (vx,vy), halfwidth, height)` | a parabola, vertex `(vx,vy)`, arms `height` px up at `±halfwidth` (negative opens down) |
+| `hyperbola(id, (cx,cy), a, b, [range])` | a hyperbola, semi-axes `a`/`b`; two branches `{id}.r` / `{id}.l` (both tagged `id`) |
+| `circle2(id, center, through)` | a circle centred at `center` passing through point `through` (radius = their distance) |
+| `linecircle(id, a, b, center, through)` | the **two** points where line `ab` meets circle `(center, through)` → `{id}0`, `{id}1` |
+| `circlecircle(id, o1, on1, o2, on2)` | the two intersection points of circles `(o1,on1)` and `(o2,on2)` → `{id}0`, `{id}1` |
+| `tangent(id, from, center, through)` | the **two** tangent touch-points from external point `from` to circle `(center, through)` → `{id}0`, `{id}1` |
 | `circumcircle(id, a, b, c)` | circle through the three points |
 | `incircle(id, a, b, c)` | circle inscribed in the triangle |
 | `anglemark(id, a, b, c)` | an arc marking the angle at vertex `b` |
 | `rightangle(id, a, b, c)` | a small square marking a right angle at `b` |
+
+Circles for `linecircle` / `circlecircle` / `tangent` are given as a **centre +
+a point on the circle** (so the radius is dynamic too). Intersections and
+tangents produce **two** points named `{id}0` and `{id}1`; draw or reference them
+individually. All of these are dynamic — move an input and they recompute.
 
 ```
 point(A, (380,560), "A");  point(B, (900,560), "B");  point(C, (640,140), "C");
