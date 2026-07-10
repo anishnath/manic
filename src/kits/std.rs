@@ -114,6 +114,140 @@ fn sample_outline(e: &Entity, n: usize) -> Vec<Vec2> {
     }
 }
 
+/// `caption(id, "some words", (cx,cy), [size], [color])` — lay out the words in
+/// a centred row as `{id}.w0`, `{id}.w1`, … (tagged `{id}.words`). Animate them
+/// in sequence with `karaoke` / `wordpop`, or address the group by tag.
+/// Widths use the monospace advance (~0.6 em), so no render-time measuring.
+fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let text = a.text(1)?;
+    let center = a.pair(2)?;
+    let size = a.opt_num(3)?.unwrap_or(40.0);
+    let color = if a.len() > 4 {
+        resolve_color(&a.ident(4)?, a.span_of(4))?
+    } else {
+        style::FG
+    };
+    let advance = size * 0.6; // IBM Plex Mono ~0.6 em per glyph
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let total_chars: usize = words.iter().map(|w| w.chars().count()).sum::<usize>()
+        + words.len().saturating_sub(1); // + single spaces
+    let x_left = center.x - total_chars as f32 * advance / 2.0;
+    let mut char_pos = 0usize;
+    for (k, w) in words.iter().enumerate() {
+        let len = w.chars().count();
+        let x = x_left + (char_pos as f32 + len as f32 / 2.0) * advance;
+        let mut e = Entity::new(
+            format!("{id}.w{k}"),
+            Shape::Text {
+                content: w.to_string(),
+                size,
+            },
+            Vec2::new(x, center.y),
+            color,
+        );
+        e.font = FontKind::MonoBold;
+        e.tags = vec![format!("{id}.words")];
+        s.add(e);
+        char_pos += len + 1;
+    }
+    Ok(())
+}
+
+/// The word ids of a caption, in order (`{id}.w0`, `{id}.w1`, …).
+fn caption_words(s: &Scene, id: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut k = 0;
+    while s.contains(&format!("{id}.w{k}")) {
+        out.push(format!("{id}.w{k}"));
+        k += 1;
+    }
+    out
+}
+
+/// `karaoke(id, [delay], [color])` — highlight a caption's words in sequence
+/// (lyrics-style), one every `delay` seconds.
+fn v_karaoke(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    let id = a.ident(0)?;
+    let delay = a.opt_num(1)?.unwrap_or(0.25);
+    let color = if a.len() > 2 {
+        resolve_color(&a.ident(2)?, a.span_of(2))?
+    } else {
+        style::LIME
+    };
+    let words = caption_words(s, &id);
+    if words.is_empty() {
+        return Err(Error::new(
+            format!("no caption words for `{id}` — call `caption(...)` first"),
+            a.span_of(0),
+        ));
+    }
+    let tracks = words
+        .iter()
+        .enumerate()
+        .map(|(k, wid)| TrackSpec {
+            id: wid.clone(),
+            prop: Prop::Color,
+            target: TargetValue::Abs(Value::C(color)),
+            start: k as f32 * delay,
+            dur: 0.25,
+            easing: Easing::OutQuad,
+        })
+        .collect();
+    Ok(Clip {
+        dur: (words.len().saturating_sub(1)) as f32 * delay + 0.25,
+        tracks,
+        events: Vec::new(),
+    })
+}
+
+/// `wordpop(id, [delay])` — reveal a caption's words one at a time with a pop
+/// (TikTok-caption style). Hide them first (`hidden(id.words)`) for the reveal.
+fn v_wordpop(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    let id = a.ident(0)?;
+    let delay = a.opt_num(1)?.unwrap_or(0.12);
+    let words = caption_words(s, &id);
+    if words.is_empty() {
+        return Err(Error::new(
+            format!("no caption words for `{id}` — call `caption(...)` first"),
+            a.span_of(0),
+        ));
+    }
+    let mut tracks = Vec::new();
+    for (k, wid) in words.iter().enumerate() {
+        let t0 = k as f32 * delay;
+        tracks.push(TrackSpec {
+            id: wid.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(1.0)),
+            start: t0,
+            dur: 0.16,
+            easing: Easing::OutQuad,
+        });
+        tracks.push(TrackSpec {
+            id: wid.clone(),
+            prop: Prop::Scale,
+            target: TargetValue::Abs(Value::F(1.35)),
+            start: t0,
+            dur: 0.12,
+            easing: Easing::OutQuad,
+        });
+        tracks.push(TrackSpec {
+            id: wid.clone(),
+            prop: Prop::Scale,
+            target: TargetValue::Abs(Value::F(1.0)),
+            start: t0 + 0.12,
+            dur: 0.22,
+            easing: Easing::OutBack,
+        });
+    }
+    Ok(Clip {
+        dur: (words.len().saturating_sub(1)) as f32 * delay + 0.34,
+        tracks,
+        events: Vec::new(),
+    })
+}
+
 /// `copy(new_id, src)` — duplicate an existing entity under a new id (standalone:
 /// the copy inherits the source's shape/style/position but not its group tags).
 /// Enables Manim's `TransformFromCopy`: `copy(c, a)` then morph/move `c`.
@@ -832,6 +966,7 @@ pub fn register(r: &mut Registry) {
     // constructors
     r.ctor("text", c_text);
     r.ctor("counter", c_counter);
+    r.ctor("caption", c_caption);
     r.ctor("morph", c_morph);
     r.ctor("copy", c_copy);
     r.ctor("dot", c_dot);
@@ -892,4 +1027,6 @@ pub fn register(r: &mut Registry) {
     r.verb("zoom", v_zoom);
     r.verb("transform", v_transform); // apply a 2x2 matrix (ApplyMatrix)
     r.verb("swap", v_swap); // exchange two entities' positions
+    r.verb("karaoke", v_karaoke); // highlight caption words in sequence
+    r.verb("wordpop", v_wordpop); // pop caption words in one at a time
 }

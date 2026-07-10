@@ -36,7 +36,8 @@ are occurrences across the `geometry/` samples.
 ### Kits
 - **std** — `dot`, `circle`, `rect`, `line`, `arrow`, `brace` / `bracelabel`
   (curly brace, optional label), `text`, `counter` (live numeric readout),
-  `morph` (set a shape up to morph into another), `copy` (duplicate an entity);
+  `morph` (set a shape up to morph into another), `copy` (duplicate an entity),
+  `caption` (word-by-word text row + `karaoke`/`wordpop` verbs);
   modifiers (`hidden`, `untraced`, `cursor` (typewriter `_` on text), `color`,
   `hue` (HSL, computable per-entity), `outline`/`outlined`/`filled`, `size`,
   `stroke`, `glow`, `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
@@ -176,6 +177,10 @@ outline traced with fills fading in; for text = typewriter char count).
     0)` on text).
   - **`TypeWithCursor` / `UntypeWithCursor`** → the **`cursor(id)`** modifier adds
     a `_` typewriter cursor that rides the revealed text (terminal-prompt look).
+  - **`AddTextWordByWord`** → **`caption(id, "words", (x,y))`** lays out the
+    words, then **`wordpop(id)`** pops them in one at a time (TikTok style) or
+    **`karaoke(id, [delay], [color])`** highlights them in sequence (lyrics
+    style). See `examples/captions.manic`.
   - `ShowIncreasingSubsets` → `stagger { for i in 0..n { show(x{i}); } }` over a
     tagged group (cumulative reveal).
   - `ShowSubmobjectsOneByOne` → a `seq` of show/hide (flipbook, one at a time).
@@ -183,8 +188,6 @@ outline traced with fills fading in; for text = typewriter char count).
   - `DrawBorderThenFill` → `draw` traces the border and fades the fill *together*;
     sequencing border-fully-then-fill is scriptable (`seq`) but not one builtin
     (fill opacity isn't a track separate from `trace`).
-  - `AddTextWordByWord` → typewriter is char-by-char only; no word granularity.
-    Low value; char typewriter reads fine.
 - **Blocked / needs other machinery:**
   - `Write` / `Unwrite` → we do path-trace + typewriter, **not** calligraphic
     stroke-by-stroke handwriting of glyph outlines — needs glyph-outline stroking

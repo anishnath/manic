@@ -94,6 +94,9 @@ log10 log2 sqrt abs floor ceil round sign`. Id interpolation: `name{expr}`.
 
 ### Constructors (std)
 `text(id,(x,y),"s")` · `counter(id,(x,y),value,[dec],["pre"],["suf"])` ·
+`caption(id,"the words",(x,y),[size],[color])` (word row → `{id}.w0…`, tag
+`{id}.words`; animate with `karaoke(id,[delay],[color])` = highlight in sequence,
+or `hidden(id.words)` then `wordpop(id,[delay])` = pop each in) ·
 `dot(id,(x,y),[r])` · `circle(id,(x,y),r)` · `rect(id,(x,y),w,h)` ·
 `line(id,(x1,y1),(x2,y2))` · `arrow(id,(x1,y1),(x2,y2))` ·
 `brace(id,(x1,y1),(x2,y2),[depth])` · `bracelabel(id,(x1,y1),(x2,y2),"s",[depth])`

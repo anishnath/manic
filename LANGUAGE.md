@@ -162,6 +162,7 @@ address.
 |---|---|
 | `text(id, (x,y), "str")` | text centred at `(x,y)`, mono, size 28 |
 | `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` | a numeric readout; animate with `to(id, value, target)` so it counts live |
+| `caption(id, "some words", (x,y), [size], [color])` | lays words out in a centred row as `{id}.w0…` (tag `{id}.words`); animate with `karaoke`/`wordpop` |
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
@@ -225,6 +226,8 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
 | `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` | apply the 2×2 matrix `[[a,b],[c,d]]` about origin `(ox,oy)` — broadcast over a tag to shear/rotate a whole grid + vectors (Manim `ApplyMatrix`) |
 | `swap(a, b, [dur], [ease])` | animate two entities into each other's position |
+| `karaoke(id, [delay], [color])` | highlight a `caption`'s words in sequence (lyrics-style) |
+| `wordpop(id, [delay])` | pop a `caption`'s words in one at a time (TikTok-style; `hidden(id.words)` first) |
 | `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
 | `copy(new, src)` (constructor) | duplicate entity `src` as `new` (standalone, no group tags) — copy then morph/move it while the original stays |
 
