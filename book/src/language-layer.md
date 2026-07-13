@@ -20,6 +20,10 @@ Arithmetic is what you'd expect: `+ - * / ^`, parentheses, and functions like
 `sin`, `cos`, `sqrt`. Constants `pi`, `tau`, `e` are built in, as are the canvas
 vars `w`, `h`, `cx`, `cy`.
 
+> **Put a `*` between names.** A number can hug a name (`2r`, `3(x+1)`), but two
+> names glued together read as one word — write `r*x`, `i*dx`, `pi*t`, never
+> `rx` / `idx` / `pit`. This is the most common slip in loops and formulas.
+
 ## Loops — `for`
 
 ```manic
