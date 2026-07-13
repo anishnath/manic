@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+# never commit OAuth secrets/tokens
+client_secret*.json
+youtube_credentials.json
