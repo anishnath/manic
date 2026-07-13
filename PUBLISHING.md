@@ -87,23 +87,46 @@ cp -R book/book/. /Users/anish/git/crypto-tool/src/main/webapp/manic/docs/
 Then rebuild/redeploy the `crypto-tool` WAR. The playground's **Docs ↗** button and
 the welcome modal link to `/manic/docs/index.html`.
 
-### Sibling playground assets (refresh when they change)
+### Sibling playground assets (rebuild + copy when they change)
 
-The book is one of several snapshots the playground pulls from this repo. Refresh
-the others the same way when they change:
+The book is one of several snapshots the playground (`crypto-tool`, served under
+`/manic/…`) pulls from this repo. Set the destination once:
 
 ```sh
 CT=/Users/anish/git/crypto-tool/src/main/webapp/manic
-
-# language-services WASM (rebuild first: see web/README.md)
-cp crates/manic-lang/pkg/manic_lang.js crates/manic-lang/pkg/manic_lang_bg.wasm "$CT/wasm/"
-
-# AI system prompt (authoritative generation spec)
-cp SYSTEM_PROMPT.md "$CT/system-prompt.md"
-
-# examples used as playground templates (copies files + writes index.json)
-# generator lives with the crypto-tool tooling; see manic-playground-ui notes
 ```
+
+**a) Language-services WASM — how the editor gets its "brains".**
+The playground editor's live syntax highlighting, inline error-checking and
+autocomplete all run in the browser from `crates/manic-lang` compiled to WASM.
+The UI (`manic/manic-editor.js`) does `import('<ctx>/manic/wasm/manic_lang.js')`
+and instantiates `manic_lang_bg.wasm` next to it (`web.xml` serves `.wasm` as
+`application/wasm`). So the deploy is: **build the WASM → copy both files into
+`manic/wasm/`**. Rebuild whenever `crates/manic-lang/**` changes.
+
+```sh
+# one-time: cargo install wasm-pack
+# Use the rustup toolchain — it has the wasm32 target; a Homebrew rustc does NOT.
+export PATH="$(dirname "$(rustup which rustc)"):$HOME/.cargo/bin:$PATH"
+
+wasm-pack build crates/manic-lang --target web --out-dir pkg --features wasm
+#   → writes crates/manic-lang/pkg/{manic_lang.js, manic_lang_bg.wasm}
+
+cp crates/manic-lang/pkg/manic_lang.js \
+   crates/manic-lang/pkg/manic_lang_bg.wasm \
+   "$CT/wasm/"
+```
+
+**b) AI system prompt** — the authoritative generation spec the AI assistant fetches.
+
+```sh
+cp SYSTEM_PROMPT.md "$CT/system-prompt.md"
+```
+
+**c) Examples** — the gallery `.manic` files used as playground templates
+(copies the files + writes `index.json`); see the crypto-tool playground tooling.
+
+Then rebuild/redeploy the `crypto-tool` WAR so the refreshed assets ship.
 
 ## One-shot recap
 

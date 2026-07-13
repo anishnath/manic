@@ -149,7 +149,7 @@ pub fn catalog() -> Vec<BuiltinSpec> {
         spec("wordpop", Verb, "std", "pop caption words in one at a time", &[]),
         // ---- math ----
         spec("axes", Ctor, "math", "a coordinate frame", &[("id", Name, R), ("center", Point, R), ("halfw", Num, R), ("halfh", Num, R)]),
-        spec("plot", Ctor, "math", "y = f(x) as a curve", &[("id", Name, R), ("center", Point, R), ("sx", Num, R), ("sy", Num, R), ("formula", Str, R)]),
+        spec("plot", Ctor, "math", "y = f(x) as a curve", &[("id", Name, R), ("center", Point, R), ("sx", Num, R), ("sy", Num, R), ("formula", Str, R), ("domain", Num, O)]),
         spec("vector", Ctor, "math", "an arrow from an origin", &[("id", Name, R), ("origin", Point, R), ("delta", Point, R)]),
         spec("numberline", Ctor, "math", "a labelled number line", &[]),
         spec("numberplane", Ctor, "math", "a gridded coordinate plane", &[]),
