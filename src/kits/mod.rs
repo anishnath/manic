@@ -10,6 +10,7 @@ pub mod brand;
 pub mod geo;
 pub mod math;
 pub mod std;
+pub mod three;
 
 use crate::lang::lower::Registry;
 
@@ -21,6 +22,7 @@ pub fn default_registry() -> Registry {
     algo::register(&mut r);
     geo::register(&mut r);
     brand::register(&mut r);
+    three::register(&mut r);
     r
 }
 
@@ -53,8 +55,14 @@ mod catalog_tests {
         from_catalog.sort();
 
         // pinpoint drift with a helpful message
-        let missing: Vec<_> = from_registry.iter().filter(|e| !from_catalog.contains(e)).collect();
-        let extra: Vec<_> = from_catalog.iter().filter(|e| !from_registry.contains(e)).collect();
+        let missing: Vec<_> = from_registry
+            .iter()
+            .filter(|e| !from_catalog.contains(e))
+            .collect();
+        let extra: Vec<_> = from_catalog
+            .iter()
+            .filter(|e| !from_registry.contains(e))
+            .collect();
         assert!(
             missing.is_empty() && extra.is_empty(),
             "catalog drift — missing from catalog: {missing:?}; not in registry: {extra:?}"

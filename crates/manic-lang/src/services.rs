@@ -133,7 +133,11 @@ fn scan_comments(src: &str, out: &mut Vec<SemToken>) {
             while j < chars.len() && chars[j] != '\n' {
                 j += 1;
             }
-            out.push(SemToken { start: start as u32, len: (j - start) as u32, kind: "comment" });
+            out.push(SemToken {
+                start: start as u32,
+                len: (j - start) as u32,
+                kind: "comment",
+            });
             i = j;
         } else {
             i += 1;
@@ -196,7 +200,18 @@ fn nearest<'a>(name: &str, cands: impl Iterator<Item = &'a str>) -> Option<&'a s
 
 fn diag_from_error(starts: &[usize], e: &Error) -> Diagnostic {
     let (start, len) = range(starts, &e.span);
-    Diagnostic { start, len, severity: "error", message: e.msg.clone(), fix: None }
+    Diagnostic {
+        start,
+        len,
+        severity: "error",
+        message: e.msg.clone(),
+        fix: e.fix.as_ref().map(|(label, replacement)| Fix {
+            label: label.clone(),
+            replacement: replacement.clone(),
+            start,
+            len,
+        }),
+    }
 }
 
 /// Lex → parse → expand → name/arg validation. Returns the first structural
@@ -335,7 +350,11 @@ fn file_ids(src: &str) -> Vec<String> {
     let mut ids = Vec::new();
     for s in &prog.stmts {
         if ctors.contains(&s.name.as_str()) {
-            if let Some(Expr { kind: ExprKind::Ident(id), .. }) = s.args.first() {
+            if let Some(Expr {
+                kind: ExprKind::Ident(id),
+                ..
+            }) = s.args.first()
+            {
                 if !ids.contains(id) {
                     ids.push(id.clone());
                 }
@@ -349,7 +368,13 @@ fn signature(spec: &BuiltinSpec) -> String {
     let ps: Vec<String> = spec
         .params
         .iter()
-        .map(|p| if p.optional { format!("[{}]", p.name) } else { p.name.to_string() })
+        .map(|p| {
+            if p.optional {
+                format!("[{}]", p.name)
+            } else {
+                p.name.to_string()
+            }
+        })
         .collect();
     format!("{}({})", spec.name, ps.join(", "))
 }
@@ -443,7 +468,9 @@ pub fn complete(src: &str, offset: u32) -> Vec<Completion> {
                 Some("template") => return preset_list(TEMPLATES, "preset"),
                 _ => {}
             }
-            let spec = call.as_ref().and_then(|c| cat.iter().find(|b| b.name == *c));
+            let spec = call
+                .as_ref()
+                .and_then(|c| cat.iter().find(|b| b.name == *c));
             let ty = spec.and_then(|s| s.params.get(*param_idx)).map(|p| p.ty);
             let vocab = |v: &[&str], kind: &'static str| -> Vec<Completion> {
                 v.iter()
@@ -476,6 +503,13 @@ pub fn complete(src: &str, offset: u32) -> Vec<Completion> {
                     kind: "snippet",
                     insert: "(x, y)".into(),
                     detail: "point literal".into(),
+                    doc: String::new(),
+                }],
+                Some(Ty::Point3) => vec![Completion {
+                    label: "(x, y, z)".into(),
+                    kind: "snippet",
+                    insert: "(x, y, z)".into(),
+                    detail: "3D point literal".into(),
                     doc: String::new(),
                 }],
                 // a bare `(` group (not a known call) → offer the file's ids as a
@@ -546,6 +580,15 @@ mod tests {
     }
 
     #[test]
+    fn glued_variables_suggest_a_star() {
+        // `xvsx` = `xv` + `sx` run together (missing `*`) — the common LLM slip.
+        let d = check("let xv = 1;\nlet sx = 2;\ndot(p, (xvsx, 0), 3);");
+        let v = d.iter().find(|x| x.message.contains("xvsx")).unwrap();
+        assert!(v.message.contains("xv * sx"), "msg: {}", v.message);
+        assert_eq!(v.fix.as_ref().unwrap().replacement, "xv * sx");
+    }
+
+    #[test]
     fn check_too_few_args() {
         let d = check("circle(sun);");
         assert!(d.iter().any(|x| x.message.contains("argument")));
@@ -561,7 +604,9 @@ mod tests {
     #[test]
     fn complete_statement_start() {
         let out = complete("ci", 2);
-        assert!(out.iter().any(|c| c.label == "circle" && c.kind == "builtin"));
+        assert!(out
+            .iter()
+            .any(|c| c.label == "circle" && c.kind == "builtin"));
     }
 
     #[test]

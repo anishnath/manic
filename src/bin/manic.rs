@@ -49,7 +49,10 @@ fn main() {
     };
 
     if check {
-        let n = movie.base().entities.len().saturating_sub(1); // minus the camera
+        let n = movie.base().entities.len().saturating_sub(1)
+            + movie.base().entities_3d.len().saturating_sub(usize::from(
+                movie.base().get_3d(manic::movie::CAMERA3_ID).is_some(),
+            ));
         println!("ok — {file}: parses, {n} entities");
         exit(0);
     }

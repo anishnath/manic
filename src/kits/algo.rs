@@ -36,7 +36,10 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let scale = a.num(5)?;
     let radius = a.opt_num(6)?.unwrap_or(30.0);
 
-    let names: Vec<String> = verts_str.split_whitespace().map(|s| s.to_string()).collect();
+    let names: Vec<String> = verts_str
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
     if names.is_empty() {
         return Err(Error::new("graph needs at least one vertex", a.span_of(1)));
     }
@@ -70,7 +73,12 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // nodes + labels
     for (i, name) in names.iter().enumerate() {
         let nid = format!("{id}.{name}");
-        let mut node = Entity::new(nid.clone(), Shape::Circle { r: radius }, pos[i], style::PANEL);
+        let mut node = Entity::new(
+            nid.clone(),
+            Shape::Circle { r: radius },
+            pos[i],
+            style::PANEL,
+        );
         node.stroke = StrokeStyle {
             fill: true,
             outline: true,
@@ -106,9 +114,12 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
         .filter(|t| !t.is_empty())
     {
         let (epart, wt) = match tok.split_once(':') {
-            Some((e, w)) => (e, Some(w.trim().parse::<f32>().map_err(|_| {
-                Error::new(format!("edge `{tok}` has a bad weight `{w}`"), a.span_of(2))
-            })?)),
+            Some((e, w)) => (
+                e,
+                Some(w.trim().parse::<f32>().map_err(|_| {
+                    Error::new(format!("edge `{tok}` has a bad weight `{w}`"), a.span_of(2))
+                })?),
+            ),
             None => (tok, None),
         };
         let directed = epart.contains('>');
@@ -122,10 +133,16 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
         }
         let (u, v) = (parts[0], parts[1]);
         let iu = idx(u).ok_or_else(|| {
-            Error::new(format!("edge `{tok}` uses unknown vertex `{u}`"), a.span_of(2))
+            Error::new(
+                format!("edge `{tok}` uses unknown vertex `{u}`"),
+                a.span_of(2),
+            )
         })?;
         let iv = idx(v).ok_or_else(|| {
-            Error::new(format!("edge `{tok}` uses unknown vertex `{v}`"), a.span_of(2))
+            Error::new(
+                format!("edge `{tok}` uses unknown vertex `{v}`"),
+                a.span_of(2),
+            )
         })?;
         let dir = (pos[iv] - pos[iu]).normalize_or_zero();
         let from = pos[iu] + dir * radius;
@@ -153,7 +170,10 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
             let perp = Vec2::new(-dir.y, dir.x) * 16.0;
             let mut lbl = Entity::new(
                 format!("{id}.{u}{sep}{v}.w"),
-                Shape::Text { content: fmt_num(w), size: 20.0 },
+                Shape::Text {
+                    content: fmt_num(w),
+                    size: 20.0,
+                },
                 mid + perp,
                 style::CYAN,
             );
@@ -276,10 +296,14 @@ fn c_pointer(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let arr = a.ident(1)?;
     let slot = a.num(2)? as usize;
     let (bpos, bh) = {
-        let b = s.get(&format!("{arr}.box{slot}")).ok_or_else(|| {
-            Error::new(format!("`{arr}` has no slot box {slot}"), a.span_of(1))
-        })?;
-        let h = if let Shape::Rect { h, .. } = &b.shape { *h } else { 60.0 };
+        let b = s
+            .get(&format!("{arr}.box{slot}"))
+            .ok_or_else(|| Error::new(format!("`{arr}` has no slot box {slot}"), a.span_of(1)))?;
+        let h = if let Shape::Rect { h, .. } = &b.shape {
+            *h
+        } else {
+            60.0
+        };
         (b.pos, h)
     };
     // apex sits just below the box bottom; caret points up
@@ -290,7 +314,12 @@ fn c_pointer(s: &mut Scene, a: &Args) -> Result<(), Error> {
         Vec2::new(11.0, 10.0),
         Vec2::new(0.0, -10.0),
     ];
-    let mut mark = Entity::new(id.clone(), Shape::Polygon { pts: caret }, pos, style::MAGENTA);
+    let mut mark = Entity::new(
+        id.clone(),
+        Shape::Polygon { pts: caret },
+        pos,
+        style::MAGENTA,
+    );
     mark.stroke = StrokeStyle {
         fill: true,
         outline: false,
@@ -333,10 +362,22 @@ fn c_caret(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let p = |x: f32, y: f32| Vec2::new(x, y);
     let (pts, loff) = match dir.as_str() {
-        "up" => (vec![p(-11.0, 10.0), p(11.0, 10.0), p(0.0, -10.0)], p(0.0, 32.0)),
-        "down" => (vec![p(-11.0, -10.0), p(11.0, -10.0), p(0.0, 10.0)], p(0.0, -32.0)),
-        "left" => (vec![p(10.0, -11.0), p(10.0, 11.0), p(-10.0, 0.0)], p(48.0, 0.0)),
-        "right" => (vec![p(-10.0, -11.0), p(-10.0, 11.0), p(10.0, 0.0)], p(-48.0, 0.0)),
+        "up" => (
+            vec![p(-11.0, 10.0), p(11.0, 10.0), p(0.0, -10.0)],
+            p(0.0, 32.0),
+        ),
+        "down" => (
+            vec![p(-11.0, -10.0), p(11.0, -10.0), p(0.0, 10.0)],
+            p(0.0, -32.0),
+        ),
+        "left" => (
+            vec![p(10.0, -11.0), p(10.0, 11.0), p(-10.0, 0.0)],
+            p(48.0, 0.0),
+        ),
+        "right" => (
+            vec![p(-10.0, -11.0), p(-10.0, 11.0), p(10.0, 0.0)],
+            p(-48.0, 0.0),
+        ),
         other => {
             return Err(Error::new(
                 format!("unknown caret dir `{other}` (up|down|left|right)"),
@@ -387,7 +428,9 @@ fn v_point(s: &Scene, a: &Args) -> Result<Clip, Error> {
         .ok_or_else(|| Error::new(format!("`{arr}` has no slot box {slot}"), a.span_of(1)))?
         .pos
         .x;
-    let mut b = act().move_to(&id, Vec2::new(bx, cur_y)).ease(Easing::InOutCubic);
+    let mut b = act()
+        .move_to(&id, Vec2::new(bx, cur_y))
+        .ease(Easing::InOutCubic);
     if let Some(d) = a.opt_num(3)? {
         b = b.dur(d);
     }
@@ -412,7 +455,12 @@ fn c_container(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let at = a.pair(1)?;
     let cw = a.opt_num(2)?.unwrap_or(84.0);
     let ch = a.opt_num(3)?.unwrap_or(64.0);
-    let mut anchor = Entity::new(format!("{id}.anchor"), Shape::Rect { w: cw, h: ch }, at, style::PANEL);
+    let mut anchor = Entity::new(
+        format!("{id}.anchor"),
+        Shape::Rect { w: cw, h: ch },
+        at,
+        style::PANEL,
+    );
     anchor.opacity = 0.0;
     anchor.stroke = StrokeStyle {
         fill: false,
@@ -463,7 +511,10 @@ fn cell_count(s: &Scene, id: &str) -> usize {
 fn add_cell(s: &mut Scene, cell: &str, spawn: Vec2, cw: f32, ch: f32, val: &str, tag: &str) {
     let mut b = Entity::new(
         format!("{cell}.box"),
-        Shape::Rect { w: cw * 0.9, h: ch * 0.9 },
+        Shape::Rect {
+            w: cw * 0.9,
+            h: ch * 0.9,
+        },
         spawn,
         style::PANEL,
     );
@@ -498,9 +549,27 @@ fn add_cell(s: &mut Scene, cell: &str, spawn: Vec2, cw: f32, ch: f32, val: &str,
 /// Tracks that bring a spawned cell into `target` (drop/slide + fade).
 fn enter_tracks(cell: &str, target: Vec2, dur: f32) -> Vec<TrackSpec> {
     vec![
-        tk(format!("{cell}.box"), Prop::Pos, TargetValue::Abs(Value::V(target)), dur, Easing::OutBack),
-        tk(format!("{cell}.box"), Prop::Opacity, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad),
-        tk(format!("{cell}.v"), Prop::Opacity, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad),
+        tk(
+            format!("{cell}.box"),
+            Prop::Pos,
+            TargetValue::Abs(Value::V(target)),
+            dur,
+            Easing::OutBack,
+        ),
+        tk(
+            format!("{cell}.box"),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(1.0)),
+            dur,
+            Easing::OutQuad,
+        ),
+        tk(
+            format!("{cell}.v"),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(1.0)),
+            dur,
+            Easing::OutQuad,
+        ),
     ]
 }
 
@@ -508,9 +577,27 @@ fn enter_tracks(cell: &str, target: Vec2, dur: f32) -> Vec<TrackSpec> {
 /// chains off the entrance target automatically in `resolve()`.
 fn exit_tracks(cell: &str, out: Vec2, dur: f32) -> Vec<TrackSpec> {
     vec![
-        tk(format!("{cell}.box"), Prop::Pos, TargetValue::Abs(Value::V(out)), dur, Easing::InQuad),
-        tk(format!("{cell}.box"), Prop::Opacity, TargetValue::Abs(Value::F(0.0)), dur, Easing::InQuad),
-        tk(format!("{cell}.v"), Prop::Opacity, TargetValue::Abs(Value::F(0.0)), dur, Easing::InQuad),
+        tk(
+            format!("{cell}.box"),
+            Prop::Pos,
+            TargetValue::Abs(Value::V(out)),
+            dur,
+            Easing::InQuad,
+        ),
+        tk(
+            format!("{cell}.box"),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(0.0)),
+            dur,
+            Easing::InQuad,
+        ),
+        tk(
+            format!("{cell}.v"),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(0.0)),
+            dur,
+            Easing::InQuad,
+        ),
     ]
 }
 
@@ -663,11 +750,31 @@ fn count_ids(s: &Scene, prefix: &str, suffix: &str) -> usize {
 
 /// Build a classic node: framed box + data text + compartment dividers + pointer
 /// dots, all following the box so the whole node moves/fades as one.
-fn place_node(s: &mut Scene, nid: &str, c: Vec2, kind: &str, cw: f32, ch: f32, val: &str, list: &str, op: f32) {
+fn place_node(
+    s: &mut Scene,
+    nid: &str,
+    c: Vec2,
+    kind: &str,
+    cw: f32,
+    ch: f32,
+    val: &str,
+    list: &str,
+    op: f32,
+) {
     let g = geom(kind, cw);
     let tag = format!("{list}.nodes");
-    let mut b = Entity::new(nid.to_string(), Shape::Rect { w: g.nw, h: ch }, c, style::PANEL);
-    b.stroke = StrokeStyle { fill: true, outline: true, width: 2.5, outline_color: Some(style::CYAN) };
+    let mut b = Entity::new(
+        nid.to_string(),
+        Shape::Rect { w: g.nw, h: ch },
+        c,
+        style::PANEL,
+    );
+    b.stroke = StrokeStyle {
+        fill: true,
+        outline: true,
+        width: 2.5,
+        outline_color: Some(style::CYAN),
+    };
     b.opacity = op;
     b.z = 3;
     b.tags = vec![tag.clone()];
@@ -675,7 +782,10 @@ fn place_node(s: &mut Scene, nid: &str, c: Vec2, kind: &str, cw: f32, ch: f32, v
 
     let mut t = Entity::new(
         format!("{nid}.v"),
-        Shape::Text { content: val.to_string(), size: ch * 0.42 },
+        Shape::Text {
+            content: val.to_string(),
+            size: ch * 0.42,
+        },
         c,
         style::FG,
     );
@@ -688,11 +798,19 @@ fn place_node(s: &mut Scene, nid: &str, c: Vec2, kind: &str, cw: f32, ch: f32, v
     for (j, off) in g.dividers.iter().enumerate() {
         let mut d = Entity::new(
             format!("{nid}.dv{j}"),
-            Shape::Rect { w: 2.5, h: ch * 0.9 },
+            Shape::Rect {
+                w: 2.5,
+                h: ch * 0.9,
+            },
             Vec2::new(c.x + off, c.y),
             style::DIM,
         );
-        d.stroke = StrokeStyle { fill: true, outline: false, width: 0.0, outline_color: None };
+        d.stroke = StrokeStyle {
+            fill: true,
+            outline: false,
+            width: 0.0,
+            outline_color: None,
+        };
         d.z = 4;
         d.follow = Some((nid.to_string(), Vec2::new(*off, 0.0)));
         d.tags = vec![tag.clone()];
@@ -721,7 +839,15 @@ fn place_node(s: &mut Scene, nid: &str, c: Vec2, kind: &str, cw: f32, ch: f32, v
 /// next/prev, the tail terminator (NULL or circular wrap) and the head arrow.
 /// On a dynamic op it fades the previous arrows, draws the new ones, and slides
 /// the persistent `head`/`NULL` labels to the new ends. Returns the tracks.
-fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial: bool) -> Vec<TrackSpec> {
+fn wire(
+    s: &mut Scene,
+    id: &str,
+    kind: &str,
+    cw: f32,
+    ch: f32,
+    dur: f32,
+    initial: bool,
+) -> Vec<TrackSpec> {
     let mut tracks = Vec::new();
     let nodes = s.occ.get(id).cloned().unwrap_or_default();
     let g = geom(kind, cw);
@@ -731,7 +857,13 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
     if !initial {
         if let Some(old) = s.occ.get(&format!("{id}#arrows")).cloned() {
             for aid in old {
-                tracks.push(tk(aid, Prop::Opacity, TargetValue::Abs(Value::F(0.0)), dur * 0.5, Easing::InQuad));
+                tracks.push(tk(
+                    aid,
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(0.0)),
+                    dur * 0.5,
+                    Easing::InQuad,
+                ));
             }
         }
     }
@@ -743,8 +875,13 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
     let mut arrows: Vec<String> = Vec::new();
     let trace0 = if initial { 1.0 } else { 0.0 };
 
-    let add = |s: &mut Scene, tail: Vec2, head: Vec2, color: Color, kind_tag: &str,
-                   tracks: &mut Vec<TrackSpec>, arrows: &mut Vec<String>| {
+    let add = |s: &mut Scene,
+               tail: Vec2,
+               head: Vec2,
+               color: Color,
+               kind_tag: &str,
+               tracks: &mut Vec<TrackSpec>,
+               arrows: &mut Vec<String>| {
         let aid = format!("{id}.ar{}", count_ids(s, &format!("{id}.ar"), ""));
         let mut e = Entity::new(aid.clone(), Shape::Arrow { to: head }, tail, color);
         e.stroke.width = 2.5;
@@ -753,7 +890,13 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
         e.tags = vec![format!("{id}.{kind_tag}")];
         s.add(e);
         if !initial {
-            tracks.push(tk(aid.clone(), Prop::Trace, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad));
+            tracks.push(tk(
+                aid.clone(),
+                Prop::Trace,
+                TargetValue::Abs(Value::F(1.0)),
+                dur,
+                Easing::OutQuad,
+            ));
         }
         arrows.push(aid);
     };
@@ -761,9 +904,25 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
     // inter-node pointers
     for i in 0..centers.len().saturating_sub(1) {
         let (ca, cb) = (centers[i], centers[i + 1]);
-        add(s, ca + v(g.next_off, -l), cb + v(-g.nw / 2.0, -l), style::CYAN, "next", &mut tracks, &mut arrows);
+        add(
+            s,
+            ca + v(g.next_off, -l),
+            cb + v(-g.nw / 2.0, -l),
+            style::CYAN,
+            "next",
+            &mut tracks,
+            &mut arrows,
+        );
         if let Some(po) = g.prev_off {
-            add(s, cb + v(po, l), ca + v(g.nw / 2.0, l), style::DIM, "prev", &mut tracks, &mut arrows);
+            add(
+                s,
+                cb + v(po, l),
+                ca + v(g.nw / 2.0, l),
+                style::DIM,
+                "prev",
+                &mut tracks,
+                &mut arrows,
+            );
         }
     }
 
@@ -773,23 +932,54 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
             let (tail, head) = (last + v(g.next_off, 0.0), first + v(-g.nw / 2.0, 0.0));
             let ctrl = Vec2::new((tail.x + head.x) / 2.0, tail.y + 2.3 * ch + 20.0);
             let aid = format!("{id}.ar{}", count_ids(s, &format!("{id}.ar"), ""));
-            let mut e = Entity::new(aid.clone(), Shape::Curve { ctrl, to: head, arrow: true }, tail, style::MAGENTA);
+            let mut e = Entity::new(
+                aid.clone(),
+                Shape::Curve {
+                    ctrl,
+                    to: head,
+                    arrow: true,
+                },
+                tail,
+                style::MAGENTA,
+            );
             e.stroke.width = 2.5;
             e.z = 1;
             e.trace = trace0;
             e.tags = vec![format!("{id}.next")];
             s.add(e);
             if !initial {
-                tracks.push(tk(aid.clone(), Prop::Trace, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad));
+                tracks.push(tk(
+                    aid.clone(),
+                    Prop::Trace,
+                    TargetValue::Abs(Value::F(1.0)),
+                    dur,
+                    Easing::OutQuad,
+                ));
             }
             arrows.push(aid);
         } else {
             if let Some(np) = s.get(&format!("{id}.null")).map(|e| e.pos) {
-                add(s, last + v(g.next_off, -l), np + v(-18.0, -l), style::CYAN, "next", &mut tracks, &mut arrows);
+                add(
+                    s,
+                    last + v(g.next_off, -l),
+                    np + v(-18.0, -l),
+                    style::CYAN,
+                    "next",
+                    &mut tracks,
+                    &mut arrows,
+                );
             }
             if kind == "doubly" {
                 if let Some(nlp) = s.get(&format!("{id}.nullL")).map(|e| e.pos) {
-                    add(s, first + v(g.prev_off.unwrap_or(0.0), l), nlp + v(18.0, l), style::DIM, "prev", &mut tracks, &mut arrows);
+                    add(
+                        s,
+                        first + v(g.prev_off.unwrap_or(0.0), l),
+                        nlp + v(18.0, l),
+                        style::DIM,
+                        "prev",
+                        &mut tracks,
+                        &mut arrows,
+                    );
                 }
             }
         }
@@ -797,7 +987,15 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
 
     // head arrow into node 0
     if let Some(&c0) = centers.first() {
-        add(s, v(c0.x, c0.y - ch / 2.0 - 30.0), v(c0.x, c0.y - ch / 2.0 - 5.0), style::MAGENTA, "head", &mut tracks, &mut arrows);
+        add(
+            s,
+            v(c0.x, c0.y - ch / 2.0 - 30.0),
+            v(c0.x, c0.y - ch / 2.0 - 5.0),
+            style::MAGENTA,
+            "head",
+            &mut tracks,
+            &mut arrows,
+        );
     }
 
     // slide persistent labels to the new ends
@@ -805,12 +1003,33 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
         if let (Some(&first), Some(&last)) = (centers.first(), centers.last()) {
             let mv = |s: &Scene, mid: &str, to: Vec2, tracks: &mut Vec<TrackSpec>| {
                 if s.contains(mid) {
-                    tracks.push(tk(mid.to_string(), Prop::Pos, TargetValue::Abs(Value::V(to)), dur, Easing::InOutCubic));
+                    tracks.push(tk(
+                        mid.to_string(),
+                        Prop::Pos,
+                        TargetValue::Abs(Value::V(to)),
+                        dur,
+                        Easing::InOutCubic,
+                    ));
                 }
             };
-            mv(s, &format!("{id}.head"), v(first.x, first.y - ch / 2.0 - 48.0), &mut tracks);
-            mv(s, &format!("{id}.null"), v(last.x + g.nw / 2.0 + 52.0, last.y), &mut tracks);
-            mv(s, &format!("{id}.nullL"), v(first.x - g.nw / 2.0 - 52.0, first.y), &mut tracks);
+            mv(
+                s,
+                &format!("{id}.head"),
+                v(first.x, first.y - ch / 2.0 - 48.0),
+                &mut tracks,
+            );
+            mv(
+                s,
+                &format!("{id}.null"),
+                v(last.x + g.nw / 2.0 + 52.0, last.y),
+                &mut tracks,
+            );
+            mv(
+                s,
+                &format!("{id}.nullL"),
+                v(first.x - g.nw / 2.0 - 52.0, first.y),
+                &mut tracks,
+            );
         }
     }
 
@@ -824,9 +1043,17 @@ fn wire(s: &mut Scene, id: &str, kind: &str, cw: f32, ch: f32, dur: f32, initial
 /// Grow with `insert(id, after, "v")`, shrink with `remove(id, i)`.
 fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let vals: Vec<String> = a.text(1)?.split_whitespace().map(|w| w.to_string()).collect();
+    let vals: Vec<String> = a
+        .text(1)?
+        .split_whitespace()
+        .map(|w| w.to_string())
+        .collect();
     let center = a.pair(2)?;
-    let kind = if a.len() > 3 { a.ident(3)? } else { "doubly".to_string() };
+    let kind = if a.len() > 3 {
+        a.ident(3)?
+    } else {
+        "doubly".to_string()
+    };
     if !matches!(kind.as_str(), "singly" | "doubly" | "circular") {
         return Err(Error::new(
             format!("unknown list kind `{kind}` (singly|doubly|circular)"),
@@ -854,7 +1081,10 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // persistent labels
     let mut head = Entity::new(
         format!("{id}.head"),
-        Shape::Text { content: "head".into(), size: 20.0 },
+        Shape::Text {
+            content: "head".into(),
+            size: 20.0,
+        },
         Vec2::new(first.x, first.y - ch / 2.0 - 48.0),
         style::MAGENTA,
     );
@@ -864,7 +1094,10 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
     if kind != "circular" {
         let mut nul = Entity::new(
             format!("{id}.null"),
-            Shape::Text { content: "NULL".into(), size: 20.0 },
+            Shape::Text {
+                content: "NULL".into(),
+                size: 20.0,
+            },
             Vec2::new(last.x + g.nw / 2.0 + 52.0, last.y),
             style::DIM,
         );
@@ -875,7 +1108,10 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
     if kind == "doubly" {
         let mut nul = Entity::new(
             format!("{id}.nullL"),
-            Shape::Text { content: "NULL".into(), size: 20.0 },
+            Shape::Text {
+                content: "NULL".into(),
+                size: 20.0,
+            },
             Vec2::new(first.x - g.nw / 2.0 - 52.0, first.y),
             style::DIM,
         );
@@ -902,7 +1138,11 @@ fn list_meta(s: &Scene, id: &str, a: &Args) -> Result<(String, f32, f32), Error>
     let nid = format!("{id}.node0");
     let (cw, ch) = match s.get(&nid).map(|e| (&e.shape, e.pos)) {
         Some((Shape::Rect { w, h }, _)) => {
-            let cw = if kind == "doubly" { w - 2.0 * PW } else { w - PW };
+            let cw = if kind == "doubly" {
+                w - 2.0 * PW
+            } else {
+                w - PW
+            };
             (cw, *h)
         }
         _ => (74.0, 56.0),
@@ -938,8 +1178,20 @@ fn v_insert(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     let nid = format!("{id}.node{}", count_ids(s, &format!("{id}.node"), ".v"));
     place_node(s, &nid, newpos, &kind, cw, ch, &val, &id, 0.0);
     let mut tracks = vec![
-        tk(nid.clone(), Prop::Opacity, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad),
-        tk(nid.clone(), Prop::Scale, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutBack),
+        tk(
+            nid.clone(),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(1.0)),
+            dur,
+            Easing::OutQuad,
+        ),
+        tk(
+            nid.clone(),
+            Prop::Scale,
+            TargetValue::Abs(Value::F(1.0)),
+            dur,
+            Easing::OutBack,
+        ),
     ];
     // pop-in: start slightly small
     if let Some(e) = s.get_mut(&nid) {
@@ -950,7 +1202,11 @@ fn v_insert(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     order.insert(after + 1, nid);
     s.occ.insert(id.clone(), order);
     tracks.extend(wire(s, &id, &kind, cw, ch, dur, false));
-    Ok(Clip { dur, tracks, events: Vec::new() })
+    Ok(Clip {
+        dur,
+        tracks,
+        events: Vec::new(),
+    })
 }
 
 /// `remove(id, i, [dur])` — unlink node `i`: it fades away and the pointers
@@ -970,14 +1226,30 @@ fn v_remove(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     let xid = nodes[i].clone();
     let xpos = s.get(&xid).unwrap().pos;
     let mut tracks = vec![
-        tk(xid.clone(), Prop::Pos, TargetValue::Abs(Value::V(Vec2::new(xpos.x, xpos.y + 120.0))), dur, Easing::InQuad),
-        tk(xid.clone(), Prop::Opacity, TargetValue::Abs(Value::F(0.0)), dur, Easing::InQuad),
+        tk(
+            xid.clone(),
+            Prop::Pos,
+            TargetValue::Abs(Value::V(Vec2::new(xpos.x, xpos.y + 120.0))),
+            dur,
+            Easing::InQuad,
+        ),
+        tk(
+            xid.clone(),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(0.0)),
+            dur,
+            Easing::InQuad,
+        ),
     ];
     let mut order = nodes;
     order.remove(i);
     s.occ.insert(id.clone(), order);
     tracks.extend(wire(s, &id, &kind, cw, ch, dur, false));
-    Ok(Clip { dur, tracks, events: Vec::new() })
+    Ok(Clip {
+        dur,
+        tracks,
+        events: Vec::new(),
+    })
 }
 
 // ---- hash map (array of buckets + separate chaining) -----------------------
@@ -1021,7 +1293,10 @@ fn c_hashmap(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let n = a.num(1)? as usize;
     if n == 0 {
-        return Err(Error::new("hashmap needs at least one bucket", a.span_of(1)));
+        return Err(Error::new(
+            "hashmap needs at least one bucket",
+            a.span_of(1),
+        ));
     }
     let center = a.pair(2)?;
     let ew = a.opt_num(3)?.unwrap_or(120.0);
@@ -1037,13 +1312,21 @@ fn c_hashmap(s: &mut Scene, a: &Args) -> Result<(), Error> {
             Vec2::new(center.x, by),
             style::PANEL,
         );
-        b.stroke = StrokeStyle { fill: true, outline: true, width: 2.5, outline_color: Some(style::DIM) };
+        b.stroke = StrokeStyle {
+            fill: true,
+            outline: true,
+            width: 2.5,
+            outline_color: Some(style::DIM),
+        };
         b.z = 2;
         b.tags = vec![format!("{id}.buckets")];
         s.add(b);
         let mut t = Entity::new(
             format!("{id}.bucket{i}.v"),
-            Shape::Text { content: i.to_string(), size: ch * 0.44 },
+            Shape::Text {
+                content: i.to_string(),
+                size: ch * 0.44,
+            },
             Vec2::new(center.x, by),
             style::DIM,
         );
@@ -1054,9 +1337,19 @@ fn c_hashmap(s: &mut Scene, a: &Args) -> Result<(), Error> {
         s.occ.insert(format!("{id}#b{i}"), Vec::new());
         s.occ.insert(format!("{id}#bk{i}"), Vec::new());
     }
-    let mut anchor = Entity::new(format!("{id}.anchor"), Shape::Rect { w: ew, h: ch }, center, style::PANEL);
+    let mut anchor = Entity::new(
+        format!("{id}.anchor"),
+        Shape::Rect { w: ew, h: ch },
+        center,
+        style::PANEL,
+    );
     anchor.opacity = 0.0;
-    anchor.stroke = StrokeStyle { fill: false, outline: false, width: 0.0, outline_color: None };
+    anchor.stroke = StrokeStyle {
+        fill: false,
+        outline: false,
+        width: 0.0,
+        outline_color: None,
+    };
     s.add(anchor);
     s.occ.insert(format!("{id}#n"), vec![n.to_string()]);
     Ok(())
@@ -1077,13 +1370,27 @@ fn v_put(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     };
     let bw = 48.0;
     let spacing = ew + 44.0;
-    let chain: Vec<String> = s.occ.get(&format!("{id}#b{b}")).cloned().unwrap_or_default();
+    let chain: Vec<String> = s
+        .occ
+        .get(&format!("{id}#b{b}"))
+        .cloned()
+        .unwrap_or_default();
     let x = bpos.x + bw / 2.0 + 44.0 + chain.len() as f32 * spacing + ew / 2.0;
     let y = bpos.y;
     let eid = format!("{id}.e{}", count_ids(s, &format!("{id}.e"), ".v"));
 
-    let mut e = Entity::new(eid.clone(), Shape::Rect { w: ew, h: ch }, Vec2::new(x, y), style::PANEL);
-    e.stroke = StrokeStyle { fill: true, outline: true, width: 2.5, outline_color: Some(style::CYAN) };
+    let mut e = Entity::new(
+        eid.clone(),
+        Shape::Rect { w: ew, h: ch },
+        Vec2::new(x, y),
+        style::PANEL,
+    );
+    e.stroke = StrokeStyle {
+        fill: true,
+        outline: true,
+        width: 2.5,
+        outline_color: Some(style::CYAN),
+    };
     e.opacity = 0.0;
     e.scale = 0.6;
     e.z = 3;
@@ -1091,7 +1398,10 @@ fn v_put(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     s.add(e);
     let mut t = Entity::new(
         format!("{eid}.v"),
-        Shape::Text { content: format!("{key}:{val}"), size: ch * 0.4 },
+        Shape::Text {
+            content: format!("{key}:{val}"),
+            size: ch * 0.4,
+        },
         Vec2::new(x, y),
         style::FG,
     );
@@ -1110,7 +1420,9 @@ fn v_put(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     let aid = format!("{id}.ar{}", count_ids(s, &format!("{id}.ar"), ""));
     let mut arr = Entity::new(
         aid.clone(),
-        Shape::Arrow { to: Vec2::new(x - ew / 2.0, y) },
+        Shape::Arrow {
+            to: Vec2::new(x - ew / 2.0, y),
+        },
         Vec2::new(px + phalf, y),
         style::CYAN,
     );
@@ -1120,15 +1432,36 @@ fn v_put(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     arr.tags = vec![format!("{id}.chains")];
     s.add(arr);
 
-    s.occ.entry(format!("{id}#b{b}")).or_default().push(eid.clone());
+    s.occ
+        .entry(format!("{id}#b{b}"))
+        .or_default()
+        .push(eid.clone());
     s.occ.entry(format!("{id}#bk{b}")).or_default().push(key);
 
     Ok(Clip {
         dur,
         tracks: vec![
-            tk(eid.clone(), Prop::Opacity, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad),
-            tk(eid.clone(), Prop::Scale, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutBack),
-            tk(aid, Prop::Trace, TargetValue::Abs(Value::F(1.0)), dur, Easing::OutQuad),
+            tk(
+                eid.clone(),
+                Prop::Opacity,
+                TargetValue::Abs(Value::F(1.0)),
+                dur,
+                Easing::OutQuad,
+            ),
+            tk(
+                eid.clone(),
+                Prop::Scale,
+                TargetValue::Abs(Value::F(1.0)),
+                dur,
+                Easing::OutBack,
+            ),
+            tk(
+                aid,
+                Prop::Trace,
+                TargetValue::Abs(Value::F(1.0)),
+                dur,
+                Easing::OutQuad,
+            ),
         ],
         events: Vec::new(),
     })
@@ -1144,8 +1477,16 @@ fn v_get(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let n = hm_n(s, &id, a)?;
     let b = hash_str(&key) % n;
     let bucket = format!("{id}.bucket{b}");
-    let keys: Vec<String> = s.occ.get(&format!("{id}#bk{b}")).cloned().unwrap_or_default();
-    let entries: Vec<String> = s.occ.get(&format!("{id}#b{b}")).cloned().unwrap_or_default();
+    let keys: Vec<String> = s
+        .occ
+        .get(&format!("{id}#bk{b}"))
+        .cloned()
+        .unwrap_or_default();
+    let entries: Vec<String> = s
+        .occ
+        .get(&format!("{id}#b{b}"))
+        .cloned()
+        .unwrap_or_default();
     let hit = keys.iter().position(|k| *k == key);
 
     let mut tracks = vec![TrackSpec {
@@ -1185,7 +1526,11 @@ fn v_get(s: &Scene, a: &Args) -> Result<Clip, Error> {
         });
         t += step;
     }
-    Ok(Clip { dur: t + 0.2, tracks, events: Vec::new() })
+    Ok(Clip {
+        dur: t + 0.2,
+        tracks,
+        events: Vec::new(),
+    })
 }
 
 // ---- graph traversal: BFS / DFS --------------------------------------------
@@ -1214,11 +1559,7 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
             a.span_of(1),
         ));
     }
-    let name = |id: &str| {
-        id.strip_prefix(&format!("{g}."))
-            .unwrap_or(id)
-            .to_string()
-    };
+    let name = |id: &str| id.strip_prefix(&format!("{g}.")).unwrap_or(id).to_string();
 
     // adjacency + edge-id lookup, in edge-declaration order
     let ntag = format!("{g}.nodes");
@@ -1266,7 +1607,10 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
         if !s.contains(id) {
             let mut t = Entity::new(
                 id.clone(),
-                Shape::Text { content: init, size: 24.0 },
+                Shape::Text {
+                    content: init,
+                    size: 24.0,
+                },
                 Vec2::new(minx - 34.0, y),
                 color,
             );
@@ -1295,7 +1639,11 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
         } else {
             format!("{prefix}: {}", items.join(" "))
         };
-        ev.push(TextEvent { id: id.into(), content, at });
+        ev.push(TextEvent {
+            id: id.into(),
+            content,
+            at,
+        });
     };
 
     // iterative traversal; discovered-at-enqueue so each node joins the frontier once
@@ -1317,8 +1665,22 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
         frontier.pop_front()
     } {
         recolor(&mut tracks, &u, C_CURRENT, t);
-        tracks.push(TrackSpec { id: u.clone(), prop: Prop::Scale, target: TargetValue::Abs(Value::F(1.18)), start: t, dur: 0.2, easing: Easing::OutQuad });
-        tracks.push(TrackSpec { id: u.clone(), prop: Prop::Scale, target: TargetValue::Abs(Value::F(1.0)), start: t + 0.2, dur: 0.2, easing: Easing::InQuad });
+        tracks.push(TrackSpec {
+            id: u.clone(),
+            prop: Prop::Scale,
+            target: TargetValue::Abs(Value::F(1.18)),
+            start: t,
+            dur: 0.2,
+            easing: Easing::OutQuad,
+        });
+        tracks.push(TrackSpec {
+            id: u.clone(),
+            prop: Prop::Scale,
+            target: TargetValue::Abs(Value::F(1.0)),
+            start: t + 0.2,
+            dur: 0.2,
+            easing: Easing::InQuad,
+        });
         show(&mut events, &fid, word, &names(&frontier), t + 0.05);
 
         let mut sub = t + 0.3;
@@ -1344,7 +1706,11 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
         t = done + 0.4;
     }
     let _ = step;
-    Ok(Clip { dur: t + 0.3, tracks, events })
+    Ok(Clip {
+        dur: t + 0.3,
+        tracks,
+        events,
+    })
 }
 
 fn v_bfs(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
@@ -1388,7 +1754,9 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
         }
         let Some(link) = &e.link else { continue };
         let (u, v) = (link.from.clone(), link.to.clone());
-        adj.entry(u.clone()).or_default().push((v.clone(), e.id.clone()));
+        adj.entry(u.clone())
+            .or_default()
+            .push((v.clone(), e.id.clone()));
         if !e.id.contains('>') {
             adj.entry(v).or_default().push((u, e.id.clone()));
         }
@@ -1412,16 +1780,30 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
         let p = s.get(n).unwrap().pos;
         let did = format!("{n}.d");
         if !s.contains(&did) {
-            let init = if *n == start { "0".to_string() } else { "inf".to_string() };
-            let mut t = Entity::new(did, Shape::Text { content: init, size: 20.0 }, Vec2::new(p.x, p.y + 44.0), style::LIME);
+            let init = if *n == start {
+                "0".to_string()
+            } else {
+                "inf".to_string()
+            };
+            let mut t = Entity::new(
+                did,
+                Shape::Text {
+                    content: init,
+                    size: 20.0,
+                },
+                Vec2::new(p.x, p.y + 44.0),
+                style::LIME,
+            );
             t.font = FontKind::MonoBold;
             t.z = 8;
             s.add(t);
         }
     }
 
-    let mut dist: HashMap<String, f32> =
-        node_ids.iter().map(|n| (n.clone(), f32::INFINITY)).collect();
+    let mut dist: HashMap<String, f32> = node_ids
+        .iter()
+        .map(|n| (n.clone(), f32::INFINITY))
+        .collect();
     dist.insert(start.clone(), 0.0);
     let mut settled: HashSet<String> = HashSet::new();
     let mut parent_edge: HashMap<String, String> = HashMap::new();
@@ -1429,7 +1811,14 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     let mut tracks: Vec<TrackSpec> = Vec::new();
     let mut events: Vec<TextEvent> = Vec::new();
     let recolor = |tr: &mut Vec<TrackSpec>, id: &str, c: Color, at: f32| {
-        tr.push(TrackSpec { id: id.into(), prop: Prop::Color, target: TargetValue::Abs(Value::C(c)), start: at, dur: 0.3, easing: Easing::OutQuad });
+        tr.push(TrackSpec {
+            id: id.into(),
+            prop: Prop::Color,
+            target: TargetValue::Abs(Value::C(c)),
+            start: at,
+            dur: 0.3,
+            easing: Easing::OutQuad,
+        });
     };
     recolor(&mut tracks, &start, C_FRONTIER, 0.0);
 
@@ -1461,7 +1850,11 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                     parent_edge.insert(v.clone(), eid.clone());
                     recolor(&mut tracks, &eid, C_FRONTIER, sub);
                     recolor(&mut tracks, &v, C_FRONTIER, sub + 0.1);
-                    events.push(TextEvent { id: format!("{v}.d"), content: fmt_num(nd), at: sub + 0.15 });
+                    events.push(TextEvent {
+                        id: format!("{v}.d"),
+                        content: fmt_num(nd),
+                        at: sub + 0.15,
+                    });
                     sub += 0.26;
                 }
             }
@@ -1474,7 +1867,11 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     for eid in parent_edge.values() {
         recolor(&mut tracks, eid, C_DONE, t);
     }
-    Ok(Clip { dur: t + 0.3, tracks, events })
+    Ok(Clip {
+        dur: t + 0.3,
+        tracks,
+        events,
+    })
 }
 
 /// Register the algo kit into `r`.
@@ -1576,7 +1973,10 @@ mod tests {
         assert_eq!(m.scene.occ["q"], vec!["q.cell1", "q.cell2"]); // A left
         let sc = at(&m, 100.0);
         let ax = sc.get("q.anchor").unwrap().pos.x;
-        assert!(close(sc.get("q.cell1.box").unwrap().pos.x, ax), "B advanced to front");
+        assert!(
+            close(sc.get("q.cell1.box").unwrap().pos.x, ax),
+            "B advanced to front"
+        );
         assert!(sc.get("q.cell0.box").unwrap().opacity < 0.1, "A gone");
     }
 
@@ -1589,15 +1989,25 @@ mod tests {
     #[test]
     fn list_insert_middle() {
         let m = movie("list(l,\"3 8 5\",(600,300)); insert(l,1,\"7\");");
-        assert_eq!(m.scene.occ["l"], vec!["l.node0", "l.node1", "l.node3", "l.node2"]);
-        assert_eq!(m.scene.occ["l#arrows"].len(), 9, "doubly, 4 nodes -> 2n+1 arrows");
+        assert_eq!(
+            m.scene.occ["l"],
+            vec!["l.node0", "l.node1", "l.node3", "l.node2"]
+        );
+        assert_eq!(
+            m.scene.occ["l#arrows"].len(),
+            9,
+            "doubly, 4 nodes -> 2n+1 arrows"
+        );
         assert!(m.scene.get("l.node3").is_some());
     }
 
     #[test]
     fn list_insert_append() {
         let m = movie("list(l,\"3 8 5\",(600,300)); insert(l,2,\"9\");");
-        assert_eq!(m.scene.occ["l"], vec!["l.node0", "l.node1", "l.node2", "l.node3"]);
+        assert_eq!(
+            m.scene.occ["l"],
+            vec!["l.node0", "l.node1", "l.node2", "l.node3"]
+        );
         assert_eq!(m.scene.occ["l#arrows"].len(), 9);
     }
 
@@ -1612,7 +2022,11 @@ mod tests {
     fn list_remove_middle_bypasses() {
         let m = movie("list(l,\"3 8 5\",(600,300)); remove(l,1);");
         assert_eq!(m.scene.occ["l"], vec!["l.node0", "l.node2"]);
-        assert_eq!(m.scene.occ["l#arrows"].len(), 5, "5 arrows for 2 remaining nodes");
+        assert_eq!(
+            m.scene.occ["l#arrows"].len(),
+            5,
+            "5 arrows for 2 remaining nodes"
+        );
         // the removed node fades out
         let sc = at(&m, 100.0);
         assert!(sc.get("l.node1").unwrap().opacity < 0.1);
@@ -1643,14 +2057,20 @@ mod tests {
         let m = movie("array(a,\"1 2 3\",(500,300),90,90); pointer(p,a,0,\"i\"); pointat(p,a,2);");
         let sc = at(&m, 100.0);
         let bx2 = sc.get("a.box2").unwrap().pos.x;
-        assert!(close(sc.get("p").unwrap().pos.x, bx2), "pointer rides to slot 2");
+        assert!(
+            close(sc.get("p").unwrap().pos.x, bx2),
+            "pointer rides to slot 2"
+        );
     }
 
     // ---- more edge cases ----
     #[test]
     fn list_insert_at_zero() {
         let m = movie("list(l,\"3 8 5\",(600,300)); insert(l,0,\"7\");");
-        assert_eq!(m.scene.occ["l"], vec!["l.node0", "l.node3", "l.node1", "l.node2"]);
+        assert_eq!(
+            m.scene.occ["l"],
+            vec!["l.node0", "l.node3", "l.node1", "l.node2"]
+        );
         assert_eq!(m.scene.occ["l#arrows"].len(), 9);
     }
 
@@ -1685,7 +2105,10 @@ mod tests {
         // every reached node ends in the done colour
         for n in ["a", "b", "c", "d", "e", "f", "g"] {
             let c = sc.get(&format!("g.{n}")).unwrap().color;
-            assert!((c.r - super::C_DONE.r).abs() < 0.01 && (c.g - super::C_DONE.g).abs() < 0.01, "{n} done");
+            assert!(
+                (c.r - super::C_DONE.r).abs() < 0.01 && (c.g - super::C_DONE.g).abs() < 0.01,
+                "{n} done"
+            );
         }
     }
 
@@ -1743,7 +2166,9 @@ mod tests {
     #[test]
     fn hashmap_get_found_and_miss_ok() {
         // both lower without error; get never mutates occ
-        let m = movie("hashmap(hm,5,(300,300)); put(hm,\"cat\",\"7\"); get(hm,\"cat\"); get(hm,\"zzz\");");
+        let m = movie(
+            "hashmap(hm,5,(300,300)); put(hm,\"cat\",\"7\"); get(hm,\"cat\"); get(hm,\"zzz\");",
+        );
         assert_eq!(m.scene.occ["hm#b2"], vec!["hm.e0"]);
     }
 

@@ -51,6 +51,8 @@ pub enum ExprKind {
     Ident(String),
     /// A `(x, y)` coordinate pair of literals (post-expand form).
     Pair(f32, f32),
+    /// A `(x, y, z)` coordinate triple of literals (post-expand form).
+    Triple(f32, f32, f32),
 
     // ---- pre-expand forms (gone after `expand`) ----
     /// `a <op> b`.
@@ -61,6 +63,8 @@ pub enum ExprKind {
     Call(String, Box<Expr>),
     /// A `(x, y)` pair whose components are (possibly) computed.
     PairE(Box<Expr>, Box<Expr>),
+    /// A `(x, y, z)` triple whose components are computed expressions.
+    TripleE(Box<Expr>, Box<Expr>, Box<Expr>),
     /// An interpolated identifier, e.g. `bar{i}`.
     Interp(Vec<Seg>),
     /// A reduction over a range: `sum(i in a..b : body)` (also `prod`/`min`/`max`).

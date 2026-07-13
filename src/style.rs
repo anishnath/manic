@@ -18,11 +18,11 @@ pub const MAGENTA: Color = Color::new(1.0, 0.176, 0.584, 1.0);
 pub const CYAN: Color = Color::new(0.0, 0.898, 1.0, 1.0);
 /// Secondary spot color: acid lime. Use for "the other branch" / success.
 pub const LIME: Color = Color::new(0.486, 1.0, 0.42, 1.0);
+pub const GOLD: Color = Color::new(1.0, 0.82, 0.4, 1.0);
 /// De-emphasised muted slate-violet for annotations, indices, rules.
 pub const DIM: Color = Color::new(0.42, 0.40, 0.56, 1.0);
 /// Slightly lifted panel fill (nodes, cells, section cards) over the void.
 pub const PANEL: Color = Color::new(0.098, 0.086, 0.169, 1.0);
-
 
 /// The seven semantic colour roles a template can retint. The engine bakes the
 /// neon values everywhere; the renderer remaps them to the active template's
@@ -242,10 +242,8 @@ impl Fonts {
     /// Load the embedded house fonts (IBM Plex Mono, OFL-licensed and compiled
     /// into the binary, so movies render identically on any machine).
     pub fn load() -> Fonts {
-        let bold = load_ttf_font_from_bytes(include_bytes!(
-            "../assets/fonts/IBMPlexMono-Bold.ttf"
-        ))
-        .ok();
+        let bold =
+            load_ttf_font_from_bytes(include_bytes!("../assets/fonts/IBMPlexMono-Bold.ttf")).ok();
         Fonts {
             display: bold.clone(),
             mono: load_ttf_font_from_bytes(include_bytes!(

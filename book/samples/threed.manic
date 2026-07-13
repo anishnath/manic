@@ -1,0 +1,15 @@
+title("3D");
+canvas("16:9");
+template("terminal");
+
+camera3((8, -10, 6), (0, 0, 1), 45);
+grid3(floor, (0, 0, 0), 5, 1);   color(floor, dim);
+axes3(ax, (0, 0, 0), 3);
+
+cube3(box, (-2, 0, 1), (1.6, 1.6, 1.6));   color(box, cyan);
+sphere3(ball, (2, 0, 1), 0.9);             color(ball, magenta);
+arrow3(up, (0, 0, 0), (0, 0, 2.6));        color(up, lime);   thick(up, 0.03);
+
+show(floor, 0.3);
+par { show(box, 0.5); show(ball, 0.5); draw(up, 0.5); }
+orbit3(60, 24, 14, 3.0, smooth);

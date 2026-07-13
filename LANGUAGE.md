@@ -18,9 +18,14 @@ Arguments are:
 | string | `"hello"` (escapes: `\n \t \" \\`) |
 | name | `A`, `cyan`, `smooth` (an entity id, color, easing, or function) |
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
+| 3D point | `(2, -1, 3)` — an `(x, y, z)` coordinate triple |
 
 Coordinates are in pixels, origin **top-left**, y increases **downward** (the
 math kit flips y for you where it matters).
+
+The 3D kit uses a separate right-handed, **Z-up** world measured in logical
+units: x/y form the ground plane and +z points upward. A `camera3` projects that
+world into the same canvas; ordinary 2D entities and chrome draw over it.
 
 Statements fall into three groups:
 
@@ -90,10 +95,11 @@ show(ring);                // animate the whole generated group by tag
 ```
 
 ### Values
-Every expression evaluates to one of four things:
+Every expression evaluates to one of five things:
 - **number** — the only thing arithmetic produces (booleans are numbers: `1`
   true, `0` false);
 - **point** — an `(x, y)` pair, each component its own expression;
+- **3D point** — an `(x, y, z)` triple, each component its own expression;
 - **string** — `"..."`;
 - **name** — a bare word that is *not* a bound variable: an entity id, colour,
   easing, or function name.
@@ -306,8 +312,8 @@ entities named `{id}.x`, `{id}.tN`, etc.
 | `vector(id, (cx,cy), (dx,dy), [color])` | an arrow from the origin to `(cx+dx, cy−dy)` (dy is up); default magenta |
 | `numberline(id, (cx,cy), halfw, from, to, step)` | an axis with ticks and labels from `from` to `to` |
 | `arrowfield(id, (cx,cy), halfw, halfh, field, [n])` | a grid of arrows sampling a named vector `field`, coloured by magnitude (cyan→lime→magenta); `n` arrows across |
-| `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space/comma); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
-| `table(id, "a b; c d", (cx,cy), [cellw], [cellh], [col-labels], [row-labels])` (aliases `mathtable`/`decimaltable`/`integertable`) | a ruled grid of single-token entries; body cell `{id}.r{i}c{j}` (tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`); optional header strings add a top label row (`{id}.collabel{j}`) / left label column (`{id}.rowlabel{i}`), tagged `{id}.labels`; grid lines `{id}.h{k}` / `{id}.v{k}`, tagged `{id}.hlines` / `{id}.vlines` / `{id}.lines` |
+| `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space **or comma** — so no comma inside an entry, and every row must have the same number of entries); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
+| `table(id, "a b; c d", (cx,cy), [cellw], [cellh], [col-labels], [row-labels])` (aliases `mathtable`/`decimaltable`/`integertable`) | a ruled grid of single-token entries (rows split by `;`, cells by space **or comma** — so no comma inside a cell like `(0,0)`, and every row must have the same number of cells); body cell `{id}.r{i}c{j}` (tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`); optional header strings add a top label row (`{id}.collabel{j}`) / left label column (`{id}.rowlabel{i}`), tagged `{id}.labels`; grid lines `{id}.h{k}` / `{id}.v{k}`, tagged `{id}.hlines` / `{id}.vlines` / `{id}.lines` |
 | `arc(id, (cx,cy), r, start, sweep)` | a circular arc line (angles in degrees) |
 | `sector(id, (cx,cy), r, start, sweep)` | a filled pie slice |
 | `annulus(id, (cx,cy), outer, inner)` | a filled ring between two radii |
@@ -520,6 +526,68 @@ circumcircle(cc, A, B, C);   incircle(ic, A, B, C);   centroid(G, A, B, C);
 foot(F, C, A, B);   segment(alt, C, F);   anglemark(angC, A, C, B);
 ```
 
+## The 3D kit
+
+3D is rendered with depth testing beneath the normal 2D scene. Declare one
+camera before using 3D objects. Camera and object animation remain stateless and
+scrubbable like every other Manic track.
+
+| call | makes |
+|---|---|
+| `camera3((ex,ey,ez), (tx,ty,tz), [fov], [projection])` | orbit camera from eye to target; `fov` is vertical degrees for `perspective` (default), visible world height for `orthographic` |
+| `point3(id, (x,y,z), [radius])` | small sphere marking a 3D point |
+| `line3(id, from, to)` | depth-tested 3D segment |
+| `arrow3(id, from, to)` | depth-tested 3D vector |
+| `cube3(id, center, (sx,sy,sz))` | cuboid centred at `center` |
+| `sphere3(id, center, radius)` | sphere centred at `center` |
+| `grid3(id, center, half, [spacing])` | XY ground grid from `-half` to `half` |
+| `axes3(id, origin, length, [step])` | cyan x, magenta y, lime z arrows **with tick marks + numbers** every `step` (default 1; `step ≤ 0` = plain arrows), tagged as `id`. Tick numbers sit off each axis in a distinct direction and auto-declutter per frame (a number is hidden while it would collide with another), so a foreshortened or short axis stays readable and the numbers reappear as the orbit spreads it out |
+| `pin3(label, (x,y,z) \| entity3)` | glue an existing 2D `text`/`label` to a 3D point (or a 3D entity); reprojected each frame so it tracks the camera |
+| `follow3(id, target, [(dx,dy,dz)])` | make a 3D entity track another's position (+ offset), recomputed each frame |
+| `midpoint3(id, a, b)` | a point at the midpoint of two 3D entities, recomputed as they move |
+| `curve3(id, "x(t)", "y(t)", "z(t)", [(t0,t1)])` | parametric 3D curve sampled from three formulas of `t` (default range `0..2π`), drawn as a polyline (thin by default; give it body with `thick`) |
+| `surface3(id, "z(x,y)", (x0,x1), (y0,y1), [res])` | height-field surface `z = f(x,y)` sampled over the x/y rectangle into a `(res+1)²` filled, flat-shaded mesh (default `res` 20) |
+| `param3(id, "x(u,v)", "y(u,v)", "z(u,v)", (u0,u1), (v0,v1), [res])` | **general parametric surface** — three formulas of `u`,`v` sampled into a `(res+1)²` filled, flat-shaded mesh (default `res` 24). Unlike `surface3` it can wrap and close: **tori** (`(R+r·cos v)·cos u`, …), parametric **spheres**, **Möbius strips**, shells |
+| `prism3(id, (cx,cy,cz), sides, radius, height)` | regular n-gon **prism** as a filled, shaded solid, centred on its position (`sides ≥ 3`; many sides ≈ a cylinder) |
+| `pyramid3(id, (cx,cy,cz), sides, radius, height)` | regular n-gon **pyramid** as a filled, shaded solid (many sides ≈ a cone) |
+| `revolve3(id, (cx,cy,cz), "r(t)", (t0,t1), [sides])` | **solid of revolution**: sweep the radius profile `r(t)` over height `t∈[t0,t1]` around the vertical axis (filled, shaded) — vases, spheres (`sqrt(1-t*t)`), cones (`t`); default 32 sides |
+| `extrude3(id, source, height, [(cx,cy,cz)])` | **extrude** a 2D fillable shape (`rect`/`circle`/`sector`/`annulus`/`polygon`) or a boolean `Region` (`union`/`difference`/`intersect`/`xor`) straight up into a solid of `height`, centred on `(cx,cy,cz)`. Extruding a boolean region gives **CSG solids** (e.g. plate `difference` hole → a plate with a hole; concave `union` → an L-beam). The 2D `source` is auto-hidden — it's only the cross-section recipe (its own boolean operands are not, so `hidden(…)` them if unwanted) |
+| `morph3(a, b, [spin])` | set 3D entity `a` up to **morph** into `b`'s shape, then animate with `to(a, morph, 1, dur)`. Both are sampled now to a shared form: two **curves** blend as a polyline; two **surfaces** (`surface3`/`revolve3`) or two **solids** (`cube3`/`sphere3`/`prism3`/`pyramid3`/`extrude3`) blend as a filled, shaded grid — solids are reparameterised spherically so e.g. a cube can become a sphere (approximate near sharp corners). `spin` adds a winding rotation about the vertical axis. Both operands must be the same family |
+| `thick(id, radius)` | give a 3D `curve3`/`line3`/`arrow3` real thickness — renders it as a shaded **tube** of the given world-space radius (arrows get a solid cone head) instead of a 1px line; `0` restores the thin line. (`stroke` is the 2D equivalent and only works on 2D shapes) |
+
+| verb | animation |
+|---|---|
+| `move3(id, to, [dur], [ease])` | absolute 3D movement |
+| `shift3(id, delta, [dur], [ease])` | relative 3D movement |
+| `rotate3(id, (xdeg,ydeg,zdeg), [dur], [ease])` | Euler rotation in Z-Y-X order |
+| `grow3(id, to, [dur], [ease])` | retarget a `line3` or `arrow3` endpoint |
+| `orbit3(azimuth, elevation, radius, [dur], [ease])` | animate the camera orbit |
+| `look3(target, [dur], [ease])` | animate the camera target |
+
+### What works on 3D entities (and what doesn't)
+
+Not every 2D modifier/verb applies to 3D — a 3D entity lives in the separate
+Z-up world, so 2D-only ones **error** when aimed at a 3D id (with a message that
+says so and lists the alternatives).
+
+| Applies to 3D | 2D-only (errors on a 3D id → use the alt) |
+|---|---|
+| **modifiers:** `color`, `opacity`, `hidden`, `untraced`, `tag`, `thick` | `hue` → use `color` with a palette name · `stroke` → use `thick` · `glow`, `z`, `size`, `bold`, `outlined`/`filled`/`outline` |
+| **verbs:** `show`, `fade`, `draw`, `flash`, `pulse`, `recolor`, `scale`, and `to(id, morph\|opacity\|scale\|trace\|color, …)` | `move`/`shift`/`rotate`/`spin` → use `move3`/`shift3`/`rotate3` · `cam`/`zoom` → use `camera3`/`orbit3`/`look3` · `transform` (2D matrix) · `morph` → use `morph3` · `to(x/y)` (no 3D single-axis form) |
+
+Spatial tracks always go through the explicit `move3`/`rotate3`/`grow3` family.
+
+```
+camera3((8,-10,6), (0,0,1), 45);
+grid3(floor, (0,0,0), 5, 1);  color(floor, dim);
+axes3(world, (0,0,0), 4);
+cube3(box, (0,0,1), (2,2,2)); color(box, magenta);
+par { rotate3(box, (0,0,360), 4, linear); orbit3(70,28,11,4,smooth); }
+```
+
+Current limits: no parametric surfaces/arbitrary meshes, lighting, model
+loading, projected 3D labels, or robust intersecting-transparency sorting yet.
+
 ## Banner & watermark (brand kit)
 
 manic's own logo and mark (à la `ManimBanner`).
@@ -576,8 +644,8 @@ difference(bite, sq, cr, lime);   // the square with a circular bite removed
 ## Colors
 
 `fg` (foreground / `white`) · `void` (`bg`) · `cyan` (`blue`) · `magenta`
-(`pink`, `accent`, `red`) · `lime` (`green`) · `dim` (`gray`, `grey`) ·
-`panel`.
+(`pink`, `accent`, `red`) · `lime` (`green`) · `gold` (`amber`, `yellow`) ·
+`dim` (`gray`, `grey`) · `panel`.
 
 ## Easings
 

@@ -238,7 +238,10 @@ pub async fn run_loop(mut movie: Movie) {
     if let Some(name) = &opts.template {
         match crate::style::Template::by_name(name) {
             Some(t) => movie.template = t,
-            None => eprintln!("unknown template `{name}` — keeping `{}`", movie.template.name),
+            None => eprintln!(
+                "unknown template `{name}` — keeping `{}`",
+                movie.template.name
+            ),
         }
     }
     // branding (recorded output under a branded preset): pin the watermark into
@@ -265,7 +268,14 @@ pub async fn run_loop(mut movie: Movie) {
     let s = opts.scale;
     let (pw, ph) = ((w * s).round(), (h * s).round());
 
-    let rt = render_target(pw as u32, ph as u32);
+    let rt = render_target_ex(
+        pw as u32,
+        ph as u32,
+        RenderTargetParams {
+            sample_count: 4,
+            depth: true,
+        },
+    );
     rt.texture.set_filter(FilterMode::Linear);
     let rt_cam = Camera2D {
         zoom: vec2(2.0 / pw, 2.0 / ph),
@@ -308,11 +318,62 @@ pub async fn run_loop(mut movie: Movie) {
                      template: &style::Template,
                      t: f32| {
         set_camera(&rt_cam);
-        let scene = tl.apply(base, t);
+        let mut scene = tl.apply(base, t);
         let view = View::from_scene(&scene, w, h, s);
         if opts.alpha {
             clear_background(Color::new(0.0, 0.0, 0.0, 0.0));
         } else {
+            render::clear_page_background(template);
+        }
+        if let Some(cam3) = crate::render3d::camera(&scene, rt.clone(), pw / ph) {
+            set_camera(&cam3);
+            crate::render3d::draw_scene(&scene, template);
+        }
+        set_camera(&rt_cam);
+        // pin3: reproject each bound 3D point and glue its 2D label onto it, so
+        // labels track the geometry as the camera orbits. Compute all screen
+        // positions first (immutable borrows), then apply (mutable).
+        if !scene.pins.is_empty() {
+            let aspect = pw / ph;
+            let mut updates: Vec<(String, Vec2)> = Vec::new();
+            let mut hide: Vec<String> = Vec::new();
+            // Screen positions of decluttering labels already placed this frame.
+            let mut placed: Vec<Vec2> = Vec::new();
+            let min_gap = 26.0 * view.ss; // labels closer than this collide
+            for pin in &scene.pins {
+                let world = match &pin.target {
+                    crate::scene::Pin3Target::Point(p) => Some(*p),
+                    crate::scene::Pin3Target::Entity(id) => scene.get_3d(id).map(|e| e.pos),
+                };
+                let Some(world) = world else { continue };
+                if let Some(px) = crate::render3d::project(&scene, aspect, world, pw, ph) {
+                    // screen-space nudge (scaled with supersampling)
+                    let px = px + pin.offset * view.ss;
+                    if pin.declutter {
+                        if placed.iter().any(|p| p.distance(px) < min_gap) {
+                            hide.push(pin.label.clone());
+                            continue;
+                        }
+                        placed.push(px);
+                    }
+                    // invert View::xform so the overlay lands exactly on `px`
+                    let sp = (px / view.ss - view.center) / view.zoom + view.cam;
+                    updates.push((pin.label.clone(), sp));
+                }
+            }
+            for (id, sp) in updates {
+                if let Some(e) = scene.get_mut(&id) {
+                    e.pos = sp;
+                }
+            }
+            // Suppress colliding declutter labels for this frame only.
+            for id in hide {
+                if let Some(e) = scene.get_mut(&id) {
+                    e.opacity = 0.0;
+                }
+            }
+        }
+        if !opts.alpha {
             render::draw_page_chrome(template, &title, w, h, &fonts, &view);
         }
         render::draw_scene(&scene, &fonts, &view, template);

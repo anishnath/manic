@@ -3,23 +3,60 @@
 
 use std::collections::HashMap;
 
-use macroquad::prelude::{Color, Vec2};
+use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::primitives::{Align, Entity, FontKind, Shape, StrokeStyle};
+use crate::primitives3d::Entity3D;
 use crate::style;
+
+/// A 2D label glued to a 3D position (`pin3`). Reprojected every frame at
+/// render time, so the label tracks the point as the camera orbits.
+#[derive(Debug, Clone)]
+pub struct Pin3 {
+    /// id of the 2D entity (a `text`/`label`) to reposition.
+    pub label: String,
+    pub target: Pin3Target,
+    /// Screen-space nudge (pixels, y-down) applied after projection, so a label
+    /// can sit *beside* its anchor instead of on top of it. `axes3` uses it to
+    /// fan each axis's tick numbers off the axis line in a distinct direction.
+    pub offset: Vec2,
+    /// If set, this label is hidden for any frame where it would collide with
+    /// an already-placed decluttering label. `axes3` tick numbers use it so a
+    /// foreshortened axis (pointing at the camera) doesn't stack its numbers;
+    /// they reappear as the orbit spreads that axis out. User `pin3`s never
+    /// declutter — they're always drawn where asked.
+    pub declutter: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum Pin3Target {
+    /// A fixed world point.
+    Point(Vec3),
+    /// Track a 3D entity's current position.
+    Entity(String),
+}
+
+#[derive(Debug, Clone, Copy)]
+enum EntitySlot {
+    D2(usize),
+    D3(usize),
+}
 
 /// An id-addressed collection of entities. This is the *base* state of the
 /// world at t = 0; the timeline produces per-frame copies of it.
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
     pub entities: Vec<Entity>,
-    index: HashMap<String, usize>,
+    pub entities_3d: Vec<Entity3D>,
+    index: HashMap<String, EntitySlot>,
     /// Build-time slot occupancy for stateful structures (e.g. `array`): maps a
     /// structure id to the entity id sitting in each slot. Seeded by the
     /// constructor and updated by mutating verbs like `swap`, so a chain of
     /// swaps knows the *current* occupant of each slot. Build-time only — the
     /// renderer never reads it.
     pub occ: HashMap<String, Vec<String>>,
+    /// 2D labels bound to 3D positions (`pin3`), applied per-frame by the player.
+    pub pins: Vec<Pin3>,
 }
 
 impl Scene {
@@ -35,20 +72,50 @@ impl Scene {
             e.id
         );
         let i = self.entities.len();
-        self.index.insert(e.id.clone(), i);
+        self.index.insert(e.id.clone(), EntitySlot::D2(i));
         self.entities.push(e);
         i
     }
 
+    /// Add a 3D entity. Panics on an id already used by either dimension.
+    pub fn add_3d(&mut self, e: Entity3D) -> usize {
+        assert!(
+            !self.index.contains_key(&e.id),
+            "duplicate entity id {:?}",
+            e.id
+        );
+        let i = self.entities_3d.len();
+        self.index.insert(e.id.clone(), EntitySlot::D3(i));
+        self.entities_3d.push(e);
+        i
+    }
+
     pub fn get(&self, id: &str) -> Option<&Entity> {
-        self.index.get(id).map(|&i| &self.entities[i])
+        match self.index.get(id) {
+            Some(EntitySlot::D2(i)) => Some(&self.entities[*i]),
+            _ => None,
+        }
     }
 
     pub fn get_mut(&mut self, id: &str) -> Option<&mut Entity> {
-        self.index
-            .get(id)
-            .copied()
-            .map(move |i| &mut self.entities[i])
+        match self.index.get(id).copied() {
+            Some(EntitySlot::D2(i)) => Some(&mut self.entities[i]),
+            _ => None,
+        }
+    }
+
+    pub fn get_3d(&self, id: &str) -> Option<&Entity3D> {
+        match self.index.get(id) {
+            Some(EntitySlot::D3(i)) => Some(&self.entities_3d[*i]),
+            _ => None,
+        }
+    }
+
+    pub fn get_3d_mut(&mut self, id: &str) -> Option<&mut Entity3D> {
+        match self.index.get(id).copied() {
+            Some(EntitySlot::D3(i)) => Some(&mut self.entities_3d[i]),
+            _ => None,
+        }
     }
 
     pub fn contains(&self, id: &str) -> bool {

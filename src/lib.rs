@@ -1,7 +1,7 @@
 //! # manic
 //!
-//! A general-purpose 2D animation **language and engine**, neon-terminal
-//! styled, deterministic, built on macroquad.
+//! A general-purpose 2D animation **language and engine** with foundational
+//! hybrid 3D support, neon-terminal styled, deterministic, built on macroquad.
 //!
 //! Authors write animations in the `.manic` text language (see the `lang`
 //! module) — no Rust required. The language lowers onto this engine, which
@@ -49,8 +49,10 @@ pub mod movie;
 pub mod player;
 pub mod preset;
 pub mod primitives;
+pub mod primitives3d;
 pub mod record;
 pub mod render;
+pub mod render3d;
 pub mod scene;
 pub mod style;
 pub mod timeline;
@@ -97,5 +99,5 @@ pub mod prelude {
     pub use crate::timeline::Clip;
     pub use crate::v;
     pub use crate::{par, seq, stagger};
-    pub use macroquad::prelude::{Color, Vec2};
+    pub use macroquad::prelude::{Color, Vec2, Vec3};
 }

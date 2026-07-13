@@ -246,7 +246,9 @@ fn d_anglemark(e: &mut Entity, p: &[Vec2]) {
             sweep -= 360.0;
         }
         if let Shape::Arc {
-            start: st, sweep: sw, ..
+            start: st,
+            sweep: sw,
+            ..
         } = &mut e.shape
         {
             *st = start;
@@ -445,10 +447,7 @@ macro_rules! derived_pair {
                 deps.push(a.ident(i + 1)?);
                 ps.push(pt(s, a, i + 1)?);
             }
-            for (suffix, dfn) in [
-                ("0", $dfn0 as crate::primitives::DeriveFn),
-                ("1", $dfn1),
-            ] {
+            for (suffix, dfn) in [("0", $dfn0 as crate::primitives::DeriveFn), ("1", $dfn1)] {
                 let mut e = dot(Vec2::ZERO, 5.0, style::CYAN);
                 e.id = format!("{id}{suffix}");
                 e.deps = deps.clone();
@@ -537,7 +536,13 @@ fn c_ellipse(s: &mut Scene, a: &Args) -> Result<(), Error> {
 }
 
 /// Add a stroked open curve entity `id` from a point list.
-fn add_curve(s: &mut Scene, id: &str, pts: Vec<Vec2>, color: macroquad::prelude::Color, tag: Option<&str>) {
+fn add_curve(
+    s: &mut Scene,
+    id: &str,
+    pts: Vec<Vec2>,
+    color: macroquad::prelude::Color,
+    tag: Option<&str>,
+) {
     let mut e = Entity::new(id.to_string(), Shape::Polyline { pts }, Vec2::ZERO, color);
     e.stroke = StrokeStyle {
         fill: false,
@@ -695,7 +700,12 @@ fn c_anglemark(s: &mut Scene, a: &Args) -> Result<(), Error> {
 fn c_rightangle(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let (deps, ps) = deps_and_pts(s, a, 3)?;
-    let mut e = Entity::new(id, Shape::Polyline { pts: Vec::new() }, Vec2::ZERO, style::LIME);
+    let mut e = Entity::new(
+        id,
+        Shape::Polyline { pts: Vec::new() },
+        Vec2::ZERO,
+        style::LIME,
+    );
     e.stroke.width = 2.0;
     e.z = 2;
     e.deps = deps;

@@ -39,8 +39,25 @@ fn eval(name: &str, x: f32) -> Option<f32> {
 fn known_fn(name: &str) -> bool {
     matches!(
         name,
-        "sin" | "cos" | "tan" | "parabola" | "sq" | "square" | "cubic" | "cube" | "line" | "id"
-            | "identity" | "abs" | "exp" | "sqrt" | "log" | "ln" | "recip" | "inv" | "gauss"
+        "sin"
+            | "cos"
+            | "tan"
+            | "parabola"
+            | "sq"
+            | "square"
+            | "cubic"
+            | "cube"
+            | "line"
+            | "id"
+            | "identity"
+            | "abs"
+            | "exp"
+            | "sqrt"
+            | "log"
+            | "ln"
+            | "recip"
+            | "inv"
+            | "gauss"
             | "bell"
     )
 }
@@ -53,10 +70,11 @@ fn known_fn(name: &str) -> bool {
 /// floor/ceil/round/sign. Compiled once to a tree, then sampled per point.
 /// This is deliberately NOT the language's (still-deferred) variable/loop
 /// layer — it is a leaf evaluator scoped to a single plotted curve.
-mod expr {
+pub(crate) mod expr {
     pub enum Node {
         Num(f32),
         Var,
+        VarY,
         Neg(Box<Node>),
         Add(Box<Node>, Box<Node>),
         Sub(Box<Node>, Box<Node>),
@@ -67,17 +85,18 @@ mod expr {
     }
 
     impl Node {
-        pub fn eval(&self, x: f32) -> f32 {
+        pub fn eval(&self, x: f32, y: f32) -> f32 {
             match self {
                 Node::Num(n) => *n,
                 Node::Var => x,
-                Node::Neg(a) => -a.eval(x),
-                Node::Add(a, b) => a.eval(x) + b.eval(x),
-                Node::Sub(a, b) => a.eval(x) - b.eval(x),
-                Node::Mul(a, b) => a.eval(x) * b.eval(x),
-                Node::Div(a, b) => a.eval(x) / b.eval(x),
-                Node::Pow(a, b) => a.eval(x).powf(b.eval(x)),
-                Node::Call(f, a) => f(a.eval(x)),
+                Node::VarY => y,
+                Node::Neg(a) => -a.eval(x, y),
+                Node::Add(a, b) => a.eval(x, y) + b.eval(x, y),
+                Node::Sub(a, b) => a.eval(x, y) - b.eval(x, y),
+                Node::Mul(a, b) => a.eval(x, y) * b.eval(x, y),
+                Node::Div(a, b) => a.eval(x, y) / b.eval(x, y),
+                Node::Pow(a, b) => a.eval(x, y).powf(b.eval(x, y)),
+                Node::Call(f, a) => f(a.eval(x, y)),
             }
         }
     }
@@ -264,7 +283,9 @@ mod expr {
                     break;
                 }
             }
-            let id = std::str::from_utf8(&self.s[start..self.i]).unwrap().to_string();
+            let id = std::str::from_utf8(&self.s[start..self.i])
+                .unwrap()
+                .to_string();
             self.ws();
             if self.peek() == Some(b'(') {
                 self.i += 1;
@@ -276,14 +297,57 @@ mod expr {
                 return Ok(Node::Call(f, Box::new(arg)));
             }
             match id.as_str() {
-                "x" | "t" => Ok(Node::Var),
+                "x" | "t" | "u" => Ok(Node::Var),
+                "y" | "v" => Ok(Node::VarY),
                 "pi" => Ok(Node::Num(std::f32::consts::PI)),
                 "e" => Ok(Node::Num(std::f32::consts::E)),
                 "tau" => Ok(Node::Num(std::f32::consts::TAU)),
-                _ => Err(format!(
-                    "unknown name `{id}` (use x/t, pi, e, tau, or a function)"
-                )),
+                _ => {
+                    // `pit` / `vv` / `piu` — adjacent names glued without `*`.
+                    // If the name splits cleanly into known ones, suggest it.
+                    fn split_glue(id: &str) -> Option<String> {
+                        let names = ["tau", "pi", "x", "y", "t", "u", "v", "e"];
+                        let mut rest = id;
+                        let mut parts = Vec::new();
+                        while !rest.is_empty() {
+                            let m = names.iter().copied().find(|n| rest.starts_with(*n))?;
+                            parts.push(m);
+                            rest = &rest[m.len()..];
+                        }
+                        (parts.len() >= 2).then(|| parts.join("*"))
+                    }
+                    Err(match split_glue(&id) {
+                        Some(s) => format!(
+                            "unknown name `{id}` — did you mean `{s}`? put `*` between names"
+                        ),
+                        None => format!(
+                            "unknown name `{id}` (use x/y, t, u/v, pi, e, tau, or a function)"
+                        ),
+                    })
+                }
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::compile;
+
+        #[test]
+        fn glued_names_suggest_a_star() {
+            // `pit` = pi*t, `vv` = v*v — adjacent names need `*` between them.
+            let e = compile("0.1*sin(pit)").err().unwrap();
+            assert!(e.contains("pi*t"), "got: {e}");
+            assert!(compile("v*v - vv").err().unwrap().contains("v*v"));
+            // a genuinely unknown name gets no bogus suggestion
+            let g = compile("foo(x)").err().unwrap();
+            assert!(g.contains("unknown function"), "got: {g}");
+        }
+
+        #[test]
+        fn implicit_multiplication_still_parses() {
+            // `2x`, `pi*t`, `sin(x)y`, `3(x+1)` are all valid
+            assert!(compile("2x + pi*t + sin(x)y + 3(x+1)").is_ok());
         }
     }
 }
@@ -631,7 +695,7 @@ fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let sample = |x: f32| -> Option<f32> {
         match &f {
             F::Named(n) => eval(n, x),
-            F::Expr(node) => node.eval(x).is_finite().then(|| node.eval(x)),
+            F::Expr(node) => node.eval(x, 0.0).is_finite().then(|| node.eval(x, 0.0)),
         }
     };
 
@@ -746,7 +810,17 @@ fn c_arc(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let r = a.num(2)?;
     let start = a.num(3)?;
     let sweep = a.num(4)?;
-    let mut e = Entity::new(id, Shape::Arc { r, inner: 0.0, start, sweep }, c, style::CYAN);
+    let mut e = Entity::new(
+        id,
+        Shape::Arc {
+            r,
+            inner: 0.0,
+            start,
+            sweep,
+        },
+        c,
+        style::CYAN,
+    );
     e.stroke = StrokeStyle {
         fill: false,
         outline: true,
@@ -758,7 +832,17 @@ fn c_arc(s: &mut Scene, a: &Args) -> Result<(), Error> {
 }
 
 fn neon_sector(id: String, c: Vec2, r: f32, inner: f32, start: f32, sweep: f32) -> Entity {
-    let mut e = Entity::new(id, Shape::Arc { r, inner, start, sweep }, c, style::PANEL);
+    let mut e = Entity::new(
+        id,
+        Shape::Arc {
+            r,
+            inner,
+            start,
+            sweep,
+        },
+        c,
+        style::PANEL,
+    );
     e.stroke = StrokeStyle {
         fill: true,
         outline: true,
@@ -940,8 +1024,12 @@ fn c_matrix(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let ncols = rows.iter().map(|r| r.len()).max().unwrap();
     if rows.iter().any(|r| r.len() != ncols) {
+        let counts: Vec<usize> = rows.iter().map(|r| r.len()).collect();
         return Err(Error::new(
-            "matrix rows must all have the same number of entries",
+            format!(
+                "matrix rows must all have the same number of entries — got {counts:?} \
+                 (entries split on whitespace AND commas, so a value like `(0,0)` counts as two)"
+            ),
             a.span_of(1),
         ));
     }
@@ -1039,8 +1127,16 @@ fn c_table(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let c = a.pair(2)?;
     let cw = a.opt_num(3)?.unwrap_or(120.0);
     let ch = a.opt_num(4)?.unwrap_or(64.0);
-    let col_labels = if a.len() > 5 { tokens(&a.text(5)?) } else { vec![] };
-    let row_labels = if a.len() > 6 { tokens(&a.text(6)?) } else { vec![] };
+    let col_labels = if a.len() > 5 {
+        tokens(&a.text(5)?)
+    } else {
+        vec![]
+    };
+    let row_labels = if a.len() > 6 {
+        tokens(&a.text(6)?)
+    } else {
+        vec![]
+    };
 
     let body: Vec<Vec<String>> = src
         .split(';')
@@ -1052,8 +1148,12 @@ fn c_table(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let ncols = body.iter().map(|r| r.len()).max().unwrap();
     if body.iter().any(|r| r.len() != ncols) {
+        let counts: Vec<usize> = body.iter().map(|r| r.len()).collect();
         return Err(Error::new(
-            "table rows must all have the same number of entries",
+            format!(
+                "table rows must all have the same number of cells — got {counts:?} \
+                 (cells split on whitespace AND commas, so a coord like `(0,0)` counts as two)"
+            ),
             a.span_of(1),
         ));
     }
@@ -1068,16 +1168,24 @@ fn c_table(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let x0 = c.x - totalw / 2.0;
     let y0 = c.y - totalh / 2.0;
     // centre of full-grid cell (r, c)
-    let cell = |r: usize, col: usize| {
-        Vec2::new(x0 + (col as f32 + 0.5) * cw, y0 + (r as f32 + 0.5) * ch)
-    };
-    let txt = |s: &mut Scene, id: String, content: String, pos: Vec2, color: Color, tags: Vec<String>| {
-        let mut e = Entity::new(id, Shape::Text { content, size: 26.0 }, pos, color);
-        e.font = FontKind::MonoBold;
-        e.z = 2;
-        e.tags = tags;
-        s.add(e);
-    };
+    let cell =
+        |r: usize, col: usize| Vec2::new(x0 + (col as f32 + 0.5) * cw, y0 + (r as f32 + 0.5) * ch);
+    let txt =
+        |s: &mut Scene, id: String, content: String, pos: Vec2, color: Color, tags: Vec<String>| {
+            let mut e = Entity::new(
+                id,
+                Shape::Text {
+                    content,
+                    size: 26.0,
+                },
+                pos,
+                color,
+            );
+            e.font = FontKind::MonoBold;
+            e.z = 2;
+            e.tags = tags;
+            s.add(e);
+        };
 
     // body entries
     for (i, row) in body.iter().enumerate() {

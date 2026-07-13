@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use macroquad::prelude::{Color, Vec2};
+use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::animate::{self, ActBuilder};
 use crate::easing::Easing;
@@ -158,7 +158,11 @@ impl<'a> Args<'a> {
         match &e.kind {
             ExprKind::Str(s) => Ok(s.clone()),
             _ => Err(Error::new(
-                format!("argument {} of `{}` should be a \"string\"", i + 1, self.name),
+                format!(
+                    "argument {} of `{}` should be a \"string\"",
+                    i + 1,
+                    self.name
+                ),
                 e.span,
             )),
         }
@@ -196,7 +200,27 @@ impl<'a> Args<'a> {
         match &e.kind {
             ExprKind::Pair(x, y) => Ok(Vec2::new(*x, *y)),
             _ => Err(Error::new(
-                format!("argument {} of `{}` should be a `(x, y)` point", i + 1, self.name),
+                format!(
+                    "argument {} of `{}` should be a `(x, y)` point",
+                    i + 1,
+                    self.name
+                ),
+                e.span,
+            )),
+        }
+    }
+
+    /// A `(x, y, z)` coordinate triple.
+    pub fn triple(&self, i: usize) -> Result<Vec3, Error> {
+        let e = self.get(i)?;
+        match &e.kind {
+            ExprKind::Triple(x, y, z) => Ok(Vec3::new(*x, *y, *z)),
+            _ => Err(Error::new(
+                format!(
+                    "argument {} of `{}` should be a `(x, y, z)` point",
+                    i + 1,
+                    self.name
+                ),
                 e.span,
             )),
         }
@@ -208,11 +232,16 @@ impl<'a> Args<'a> {
         let e = self.get(i)?;
         match &e.kind {
             ExprKind::Pair(x, y) => Ok(Vec2::new(*x, *y)),
-            ExprKind::Ident(id) => scene.get(id).map(|ent| ent.pos).ok_or_else(|| {
-                Error::new(format!("no entity named `{id}` to point at"), e.span)
-            }),
+            ExprKind::Ident(id) => scene
+                .get(id)
+                .map(|ent| ent.pos)
+                .ok_or_else(|| Error::new(format!("no entity named `{id}` to point at"), e.span)),
             _ => Err(Error::new(
-                format!("argument {} of `{}` should be a `(x, y)` point or an entity name", i + 1, self.name),
+                format!(
+                    "argument {} of `{}` should be a `(x, y)` point or an entity name",
+                    i + 1,
+                    self.name
+                ),
                 e.span,
             )),
         }
@@ -247,12 +276,13 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
         "cyan" | "blue" => style::CYAN,
         "magenta" | "pink" | "accent" | "red" => style::MAGENTA,
         "lime" | "green" => style::LIME,
+        "gold" | "amber" | "yellow" => style::GOLD,
         "dim" | "gray" | "grey" => style::DIM,
         "panel" => style::PANEL,
         other => {
             return Err(Error::new(
                 format!(
-                    "unknown color `{other}` (try: fg, cyan, magenta, lime, dim, panel, void)"
+                    "unknown color `{other}` (try: fg, cyan, magenta, lime, gold, dim, panel, void)"
                 ),
                 span,
             ))
@@ -449,7 +479,10 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
                 return Ok(());
             }
             // a plain verb; needs a read of the (now complete) base scene
-            let f = registry.verbs.get(s.name.as_str()).expect("classified as verb");
+            let f = registry
+                .verbs
+                .get(s.name.as_str())
+                .expect("classified as verb");
             let clip = run_verb(*f, &movie.scene, s)?;
             movie.play(clip);
             Ok(())
@@ -464,6 +497,13 @@ fn tagged_ids(scene: &Scene, tag: &str) -> Vec<String> {
         .iter()
         .filter(|e| e.tags.iter().any(|t| t == tag))
         .map(|e| e.id.clone())
+        .chain(
+            scene
+                .entities_3d
+                .iter()
+                .filter(|e| e.tags.iter().any(|t| t == tag))
+                .map(|e| e.id.clone()),
+        )
         .collect()
 }
 
@@ -557,7 +597,10 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
                             s.name_span,
                         ))
                     } else {
-                        Err(Error::new(format!("unknown builtin `{}`", s.name), s.name_span))
+                        Err(Error::new(
+                            format!("unknown builtin `{}`", s.name),
+                            s.name_span,
+                        ))
                     }
                 }
             }
@@ -566,10 +609,12 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
 }
 
 fn build_block_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
-    let block = s
-        .block
-        .as_ref()
-        .ok_or_else(|| Error::new(format!("`{}` needs a `{{ ... }}` block", s.name), s.name_span))?;
+    let block = s.block.as_ref().ok_or_else(|| {
+        Error::new(
+            format!("`{}` needs a `{{ ... }}` block", s.name),
+            s.name_span,
+        )
+    })?;
     let mut clips = Vec::with_capacity(block.len());
     for inner in block {
         clips.push(lower_inner(scene, inner, registry)?);

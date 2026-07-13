@@ -170,7 +170,10 @@ fn triangulate(poly: &Polygon<f64>) -> Vec<[Vec2; 3]> {
         }
         vcount += hp.len();
     }
-    let verts: Vec<Vec2> = flat.chunks(2).map(|c| Vec2::new(c[0] as f32, c[1] as f32)).collect();
+    let verts: Vec<Vec2> = flat
+        .chunks(2)
+        .map(|c| Vec2::new(c[0] as f32, c[1] as f32))
+        .collect();
     match earcutr::earcut(&flat, &holes, 2) {
         Ok(idx) => idx
             .chunks(3)
@@ -211,6 +214,28 @@ pub fn boolean_region(
     for poly in &res.0 {
         tris.extend(triangulate(poly));
         rings.extend(rings_of(poly));
+    }
+    Ok((tris, rings))
+}
+
+/// The cross-section of a 2D fillable entity as (fill triangles, outline rings)
+/// in world coordinates — the input `extrude3` sweeps into a solid. A boolean
+/// [`Shape::Region`] reuses its already-baked data (so extruding a
+/// union/difference/… yields a CSG solid); any other fillable shape
+/// (rect/circle/sector/annulus/polygon) is triangulated on the fly.
+pub fn cross_section(e: &Entity) -> Result<(Vec<[Vec2; 3]>, Vec<Vec<Vec2>>), String> {
+    if let Shape::Region { tris, rings } = &e.shape {
+        return Ok((tris.clone(), rings.clone()));
+    }
+    let mp = entity_to_multipolygon(e)?;
+    let mut tris = Vec::new();
+    let mut rings = Vec::new();
+    for poly in &mp.0 {
+        tris.extend(triangulate(poly));
+        rings.extend(rings_of(poly));
+    }
+    if tris.is_empty() {
+        return Err("this shape has no fillable area to extrude".into());
     }
     Ok((tris, rings))
 }

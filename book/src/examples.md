@@ -12,3 +12,4 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Text & UI](ex-text.md) — 5 examples
 - [Generative & recursive](ex-generative.md) — 5 examples
 - [Boolean shapes](ex-boolean.md) — 1 example
+- [3D scenes](ex-3d.md) — 6 examples

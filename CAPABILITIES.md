@@ -11,7 +11,8 @@ are occurrences across the `geometry/` samples.
 ### Engine & language
 - Stateless timeline (`Timeline::apply(base, t)` is pure) → free scrub/step,
   deterministic recording (mp4/gif/PNG), live preview, CRT post-process.
-- ASY-like DSL: function-call statements, `(x, y)` points, `;` terminators,
+- ASY-like DSL: function-call statements, `(x, y)` points and `(x, y, z)` 3D
+  points, `;` terminators,
   `//` comments, `par` / `seq` / `stagger` blocks, `section`, `wait`/`beat`,
   `mark`; dotted ids; **tag broadcast** (a verb/modifier on a tag hits the whole
   group); line/column error diagnostics.
@@ -94,10 +95,47 @@ are occurrences across the `geometry/` samples.
   `anglemark`, `rightangle`.
 - **brand** — `banner` (icon trio + "manic" wordmark, create→expand→unwrite)
   and `watermark` (screen-fixed persistent mark).
+- **three** — hybrid depth-tested 3D under the normal 2D overlay: `camera3`
+  (perspective/orthographic Z-up orbit camera), `point3`, `line3`, `arrow3`,
+  `cube3`, `sphere3`, `grid3`, `axes3` (ticks + numbers), plus `pin3` (glue a 2D
+  label to a 3D point), `follow3` (track another entity), `midpoint3` (derived
+  point), `curve3` (parametric 3D curve), `surface3` (z=f(x,y) filled mesh), `param3` (parametric surface — tori/Möbius), `prism3`/`pyramid3`/`revolve3`
+  (filled, flat-shaded solids), `extrude3` (extrude a 2D shape/boolean-region → CSG solids),
+  `thick` (tube strokes); verbs `move3`, `shift3`, `rotate3`,
+  `grow3`, `orbit3`, `look3`. Shared modifiers/verbs (`color`, `opacity`,
+  `hidden`, `untraced`, `tag`, `show`, `fade`, `draw`, `recolor`, `flash`,
+  `pulse`, `scale`) also address 3D entities. See **3D foundation** below.
 
 ### Primitives (engine)
 `Circle`, `Rect`, `Line`, `Arrow`, `Curve`, `Polygon`, `Polyline`, `Arc`
-(arc/sector/annulus), `Region` (boolean result), `Text`.
+(arc/sector/annulus), `Region` (boolean result), `Text`; 3D `Point`, `Line`,
+`Arrow`, `Cube`, `Sphere`, and XY `Grid`.
+
+### 3D foundation
+- **Coordinates & scene model** — computed `(x,y,z)` values flow through the
+  parser, macro expander, lowering, editor services, and runtime. 3D entities
+  have stable ids and tags alongside the existing 2D scene.
+- **Camera** — one Z-up orbit camera with perspective or orthographic
+  projection. `camera3` sets its eye, target, and field of view (a single value,
+  reused as the orthographic height), plus the projection; `orbit3` animates
+  azimuth, elevation, and radius, while `look3` animates the target.
+- **Rendering & output** — depth-tested 3D renders beneath the normal 2D
+  overlay. Preview, stills, CRT output, and recordings all use the same
+  depth-enabled render target. Render-target Y correction keeps screen
+  orientation consistent, with positive Z visibly pointing up.
+- **Geometry** — points, lines, arrows, cubes, spheres, XY floor grids, and
+  ticked, numbered XYZ axes (`axes3`, optional `step`). Objects support position,
+  non-uniform scale, Euler rotation, color, opacity, visibility, and tracing state.
+- **Animation** — deterministic `Vec3` timeline tracks drive `move3`, `shift3`,
+  `rotate3`, and `grow3` (which retargets a `line3`/`arrow3` endpoint rather than
+  scaling). Shared `show`, `fade`, `draw`, `recolor`, `flash`, `pulse`, and
+  `scale` verbs also address 3D entities and tag groups.
+- **Projected labels** — `pin3(label, point3 | entity3)` binds an existing 2D
+  `text`/`label` to a 3D position; a world→screen projection reprojects it every
+  frame, so the label stays glued as the camera orbits (or the target entity
+  moves). This is the reusable hook behind future ticked/numbered 3D axes.
+- **Reference** — `examples/three_d.manic` exercises the camera, depth,
+  primitives, axes, transforms, a pinned label, and hybrid 2D/3D composition.
 
 ## Gaps
 
@@ -134,9 +172,9 @@ Still missing (minor):
 - `plot` range may be a scalar `domain` (symmetric) or an explicit `(x0, x1)`
   pair (one-sided) — `plot(g,(cx,cy),200,52,"x*x",(0,2.5))`.
 - Coordinate frames done: `axes` (ticks + integer labels), `plane`/
-  `numberplane`, `complexplane`, `polarplane`. Still missing: custom
-  tick-label values / non-integer steps, per-axis limits, multiple styled axes,
-  3D axes (deferred).
+  `numberplane`, `complexplane`, `polarplane`, plus foundational `axes3` and
+  `grid3`. Still missing: custom tick-label values / non-integer steps,
+  per-axis limits, multiple styled axes, and labelled/ticked 3D axes.
 - **Area under a curve** works today via Riemann rectangles (`rect` bars under
   a `plot`) — see `examples/area_under_curve.manic` (midpoint sum converging to
   the integral). No smooth `Region`-based fill of the exact area yet, and — with
@@ -251,28 +289,108 @@ out of nothing" and edge/point origins are scriptable rather than one call.
   0→1 about the anchor) would move `GrowFromCenter` / `SpinInFromNothing` to
   full support in a few lines.
 
-### Deeper math — numeric & symbolic (future, via a crate)
-Not needed for anything built so far (our own expression evaluator covers
-numeric plotting/computation, and shape-morph needs only lerp). Tracked so we
-don't miss them when a feature calls for one:
-- **Numeric linear algebra — `nalgebra`** (mature, low-risk). Add *when* we build
-  linear-algebra visuals that need real matrix math: **eigenvectors/eigenvalues**
-  of the `transform` matrix, determinant-as-signed-area, matrix
-  decompositions, solving `Ax=b`. High value, contained; pull it in at that point,
-  not speculatively.
-- **Symbolic math / mini-CAS** (`symbolica` or hand-rolled) — a bigger, separate
-  decision. Would enable **step-by-step algebra**, **auto-differentiation** (a
-  tangent line straight from a formula), and **equation solving** shown on
-  screen. The Rust symbolic ecosystem is thin and some options are commercially
-  licensed, so this is a *direction* to commit to deliberately, only if
-  "show the algebra" animations become a goal. Our numeric evaluator already
-  handles evaluation; symbolic adds *manipulation*.
-Precedent: we already add a focused crate when a feature needs it (`geo` for
-booleans, `earcutr` for triangulation) — same policy here.
+### Deeper math — how it can elevate the engine (future, no implementation committed)
+The current evaluator is enough to calculate values and sample plots. Real math
+would elevate manic when it makes a diagram *depend on a mathematical truth*:
+an intersection remains correct as inputs move, a tangent comes from the plotted
+function, an eigenvector is computed rather than authored, or an optimisation
+visibly converges. The goal is a small, dependable mathematical core, not a
+general-purpose CAS embedded in the DSL.
 
-### 3D — none (deferred by design)
-`graph3` / `three` / `solids` / `tube` / `grid3` ≈ 96 asy files. Planned:
-ROADMAP → "3D — planned" (Phase 1 additive camera + `Path3`, Phase 2 full Vec3).
+- **Robust numerical geometry** — tolerance-aware orientation, intersection,
+  containment, root-finding, and curve-parameter routines would make dynamic
+  constructions stable near parallel lines, tangencies, and degeneracies.
+  This improves every geometry kit before adding any new notation.
+- **Linear algebra** — matrices, vectors, decompositions, eigenvalues/
+  eigenvectors, determinants, and linear solves would turn `transform` into a
+  genuine linear-algebra explainer: show a basis moving, area scaling by a
+  determinant, diagonalisation, least-squares fits, and 3D camera/object
+  transforms derived from data. `nalgebra` is the likely focused dependency
+  when one of these scenes is built.
+- **Calculus and numerical analysis** — differentiation, integration,
+  root-finding, interpolation, and ODE stepping would unlock tangents/normals
+  attached to `plot`, Riemann sums converging to an integral, Newton iteration,
+  vector fields, trajectories, and phase portraits. Numerical methods are often
+  the right first step because their intermediate states are already an
+  animation storyboard.
+- **Constraints and optimisation** — a small solver for distances, angles,
+  incidence, and bounds would let authors state a construction's invariant
+  instead of manually updating its points. It unlocks movable geometry,
+  constrained mechanisms, fitting, gradient descent, and visual proofs by
+  deformation. This needs explicit failure/degeneracy behavior, so it should
+  follow robust predicates rather than precede them.
+- **Symbolic algebra** — simplification, factoring, equation solving, and
+  automatic differentiation would support step-by-step algebra and formula-led
+  constructions. It is valuable when the explanation is about *manipulating an
+  expression*, not merely plotting one. This is intentionally later: a CAS has
+  a much larger correctness and product-scope cost than numeric math.
+- **Probability and statistics** — deterministic sampling, distributions,
+  regression, histograms, and confidence intervals would broaden the engine
+  into data and algorithm explainers while retaining reproducible recordings.
+
+Recommended order: **robust predicates/root finding → linear algebra →
+calculus/numerical methods → constraints/optimisation → symbolic algebra**.
+Each layer should expose computed values to the existing timeline, counters,
+plots, geometry, and 3D scene rather than becoming a separate math subsystem.
+Typography is complementary but separate: LaTeX makes mathematics readable;
+the capabilities above make it behave correctly.
+
+### 3D — status (roadmap #1–#6 all shipped)
+The foundation and the full 3D roadmap below have shipped. Coverage against the
+~96 Asymptote `graph3` / `three` / `solids` / `tube` examples is:
+- **Geometry** — parametric **curves** (`curve3`), height-field **surfaces**
+  (`surface3`), **general parametric surfaces** (`param3` — `x/y/z(u,v)`, so
+  tori/Möbius/parametric spheres/shells), regular-polygon **solids**
+  (`prism3`/`pyramid3`), and **solids of revolution** (`revolve3`) ship (surfaces
+  and solids render **filled + flat-shaded**, not wireframe), arbitrary 2D
+  shapes / boolean regions **extrude** into solids (`extrude3` — this doubles as
+  **CSG solids**: extrude a `union`/`difference`/`intersect`/`xor` region), and
+  `curve3`/`line3`/`arrow3` can be drawn as shaded **tubes** (`thick`). Still
+  pending: imported 3D models, variable-radius tubes (the Asymptote `tube`
+  corpus — `thick` is constant-radius), contour/level curves on surfaces.
+- **Rendering** — a single baked light + flat per-face shading ship for
+  surfaces/meshes/`cube3`/`sphere3`, tube-style thick strokes ship for paths
+  (`thick`), and intersecting translucent geometry is depth-sorted (opaque
+  first, then translucent back-to-front). Still pending: **adjustable/multiple
+  lights** (direction + intensity; today it's one hard-coded light), smooth
+  (Gouraud) shading, **visible surface mesh/grid lines** on filled surfaces,
+  **depth cueing / fog**, material/texture shaders, and shadows.
+- **Labels & graphing** — depth-aware projected labels (`pin3`) and fully
+  ticked/labelled, auto-decluttering 3D axes (`axes3`) ship. Still pending:
+  **true 3D-embedded text** that lives in the scene and scales with distance
+  (today's labels are screen-space, constant size).
+- **Dynamic constructions** — `follow3` + `midpoint3` (3D `follow`/`derive`) ship;
+  still to come: `link3` (reflowing 3D edges) and richer derived/constrained
+  geometry that recomputes as source points move.
+- **Animation breadth** — `morph3` blends curves, surfaces, and solids (solids
+  reparameterised spherically), and `to` now animates 3D `morph`/`opacity`/
+  `scale`/`trace`/`color`; the dedicated verbs (move3/rotate3/grow3/…) cover
+  position, rotation, and size.
+
+**3D roadmap (prioritized).** Same principle as the 2D plan — extend a few
+existing mechanisms rather than add a builtin per Asymptote class. Two
+prerequisites recur and are the real leverage: a **3D→screen projection hook**
+(so the existing 2D `text`/`label`/`counter` overlay can pin to a projected 3D
+point) and a **`Vec3` `derive`/updater** (mirror the 2D dependent-point path).
+
+| # | Requirement | How to address (extend what) | Effort | Unlocks |
+|---|---|---|---|---|
+| 1 | **Ticked/labelled 3D axes + projected labels** ✅ **shipped** | `project()` world→screen hook; `pin3` (a 2D label glued to a 3D point/entity, reprojected each frame); `axes3` now emits tick marks + auto-`pin3`ed numbers (optional `step`). | Small | Readable 3D graphs + labelled points/vectors/axes. |
+| 2 | **`Vec3` dynamic constructions** ✅ **shipped** | Added a 3D `derive`/`follow` resolve pass; `follow3` (track another entity + offset) and `midpoint3` (derived point) recompute each frame. `link3`/projections extend the same hook. | Medium | Live 3D geometry: dependent points + tracking that recompute as sources move. |
+| 3 | **Parametric curve & surface** ✅ **shipped** | `curve3(id,"x(t)","y(t)","z(t)")` → drawn-on `Shape3D::Path`; `surface3(id,"z(x,y)",…)` → filled, flat-shaded `Shape3D::Surface`; `param3(id,"x(u,v)","y(u,v)","z(u,v)",…)` → a **general** parametric surface (tori/Möbius/shells — can wrap/close). The `plot` expr engine was widened to **two variables** (`x`/`y`, `u`/`v`). | Medium | Helices/Lissajous, `z=f(x,y)` surfaces, and closed/parametric surfaces (the full `graph3` corpus). |
+| 4 | **Indexed meshes & solids** ✅ **shipped** | `Shape3D::Mesh` (verts + tri `faces` + wireframe fallback) + `prism3`/`pyramid3` (n-gon extrusion/apex) + `revolve3` (solids of revolution) + `extrude3` (extrude any 2D fillable shape or boolean `Region`). `extrude3` reuses `geom.rs` (`entity_to_multipolygon` + `earcutr`), so extruding a `union`/`difference`/`intersect`/`xor` region **is** boolean CSG (plate-with-hole, L-beams, …). | Large | Prisms/pyramids/cylinders/cones, vases/spheres/lathes, arbitrary/concave extrusions, and CSG solids. |
+| 5 | **3D rendering upgrades** ✅ **shipped** | Surfaces/meshes/`cube3`/`sphere3` render **filled** with a single baked light and flat per-face lambert shading (`abs(n·l)`, no black back-faces; chunked under the u16 index cap). `curve3`/`line3`/`arrow3` draw as shaded **tubes** via `thick(id,radius)` (rotation-minimising frame; arrows get a solid cone head). Translucent geometry is **depth-sorted** (opaque first, then translucent entities + their triangles back-to-front). **Remaining (moved out of scope):** material/texture shaders and shadows. | Large | Solid-looking 3D, correct translucent overlaps, publication-quality output. |
+| 6 | **3D morph / general `to`** ✅ **shipped** | `morph3(a,b,[spin])` samples both shapes to a shared form — curves→polyline, surfaces & solids→a filled/shaded grid (solids reparameterised onto a spherical `(θ,φ)` grid via bbox-centre raycasting, so cube↔sphere works). `to` extended to animate 3D `morph`/`opacity`/`scale`/`trace`/`color`. | Large | 3D `Transform` / `ReplacementTransform`, mesh/path morphing. |
+
+Planned order (agreed): **1 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 6 ✅** — the full
+3D roadmap has shipped. #4 shipped `Shape3D::Mesh` + `prism3`/`pyramid3`/`revolve3` + `extrude3`
+(arbitrary/concave extrude **and** boolean CSG, both via `geom.rs`); #5 shipped
+filled + flat-shaded faces (surfaces/meshes/`cube3`/`sphere3`), tube strokes
+(`thick`), and depth-sorted translucency (de-scoped: texture/material shaders +
+shadows). #1 and #2 are mostly *reuse* (the projection hook + a `Vec3` updater)
+and together make 3D genuinely usable for explainers; #3 brings the `graph3`
+corpus within reach off the existing `plot` sampler. #4/#5 are the orthogonal
+"real 3D engine" work — big, and only needed once the legible-diagram cases land.
 
 ### Generative / repetitive — loops + variables + arithmetic DONE
 manic now has a computation layer, evaluated before the scene is built:
@@ -345,8 +463,8 @@ of modest extensions. Two prerequisites recur and are the real leverage:
 **bounding box (#1)** and **path-motion (#3)**.
 
 Separately tracked, larger and orthogonal: **LaTeX/math typesetting** (approach
-under evaluation, see Typography), **selectable fonts**, and **3D** (deferred by
-design).
+under evaluation, see Typography), **selectable fonts**, and the advanced 3D
+geometry/rendering work listed above.
 
 ### Stateful structures — done (mutating verbs)
 

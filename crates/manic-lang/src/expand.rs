@@ -119,7 +119,10 @@ fn expand_stmts(stmts: &[Stmt], env: &mut Env, ctx: &mut Ctx) -> Result<Vec<Stmt
                 let hi = eval_expr(end, env)?.round() as i64;
                 if hi.saturating_sub(lo) > MAX_ITERS {
                     return Err(Error::new(
-                        format!("`for` range is too large ({} iterations, max {MAX_ITERS})", hi - lo),
+                        format!(
+                            "`for` range is too large ({} iterations, max {MAX_ITERS})",
+                            hi - lo
+                        ),
                         s.name_span,
                     ));
                 }
@@ -172,7 +175,10 @@ fn expand_stmts(stmts: &[Stmt], env: &mut Env, ctx: &mut Ctx) -> Result<Vec<Stmt
                     ctx.depth += 1;
                     if ctx.depth > MAX_DEPTH {
                         return Err(Error::new(
-                            format!("macro `{}` recursed too deep ({MAX_DEPTH}) — missing a base case?", s.name),
+                            format!(
+                                "macro `{}` recursed too deep ({MAX_DEPTH}) — missing a base case?",
+                                s.name
+                            ),
                             s.name_span,
                         ));
                     }
@@ -228,11 +234,15 @@ fn resolve_arg(e: &Expr, env: &Env) -> Result<Expr, Error> {
         ExprKind::Num(n) => ExprKind::Num(*n),
         ExprKind::Str(s) => ExprKind::Str(s.clone()),
         ExprKind::Pair(x, y) => ExprKind::Pair(*x, *y),
+        ExprKind::Triple(x, y, z) => ExprKind::Triple(*x, *y, *z),
         ExprKind::Ident(name) => match constant(name).or_else(|| env.get(name).copied()) {
             Some(v) => ExprKind::Num(v),
             None => ExprKind::Ident(name.clone()),
         },
         ExprKind::PairE(a, b) => ExprKind::Pair(eval_expr(a, env)?, eval_expr(b, env)?),
+        ExprKind::TripleE(a, b, c) => {
+            ExprKind::Triple(eval_expr(a, env)?, eval_expr(b, env)?, eval_expr(c, env)?)
+        }
         ExprKind::Interp(segs) => ExprKind::Ident(interp(segs, env)?),
         ExprKind::Bin(..) | ExprKind::Neg(_) | ExprKind::Call(..) | ExprKind::Reduce { .. } => {
             ExprKind::Num(eval_expr(e, env)?)
@@ -244,9 +254,10 @@ fn resolve_arg(e: &Expr, env: &Env) -> Result<Expr, Error> {
 fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
     match &e.kind {
         ExprKind::Num(n) => Ok(*n),
-        ExprKind::Ident(name) => constant(name)
-            .or_else(|| env.get(name).copied())
-            .ok_or_else(|| Error::new(format!("unknown variable `{name}`"), e.span)),
+        ExprKind::Ident(name) => match constant(name).or_else(|| env.get(name).copied()) {
+            Some(v) => Ok(v),
+            None => Err(unknown_var_error(name, env, e.span)),
+        },
         ExprKind::Neg(a) => Ok(-eval_expr(a, env)?),
         ExprKind::Bin(op, a, b) => {
             let (x, y) = (eval_expr(a, env)?, eval_expr(b, env)?);
@@ -269,8 +280,7 @@ fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
         }
         ExprKind::Call(name, arg) => {
             let x = eval_expr(arg, env)?;
-            call_fn(name, x)
-                .ok_or_else(|| Error::new(format!("unknown function `{name}`"), e.span))
+            call_fn(name, x).ok_or_else(|| Error::new(format!("unknown function `{name}`"), e.span))
         }
         ExprKind::Reduce {
             op,
@@ -306,7 +316,7 @@ fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
             }))
         }
         ExprKind::Str(_) => Err(Error::new("a string can't be used in arithmetic", e.span)),
-        ExprKind::Pair(..) | ExprKind::PairE(..) => {
+        ExprKind::Pair(..) | ExprKind::PairE(..) | ExprKind::Triple(..) | ExprKind::TripleE(..) => {
             Err(Error::new("a point can't be used in arithmetic", e.span))
         }
         ExprKind::Interp(_) => Err(Error::new("an id can't be used in arithmetic", e.span)),
@@ -314,6 +324,65 @@ fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
 }
 
 /// Built-in numeric constants, reserved in expression contexts.
+fn is_known_var(name: &str, env: &Env) -> bool {
+    constant(name).is_some() || env.contains_key(name)
+}
+
+/// Build a helpful "unknown variable" error. Catches the common LLM/author slip
+/// of running two variables together with no operator (`xvsx` → `xv * sx`, since
+/// implicit multiply is number×variable only), else suggests the nearest known
+/// name — both as a one-click fix.
+fn unknown_var_error(name: &str, env: &Env, span: Span) -> Error {
+    let base = format!("unknown variable `{name}`");
+    // 1. two known variables concatenated (missing `*`)
+    for k in 1..name.len() {
+        if !name.is_char_boundary(k) {
+            continue;
+        }
+        let (a, b) = name.split_at(k);
+        if is_known_var(a, env) && is_known_var(b, env) {
+            let repl = format!("{a} * {b}");
+            return Error::new(
+                format!("{base} — did you mean `{repl}`? (use `*` between variables)"),
+                span,
+            )
+            .with_fix(format!("Change to `{repl}`"), repl);
+        }
+    }
+    // 2. nearest defined name
+    if let Some(sugg) = nearest_var(name, env) {
+        return Error::new(format!("{base} — did you mean `{sugg}`?"), span)
+            .with_fix(format!("Change to `{sugg}`"), sugg);
+    }
+    Error::new(base, span)
+}
+
+fn nearest_var(name: &str, env: &Env) -> Option<String> {
+    let max = (name.len() / 2).max(1);
+    let mut best: Option<(usize, String)> = None;
+    for k in env.keys() {
+        let d = levenshtein(name, k);
+        if d <= max && best.as_ref().map_or(true, |(bd, _)| d < *bd) {
+            best = Some((d, k.clone()));
+        }
+    }
+    best.map(|(_, k)| k)
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for i in 1..=a.len() {
+        let mut cur = vec![i; b.len() + 1];
+        for j in 1..=b.len() {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
 fn constant(name: &str) -> Option<f32> {
     Some(match name {
         "pi" => std::f32::consts::PI,
@@ -408,6 +477,16 @@ mod tests {
         assert!(ex.stmts.iter().all(|s| s.name != "let"));
         let c = ex.stmts.iter().find(|s| s.name == "circle").unwrap();
         assert_eq!(num(&c.args[2]), 13.0);
+    }
+
+    #[test]
+    fn triple_components_expand() {
+        let p = crate::parser::parse("let i = 2; point3(p, (i, i+1, i^2));").unwrap();
+        let out = expand(&p).unwrap();
+        match out.stmts[0].args[1].kind {
+            ExprKind::Triple(x, y, z) => assert_eq!((x, y, z), (2.0, 3.0, 4.0)),
+            ref other => panic!("expected triple, got {other:?}"),
+        }
     }
 
     #[test]

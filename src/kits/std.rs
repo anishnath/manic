@@ -28,9 +28,24 @@ fn neon_stroke() -> StrokeStyle {
 fn ent_mut<'a>(scene: &'a mut Scene, a: &Args) -> Result<&'a mut Entity, Error> {
     let id = a.ident(0)?;
     let span = a.span_of(0);
-    scene
-        .get_mut(&id)
-        .ok_or_else(|| Error::new(format!("no entity named `{id}`"), span))
+    if scene.get(&id).is_some() {
+        return Ok(scene.get_mut(&id).unwrap());
+    }
+    // A clear message when a 2D-only modifier is aimed at a 3D entity (a common
+    // slip — `hue`/`stroke`/`glow`/`size`/… don't apply to 3D shapes).
+    if scene.get_3d(&id).is_some() {
+        return Err(Error::new(
+            format!(
+                "`{}` is a 2D-only modifier — it can't address the 3D entity `{id}`. \
+                 3D entities take: `color`, `opacity`, `hidden`, `untraced`, `tag`, \
+                 `thick`; verbs `move3`/`shift3`/`rotate3`/`grow3`/`orbit3`, \
+                 `show`/`fade`/`draw`/`flash`/`pulse`/`scale`, `to`, and `morph3`",
+                a.name
+            ),
+            span,
+        ));
+    }
+    Err(Error::new(format!("no entity named `{id}`"), span))
 }
 
 // ---- constructors ---------------------------------------------------------
@@ -130,8 +145,8 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let advance = size * 0.6; // IBM Plex Mono ~0.6 em per glyph
     let words: Vec<&str> = text.split_whitespace().collect();
-    let total_chars: usize = words.iter().map(|w| w.chars().count()).sum::<usize>()
-        + words.len().saturating_sub(1); // + single spaces
+    let total_chars: usize =
+        words.iter().map(|w| w.chars().count()).sum::<usize>() + words.len().saturating_sub(1); // + single spaces
     let x_left = center.x - total_chars as f32 * advance / 2.0;
     let mut char_pos = 0usize;
     for (k, w) in words.iter().enumerate() {
@@ -304,8 +319,16 @@ fn c_counter(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let pos = a.pair(1)?;
     let value = a.num(2)?;
     let decimals = a.opt_num(3)?.unwrap_or(0.0).max(0.0) as u8;
-    let prefix = if a.len() > 4 { a.text(4)? } else { String::new() };
-    let suffix = if a.len() > 5 { a.text(5)? } else { String::new() };
+    let prefix = if a.len() > 4 {
+        a.text(4)?
+    } else {
+        String::new()
+    };
+    let suffix = if a.len() > 5 {
+        a.text(5)?
+    } else {
+        String::new()
+    };
     let counter = crate::primitives::Counter {
         value,
         decimals,
@@ -475,13 +498,27 @@ fn c_bracelabel(s: &mut Scene, a: &Args) -> Result<(), Error> {
 // ---- modifiers ------------------------------------------------------------
 
 fn m_hidden(s: &mut Scene, a: &Args) -> Result<(), Error> {
-    ent_mut(s, a)?.opacity = 0.0;
+    let id = a.ident(0)?;
+    if let Some(e) = s.get_mut(&id) {
+        e.opacity = 0.0;
+    } else if let Some(e) = s.get_3d_mut(&id) {
+        e.opacity = 0.0;
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
 fn m_color(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let c = resolve_color(&a.ident(1)?, a.span_of(1))?;
-    ent_mut(s, a)?.color = c;
+    let id = a.ident(0)?;
+    if let Some(e) = s.get_mut(&id) {
+        e.color = c;
+    } else if let Some(e) = s.get_3d_mut(&id) {
+        e.color = c;
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -535,7 +572,17 @@ fn m_size(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
 fn m_stroke(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let n = a.num(1)?;
-    ent_mut(s, a)?.stroke.width = n;
+    let id = a.ident(0)?;
+    if let Some(e) = s.get_mut(&id) {
+        e.stroke.width = n;
+    } else if s.get_3d(&id).is_some() {
+        return Err(Error::new(
+            format!("`stroke` is 2D-only; for a 3D line/arrow/curve use `thick({id}, radius)`"),
+            a.span_of(0),
+        ));
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -552,8 +599,15 @@ fn m_z(s: &mut Scene, a: &Args) -> Result<(), Error> {
 }
 
 fn m_tag(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
     let tag = a.ident(1)?;
-    ent_mut(s, a)?.tags.push(tag);
+    if let Some(e) = s.get_mut(&id) {
+        e.tags.push(tag);
+    } else if let Some(e) = s.get_3d_mut(&id) {
+        e.tags.push(tag);
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -568,7 +622,14 @@ fn m_display(s: &mut Scene, a: &Args) -> Result<(), Error> {
 }
 
 fn m_untraced(s: &mut Scene, a: &Args) -> Result<(), Error> {
-    ent_mut(s, a)?.trace = 0.0;
+    let id = a.ident(0)?;
+    if let Some(e) = s.get_mut(&id) {
+        e.trace = 0.0;
+    } else if let Some(e) = s.get_3d_mut(&id) {
+        e.trace = 0.0;
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -587,7 +648,14 @@ fn m_rot(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
 fn m_opacity(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let n = a.num(1)?;
-    ent_mut(s, a)?.opacity = n;
+    let id = a.ident(0)?;
+    if let Some(e) = s.get_mut(&id) {
+        e.opacity = n;
+    } else if let Some(e) = s.get_3d_mut(&id) {
+        e.opacity = n;
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -737,39 +805,60 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let id = a.ident(0)?;
     let prop_name = a.ident(1)?;
     let here = a.span_of(0);
-    let cur = s
-        .get(&id)
-        .ok_or_else(|| Error::new(format!("no entity named `{id}`"), here))?;
-
-    // (property track, target value)
-    let (prop, target) = match prop_name.as_str() {
-        "x" => (
-            Prop::Pos,
-            TargetValue::Abs(Value::V(Vec2::new(a.num(2)?, cur.pos.y))),
-        ),
-        "y" => (
-            Prop::Pos,
-            TargetValue::Abs(Value::V(Vec2::new(cur.pos.x, a.num(2)?))),
-        ),
-        "opacity" | "alpha" => (Prop::Opacity, TargetValue::Abs(Value::F(a.num(2)?))),
-        "scale" => (Prop::Scale, TargetValue::Abs(Value::F(a.num(2)?))),
-        "trace" => (Prop::Trace, TargetValue::Abs(Value::F(a.num(2)?))),
-        "color" => (
-            Prop::Color,
-            TargetValue::Abs(Value::C(resolve_color(&a.ident(2)?, a.span_of(2))?)),
-        ),
-        "angle" | "rot" | "rotation" => (Prop::Rot, TargetValue::Abs(Value::F(a.num(2)?))),
-        "hue" => (Prop::Hue, TargetValue::Abs(Value::F(a.num(2)?))),
-        "value" | "count" => (Prop::Value, TargetValue::Abs(Value::F(a.num(2)?))),
-        "morph" => (Prop::Morph, TargetValue::Abs(Value::F(a.num(2)?))),
-        other => {
-            return Err(Error::new(
-                format!(
-                    "can't animate property `{other}` (try: x, y, opacity, scale, trace, color, hue, angle)"
-                ),
-                a.span_of(1),
-            ))
+    // (property track, target value) — resolved against the 2D scene, or the
+    // 3D scene for the shared properties (`move3`/`rotate3`/`grow3` cover 3D
+    // position, rotation, and size).
+    let (prop, target) = if let Some(cur) = s.get(&id) {
+        match prop_name.as_str() {
+            "x" => (
+                Prop::Pos,
+                TargetValue::Abs(Value::V(Vec2::new(a.num(2)?, cur.pos.y))),
+            ),
+            "y" => (
+                Prop::Pos,
+                TargetValue::Abs(Value::V(Vec2::new(cur.pos.x, a.num(2)?))),
+            ),
+            "opacity" | "alpha" => (Prop::Opacity, TargetValue::Abs(Value::F(a.num(2)?))),
+            "scale" => (Prop::Scale, TargetValue::Abs(Value::F(a.num(2)?))),
+            "trace" => (Prop::Trace, TargetValue::Abs(Value::F(a.num(2)?))),
+            "color" => (
+                Prop::Color,
+                TargetValue::Abs(Value::C(resolve_color(&a.ident(2)?, a.span_of(2))?)),
+            ),
+            "angle" | "rot" | "rotation" => (Prop::Rot, TargetValue::Abs(Value::F(a.num(2)?))),
+            "hue" => (Prop::Hue, TargetValue::Abs(Value::F(a.num(2)?))),
+            "value" | "count" => (Prop::Value, TargetValue::Abs(Value::F(a.num(2)?))),
+            "morph" => (Prop::Morph, TargetValue::Abs(Value::F(a.num(2)?))),
+            other => {
+                return Err(Error::new(
+                    format!(
+                        "can't animate property `{other}` (try: x, y, opacity, scale, trace, color, hue, angle)"
+                    ),
+                    a.span_of(1),
+                ))
+            }
         }
+    } else if s.get_3d(&id).is_some() {
+        match prop_name.as_str() {
+            "morph" => (Prop::Morph, TargetValue::Abs(Value::F(a.num(2)?))),
+            "opacity" | "alpha" => (Prop::Opacity, TargetValue::Abs(Value::F(a.num(2)?))),
+            "scale" => (Prop::Scale, TargetValue::Abs(Value::F(a.num(2)?))),
+            "trace" => (Prop::Trace, TargetValue::Abs(Value::F(a.num(2)?))),
+            "color" => (
+                Prop::Color,
+                TargetValue::Abs(Value::C(resolve_color(&a.ident(2)?, a.span_of(2))?)),
+            ),
+            other => {
+                return Err(Error::new(
+                    format!(
+                        "for a 3D entity, `to` animates morph, opacity, scale, trace, or color (use move3/shift3/rotate3/grow3 for position, rotation, and size); got `{other}`"
+                    ),
+                    a.span_of(1),
+                ))
+            }
+        }
+    } else {
+        return Err(Error::new(format!("no entity named `{id}`"), here));
     };
 
     let dur = a.opt_num(3)?.unwrap_or(0.5);

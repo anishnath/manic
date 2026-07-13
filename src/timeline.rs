@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use macroquad::prelude::{Color, Vec2};
+use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::easing::Easing;
 use crate::primitives::Shape;
@@ -17,6 +17,7 @@ use crate::scene::Scene;
 pub enum Value {
     F(f32),
     V(Vec2),
+    V3(Vec3),
     C(Color),
 }
 
@@ -25,6 +26,7 @@ impl Value {
         match (self, other) {
             (Value::F(a), Value::F(b)) => Value::F(a + b),
             (Value::V(a), Value::V(b)) => Value::V(a + b),
+            (Value::V3(a), Value::V3(b)) => Value::V3(a + b),
             _ => other,
         }
     }
@@ -33,6 +35,7 @@ impl Value {
         match (a, b) {
             (Value::F(x), Value::F(y)) => Value::F(x + (y - x) * u),
             (Value::V(x), Value::V(y)) => Value::V(x + (y - x) * u),
+            (Value::V3(x), Value::V3(y)) => Value::V3(x + (y - x) * u),
             (Value::C(x), Value::C(y)) => Value::C(Color::new(
                 x.r + (y.r - x.r) * u,
                 x.g + (y.g - x.g) * u,
@@ -55,6 +58,8 @@ pub enum Prop {
     Scale,
     /// Rotation in degrees ([`crate::primitives::Entity::rot`]).
     Rot,
+    /// Euler rotation in degrees for a 3D entity.
+    Rot3,
     /// Draw-on / typewriter progress ([`crate::primitives::Entity::trace`]).
     Trace,
     /// HSL hue angle in degrees — drives `color` for colour cycling.
@@ -179,81 +184,155 @@ pub struct Timeline {
 }
 
 fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
-    let e = scene.get(id)?;
+    if let Some(e) = scene.get(id) {
+        return Some(match prop {
+            Prop::Pos => Value::V(e.pos),
+            Prop::Color => Value::C(e.color),
+            Prop::Opacity => Value::F(e.opacity),
+            Prop::Scale => Value::F(e.scale),
+            Prop::Rot => Value::F(e.rot),
+            Prop::Trace => Value::F(e.trace),
+            Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
+            Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
+            Prop::Morph => {
+                if e.morph.is_none() {
+                    return None;
+                }
+                Value::F(0.0)
+            }
+            Prop::To => match &e.shape {
+                Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
+                _ => return None,
+            },
+            Prop::Rot3 => return None,
+        });
+    }
+    let e = scene.get_3d(id)?;
     Some(match prop {
-        Prop::Pos => Value::V(e.pos),
+        Prop::Pos => Value::V3(e.pos),
         Prop::Color => Value::C(e.color),
         Prop::Opacity => Value::F(e.opacity),
         Prop::Scale => Value::F(e.scale),
-        Prop::Rot => Value::F(e.rot),
+        Prop::Rot3 => Value::V3(e.rotation),
         Prop::Trace => Value::F(e.trace),
-        Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
-        Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
-        Prop::Morph => {
-            if e.morph.is_none() {
-                return None;
-            }
-            Value::F(0.0) // base fraction; the track animates it to 1
-        }
         Prop::To => match &e.shape {
-            Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
+            crate::primitives3d::Shape3D::Line { to }
+            | crate::primitives3d::Shape3D::Arrow { to } => Value::V3(*to),
             _ => return None,
         },
+        Prop::Morph => {
+            if e.morph3.is_none() {
+                return None;
+            }
+            Value::F(0.0)
+        }
+        Prop::Rot | Prop::Hue | Prop::Value => return None,
     })
 }
 
 fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
-    let Some(e) = scene.get_mut(id) else { return };
+    if let Some(e) = scene.get_mut(id) {
+        match (prop, v) {
+            (Prop::Pos, Value::V(p)) => e.pos = p,
+            (Prop::Color, Value::C(c)) => e.color = c,
+            (Prop::Opacity, Value::F(o)) => e.opacity = o,
+            (Prop::Scale, Value::F(s)) => e.scale = s,
+            (Prop::Rot, Value::F(r)) => e.rot = r,
+            (Prop::Trace, Value::F(f)) => e.trace = f,
+            (Prop::Hue, Value::F(h)) => {
+                e.hue = Some(h);
+                let c = crate::style::hsl(h, 1.0, 0.6);
+                e.color = c;
+                if e.stroke.outline_color.is_some() {
+                    e.stroke.outline_color = Some(c);
+                }
+            }
+            (Prop::Value, Value::F(v)) => {
+                if let Some(c) = &mut e.counter {
+                    c.value = v;
+                    let text = c.render();
+                    if let Shape::Text { content, .. } = &mut e.shape {
+                        *content = text;
+                    }
+                }
+            }
+            (Prop::Morph, Value::F(f)) => {
+                let rebuilt = e.morph.as_ref().map(|(from, to, spin)| {
+                    let mut pts: Vec<Vec2> = from
+                        .iter()
+                        .zip(to)
+                        .map(|(a, b)| *a + (*b - *a) * f)
+                        .collect();
+                    // winding: rotate the blend by `f * spin` about its centroid
+                    if spin.abs() > 1e-3 && !pts.is_empty() {
+                        let c = pts.iter().copied().sum::<Vec2>() / pts.len() as f32;
+                        let (s, cc) = (f * *spin).to_radians().sin_cos();
+                        for p in &mut pts {
+                            let d = *p - c;
+                            *p = c + Vec2::new(d.x * cc - d.y * s, d.x * s + d.y * cc);
+                        }
+                    }
+                    pts
+                });
+                if let Some(pts) = rebuilt {
+                    e.shape = Shape::Polyline { pts };
+                }
+            }
+            (Prop::To, Value::V(p)) => {
+                if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } =
+                    &mut e.shape
+                {
+                    *to = p;
+                }
+            }
+            _ => {}
+        }
+        return;
+    }
+    let Some(e) = scene.get_3d_mut(id) else {
+        return;
+    };
     match (prop, v) {
-        (Prop::Pos, Value::V(p)) => e.pos = p,
+        (Prop::Pos, Value::V3(p)) => e.pos = p,
         (Prop::Color, Value::C(c)) => e.color = c,
         (Prop::Opacity, Value::F(o)) => e.opacity = o,
         (Prop::Scale, Value::F(s)) => e.scale = s,
-        (Prop::Rot, Value::F(r)) => e.rot = r,
+        (Prop::Rot3, Value::V3(r)) => e.rotation = r,
         (Prop::Trace, Value::F(f)) => e.trace = f,
-        (Prop::Hue, Value::F(h)) => {
-            e.hue = Some(h);
-            let c = crate::style::hsl(h, 1.0, 0.6);
-            e.color = c;
-            if e.stroke.outline_color.is_some() {
-                e.stroke.outline_color = Some(c);
-            }
-        }
-        (Prop::Value, Value::F(v)) => {
-            if let Some(c) = &mut e.counter {
-                c.value = v;
-                let text = c.render();
-                if let Shape::Text { content, .. } = &mut e.shape {
-                    *content = text;
-                }
+        (Prop::To, Value::V3(p)) => {
+            if let crate::primitives3d::Shape3D::Line { to }
+            | crate::primitives3d::Shape3D::Arrow { to } = &mut e.shape
+            {
+                *to = p;
             }
         }
         (Prop::Morph, Value::F(f)) => {
-            let rebuilt = e.morph.as_ref().map(|(from, to, spin)| {
-                let mut pts: Vec<Vec2> = from
+            use crate::primitives3d::{Morph3Kind, Shape3D};
+            if let Some(m) = &e.morph3 {
+                let mut pts: Vec<Vec3> = m
+                    .from
                     .iter()
-                    .zip(to)
+                    .zip(&m.to)
                     .map(|(a, b)| *a + (*b - *a) * f)
                     .collect();
-                // winding: rotate the blend by `f * spin` about its centroid
-                if spin.abs() > 1e-3 && !pts.is_empty() {
-                    let c = pts.iter().copied().sum::<Vec2>() / pts.len() as f32;
-                    let (s, cc) = (f * *spin).to_radians().sin_cos();
+                // winding: rotate the blend about the vertical (Z) axis
+                if m.spin.abs() > 1e-3 && !pts.is_empty() {
+                    let mut c = Vec3::ZERO;
+                    for p in &pts {
+                        c += *p;
+                    }
+                    c /= pts.len() as f32;
+                    let (s, cc) = (f * m.spin).to_radians().sin_cos();
                     for p in &mut pts {
                         let d = *p - c;
-                        *p = c + Vec2::new(d.x * cc - d.y * s, d.x * s + d.y * cc);
+                        p.x = c.x + d.x * cc - d.y * s;
+                        p.y = c.y + d.x * s + d.y * cc;
                     }
                 }
-                pts
-            });
-            if let Some(pts) = rebuilt {
-                e.shape = Shape::Polyline { pts };
-            }
-        }
-        (Prop::To, Value::V(p)) => {
-            if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &mut e.shape
-            {
-                *to = p;
+                e.shape = match m.kind {
+                    Morph3Kind::Path => Shape3D::Path { points: pts },
+                    Morph3Kind::Surface { nu, nv } => Shape3D::Surface { pts, nu, nv },
+                };
             }
         }
         _ => {}
@@ -441,6 +520,44 @@ impl Timeline {
             }
         }
 
+        // --- 3D constraint resolution (mirror of the 2D passes, in Vec3) ---
+        // Derived 3D points (midpoint3, …) first, a few passes to settle.
+        for _ in 0..3 {
+            for i in 0..scene.entities_3d.len() {
+                let Some(f) = scene.entities_3d[i].derive else {
+                    continue;
+                };
+                let deps = scene.entities_3d[i].deps.clone();
+                let mut pts = Vec::with_capacity(deps.len());
+                let mut ok = true;
+                for d in &deps {
+                    match scene.get_3d(d) {
+                        Some(e) => pts.push(e.pos),
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                if ok {
+                    f(&mut scene.entities_3d[i], &pts);
+                }
+            }
+        }
+        // 3D followers (follow3): track target position + offset, inherit opacity.
+        for _ in 0..2 {
+            for i in 0..scene.entities_3d.len() {
+                let Some((target, offset)) = scene.entities_3d[i].follow.clone() else {
+                    continue;
+                };
+                let Some((tp, to)) = scene.get_3d(&target).map(|e| (e.pos, e.opacity)) else {
+                    continue;
+                };
+                scene.entities_3d[i].pos = tp + offset;
+                scene.entities_3d[i].opacity *= to;
+            }
+        }
+
         scene
     }
 }
@@ -567,6 +684,38 @@ mod tests {
             }],
             vec![],
             1.0,
+        );
+    }
+
+    #[test]
+    fn vec3_track_is_deterministic() {
+        let mut base = Scene::new();
+        base.add_3d(crate::primitives3d::Entity3D::new(
+            "cube",
+            crate::primitives3d::Shape3D::Cube { size: Vec3::ONE },
+            Vec3::ZERO,
+            Color::new(0.0, 1.0, 1.0, 1.0),
+        ));
+        let tl = Timeline::resolve(
+            &base,
+            vec![TrackSpec {
+                id: "cube".into(),
+                prop: Prop::Pos,
+                target: TargetValue::Abs(Value::V3(Vec3::new(2.0, 4.0, 6.0))),
+                start: 0.0,
+                dur: 2.0,
+                easing: Easing::Linear,
+            }],
+            vec![],
+            2.0,
+        );
+        assert_eq!(
+            tl.apply(&base, 1.0).get_3d("cube").unwrap().pos,
+            Vec3::new(1.0, 2.0, 3.0)
+        );
+        assert_eq!(
+            tl.apply(&base, 1.0).get_3d("cube").unwrap().pos,
+            Vec3::new(1.0, 2.0, 3.0)
         );
     }
 }

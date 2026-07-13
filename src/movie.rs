@@ -16,6 +16,8 @@ use crate::timeline::{Clip, TextEvent, Timeline, TrackSpec};
 /// Reserved id of the animatable camera entity every movie carries.
 /// Animate it with `act().cam_to(pos)` / `act().cam_zoom(z)`.
 pub const CAMERA_ID: &str = "__cam";
+/// Reserved id of the optional animatable 3D orbit camera.
+pub const CAMERA3_ID: &str = "__cam3";
 
 /// A complete animation: base scene + placed clips + metadata.
 pub struct Movie {
@@ -112,12 +114,21 @@ impl Movie {
     /// Ids of all entities carrying `tag`. Pair with [`crate::animate::all`]:
     /// `m.play(all(&m.tagged("bits"), |id| act().fade_out(id)))`.
     pub fn tagged(&self, tag: &str) -> Vec<String> {
-        self.scene
+        let mut ids: Vec<String> = self
+            .scene
             .entities
             .iter()
             .filter(|e| e.tags.iter().any(|t| t == tag))
             .map(|e| e.id.clone())
-            .collect()
+            .collect();
+        ids.extend(
+            self.scene
+                .entities_3d
+                .iter()
+                .filter(|e| e.tags.iter().any(|t| t == tag))
+                .map(|e| e.id.clone()),
+        );
+        ids
     }
 
     /// Section break: fades in a display headline with a neon rule (terminal
@@ -197,6 +208,13 @@ impl Movie {
             .iter()
             .filter(|e| !e.id.starts_with("__"))
             .map(|e| e.id.clone())
+            .chain(
+                self.scene
+                    .entities_3d
+                    .iter()
+                    .filter(|e| !e.id.starts_with("__"))
+                    .map(|e| e.id.clone()),
+            )
             .collect();
         let clips: Vec<Clip> = ids
             .iter()

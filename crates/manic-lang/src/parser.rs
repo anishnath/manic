@@ -15,7 +15,7 @@
 //! pow     := unary ("^" pow)?          // right-associative
 //! unary   := "-" unary | atom
 //! atom    := NUM | STR
-//!          | "(" expr ("," expr)? ")"  // grouping, or an (x,y) pair
+//!          | "(" expr ("," expr ("," expr)?)? ")" // grouping, pair, triple
 //!          | IDENT "(" expr ")"        // math function call
 //!          | IDENT template            // interpolated id: bar{i}
 //!          | IDENT                     // plain name / variable
@@ -75,12 +75,13 @@ impl Parser {
                 self.bump();
                 (s, sp)
             }
-            Tok::RBrace => {
-                return Err(Error::new("unexpected `}` (no matching `{`)", self.span()))
-            }
+            Tok::RBrace => return Err(Error::new("unexpected `}` (no matching `{`)", self.span())),
             other => {
                 return Err(Error::new(
-                    format!("expected a statement (a name like `move` or `circle`), found {}", describe(&other)),
+                    format!(
+                        "expected a statement (a name like `move` or `circle`), found {}",
+                        describe(&other)
+                    ),
                     self.span(),
                 ))
             }
@@ -153,10 +154,18 @@ impl Parser {
         let var = self.ident_name("a loop variable after `for`")?;
         match self.ident_name("`in`") {
             Ok(kw) if kw == "in" => {}
-            _ => return Err(Error::new("expected `in` in `for i in a..b { }`", self.span())),
+            _ => {
+                return Err(Error::new(
+                    "expected `in` in `for i in a..b { }`",
+                    self.span(),
+                ))
+            }
         }
         let start = self.expr()?;
-        self.expect_msg(&Tok::DotDot, "expected `..` in the range of `for i in a..b`")?;
+        self.expect_msg(
+            &Tok::DotDot,
+            "expected `..` in the range of `for i in a..b`",
+        )?;
         let end = self.expr()?;
         let body = self.block()?;
         Ok(Stmt {
@@ -188,7 +197,10 @@ impl Parser {
                     Tok::RParen => break,
                     other => {
                         return Err(Error::new(
-                            format!("expected `,` or `)` in `def` parameters, found {}", describe(other)),
+                            format!(
+                                "expected `,` or `)` in `def` parameters, found {}",
+                                describe(other)
+                            ),
                             self.span(),
                         ))
                     }
@@ -268,7 +280,10 @@ impl Parser {
                 }
                 other => {
                     return Err(Error::new(
-                        format!("expected `,` or `)` in argument list, found {}", describe(other)),
+                        format!(
+                            "expected `,` or `)` in argument list, found {}",
+                            describe(other)
+                        ),
                         self.span(),
                     ))
                 }
@@ -515,7 +530,7 @@ impl Parser {
         })
     }
 
-    /// `(` already peeked: either `(expr)` grouping or `(x, y)` pair.
+    /// `(` already peeked: grouping, an `(x, y)` pair, or an `(x, y, z)` triple.
     fn paren_or_pair(&mut self) -> Result<Expr, Error> {
         let start = self.span();
         self.expect(&Tok::LParen)?;
@@ -523,15 +538,26 @@ impl Parser {
         if self.peek_tok() == &Tok::Comma {
             self.bump();
             let second = self.expr()?;
+            let third = if self.peek_tok() == &Tok::Comma {
+                self.bump();
+                Some(self.expr()?)
+            } else {
+                None
+            };
             let end = self.span();
-            self.expect_msg(&Tok::RParen, "expected `)` to close `(x, y)`")?;
+            self.expect_msg(&Tok::RParen, "expected `)` to close coordinate")?;
             let len = if end.line == start.line {
                 (end.col + end.len).saturating_sub(start.col)
             } else {
                 start.len
             };
             Ok(Expr {
-                kind: ExprKind::PairE(Box::new(first), Box::new(second)),
+                kind: match third {
+                    Some(third) => {
+                        ExprKind::TripleE(Box::new(first), Box::new(second), Box::new(third))
+                    }
+                    None => ExprKind::PairE(Box::new(first), Box::new(second)),
+                },
                 span: Span::new(start.line, start.col, len.max(1)),
             })
         } else {
@@ -554,7 +580,11 @@ impl Parser {
             Ok(())
         } else {
             Err(Error::new(
-                format!("expected {}, found {}", describe(want), describe(self.peek_tok())),
+                format!(
+                    "expected {}, found {}",
+                    describe(want),
+                    describe(self.peek_tok())
+                ),
                 self.span(),
             ))
         }
@@ -658,6 +688,15 @@ mod tests {
         // `x` is a valid variable reference now; unbound-ness is caught later.
         let p = parse("move(A, (x, 0));").unwrap();
         assert!(matches!(p.stmts[0].args[1].kind, ExprKind::PairE(_, _)));
+    }
+
+    #[test]
+    fn parses_computed_3d_coordinate() {
+        let p = parse("point3(p, (2*i, sin(i), 1+z));").unwrap();
+        assert!(matches!(
+            p.stmts[0].args[1].kind,
+            ExprKind::TripleE(_, _, _)
+        ));
     }
 
     #[test]

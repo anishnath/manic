@@ -23,6 +23,9 @@ impl Span {
 pub struct Error {
     pub msg: String,
     pub span: Span,
+    /// Optional one-click fix: `(label, replacement)` spanning `span`. Surfaced
+    /// by `check()` as a `Diagnostic.fix` (e.g. `xvsx` → `xv * sx`).
+    pub fix: Option<(String, String)>,
 }
 
 impl Error {
@@ -30,7 +33,14 @@ impl Error {
         Error {
             msg: msg.into(),
             span,
+            fix: None,
         }
+    }
+
+    /// Attach a suggested replacement (label shown, text applied over `span`).
+    pub fn with_fix(mut self, label: impl Into<String>, replacement: impl Into<String>) -> Error {
+        self.fix = Some((label.into(), replacement.into()));
+        self
     }
 }
 

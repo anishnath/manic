@@ -14,7 +14,12 @@ pub fn tokenize(src: &str) -> String {
     let toks = services::tokenize(src);
     let items: Vec<String> = toks
         .iter()
-        .map(|t: &SemToken| format!("{{\"start\":{},\"len\":{},\"kind\":\"{}\"}}", t.start, t.len, t.kind))
+        .map(|t: &SemToken| {
+            format!(
+                "{{\"start\":{},\"len\":{},\"kind\":\"{}\"}}",
+                t.start, t.len, t.kind
+            )
+        })
         .collect();
     format!("[{}]", items.join(","))
 }

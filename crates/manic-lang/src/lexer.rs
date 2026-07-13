@@ -282,9 +282,7 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                             Some('"') => s.push('"'),
                             Some('\\') => s.push('\\'),
                             Some(other) => s.push(other),
-                            None => {
-                                return Err(Error::new("unterminated string literal", start))
-                            }
+                            None => return Err(Error::new("unterminated string literal", start)),
                         },
                         Some(ch) => s.push(ch),
                         None => return Err(Error::new("unterminated string literal", start)),
@@ -340,12 +338,7 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 });
                 continue;
             }
-            other => {
-                return Err(Error::new(
-                    format!("unexpected character `{other}`"),
-                    start,
-                ))
-            }
+            other => return Err(Error::new(format!("unexpected character `{other}`"), start)),
         };
 
         out.push(Token { tok, span: start });
@@ -409,7 +402,10 @@ mod tests {
     fn tracks_line_and_col() {
         let toks = lex("a;\n  b;").unwrap();
         // `b` is on line 2, col 3
-        let b = toks.iter().find(|t| t.tok == Tok::Ident("b".into())).unwrap();
+        let b = toks
+            .iter()
+            .find(|t| t.tok == Tok::Ident("b".into()))
+            .unwrap();
         assert_eq!((b.span.line, b.span.col), (2, 3));
     }
 

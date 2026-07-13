@@ -7,7 +7,7 @@ does the rest, deterministically.
 
 It's built for **explainer videos** — math, algorithms, data structures, or
 anything you can draw — and it's designed so a non-programmer can read and write
-it.
+it. It draws in **2D** and, when you want depth, in **[3D](3d.md)** too.
 
 ## The whole idea in 30 seconds
 

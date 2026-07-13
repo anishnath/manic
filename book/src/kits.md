@@ -41,6 +41,20 @@ dijkstra(g, a);                 // animates shortest paths
 Groups make these one-liners: a graph tags its nodes and edges, so
 `draw(g.edges)` or `flash(g.nodes, cyan)` animates the whole set.
 
+## three (3D)
+
+A whole second world — a camera, solids, surfaces, and curves in real 3D space,
+which you spin and morph. Every 3D word ends in `3`:
+
+```manic
+camera3((8, -10, 6), (0, 0, 1), 45);      // an eye to look through
+cube3(box, (0, 0, 1), (2, 2, 2));         // a shaded box
+revolve3(vase, (3, 0, 1.5), "0.7+0.4*sin(t*2)", (0, 3));  // spin a profile
+orbit3(70, 25, 12, 4, smooth);            // swing the camera around
+```
+
+It has its own chapter — see [Going 3D](3d.md).
+
 ---
 
 Each kit has a full reference at <https://8gwifi.org/manic>, and you can see them

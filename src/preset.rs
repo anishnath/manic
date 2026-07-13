@@ -24,11 +24,29 @@ pub struct Preset {
 }
 
 /// Default: full-quality, branded 1080p MP4.
-pub const STUDIO: Preset = Preset { name: "studio", scale: 1.5, fps: 60, gif: false, branded: true };
+pub const STUDIO: Preset = Preset {
+    name: "studio",
+    scale: 1.5,
+    fps: 60,
+    gif: false,
+    branded: true,
+};
 /// Fast, unbranded — for quick verification.
-pub const TEST: Preset = Preset { name: "test", scale: 1.0, fps: 30, gif: false, branded: false };
+pub const TEST: Preset = Preset {
+    name: "test",
+    scale: 1.0,
+    fps: 30,
+    gif: false,
+    branded: false,
+};
 /// Branded, for vertical/social clips (pair with a `canvas("9:16")` file).
-pub const REEL: Preset = Preset { name: "reel", scale: 1.5, fps: 60, gif: false, branded: true };
+pub const REEL: Preset = Preset {
+    name: "reel",
+    scale: 1.5,
+    fps: 60,
+    gif: false,
+    branded: true,
+};
 
 /// Look a preset up by name (with a few friendly aliases).
 pub fn by_name(name: &str) -> Option<Preset> {
