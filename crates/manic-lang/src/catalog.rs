@@ -136,7 +136,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Ctor,
             "std",
             "a row of caption words (karaoke/pop)",
-            &[("id", Name, R), ("at", Point, R), ("words", Str, R)],
+            &[
+                ("id", Name, R),
+                ("words", Str, R),
+                ("at", Point, R),
+                ("size", Num, O),
+                ("color", Color, O),
+            ],
         ),
         spec(
             "counter",
@@ -409,7 +415,12 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Verb,
             "std",
             "animate rotation",
-            &[("id", Ident, R), ("degrees", Num, R), ("dur", Num, O)],
+            &[
+                ("id", Ident, R),
+                ("degrees", Num, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
         ),
         spec(
             "say",
@@ -423,7 +434,7 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Verb,
             "std",
             "typewriter reveal",
-            &[("id", Ident, R)],
+            &[("id", Ident, R), ("dur", Num, O)],
         ),
         spec(
             "to",
@@ -507,12 +518,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "axes",
             Ctor,
             "math",
-            "a coordinate frame",
+            "a coordinate frame (optional tick spacing in px)",
             &[
                 ("id", Name, R),
                 ("center", Point, R),
                 ("halfw", Num, R),
                 ("halfh", Num, R),
+                ("unit", Num, O),
             ],
         ),
         spec(
@@ -534,7 +546,12 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Ctor,
             "math",
             "an arrow from an origin",
-            &[("id", Name, R), ("origin", Point, R), ("delta", Point, R)],
+            &[
+                ("id", Name, R),
+                ("origin", Point, R),
+                ("delta", Point, R),
+                ("color", Color, O),
+            ],
         ),
         spec("numberline", Ctor, "math", "a labelled number line", &[]),
         spec(
@@ -552,14 +569,28 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Ctor,
             "math",
             "a bracketed matrix",
-            &[("id", Name, R), ("data", Str, R), ("center", Point, R)],
+            &[
+                ("id", Name, R),
+                ("data", Str, R),
+                ("center", Point, R),
+                ("colw", Num, O),
+                ("rowh", Num, O),
+            ],
         ),
         spec(
             "table",
             Ctor,
             "math",
             "a ruled table",
-            &[("id", Name, R), ("data", Str, R), ("center", Point, R)],
+            &[
+                ("id", Name, R),
+                ("data", Str, R),
+                ("center", Point, R),
+                ("colw", Num, O),
+                ("rowh", Num, O),
+                ("cols", Str, O),
+                ("rows", Str, O),
+            ],
         ),
         spec(
             "mathtable",

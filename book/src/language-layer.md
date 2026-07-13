@@ -42,8 +42,9 @@ unique. Use `i` in the body to compute positions, sizes, hues…
 ## Conditionals — `if`
 
 ```manic
-if depth > 0 {
-  line(seg{k}, (x, y), (x2, y2));
+let n = 5;
+if n > 3 {
+  circle(big, (cx, cy), 120);
 }
 ```
 
@@ -71,6 +72,7 @@ branch(1, cx, h - 40, 1.5708, 150, 12);
 Fold a range into one number with `sum`, `prod`, `min`, `max`:
 
 ```manic
+let n = 6;
 let total = sum(i in 1..n : i);   // 1 + 2 + … + (n-1)
 ```
 

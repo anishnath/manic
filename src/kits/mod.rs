@@ -68,4 +68,66 @@ mod catalog_tests {
             "catalog drift — missing from catalog: {missing:?}; not in registry: {extra:?}"
         );
     }
+
+    /// Deeper guard than `catalog_matches_registry` (which only checks names):
+    /// the catalog's declared *arity* must not be narrower than what each engine
+    /// ctor actually reads, or the browser editor wrongly rejects valid calls
+    /// ("`X` takes at most N argument(s)"). `scripts/audit-arity.py` compares
+    /// every spec's param count to the highest `a.num/opt_num/…(i)` its ctor
+    /// reads. Skipped only if no Python interpreter is available.
+    #[test]
+    fn catalog_arity_matches_engine() {
+        use std::process::Command;
+        let root = env!("CARGO_MANIFEST_DIR");
+        let script = format!("{root}/scripts/audit-arity.py");
+        let out = ["python3", "python"].iter().find_map(|py| {
+            Command::new(py).arg(&script).current_dir(root).output().ok()
+        });
+        let Some(out) = out else {
+            eprintln!("skipping arity audit — no python3/python on PATH");
+            return;
+        };
+        assert!(
+            out.status.success(),
+            "catalog arity drift (see scripts/audit-arity.py):\n{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        );
+    }
+
+    /// The authoritative editor guard: every shipped `.manic` (examples + book
+    /// samples) must pass the same `check()` the browser editor runs — so a
+    /// catalog/arity/syntax drift can't ship an example the editor rejects.
+    /// Catches drift the static arity audit can't (e.g. verbs that read
+    /// `dur`/`ease` through a shared helper).
+    #[test]
+    fn all_shipped_examples_pass_editor_check() {
+        use std::fs;
+        let root = env!("CARGO_MANIFEST_DIR");
+        let mut offenders: Vec<String> = Vec::new();
+        for sub in ["examples", "book/samples"] {
+            let Ok(entries) = fs::read_dir(format!("{root}/{sub}")) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                let p = e.path();
+                if p.extension().and_then(|x| x.to_str()) != Some("manic") {
+                    continue;
+                }
+                let src = fs::read_to_string(&p).unwrap_or_default();
+                if let Some(err) = manic_lang::services::check(&src)
+                    .into_iter()
+                    .find(|d| d.severity == "error")
+                {
+                    let name = p.file_name().unwrap().to_string_lossy();
+                    offenders.push(format!("{name}: {}", err.message));
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "shipped examples the editor check() rejects (catalog/arity/syntax drift):\n  {}",
+            offenders.join("\n  ")
+        );
+    }
 }
