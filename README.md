@@ -118,6 +118,8 @@ for lining narration up in an editor.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — how the engine and the language fit
   together, the invariants, and how to add a primitive, a verb, or a whole kit.
 - **[ROADMAP.md](ROADMAP.md)** — current status and what's next.
+- **[PUBLISHING.md](PUBLISHING.md)** — end-to-end publish flow: build the book,
+  render + upload the demo videos, embed players, and deploy to `/manic/docs`.
 
 ## Requirements
 
