@@ -81,3 +81,12 @@ ex-archimedes_pi|mfK_823Mb4I|How Archimedes Found π — manic
 
 # ---- examples: boolean shapes ----
 ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic
+
+# ---- 3D scenes ----
+threed|SHzotXyfJVY|manic Goes 3D — Cubes, Spheres & a Spinning Camera
+ex-three_d|O-XeXhzSyZo|The 3D Basics on One Stage — manic
+ex-solids3|t3F4xpf79W0|Prisms, Cones & a Lathed Vase in 3D — manic
+ex-param3|qs25EhKU_pE|A Torus, a Sphere & a Möbius Strip — manic
+ex-extrude3|VIVZVaGmIDU|Extrude 2D Shapes Into 3D Solids (with CSG) — manic
+ex-morph3|YMBQbAIlfQM|Morph a Cube Into a Sphere — manic
+ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic

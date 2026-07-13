@@ -99,6 +99,7 @@ TOPIC = {
     "text":                 (["motion graphics", "typography", "creative coding"], "#motiongraphics #creativecoding #manic"),
     "generative":           (["creative coding", "generative art", "recursion", "fractal"], "#creativecoding #generative #manic"),
     "boolean":              (["boolean operations", "geometry", "creative coding"], "#geometry #creativecoding #manic"),
+    "3d":                   (["3d animation", "3d math", "math visualization"], "#3d #math #manim"),
 }
 DEFAULT_TOPIC = (["creative coding", "coding"], "#coding #manim #manic")
 
