@@ -1,0 +1,22 @@
+# Summary
+
+[Introduction](introduction.md)
+
+- [Getting started](getting-started.md)
+- [Shapes — the cast](shapes.md)
+- [Verbs — bringing it to life](verbs.md)
+- [Timing — par, seq & stagger](timing.md)
+- [Colour & style](colour.md)
+- [The language layer](language-layer.md)
+- [Kits — math, geometry, algorithms](kits.md)
+- [Examples gallery](examples.md)
+    - [Algorithms & data structures](ex-algorithms.md)
+    - [Graphs](ex-graphs.md)
+    - [Calculus & functions](ex-calculus.md)
+    - [Linear algebra & tables](ex-linalg.md)
+    - [Vectors, fields & coordinates](ex-vectors.md)
+    - [Geometry (olympiad)](ex-geometry.md)
+    - [Transforms & morphing](ex-transforms.md)
+    - [Text & UI](ex-text.md)
+    - [Generative & recursive](ex-generative.md)
+    - [Boolean shapes](ex-boolean.md)

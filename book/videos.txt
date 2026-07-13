@@ -1,0 +1,83 @@
+# manic demo videos — the mapping.
+#
+#   format:  name | youtube_id | CTR title
+#
+# `name` matches the <div class="manic-video" data-video="NAME"> in the book.
+# After you render (scripts/render-samples.sh) and upload to YouTube, paste the
+# 11-char video id in place of PLACEHOLDER, then run scripts/embed-videos.sh to
+# embed real players. Rows left as PLACEHOLDER stay as the "coming soon" card.
+# Titles are click-through oriented + manic-branded — reuse them on upload.
+
+# ---- guide samples (book/samples/) ----
+hello|cMkxQ5HGqM8|manic in 60 Seconds — Your First Text-to-Animation
+shapes|24DPvy07O8A|Every Shape in manic (Draw Literally Anything)
+reveal|tZwpO7XXY8Q|4 Ways to Reveal Anything — manic
+motion|b20vwIjqbm8|Make It MOVE: manic Motion Verbs in 30s
+text|_MLrC93RqsU|Animated Text + Typewriter — manic
+timing|sP61cl_PJj4|par · seq · stagger: Timing in manic
+loop|m-l37juylp8|One Loop → a Full Rainbow (manic)
+
+# ---- examples: algorithms & data structures ----
+ex-bubble_sort|kA4gDkjwsRQ|Bubble Sort, ACTUALLY Animated — manic
+ex-two_pointer|JtlUMFxuQQI|The Two-Pointer Trick, Visualized — manic
+ex-stack_queue|__NBMpv78P8|Stack vs Queue in 40 Seconds — manic
+ex-linked_list|c8zjCcA5MJc|Linked Lists: Singly, Doubly & Circular — manic
+ex-hashmap|c0bD368fPuE|How a HashMap REALLY Works — manic
+
+# ---- examples: graphs ----
+ex-graph|pLvJblT7zwg|Draw a Graph in One Line — manic
+ex-graph_moving|kthOKyJndtg|Drag a Node, the Edges Follow — manic
+ex-bfs_dfs|GbNBlQd1fR0|BFS vs DFS in One Video — manic
+ex-dijkstra|UOjIHugt4o8|Dijkstra's Algorithm, Visualized — manic
+
+# ---- examples: calculus & functions ----
+ex-sine_wave|HSC_hssuHd0|Plotting sin(x) From Scratch — manic
+ex-function_graph|z5kvUfwjJ-k|Graph ANY Function From a Formula — manic
+ex-area_under_curve|_UzChCEwHyY|The Integral, Built From Rectangles — manic
+ex-riemann_rainbow|fs6X8MeIIgQ|Riemann Sums, in Rainbow — manic
+ex-riemann_readout|mIoDoCypQaQ|Watch a Riemann Sum Converge — manic
+
+# ---- examples: linear algebra & tables ----
+ex-matrix|aT4DHaAfrIk|Matrices, Animated — manic
+ex-matrix_addition|aEphi9Qv_sY|Adding Matrices, Cell by Cell — manic
+ex-matrix_addition_plane|sfp4_kIdCyc|Matrix Addition on the Plane — manic
+ex-linear_transform|ap351ptsYTM|What a 2×2 Matrix Does to Space — manic
+ex-table|4veAPoMkQ74|Build a Table in manic
+ex-table_braces|wnBQGLRhl1o|Tables + Braces — manic
+
+# ---- examples: vectors, fields & coordinates ----
+ex-vector_field|k79A0njUBr4|A Vector Field, Coloured by Force — manic
+ex-coordinates|R8v8Z7XzvR8|Axes, Planes, Polar & Complex — manic
+ex-pie|tLVtfq552es|A Pie Chart From Sectors — manic
+
+# ---- examples: geometry (olympiad) ----
+ex-equilateral|3gsPIU8ycRs|Euclid's First Proof, Animated — manic
+ex-triangle|PcBIXL7Tc1g|Triangle Centres, All at Once — manic
+ex-incircle_tangents|h0LAKF_CHx0|The Incircle & Its Tangents — manic
+ex-tangents|hkYgb9DeP84|Tangent Lines to a Circle — manic
+ex-orthocenter|HkVvm7BR-R8|Finding the Orthocentre — manic
+ex-euler_line|iiL7ctS5dAE|The Euler Line, Live — manic
+ex-nine_point|haZ7x-91B6c|The Nine-Point Circle — manic
+ex-conics|x3vqdu40MTc|Ellipse, Parabola, Hyperbola — manic
+
+# ---- examples: transforms & morphing ----
+ex-transforms|PnUfeUvkYHM|Apply a Matrix to Anything — manic
+ex-transform_copy|KSnLLXpooo0|Copy + Transform — manic
+ex-morph|Y6kpE-ZT-T8|Morph One Shape Into Another — manic
+
+# ---- examples: text & UI ----
+ex-typewriter|mdlHwoCvv-U|Typewriter Text in manic
+ex-captions|oM2Fw-H3lNg|Karaoke & Word-Pop Captions — manic
+ex-terminal_boot|JDdcN2toYoo|A Neon Terminal Boots Up — manic
+ex-brace|ftbN0Xh2u1E|Curly Braces, Animated — manic
+ex-banner|FhoIX7kKQXU|The manic Logo Reveal
+
+# ---- examples: generative & recursive ----
+ex-fractal_tree|nYiPEEQEmIs|One Rule → a Fractal Tree — manic
+ex-hue_wave|OxZUBYYEtAk|A Wave of Colour — manic
+ex-hill_run|pzRBP1qbncc|A Tiny Animated Scene — manic
+ex-equal_cuts|AThpTutdcbE|Halving a Circle, Again & Again — manic
+ex-archimedes_pi|mfK_823Mb4I|How Archimedes Found π — manic
+
+# ---- examples: boolean shapes ----
+ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic

@@ -1,0 +1,16 @@
+// the same reveal, three ways: sequence, together, cascade.
+title("Timing");  canvas("16:9");
+text(t, (cx, 110), "seq  ·  par  ·  stagger");  color(t, cyan);  size(t, 30);  hidden(t);
+
+for i in 0..6 { dot(a{i}, (220 + i*160, 300), 16);  color(a{i}, cyan);     hidden(a{i}); }
+for i in 0..6 { dot(b{i}, (220 + i*160, 470), 16);  color(b{i}, magenta);  hidden(b{i}); }
+
+show(t, 0.5);
+
+// top row, all at the same instant
+par { for i in 0..6 { show(a{i}); } }
+wait(0.5);
+
+// bottom row, cascading 0.1s apart
+stagger(0.1) { for i in 0..6 { show(b{i}); } }
+wait(1.0);

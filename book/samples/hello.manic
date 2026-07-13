@@ -1,0 +1,14 @@
+// getting started — one shape, drawn on, then a pulse.
+title("Hello, manic");
+canvas("16:9");
+
+text(head, (cx, 140), "hello, manic");
+color(head, cyan);  size(head, 40);  hidden(head);
+
+circle(sun, (cx, cy), 110);
+color(sun, magenta);  stroke(sun, 5);  glow(sun, 8);  untraced(sun);
+
+show(head, 0.5);      // fade the title in
+draw(sun, 1.2);       // trace the circle on
+pulse(sun);           // a friendly pulse
+wait(1.0);

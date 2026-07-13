@@ -1,0 +1,13 @@
+// move, spin, scale, nudge.
+title("Motion");  canvas("16:9");
+text(t, (cx, 120), "make it move");  color(t, cyan);  size(t, 30);  hidden(t);
+
+dot(p,  (200, 400), 18);        color(p, magenta);  glow(p, 6);
+rect(r, (900, 400), 130, 130);  color(r, cyan);     stroke(r, 4);
+
+show(t, 0.5);
+move(p, (1050, 400), 1.0, smooth);   // glide across
+par { spin(r, 360);  pulse(p); }     // spin + pulse at the same time
+scale(r, 1.4);                       // grow
+shift(p, (0, -140));                 // nudge up by a delta
+wait(0.8);

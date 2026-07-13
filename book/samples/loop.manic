@@ -1,0 +1,14 @@
+// one for-loop paints a full rainbow ring.
+title("One loop");  canvas("16:9");
+text(t, (cx, 90), "one loop, 24 dots, every hue");  color(t, cyan);  size(t, 28);  hidden(t);
+
+let n = 24;
+for i in 0..n {
+  dot(p{i}, (cx + 300*cos(tau*i/n), cy + 300*sin(tau*i/n)), 14);
+  hue(p{i}, 360*i/n);      // colour by angle -> a rainbow
+  hidden(p{i});
+}
+
+show(t, 0.5);
+stagger(0.05) { for i in 0..n { show(p{i}); } }
+wait(1.4);

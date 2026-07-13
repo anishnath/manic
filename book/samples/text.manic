@@ -1,0 +1,11 @@
+// text that changes its content and colour.
+title("Text");  canvas("16:9");
+text(cap, (cx, cy), "draft");  color(cap, fg);  size(cap, 72);  glow(cap, 4);
+
+wait(0.5);
+say(cap, "revised");       // crossfade to new content
+wait(0.7);
+say(cap, "final");
+recolor(cap, lime, 0.5);   // animate the colour
+pulse(cap);
+wait(0.9);

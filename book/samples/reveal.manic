@@ -1,0 +1,15 @@
+// four ways to bring something on screen.
+title("Reveal");  canvas("16:9");
+text(t, (cx, 120), "four ways to reveal");  color(t, cyan);  size(t, 30);  hidden(t);
+
+circle(a, (300, 400), 80);   color(a, cyan);     stroke(a, 4);  untraced(a);
+rect(b,   (600, 400), 150, 150);  color(b, magenta);  filled(b);  hidden(b);
+text(c,   (900, 400), "typed");   color(c, lime);  size(c, 40);  untraced(c);
+
+show(t, 0.5);
+draw(a, 1.0);     // untraced + draw  -> a pen traces the outline
+show(b, 0.7);     // hidden + show    -> a fade-in
+type(c);          // untraced + type  -> a typewriter reveal
+wait(0.7);
+par { fade(a);  fade(b);  fade(c); }   // and fade them all out
+wait(0.6);

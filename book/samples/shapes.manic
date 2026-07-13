@@ -1,0 +1,18 @@
+// the six primitive shapes, drawn on together.
+title("Shapes");
+canvas("16:9");
+
+text(t, (cx, 90), "six primitives");  color(t, cyan);  size(t, 32);  hidden(t);
+
+circle(c, (240, 380), 80);            color(c, cyan);     stroke(c, 4);  untraced(c);
+rect(r,   (470, 380), 150, 150);      color(r, magenta);  stroke(r, 4);  untraced(r);
+line(l,   (640, 300), (820, 460));    color(l, lime);     stroke(l, 4);  untraced(l);
+arrow(a,  (900, 460), (1040, 300));   color(a, cyan);     stroke(a, 4);  untraced(a);
+dot(d,    (1110, 380), 12);           color(d, magenta);  hidden(d);
+text(lbl, (640, 620), "circle · rect · line · arrow · dot · text");
+color(lbl, dim);  size(lbl, 24);  hidden(lbl);
+
+show(t, 0.5);
+par { draw(c);  draw(r);  draw(l);  draw(a);  show(d); }
+show(lbl, 0.5);
+wait(1.2);
