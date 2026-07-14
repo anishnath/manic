@@ -388,6 +388,8 @@ fn constant(name: &str) -> Option<f32> {
         "pi" => std::f32::consts::PI,
         "tau" => std::f32::consts::TAU,
         "e" => std::f32::consts::E,
+        // for `limit(id, curve, inf)` — a limit at infinity (horizontal asymptote)
+        "inf" | "infinity" => f32::INFINITY,
         _ => return None,
     })
 }

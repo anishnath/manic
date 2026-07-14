@@ -85,6 +85,39 @@ pub struct Morph3 {
 /// Recompute a 3D entity from its `deps`' positions each frame (`midpoint3`, …).
 pub type DeriveFn3 = fn(&mut Entity3D, &[Vec3]);
 
+/// A height-field surface remembered on its entity: the compiled `z(x,y)` plus
+/// its domain. `surface3` fills this in so `gradient3`/`tangentplane3`/`volume3`
+/// can *query the surface by id* — the 3D analog of [`crate::primitives::GraphFn`].
+#[derive(Debug, Clone)]
+pub struct SurfaceFn {
+    pub f: crate::kits::math::expr::Node,
+    pub x0: f32,
+    pub x1: f32,
+    pub y0: f32,
+    pub y1: f32,
+}
+
+impl SurfaceFn {
+    /// `z = f(x, y)`.
+    pub fn z(&self, x: f32, y: f32) -> f32 {
+        self.f.eval(x, y)
+    }
+    /// The surface point `(x, y, f(x,y))` in world coords.
+    pub fn point(&self, x: f32, y: f32) -> Vec3 {
+        Vec3::new(x, y, self.z(x, y))
+    }
+    /// Partial `∂f/∂x` by central difference.
+    pub fn dx(&self, x: f32, y: f32) -> f32 {
+        let h = ((self.x1 - self.x0).abs() * 1e-3).max(1e-4);
+        (self.z(x + h, y) - self.z(x - h, y)) / (2.0 * h)
+    }
+    /// Partial `∂f/∂y` by central difference.
+    pub fn dy(&self, x: f32, y: f32) -> f32 {
+        let h = ((self.y1 - self.y0).abs() * 1e-3).max(1e-4);
+        (self.z(x, y + h) - self.z(x, y - h)) / (2.0 * h)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Entity3D {
     pub id: String,
@@ -108,6 +141,9 @@ pub struct Entity3D {
     pub derive: Option<DeriveFn3>,
     /// A set-up shape morph (`morph3`); the `Prop::Morph` track blends it.
     pub morph3: Option<Morph3>,
+    /// If set, this is a `surface3` height field: its `z(x,y)` + domain, so
+    /// `gradient3`/`tangentplane3`/`volume3` can query it by id.
+    pub surf: Option<SurfaceFn>,
 }
 
 impl Entity3D {
@@ -127,6 +163,7 @@ impl Entity3D {
             deps: Vec::new(),
             derive: None,
             morph3: None,
+            surf: None,
         }
     }
 }

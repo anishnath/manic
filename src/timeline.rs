@@ -330,6 +330,10 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                             let (tris, rings) = gv.region();
                             e.shape = Shape::Region { tris, rings };
                         }
+                        // mark: a dot that rides the curve
+                        GraphView::Mark { .. } => {
+                            e.pos = gv.touch();
+                        }
                     }
                 }
             }

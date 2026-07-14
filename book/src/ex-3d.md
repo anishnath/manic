@@ -61,3 +61,15 @@ A 3×3×3 block of cubes, with a shear matrix **M** and its inverse **M⁻¹** a
 ```
 
 <div class="manic-video" data-video="ex-matrix3"></div>
+
+## double-integral3
+
+Multivariable calculus: the volume under a surface as a limit of finer and
+finer columns — a double integral, made solid. The coarse blocks refine until
+they hug the surface.
+
+```manic
+{{#include ../../examples/double-integral3.manic}}
+```
+
+<div class="manic-video" data-video="ex-double-integral3"></div>

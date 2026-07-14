@@ -188,14 +188,25 @@ pub struct Entity {
     pub graph_view: Option<GraphView>,
 }
 
-/// A plotted function remembered on its entity: the compiled function plus the
+/// Where a [`GraphFn`]'s values come from.
+#[derive(Debug, Clone)]
+pub enum GraphSrc {
+    /// A compiled formula in `x` (from `plot`).
+    Expr(crate::kits::math::expr::Node),
+    /// A numerically-sampled curve (from `deriv`/`accum`): ascending `xs` with
+    /// matching `ys`, evaluated by linear interpolation. This makes derived
+    /// curves first-class — you can `tangent`/`slope`/`area` them too.
+    Samples { xs: Vec<f32>, ys: Vec<f32> },
+}
+
+/// A plotted function remembered on its entity: its value source plus the
 /// screen mapping `plot` used (`(cx + x*sx, cy - f(x)*sy)` over `x ∈ [x0,x1]`).
-/// `plot` fills this in so that later constructions — `tangent`, and in future
-/// `slope`/`area`/`normal` — can *query the function by the plot's id* instead
-/// of the author retyping the formula.
+/// `plot` fills this in so later constructions — `tangent`/`slope`/`normal`/
+/// `area`, and the derived `deriv`/`accum` curves — can *query the function by
+/// the plot's id* instead of the author retyping the formula.
 #[derive(Debug, Clone)]
 pub struct GraphFn {
-    pub node: crate::kits::math::expr::Node,
+    pub src: GraphSrc,
     /// Screen anchor: math `(0,0)` maps here.
     pub center: Vec2,
     pub sx: f32,
@@ -207,7 +218,10 @@ pub struct GraphFn {
 impl GraphFn {
     /// `f(x)` in math units.
     pub fn y(&self, x: f32) -> f32 {
-        self.node.eval(x, 0.0)
+        match &self.src {
+            GraphSrc::Expr(n) => n.eval(x, 0.0),
+            GraphSrc::Samples { xs, ys } => interp(xs, ys, x),
+        }
     }
     /// The point on the curve at `x`, in screen coords.
     pub fn point(&self, x: f32) -> Vec2 {
@@ -218,7 +232,42 @@ impl GraphFn {
     /// decline to draw a fake tangent.
     pub fn slope(&self, x: f32) -> f32 {
         let h = ((self.x1 - self.x0).abs() * 1e-3).max(1e-4);
-        (self.y(x + h) - self.y(x - h)) / (2.0 * h)
+        // one-sided at the domain edges so a *sampled* curve (whose `y` clamps
+        // outside the range) isn't halved there; central in the interior
+        if x - h < self.x0 {
+            (self.y(x + h) - self.y(x)) / h
+        } else if x + h > self.x1 {
+            (self.y(x) - self.y(x - h)) / h
+        } else {
+            (self.y(x + h) - self.y(x - h)) / (2.0 * h)
+        }
+    }
+    /// Second derivative `f''(x)` by central difference — drives concavity and
+    /// inflection detection. Uses a wider step than `slope` (second differences
+    /// are noisier).
+    pub fn second(&self, x: f32) -> f32 {
+        let h = ((self.x1 - self.x0).abs() * 5e-3).max(1e-3);
+        (self.y(x + h) - 2.0 * self.y(x) + self.y(x - h)) / (h * h)
+    }
+    /// The `k`-th derivative at `a` via the central finite-difference stencil
+    /// `f⁽ᵏ⁾(a) ≈ h⁻ᵏ Σ (−1)ⁱ C(k,i) f(a + (k/2 − i)h)`. Drives Taylor
+    /// coefficients. Accurate for low `k` on smooth functions; higher orders get
+    /// progressively noisier (a fundamental limit of numeric differentiation).
+    pub fn nth_deriv(&self, a: f32, k: u32) -> f32 {
+        if k == 0 {
+            return self.y(a);
+        }
+        let h = 0.3f32;
+        let k = k as i32;
+        let mut sum = 0.0f32;
+        for i in 0..=k {
+            let mut c = if i % 2 == 0 { 1.0f64 } else { -1.0 };
+            for j in 0..i {
+                c = c * (k - j) as f64 / (j + 1) as f64; // (-1)^i * C(k, i)
+            }
+            sum += c as f32 * self.y(a + (k as f32 / 2.0 - i as f32) * h);
+        }
+        sum / h.powi(k)
     }
     /// Refine a root bracketed in `[a, b]` (where `y` changes sign) by bisection.
     fn bisect(&self, mut a: f32, mut b: f32) -> f32 {
@@ -249,10 +298,21 @@ impl GraphFn {
         for i in 1..=STEPS {
             let x = self.x0 + span * i as f32 / STEPS as f32;
             let y = self.y(x);
-            if py.is_finite() && y.is_finite() && py * y < 0.0 {
-                let r = self.bisect(px, x);
-                if out.last().map_or(true, |&l| (r - l).abs() > span.abs() * 1e-3) {
-                    out.push(r);
+            if py.is_finite() && y.is_finite() {
+                // a strict sign change brackets a root; a zero landing exactly on
+                // this sample is caught separately (the strict test steps over
+                // it, since the product is 0, not < 0)
+                let r = if py * y < 0.0 {
+                    Some(self.bisect(px, x))
+                } else if y == 0.0 && py != 0.0 {
+                    Some(x)
+                } else {
+                    None
+                };
+                if let Some(r) = r {
+                    if out.last().map_or(true, |&l| (r - l).abs() > span.abs() * 1e-3) {
+                        out.push(r);
+                    }
                 }
             }
             px = x;
@@ -301,9 +361,34 @@ impl GraphFn {
     }
 }
 
+/// Linear interpolation of `(xs, ys)` (xs ascending) at `x`, clamped to the ends.
+fn interp(xs: &[f32], ys: &[f32], x: f32) -> f32 {
+    let n = xs.len();
+    if n == 0 {
+        return f32::NAN;
+    }
+    if x <= xs[0] {
+        return ys[0];
+    }
+    if x >= xs[n - 1] {
+        return ys[n - 1];
+    }
+    let (mut lo, mut hi) = (0usize, n - 1);
+    while hi - lo > 1 {
+        let mid = (lo + hi) / 2;
+        if xs[mid] <= x {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    let t = (x - xs[lo]) / (xs[hi] - xs[lo]);
+    ys[lo] + (ys[hi] - ys[lo]) * t
+}
+
 /// Definite integral of a graph's function over `[a, b]` by composite Simpson's
-/// rule (`n` intervals, forced even) — the exact area under the sampled curve.
-fn integrate(g: &GraphFn, a: f32, b: f32, n: u32) -> f32 {
+/// rule. Exposed so `accum` can build the accumulation function `∫ₐˣ f`.
+pub(crate) fn integrate(g: &GraphFn, a: f32, b: f32, n: u32) -> f32 {
     let n = { let m = n.max(2); if m % 2 == 1 { m + 1 } else { m } } as usize;
     // a signed step gives the signed integral directly (negative when b < a)
     let h = (b - a) / n as f32;
@@ -338,6 +423,10 @@ pub enum GraphView {
     /// A live readout of the definite integral from `a` to the moving bound `x`,
     /// pinned at screen position `at` (climbs as `x` sweeps).
     Integral { graph: GraphFn, a: f32, x: f32, n: u32, at: Vec2 },
+    /// A plain dot riding the curve at `x` (a `Shape::Circle` whose `pos`
+    /// follows the curve). Used by `limit`'s approaching point; slide it with
+    /// `to(id, x, …)`.
+    Mark { graph: GraphFn, x: f32 },
 }
 
 impl GraphView {
@@ -348,7 +437,8 @@ impl GraphView {
             | GraphView::Normal { x, .. }
             | GraphView::Slope { x, .. }
             | GraphView::Area { x, .. }
-            | GraphView::Integral { x, .. } => *x,
+            | GraphView::Integral { x, .. }
+            | GraphView::Mark { x, .. } => *x,
         }
     }
     /// Set the moving parameter (the timeline calls this to animate).
@@ -358,7 +448,8 @@ impl GraphView {
             | GraphView::Normal { x, .. }
             | GraphView::Slope { x, .. }
             | GraphView::Area { x, .. }
-            | GraphView::Integral { x, .. } => *x = v,
+            | GraphView::Integral { x, .. }
+            | GraphView::Mark { x, .. } => *x = v,
         }
     }
     /// The source graph.
@@ -368,7 +459,8 @@ impl GraphView {
             | GraphView::Normal { graph, .. }
             | GraphView::Slope { graph, .. }
             | GraphView::Area { graph, .. }
-            | GraphView::Integral { graph, .. } => graph,
+            | GraphView::Integral { graph, .. }
+            | GraphView::Mark { graph, .. } => graph,
         }
     }
     /// Line-segment endpoints `(tail, head)` for `Tangent`/`Normal`, centred on

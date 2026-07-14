@@ -599,6 +599,76 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             &[("id", Name, R), ("curve", Name, R), ("color", Color, O)],
         ),
         spec(
+            "deriv",
+            Ctor,
+            "math",
+            "the derivative f' of a curve, drawn as its own curve",
+            &[("id", Name, R), ("curve", Name, R), ("color", Color, O)],
+        ),
+        spec(
+            "accum",
+            Ctor,
+            "math",
+            "the accumulation function integral(a..x) of a curve",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("a", Num, O),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
+            "extrema",
+            Ctor,
+            "math",
+            "dots at a curve's maxima and minima (slope = 0)",
+            &[("id", Name, R), ("curve", Name, R), ("color", Color, O)],
+        ),
+        spec(
+            "inflections",
+            Ctor,
+            "math",
+            "dots where a curve changes concavity (f'' = 0)",
+            &[("id", Name, R), ("curve", Name, R), ("color", Color, O)],
+        ),
+        spec(
+            "band",
+            Ctor,
+            "math",
+            "the filled region between two curves",
+            &[
+                ("id", Name, R),
+                ("top", Name, R),
+                ("bottom", Name, R),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
+            "taylor",
+            Ctor,
+            "math",
+            "the degree-n Taylor polynomial of a curve about a",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("a", Num, R),
+                ("n", Num, R),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
+            "limit",
+            Ctor,
+            "math",
+            "visualise lim(x->a) f(x): the value approached, with an approaching dot",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("a", Num, R),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
             "newton",
             Ctor,
             "math",
@@ -1175,6 +1245,44 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "gradient3",
+            Ctor,
+            "three",
+            "steepest-ascent arrow on a surface3 at (x,y)",
+            &[
+                ("id", Name, R),
+                ("surface", Name, R),
+                ("x", Num, R),
+                ("y", Num, R),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
+            "tangentplane3",
+            Ctor,
+            "three",
+            "the plane tangent to a surface3 at (x,y)",
+            &[
+                ("id", Name, R),
+                ("surface", Name, R),
+                ("x", Num, R),
+                ("y", Num, R),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
+            "volume3",
+            Ctor,
+            "three",
+            "the volume under a surface3 as a grid of columns",
+            &[
+                ("id", Name, R),
+                ("surface", Name, R),
+                ("res", Num, O),
+                ("color", Color, O),
+            ],
+        ),
+        spec(
             "param3",
             Ctor,
             "three",
@@ -1295,7 +1403,7 @@ pub const KEYWORDS: &[&str] = &[
 ];
 
 /// Reserved variable names — canvas dims + constants. Never valid entity ids.
-pub const RESERVED_VARS: &[&str] = &["w", "h", "cx", "cy", "pi", "e", "tau"];
+pub const RESERVED_VARS: &[&str] = &["w", "h", "cx", "cy", "pi", "e", "tau", "inf", "infinity"];
 
 /// `canvas(...)` preset names.
 pub const CANVAS_PRESETS: &[&str] = &[

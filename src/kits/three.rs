@@ -4,10 +4,10 @@ use macroquad::prelude::{vec2, vec3, Vec2, Vec3};
 
 use crate::easing::Easing;
 use crate::lang::diag::Error;
-use crate::lang::lower::{resolve_easing, Args, Registry};
+use crate::lang::lower::{resolve_color, resolve_easing, Args, Registry};
 use crate::movie::CAMERA3_ID;
 use crate::primitives::{Entity, Shape};
-use crate::primitives3d::{Entity3D, Morph3, Morph3Kind, Projection3D, Shape3D};
+use crate::primitives3d::{Entity3D, Morph3, Morph3Kind, Projection3D, Shape3D, SurfaceFn};
 use crate::scene::{Pin3, Pin3Target, Scene};
 use crate::style;
 use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value};
@@ -444,12 +444,132 @@ fn c_surface3(s: &mut Scene, a: &Args) -> Result<(), Error> {
             pts.push(vec3(x, y, if z.is_finite() { z } else { 0.0 }));
         }
     }
-    s.add_3d(Entity3D::new(
+    let mut e = Entity3D::new(
         id,
         Shape3D::Surface { pts, nu: n as u32, nv: n as u32 },
         Vec3::ZERO,
         style::CYAN,
-    ));
+    );
+    // remember z(x,y) + domain so gradient3/tangentplane3/volume3 can query it
+    e.surf = Some(SurfaceFn { f, x0, x1, y0, y1 });
+    s.add_3d(e);
+    Ok(())
+}
+
+/// Fetch a `surface3`'s remembered height field by id, or a clear error.
+fn fetch_surf(s: &Scene, a: &Args, idx: usize) -> Result<SurfaceFn, Error> {
+    let src = a.ident(idx)?;
+    s.get_3d(&src).and_then(|e| e.surf.clone()).ok_or_else(|| {
+        Error::new(
+            format!(
+                "expected a `surface3` as argument {}, but `{src}` isn't one (draw it with `surface3` first)",
+                idx + 1
+            ),
+            a.span_of(idx),
+        )
+    })
+}
+
+/// `gradient3(id, surface, x, y, [color])` — an arrow on a plotted `surface3` at
+/// `(x,y)` pointing in the direction of steepest ascent (the gradient ∇f), its
+/// length growing with the slope. The uphill tangent `(∂f/∂x, ∂f/∂y, |∇f|²)`.
+fn c_gradient3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let surf = fetch_surf(s, a, 1)?;
+    let (x, y) = (a.num(2)?, a.num(3)?);
+    let color = if a.len() > 4 {
+        resolve_color(&a.ident(4)?, a.span_of(4))?
+    } else {
+        style::GOLD
+    };
+    let (fx, fy) = (surf.dx(x, y), surf.dy(x, y));
+    let g = (fx * fx + fy * fy).sqrt();
+    let mut dir = vec3(fx, fy, fx * fx + fy * fy);
+    let len = dir.length();
+    dir = if len > 1e-6 {
+        dir / len * g.clamp(0.3, 2.5)
+    } else {
+        Vec3::ZERO
+    };
+    let mut e = Entity3D::new(id.clone(), Shape3D::Arrow { to: dir }, surf.point(x, y), color);
+    e.tags.push(id);
+    s.add_3d(e);
+    Ok(())
+}
+
+/// `tangentplane3(id, surface, x, y, [color])` — the plane tangent to a plotted
+/// `surface3` at `(x,y)`: `z = f(a) + fx·(u−x) + fy·(v−y)`, a small translucent
+/// patch. The 2-D analog of the tangent line.
+fn c_tangentplane3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let surf = fetch_surf(s, a, 1)?;
+    let (x, y) = (a.num(2)?, a.num(3)?);
+    let color = if a.len() > 4 {
+        resolve_color(&a.ident(4)?, a.span_of(4))?
+    } else {
+        style::MAGENTA
+    };
+    let (fx, fy, z0) = (surf.dx(x, y), surf.dy(x, y), surf.z(x, y));
+    let w = (surf.x1 - surf.x0).abs().min((surf.y1 - surf.y0).abs()) * 0.075;
+    let res = 6usize;
+    let m = res + 1;
+    let mut pts = Vec::with_capacity(m * m);
+    for j in 0..m {
+        let v = y - w + 2.0 * w * j as f32 / res as f32;
+        for i in 0..m {
+            let u = x - w + 2.0 * w * i as f32 / res as f32;
+            pts.push(vec3(u, v, z0 + fx * (u - x) + fy * (v - y)));
+        }
+    }
+    let mut e = Entity3D::new(
+        id.clone(),
+        Shape3D::Surface { pts, nu: m as u32, nv: m as u32 },
+        Vec3::ZERO,
+        color,
+    );
+    e.opacity = 0.42;
+    e.tags.push(id);
+    s.add_3d(e);
+    Ok(())
+}
+
+/// `volume3(id, surface, [res], [color])` — the volume under a plotted `surface3`
+/// as a 3-D Riemann sum: a `res×res` grid of translucent columns from `z=0` up
+/// to the surface (double integral, made solid). Columns `{id}0…` tagged `id`.
+fn c_volume3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let surf = fetch_surf(s, a, 1)?;
+    let res = (a.opt_num(2)?.unwrap_or(7.0) as usize).clamp(2, 24);
+    let color = if a.len() > 3 {
+        resolve_color(&a.ident(3)?, a.span_of(3))?
+    } else {
+        style::CYAN
+    };
+    let dx = (surf.x1 - surf.x0) / res as f32;
+    let dy = (surf.y1 - surf.y0) / res as f32;
+    let mut k = 0;
+    for j in 0..res {
+        for i in 0..res {
+            let cx = surf.x0 + (i as f32 + 0.5) * dx;
+            let cy = surf.y0 + (j as f32 + 0.5) * dy;
+            let h = surf.z(cx, cy);
+            if !h.is_finite() {
+                continue;
+            }
+            let mut e = Entity3D::new(
+                format!("{id}{k}"),
+                Shape3D::Cube {
+                    size: vec3(dx * 0.9, dy * 0.9, h.abs().max(1e-3)),
+                },
+                vec3(cx, cy, h * 0.5),
+                color,
+            );
+            e.opacity = 0.5;
+            e.tags.push(id.clone());
+            s.add_3d(e);
+            k += 1;
+        }
+    }
     Ok(())
 }
 
@@ -965,6 +1085,9 @@ pub fn register(r: &mut Registry) {
     r.ctor("curve3", c_curve3);
     r.ctor("surface3", c_surface3);
     r.ctor("param3", c_param3);
+    r.ctor("gradient3", c_gradient3);
+    r.ctor("tangentplane3", c_tangentplane3);
+    r.ctor("volume3", c_volume3);
     r.ctor("prism3", c_prism3);
     r.ctor("pyramid3", c_pyramid3);
     r.ctor("revolve3", c_revolve3);
@@ -976,6 +1099,17 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn surface_partials_match_calculus() {
+        // f(x,y) = x^2 + y^2 : fx = 2x, fy = 2y  (a paraboloid bowl)
+        let f = crate::kits::math::expr::compile("x*x + y*y").unwrap();
+        let sf = SurfaceFn { f, x0: -3.0, x1: 3.0, y0: -3.0, y1: 3.0 };
+        assert!((sf.dx(1.0, 0.5) - 2.0).abs() < 1e-2, "fx = {}", sf.dx(1.0, 0.5));
+        assert!((sf.dy(0.5, 1.5) - 3.0).abs() < 1e-2, "fy = {}", sf.dy(0.5, 1.5));
+        // gradient is zero at the minimum (0,0)
+        assert!(sf.dx(0.0, 0.0).abs() < 1e-2 && sf.dy(0.0, 0.0).abs() < 1e-2);
+    }
 
     #[test]
     fn complete_3d_scene_lowers_and_animates() {

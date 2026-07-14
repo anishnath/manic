@@ -11,7 +11,7 @@ use macroquad::prelude::{Color, Vec2};
 
 use crate::lang::diag::Error;
 use crate::lang::lower::{resolve_color, Args, Registry};
-use crate::primitives::{Counter, Entity, FontKind, GraphView, Shape, StrokeStyle};
+use crate::primitives::{Counter, Entity, FontKind, GraphFn, GraphSrc, GraphView, Shape, StrokeStyle};
 use crate::scene::Scene;
 use crate::style;
 
@@ -740,8 +740,8 @@ fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::CYAN);
     e.stroke = stroked(style::CYAN, 3.0);
-    e.graph = Some(crate::primitives::GraphFn {
-        node,
+    e.graph = Some(GraphFn {
+        src: GraphSrc::Expr(node),
         center: c,
         sx,
         sy,
@@ -930,6 +930,290 @@ fn c_area(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// Build a numerically-sampled curve entity (`deriv`/`accum`), mapped through
+/// the source graph `g` so it overlays the plot, and carrying its own `GraphFn`
+/// so it's first-class (tangent/slope/area work on it too).
+fn add_sample_curve(
+    s: &mut Scene,
+    id: String,
+    g: &GraphFn,
+    xs: Vec<f32>,
+    ys: Vec<f32>,
+    color: Color,
+) {
+    let pts: Vec<Vec2> = xs
+        .iter()
+        .zip(&ys)
+        .map(|(&x, &y)| Vec2::new(g.center.x + x * g.sx, g.center.y - y * g.sy))
+        .collect();
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, color);
+    e.stroke.width = 3.0;
+    e.graph = Some(GraphFn {
+        src: GraphSrc::Samples { xs, ys },
+        center: g.center,
+        sx: g.sx,
+        sy: g.sy,
+        x0: g.x0,
+        x1: g.x1,
+    });
+    e.tags.push(id);
+    s.add(e);
+}
+
+/// `deriv(id, curve, [color])` — the derivative `f'` of a plotted function,
+/// measured numerically across its domain and drawn as its own curve on the
+/// same axes. It's a first-class graph, so `tangent`/`area` work on it too.
+fn c_deriv(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "deriv")?;
+    let color = if a.len() > 2 {
+        resolve_color(&a.ident(2)?, a.span_of(2))?
+    } else {
+        style::GOLD
+    };
+    const N: usize = 240;
+    let mut xs = Vec::with_capacity(N + 1);
+    let mut ys = Vec::with_capacity(N + 1);
+    for i in 0..=N {
+        let x = g.x0 + (g.x1 - g.x0) * i as f32 / N as f32;
+        xs.push(x);
+        ys.push(g.slope(x));
+    }
+    add_sample_curve(s, id, &g, xs, ys, color);
+    Ok(())
+}
+
+/// `accum(id, curve, [a], [color])` — the accumulation function
+/// `F(x) = ∫ₐˣ f dt` (default `a` = the curve's left edge), drawn as its own
+/// curve. By the Fundamental Theorem its slope is `f`, so a `tangent` on it
+/// reads back `f(x)` — plot `f` and `accum(f)` together to *show* the theorem.
+fn c_accum(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "accum")?;
+    let a0 = a.opt_num(2)?.unwrap_or(g.x0);
+    let color = if a.len() > 3 {
+        resolve_color(&a.ident(3)?, a.span_of(3))?
+    } else {
+        style::LIME
+    };
+    const N: usize = 240;
+    let mut xs = Vec::with_capacity(N + 1);
+    let mut ys = Vec::with_capacity(N + 1);
+    for i in 0..=N {
+        let x = g.x0 + (g.x1 - g.x0) * i as f32 / N as f32;
+        xs.push(x);
+        ys.push(crate::primitives::integrate(&g, a0, x, 48));
+    }
+    add_sample_curve(s, id, &g, xs, ys, color);
+    Ok(())
+}
+
+/// Place a dot at `graph.point(x)` for each x — the shared body of
+/// `roots`/`extrema`/`inflections` (children `{id}0…`, tagged `id`).
+fn mark_points(s: &mut Scene, id: &str, graph: &GraphFn, xs: &[f32], color: Color) {
+    for (k, &x) in xs.iter().enumerate() {
+        let p = graph.point(x);
+        if !(p.x.is_finite() && p.y.is_finite()) {
+            continue;
+        }
+        let mut e = Entity::new(format!("{id}{k}"), Shape::Circle { r: 6.0 }, p, color);
+        e.stroke.fill = true;
+        e.stroke.outline = false;
+        e.tags.push(id.to_string());
+        s.add(e);
+    }
+}
+
+/// The x-values where `f(x)` (sampled across `g`'s domain) crosses zero — a
+/// sampled `GraphFn` reused through `roots()`. Powers `extrema` (zeros of `f'`)
+/// and `inflections` (zeros of `f''`).
+fn sampled_zeros(g: &GraphFn, f: impl Fn(f32) -> f32) -> Vec<f32> {
+    const N: usize = 400;
+    let (mut xs, mut ys) = (Vec::with_capacity(N + 1), Vec::with_capacity(N + 1));
+    for i in 0..=N {
+        let x = g.x0 + (g.x1 - g.x0) * i as f32 / N as f32;
+        xs.push(x);
+        ys.push(f(x));
+    }
+    GraphFn {
+        src: GraphSrc::Samples { xs, ys },
+        center: g.center,
+        sx: g.sx,
+        sy: g.sy,
+        x0: g.x0,
+        x1: g.x1,
+    }
+    .roots()
+}
+
+/// `taylor(id, curve, a, n, [color])` — the degree-`n` Taylor polynomial of a
+/// plotted function about `x = a`, drawn as its own curve on the same axes.
+/// Reveal `taylor(…,1)`, `taylor(…,3)`, `taylor(…,5)` in turn to watch the
+/// polynomial hug the curve over a widening interval. (Coefficients come from
+/// numerical derivatives, so keep `n` modest — high orders get noisy.)
+fn c_taylor(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "taylor")?;
+    let ctr = a.num(2)?;
+    let deg = (a.num(3)?.round() as i32).clamp(0, 12) as u32;
+    let color = if a.len() > 4 {
+        resolve_color(&a.ident(4)?, a.span_of(4))?
+    } else {
+        style::GOLD
+    };
+    // Taylor coefficients c_k = f⁽ᵏ⁾(a) / k!
+    let mut coef = Vec::with_capacity(deg as usize + 1);
+    let mut fact = 1.0f32;
+    for k in 0..=deg {
+        if k > 0 {
+            fact *= k as f32;
+        }
+        coef.push(g.nth_deriv(ctr, k) / fact);
+    }
+    const N: usize = 240;
+    let (mut xs, mut ys) = (Vec::with_capacity(N + 1), Vec::with_capacity(N + 1));
+    for i in 0..=N {
+        let x = g.x0 + (g.x1 - g.x0) * i as f32 / N as f32;
+        let dx = x - ctr;
+        let (mut p, mut pw) = (0.0f32, 1.0f32);
+        for &c in &coef {
+            p += c * pw;
+            pw *= dx;
+        }
+        xs.push(x);
+        ys.push(p);
+    }
+    add_sample_curve(s, id, &g, xs, ys, color);
+    Ok(())
+}
+
+/// `limit(id, curve, a, [color])` — visualise `lim(x→a) f(x)`: an open circle at
+/// the value `L` the curve approaches (found numerically from both sides),
+/// dashed guides to the axes, the value, and a dot that rides the curve — slide
+/// it in with `to(id, x, a, dur)`. Works even where `f(a)` is undefined (a
+/// removable hole, e.g. `sin(x)/x` at 0).
+fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "limit")?;
+    let at = a.num(2)?;
+    let color = if a.len() > 3 {
+        resolve_color(&a.ident(3)?, a.span_of(3))?
+    } else {
+        style::GOLD
+    };
+    // limit at infinity (`limit(id, curve, inf)` / `-inf`): the horizontal
+    // asymptote y = L, found by sampling far out along the curve
+    if at.is_infinite() {
+        let sign = at.signum();
+        let mut l = f32::NAN;
+        for &m in &[1e3f32, 1e4, 1e5, 1e6] {
+            let v = g.y(sign * m);
+            if v.is_finite() {
+                l = v;
+            }
+        }
+        if !l.is_finite() {
+            return Err(Error::new(
+                "`limit`: no finite horizontal asymptote as x → ±inf",
+                a.span_of(2),
+            ));
+        }
+        let ys = g.center.y - l * g.sy;
+        let (xl, xr) = (g.center.x + g.x0 * g.sx, g.center.x + g.x1 * g.sx);
+        let mut lbl = Entity::new(
+            format!("{id}.val"),
+            Shape::Text {
+                content: format!("y = {l:.2}"),
+                size: 22.0,
+            },
+            Vec2::new(xr - 40.0, ys - 26.0),
+            color,
+        );
+        lbl.font = FontKind::MonoBold;
+        lbl.tags.push(id.clone());
+        s.add(lbl);
+        let mut line = Entity::new(
+            id.clone(),
+            Shape::Line { to: Vec2::new(xr, ys) },
+            Vec2::new(xl, ys),
+            color,
+        );
+        line.stroke.width = 2.5;
+        line.tags.push(id);
+        s.add(line);
+        return Ok(());
+    }
+    let span = (g.x1 - g.x0).abs();
+    let eps = (span * 1e-3).max(1e-4);
+    let (yl, yr) = (g.y(at - eps), g.y(at + eps));
+    let l = match (yl.is_finite(), yr.is_finite()) {
+        (true, true) => 0.5 * (yl + yr),
+        (true, false) => yl,
+        (false, true) => yr,
+        _ => {
+            return Err(Error::new(
+                format!("`limit`: f doesn't approach a finite value at x = {at}"),
+                a.span_of(2),
+            ))
+        }
+    };
+    let target = Vec2::new(g.center.x + at * g.sx, g.center.y - l * g.sy);
+    // dashed-ish guide lines (dim) down to the x-axis and across to the y-axis
+    let mut gx = Entity::new(
+        format!("{id}.gx"),
+        Shape::Line { to: Vec2::new(target.x, g.center.y) },
+        target,
+        style::DIM,
+    );
+    gx.stroke.width = 1.5;
+    gx.tags.push(id.clone());
+    s.add(gx);
+    let mut gy = Entity::new(
+        format!("{id}.gy"),
+        Shape::Line { to: Vec2::new(g.center.x, target.y) },
+        target,
+        style::DIM,
+    );
+    gy.stroke.width = 1.5;
+    gy.tags.push(id.clone());
+    s.add(gy);
+    // the value L, just above-right of the target
+    let mut lbl = Entity::new(
+        format!("{id}.val"),
+        Shape::Text {
+            content: format!("{l:.2}"),
+            size: 22.0,
+        },
+        Vec2::new(target.x + 34.0, target.y - 22.0),
+        color,
+    );
+    lbl.font = FontKind::MonoBold;
+    lbl.tags.push(id.clone());
+    s.add(lbl);
+    // the open circle at (a, L) — the value approached
+    let mut mark = Entity::new(format!("{id}.mark"), Shape::Circle { r: 10.0 }, target, color);
+    mark.stroke.fill = false;
+    mark.stroke.outline = true;
+    mark.stroke.width = 3.0;
+    mark.tags.push(id.clone());
+    s.add(mark);
+    // the approaching dot (main entity): rides the curve, slide it via to(id,x,a)
+    let start = if at - span * 0.3 >= g.x0 {
+        at - span * 0.3
+    } else {
+        at + span * 0.3
+    };
+    let mut dot = Entity::new(id.clone(), Shape::Circle { r: 7.0 }, g.point(start), color);
+    dot.stroke.fill = true;
+    dot.graph_view = Some(GraphView::Mark {
+        graph: g,
+        x: start,
+    });
+    dot.tags.push(id);
+    s.add(dot);
+    Ok(())
+}
+
 /// `roots(id, curve, [color])` — mark every place a plotted function crosses
 /// zero with a dot (`{id}0`, `{id}1`, … tagged `id`). Found by scanning the
 /// curve's domain for sign changes and refining each by bisection.
@@ -941,13 +1225,93 @@ fn c_roots(s: &mut Scene, a: &Args) -> Result<(), Error> {
     } else {
         style::LIME
     };
-    for (k, &r) in graph.roots().iter().enumerate() {
-        let mut e = Entity::new(format!("{id}{k}"), Shape::Circle { r: 6.0 }, graph.point(r), color);
-        e.stroke.fill = true;
-        e.stroke.outline = false;
-        e.tags.push(id.clone());
-        s.add(e);
+    mark_points(s, &id, &graph, &graph.roots(), color);
+    Ok(())
+}
+
+/// `extrema(id, curve, [color])` — dots at the maxima and minima of a plotted
+/// function (the critical points, where the slope is zero). Just the roots of
+/// `f'`.
+fn c_extrema(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "extrema")?;
+    let color = if a.len() > 2 {
+        resolve_color(&a.ident(2)?, a.span_of(2))?
+    } else {
+        style::GOLD
+    };
+    let xs = sampled_zeros(&g, |x| g.slope(x));
+    mark_points(s, &id, &g, &xs, color);
+    Ok(())
+}
+
+/// `inflections(id, curve, [color])` — dots where a plotted function changes
+/// concavity (the inflection points, where `f''` is zero). Roots of `f''`.
+fn c_inflections(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let g = fetch_graph(s, a, 1, "inflections")?;
+    let color = if a.len() > 2 {
+        resolve_color(&a.ident(2)?, a.span_of(2))?
+    } else {
+        style::MAGENTA
+    };
+    let xs = sampled_zeros(&g, |x| g.second(x));
+    mark_points(s, &id, &g, &xs, color);
+    Ok(())
+}
+
+/// `band(id, top, bottom, [color])` — the filled (translucent) region between
+/// two plotted curves over the x-range they share. Each curve is drawn where its
+/// own mapping puts it, so the band hugs both.
+fn c_band(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let top = fetch_graph(s, a, 1, "band")?;
+    let bot = fetch_graph(s, a, 2, "band")?;
+    let color = if a.len() > 3 {
+        resolve_color(&a.ident(3)?, a.span_of(3))?
+    } else {
+        style::CYAN
+    };
+    let (x0, x1) = (top.x0.max(bot.x0), top.x1.min(bot.x1));
+    if x1 <= x0 {
+        return Err(Error::new(
+            "`band` needs two curves that overlap in x",
+            a.name_span,
+        ));
     }
+    const N: usize = 160;
+    let mut up = Vec::with_capacity(N + 1);
+    let mut dn = Vec::with_capacity(N + 1);
+    for i in 0..=N {
+        let x = x0 + (x1 - x0) * i as f32 / N as f32;
+        let (pt, pb) = (top.point(x), bot.point(x));
+        if pt.x.is_finite() && pt.y.is_finite() && pb.y.is_finite() {
+            up.push(pt);
+            dn.push(pb);
+        }
+    }
+    if up.len() < 2 {
+        return Err(Error::new("`band` produced no fillable region", a.name_span));
+    }
+    let mut tris = Vec::with_capacity((up.len() - 1) * 2);
+    for i in 0..up.len() - 1 {
+        tris.push([up[i], up[i + 1], dn[i + 1]]);
+        tris.push([up[i], dn[i + 1], dn[i]]);
+    }
+    let mut ring = up.clone();
+    for p in dn.iter().rev() {
+        ring.push(*p);
+    }
+    let mut e = Entity::new(
+        id.clone(),
+        Shape::Region { tris, rings: vec![ring] },
+        Vec2::ZERO,
+        color,
+    );
+    e.opacity = 0.28;
+    e.stroke.fill = true;
+    e.tags.push(id);
+    s.add(e);
     Ok(())
 }
 
@@ -1658,6 +2022,13 @@ pub fn register(r: &mut Registry) {
     r.ctor("newton", c_newton);
     r.ctor("spline", c_spline);
     r.ctor("trajectory", c_trajectory);
+    r.ctor("deriv", c_deriv);
+    r.ctor("accum", c_accum);
+    r.ctor("extrema", c_extrema);
+    r.ctor("inflections", c_inflections);
+    r.ctor("band", c_band);
+    r.ctor("taylor", c_taylor);
+    r.ctor("limit", c_limit);
     r.ctor("vector", c_vector);
     r.ctor("numberline", c_numberline);
     r.ctor("arc", c_arc);
@@ -1676,12 +2047,12 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod graph_tests {
     use super::expr::compile;
-    use crate::primitives::{GraphFn, GraphView};
+    use crate::primitives::{GraphFn, GraphSrc, GraphView};
     use macroquad::math::Vec2;
 
     fn graph(src: &str) -> GraphFn {
         GraphFn {
-            node: compile(src).unwrap(),
+            src: GraphSrc::Expr(compile(src).unwrap()),
             center: Vec2::ZERO,
             sx: 100.0,
             sy: 100.0,
@@ -1748,11 +2119,94 @@ mod graph_tests {
         assert!((gv.value() - 1.0).abs() < 1e-2); // cos(0) = 1
     }
 
+    // build a numerically-sampled GraphFn like `deriv`/`accum` do
+    fn sampled(f: impl Fn(f32) -> f32, x0: f32, x1: f32) -> GraphFn {
+        let n = 240;
+        let (mut xs, mut ys) = (Vec::new(), Vec::new());
+        for i in 0..=n {
+            let x = x0 + (x1 - x0) * i as f32 / n as f32;
+            xs.push(x);
+            ys.push(f(x));
+        }
+        GraphFn { src: GraphSrc::Samples { xs, ys }, center: Vec2::ZERO, sx: 100.0, sy: 100.0, x0, x1 }
+    }
+
+    #[test]
+    fn deriv_curve_is_the_derivative() {
+        // deriv of sin sampled ≈ cos
+        let g = graph("sin(x)");
+        let d = sampled(|x| g.slope(x), 0.0, 6.3); // what c_deriv builds
+        assert!((d.y(1.0) - 1f32.cos()).abs() < 1e-2, "deriv(sin)(1) = {}", d.y(1.0));
+        assert!((d.y(3.0) - 3f32.cos()).abs() < 1e-2);
+    }
+
+    #[test]
+    fn fundamental_theorem_slope_of_accum_recovers_f() {
+        // F(x) = ∫₀ˣ sin ; by the FTC, F'(x) = sin(x). Slope of the sampled
+        // accumulation curve must return f.
+        let g = graph("sin(x)");
+        let acc = sampled(|x| crate::primitives::integrate(&g, 0.0, x, 48), 0.0, 6.3);
+        for &x in &[0.7f32, 1.5, 2.5, 4.0] {
+            assert!((acc.slope(x) - x.sin()).abs() < 2e-2, "F'({x}) = {}, want sin = {}", acc.slope(x), x.sin());
+        }
+    }
+
     #[test]
     fn integral_readout_matches_area() {
         // ∫₀² x² dx = 8/3 — the readout value equals the swept integral
         let gv = GraphView::Integral { graph: graph("x*x"), a: 0.0, x: 2.0, n: 80, at: Vec2::ZERO };
         assert!((gv.value() - 8.0 / 3.0).abs() < 1e-2, "∫x² readout = {}", gv.value());
+    }
+
+    #[test]
+    fn extrema_are_zeros_of_the_slope() {
+        // sin over (0, 2π): max at π/2, min at 3π/2 — zeros of the derivative
+        let g = graph("sin(x)");
+        let crit = super::sampled_zeros(&g, |x| g.slope(x));
+        assert!(crit.iter().any(|&x| (x - std::f32::consts::FRAC_PI_2).abs() < 2e-2), "no max: {crit:?}");
+        assert!(crit.iter().any(|&x| (x - 3.0 * std::f32::consts::FRAC_PI_2).abs() < 2e-2), "no min: {crit:?}");
+    }
+
+    #[test]
+    fn inflections_are_zeros_of_the_second_derivative() {
+        // sin'' = -sin, zero at π (interior of 0..2π)
+        let g = graph("sin(x)");
+        let infl = super::sampled_zeros(&g, |x| g.second(x));
+        assert!(infl.iter().any(|&x| (x - std::f32::consts::PI).abs() < 3e-2), "no inflection at π: {infl:?}");
+    }
+
+    #[test]
+    fn taylor_coefficients_match_sin() {
+        // sin about 0: c0=0, c1=1, c2=0, c3=-1/6, c5=1/120
+        let g = graph("sin(x)");
+        let c = |k| g.nth_deriv(0.0, k);
+        assert!(c(1).abs() > 0.97 && c(1) < 1.03, "f'(0) = {}", c(1)); // 1
+        assert!((c(3) / 6.0 + 1.0 / 6.0).abs() < 3e-2, "c3 = {}", c(3) / 6.0); // -1/6
+        // and the degree-5 polynomial at x=1 ≈ sin(1)
+        let mut fact = 1.0f32;
+        let mut p = 0.0f32;
+        for k in 0..=5u32 {
+            if k > 0 { fact *= k as f32; }
+            p += g.nth_deriv(0.0, k) / fact * 1f32.powi(k as i32);
+        }
+        assert!((p - 1f32.sin()).abs() < 2e-2, "P5(1) = {p}, sin 1 = {}", 1f32.sin());
+    }
+
+    #[test]
+    fn limit_at_infinity_finds_the_asymptote() {
+        // (5x^3-2x+7)/(x^3+4x^2+3) -> 5 as x -> inf: sample far out
+        let g = graph("(5*x*x*x - 2*x + 7)/(x*x*x + 4*x*x + 3)");
+        assert!((g.y(1e5) - 5.0).abs() < 1e-2, "asymptote = {}", g.y(1e5));
+    }
+
+    #[test]
+    fn limit_of_removable_hole_is_finite() {
+        // lim(x->0) sin(x)/x = 1, even though f(0) is 0/0
+        let g = graph("sin(x)/x");
+        let eps = 1e-3;
+        let l = 0.5 * (g.y(-eps) + g.y(eps));
+        assert!((l - 1.0).abs() < 1e-2, "lim sin(x)/x = {l}");
+        assert!(!g.y(0.0).is_finite(), "f(0) should be 0/0 = non-finite");
     }
 
     #[test]
@@ -1800,3 +2254,4 @@ mod graph_tests {
         }
     }
 }
+

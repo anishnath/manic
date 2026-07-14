@@ -339,13 +339,39 @@ evaluator can reach the scene.
   determinant, diagonalisation, least-squares fits, and 3D camera/object
   transforms derived from data. `nalgebra` is the likely focused dependency
   when one of these scenes is built.
-- **Calculus and numerical analysis** ✅ **shipped** — differentiation
-  (`tangent`/`slope`/`normal`), definite integration (`area`/`integral`,
-  composite Simpson), root-finding (`roots` via sign-scan + bisection, and
-  `newton` — the Newton's-method zig-zag), interpolation (`spline`, Catmull-Rom),
-  and ODE stepping (`trajectory`, RK4 — orbits, spirals, phase portraits). The
-  whole everyday numerical-calculus toolkit is in; the only remaining calculus
-  work is niche (stiff/adaptive ODE solvers, higher-order interpolation).
+- **Calculus and numerical analysis** — the numerical *operations* on a curve
+  are shipped: differentiation (`tangent`/`slope`/`normal`/`deriv`), definite
+  integration (`area`/`integral`/`accum`, composite Simpson), root-finding
+  (`roots` bisection + `newton` zig-zag), interpolation (`spline`, Catmull-Rom),
+  and ODE stepping (`trajectory`, RK4 — orbits/spirals/phase portraits). But
+  calculus as
+  a *subject* is only partly covered — the notable gaps:
+  - ✅ *Shipped:* the **derivative as its own curve** (`deriv`) and the
+    **accumulation function** `∫ₐˣ f` (`accum`) — together they *show the
+    Fundamental Theorem* (`deriv(accum(f))` traces back onto `f`; see
+    `examples/ftc.manic`). Both are first-class graphs (numerically sampled via
+    `GraphSrc::Samples`), so `tangent`/`slope`/`area` work on them too. Also
+    **`extrema`** (maxima/minima = roots of `f'`), **`inflections`** (concavity
+    flips = roots of `f''`), and **`band`** (the filled region between two
+    curves) — see `examples/curve-features.manic`, `examples/band.manic`.
+  - ✅ *Shipped:* **limits** (`limit` — finite points show the value approached
+    with an open circle + approaching dot, `examples/limit.manic`; and
+    `limit(…, inf)` / `-inf` auto-detects and draws the **horizontal asymptote**,
+    `examples/limit-infinity.manic` — `inf`/`infinity` is now a numeric constant)
+    and **Taylor series** (`taylor` — the degree-n polynomial about `a`, growing
+    to hug the curve; `examples/taylor.manic`). Both numerical.
+  - ✅ *Multivariable (shipped):* `surface3` now remembers its `z(x,y)`
+    (`Entity3D::surf: SurfaceFn`, the 3D analog of `GraphFn`), and on top of it —
+    **`gradient3`** (steepest-ascent arrow, ∂f/∂x & ∂f/∂y), **`tangentplane3`**
+    (the tangent plane patch), and **`volume3`** (the volume under the surface as
+    a 3D Riemann-sum column grid = double integral). See
+    `examples/multivariable3.manic`, `examples/volume3.manic`.
+  - *Still to do:* sequence/series convergence (partial sums marching to a
+    limit), directional derivatives, and vector-field divergence/curl.
+  Status: single-variable calculus is complete, and the core of **multivariable**
+  (gradient / partials / tangent plane / volume) now ships. Numerical methods
+  were the right first step because their intermediate states are already an
+  animation storyboard.
 - **Constraints and optimisation** — a small solver for distances, angles,
   incidence, and bounds would let authors state a construction's invariant
   instead of manually updating its points. It unlocks movable geometry,

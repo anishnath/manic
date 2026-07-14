@@ -97,3 +97,4 @@ ex-param3|qs25EhKU_pE|A Torus, a Sphere & a Möbius Strip — manic
 ex-extrude3|VIVZVaGmIDU|Extrude 2D Shapes Into 3D Solids (with CSG) — manic
 ex-morph3|YMBQbAIlfQM|Morph a Cube Into a Sphere — manic
 ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
+ex-double-integral3||The Double Integral, in 3D — Volume as Finer Columns — manic
