@@ -462,7 +462,24 @@ macro_rules! derived_pair {
 
 derived_pair!(c_linecircle, 4, d_linecircle0, d_linecircle1);
 derived_pair!(c_circlecircle, 4, d_circlecircle0, d_circlecircle1);
-derived_pair!(c_tangent, 3, d_tangent0, d_tangent1);
+derived_pair!(c_tangent_geo, 3, d_tangent0, d_tangent1);
+
+/// `tangent` is overloaded so it "just works" on whatever you point it at:
+/// - `tangent(id, curve, x, [len])` — the **calculus** tangent to a plotted
+///   function at `x` (numeric 3rd arg), handled by the math kit.
+/// - `tangent(id, p, c, thru)` — the classic **geometry** construction: the two
+///   touch-points of the tangents from external point `p` to a circle (all-name
+///   args).
+///
+/// The numeric-vs-name 3rd argument tells the two apart, so each branch reports
+/// its own errors cleanly.
+fn c_tangent(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    if a.num(2).is_ok() {
+        crate::kits::math::c_graph_tangent(s, a)
+    } else {
+        c_tangent_geo(s, a)
+    }
+}
 
 /// A derived point with `$n` point inputs plus a trailing **scalar** (angle or
 /// fraction), stashed in `e.rot` for the hook to read.

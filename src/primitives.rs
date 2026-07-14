@@ -179,6 +179,282 @@ pub struct Entity {
     pub morph: Option<(Vec<Vec2>, Vec<Vec2>, f32)>,
     /// Draw a typewriter cursor at the end of the revealed text (`Shape::Text`).
     pub type_cursor: bool,
+    /// If set, this entity is a plotted function graph (from `plot`): its
+    /// function + screen mapping, so `tangent`/`slope` can query it by id.
+    pub graph: Option<GraphFn>,
+    /// If set, this entity is a view over a plotted graph (`tangent`, `normal`,
+    /// `slope`, or `area`). Recomputed from its moving parameter `x`, animatable
+    /// via `to(id, x, …)`.
+    pub graph_view: Option<GraphView>,
+}
+
+/// A plotted function remembered on its entity: the compiled function plus the
+/// screen mapping `plot` used (`(cx + x*sx, cy - f(x)*sy)` over `x ∈ [x0,x1]`).
+/// `plot` fills this in so that later constructions — `tangent`, and in future
+/// `slope`/`area`/`normal` — can *query the function by the plot's id* instead
+/// of the author retyping the formula.
+#[derive(Debug, Clone)]
+pub struct GraphFn {
+    pub node: crate::kits::math::expr::Node,
+    /// Screen anchor: math `(0,0)` maps here.
+    pub center: Vec2,
+    pub sx: f32,
+    pub sy: f32,
+    pub x0: f32,
+    pub x1: f32,
+}
+
+impl GraphFn {
+    /// `f(x)` in math units.
+    pub fn y(&self, x: f32) -> f32 {
+        self.node.eval(x, 0.0)
+    }
+    /// The point on the curve at `x`, in screen coords.
+    pub fn point(&self, x: f32) -> Vec2 {
+        Vec2::new(self.center.x + x * self.sx, self.center.y - self.y(x) * self.sy)
+    }
+    /// Slope `dy/dx` at `x` (math units) by symmetric central difference — a
+    /// tight numerical estimate; non-finite at corners/breaks so the caller can
+    /// decline to draw a fake tangent.
+    pub fn slope(&self, x: f32) -> f32 {
+        let h = ((self.x1 - self.x0).abs() * 1e-3).max(1e-4);
+        (self.y(x + h) - self.y(x - h)) / (2.0 * h)
+    }
+    /// Refine a root bracketed in `[a, b]` (where `y` changes sign) by bisection.
+    fn bisect(&self, mut a: f32, mut b: f32) -> f32 {
+        let mut fa = self.y(a);
+        for _ in 0..60 {
+            let m = 0.5 * (a + b);
+            let fm = self.y(m);
+            if !fm.is_finite() {
+                break;
+            }
+            if fa * fm <= 0.0 {
+                b = m;
+            } else {
+                a = m;
+                fa = fm;
+            }
+        }
+        0.5 * (a + b)
+    }
+    /// Every zero-crossing of the function across its domain `[x0, x1]`, found by
+    /// scanning for sign changes and refining each by bisection (math units).
+    pub fn roots(&self) -> Vec<f32> {
+        const STEPS: usize = 500;
+        let span = self.x1 - self.x0;
+        let mut out: Vec<f32> = Vec::new();
+        let mut px = self.x0;
+        let mut py = self.y(px);
+        for i in 1..=STEPS {
+            let x = self.x0 + span * i as f32 / STEPS as f32;
+            let y = self.y(x);
+            if py.is_finite() && y.is_finite() && py * y < 0.0 {
+                let r = self.bisect(px, x);
+                if out.last().map_or(true, |&l| (r - l).abs() > span.abs() * 1e-3) {
+                    out.push(r);
+                }
+            }
+            px = x;
+            py = y;
+        }
+        out
+    }
+    /// Newton's method from `x0`: the zig-zag of screen points that visualises
+    /// the iteration — curve point → down the tangent to the x-axis (the next
+    /// guess) → back up to the curve → … Stops on convergence, a flat slope, a
+    /// non-finite step, or leaving the domain.
+    pub fn newton_path(&self, x0: f32, steps: u32) -> Vec<Vec2> {
+        let mut pts = Vec::new();
+        let p0 = self.point(x0);
+        if !(p0.x.is_finite() && p0.y.is_finite()) {
+            return pts;
+        }
+        pts.push(p0);
+        let span = (self.x1 - self.x0).abs();
+        let mut x = x0;
+        for _ in 0..steps.clamp(1, 40) {
+            let (y, m) = (self.y(x), self.slope(x));
+            if !y.is_finite() || !m.is_finite() || m.abs() < 1e-6 {
+                break;
+            }
+            let nx = x - y / m; // where the tangent meets the x-axis
+            if !nx.is_finite() {
+                break;
+            }
+            // down/along to the axis (math y = 0 → screen center.y), then up to
+            // the curve at the new guess
+            pts.push(Vec2::new(self.center.x + nx * self.sx, self.center.y));
+            let pc = self.point(nx);
+            if pc.x.is_finite() && pc.y.is_finite() {
+                pts.push(pc);
+            }
+            if (nx - x).abs() < 1e-5 {
+                break;
+            }
+            x = nx;
+            if x < self.x0 - span * 0.25 || x > self.x1 + span * 0.25 {
+                break;
+            }
+        }
+        pts
+    }
+}
+
+/// Definite integral of a graph's function over `[a, b]` by composite Simpson's
+/// rule (`n` intervals, forced even) — the exact area under the sampled curve.
+fn integrate(g: &GraphFn, a: f32, b: f32, n: u32) -> f32 {
+    let n = { let m = n.max(2); if m % 2 == 1 { m + 1 } else { m } } as usize;
+    // a signed step gives the signed integral directly (negative when b < a)
+    let h = (b - a) / n as f32;
+    if h == 0.0 {
+        return 0.0;
+    }
+    let mut s = g.y(a) + g.y(b);
+    for i in 1..n {
+        let y = g.y(a + h * i as f32);
+        s += y * if i % 2 == 1 { 4.0 } else { 2.0 };
+    }
+    s * h / 3.0
+}
+
+/// A **view over a plotted function** — the shared state behind `tangent`,
+/// `normal`, `slope`, and `area`. Each carries the source [`GraphFn`] and a
+/// moving parameter `x` (in the graph's own units), animatable as one property
+/// (`to(id, x, …)` → [`crate::timeline::Prop::PlotX`]): for the line/readout
+/// forms `x` is the touch point; for `Area` it's the sweeping right bound. This
+/// is the "ask the function you already drew a question" substrate.
+#[derive(Debug, Clone)]
+pub enum GraphView {
+    /// Tangent line at `x` (segment + contact dot).
+    Tangent { graph: GraphFn, x: f32, half: f32 },
+    /// Normal (perpendicular) line at `x` (segment + contact dot).
+    Normal { graph: GraphFn, x: f32, half: f32 },
+    /// A live slope readout riding the point at `x` (`off` = screen offset).
+    Slope { graph: GraphFn, x: f32, off: Vec2 },
+    /// Filled region under the curve from `a` to the moving bound `x`, sampled
+    /// with `n` intervals.
+    Area { graph: GraphFn, a: f32, x: f32, n: u32 },
+    /// A live readout of the definite integral from `a` to the moving bound `x`,
+    /// pinned at screen position `at` (climbs as `x` sweeps).
+    Integral { graph: GraphFn, a: f32, x: f32, n: u32, at: Vec2 },
+}
+
+impl GraphView {
+    /// The moving parameter.
+    pub fn x(&self) -> f32 {
+        match self {
+            GraphView::Tangent { x, .. }
+            | GraphView::Normal { x, .. }
+            | GraphView::Slope { x, .. }
+            | GraphView::Area { x, .. }
+            | GraphView::Integral { x, .. } => *x,
+        }
+    }
+    /// Set the moving parameter (the timeline calls this to animate).
+    pub fn set_x(&mut self, v: f32) {
+        match self {
+            GraphView::Tangent { x, .. }
+            | GraphView::Normal { x, .. }
+            | GraphView::Slope { x, .. }
+            | GraphView::Area { x, .. }
+            | GraphView::Integral { x, .. } => *x = v,
+        }
+    }
+    /// The source graph.
+    pub fn graph(&self) -> &GraphFn {
+        match self {
+            GraphView::Tangent { graph, .. }
+            | GraphView::Normal { graph, .. }
+            | GraphView::Slope { graph, .. }
+            | GraphView::Area { graph, .. }
+            | GraphView::Integral { graph, .. } => graph,
+        }
+    }
+    /// Line-segment endpoints `(tail, head)` for `Tangent`/`Normal`, centred on
+    /// the contact point (`None` for the readout/area forms). Both endpoints
+    /// collapse to the contact point when the slope is undefined
+    /// (corner/asymptote) — honest: no fake line is drawn, only the dot.
+    pub fn segment(&self) -> Option<(Vec2, Vec2)> {
+        let (graph, x, half, perp) = match self {
+            GraphView::Tangent { graph, x, half } => (graph, *x, *half, false),
+            GraphView::Normal { graph, x, half } => (graph, *x, *half, true),
+            _ => return None,
+        };
+        let t = graph.point(x);
+        let m = graph.slope(x);
+        if !t.x.is_finite() || !t.y.is_finite() || !m.is_finite() {
+            return Some((t, t));
+        }
+        // a math step (1, m) maps to screen direction (sx, -m*sy); the normal is
+        // that turned 90° in screen space
+        let mut dir = Vec2::new(graph.sx, -m * graph.sy);
+        if perp {
+            dir = Vec2::new(-dir.y, dir.x);
+        }
+        let len = dir.length();
+        if len < 1e-6 {
+            return Some((t, t));
+        }
+        let d = dir / len * half;
+        Some((t - d, t + d))
+    }
+    /// Contact/anchor point on the curve, in screen coords.
+    pub fn touch(&self) -> Vec2 {
+        self.graph().point(self.x())
+    }
+    /// The numeric readout: slope for `Slope`, running integral for
+    /// `Area`/`Integral`.
+    pub fn value(&self) -> f32 {
+        match self {
+            GraphView::Slope { graph, x, .. } => graph.slope(*x),
+            GraphView::Area { graph, a, x, n } | GraphView::Integral { graph, a, x, n, .. } => {
+                integrate(graph, *a, *x, *n)
+            }
+            _ => 0.0,
+        }
+    }
+    /// Screen position for a readout: the point + offset for `Slope`, the pinned
+    /// `at` for `Integral`.
+    pub fn readout_pos(&self) -> Vec2 {
+        match self {
+            GraphView::Slope { graph, x, off } => graph.point(*x) + *off,
+            GraphView::Integral { at, .. } => *at,
+            _ => self.touch(),
+        }
+    }
+    /// Baked `(tris, rings)` for an `Area` fill: vertical strips between the
+    /// curve and the baseline (math `y = 0`), correct for any wiggly curve.
+    pub fn region(&self) -> (Vec<[Vec2; 3]>, Vec<Vec<Vec2>>) {
+        let GraphView::Area { graph, a, x, n } = self else {
+            return (Vec::new(), Vec::new());
+        };
+        let (lo, hi) = (a.min(*x), a.max(*x));
+        let steps = (*n).max(2);
+        let base_y = graph.center.y; // screen y of math y = 0
+        let mut top = Vec::with_capacity(steps as usize + 1);
+        for i in 0..=steps {
+            let xx = lo + (hi - lo) * i as f32 / steps as f32;
+            let p = graph.point(xx);
+            if p.x.is_finite() && p.y.is_finite() {
+                top.push(p);
+            }
+        }
+        if top.len() < 2 {
+            return (Vec::new(), Vec::new());
+        }
+        let mut tris = Vec::with_capacity((top.len() - 1) * 2);
+        for i in 0..top.len() - 1 {
+            let (p0, p1) = (top[i], top[i + 1]);
+            let (b0, b1) = (Vec2::new(p0.x, base_y), Vec2::new(p1.x, base_y));
+            tris.push([p0, p1, b1]);
+            tris.push([p0, b1, b0]);
+        }
+        let mut ring = top.clone();
+        ring.push(Vec2::new(top[top.len() - 1].x, base_y));
+        ring.push(Vec2::new(top[0].x, base_y));
+        (tris, vec![ring])
+    }
 }
 
 /// A live numeric readout attached to a text entity.
@@ -228,6 +504,8 @@ impl Entity {
             counter: None,
             morph: None,
             type_cursor: false,
+            graph: None,
+            graph_view: None,
         }
     }
 }

@@ -11,6 +11,7 @@ Coordinate frames, function plots, vectors, tables:
 ```manic
 axes(ax, (cx, cy), 520, 240);            // a coordinate frame
 plot(wave, (cx, cy), 78, 120, "sin(x)"); // y = f(x) from a formula
+tangent(t, wave, 0.5);                    // the tangent line + dot at x = 0.5
 vector(v, (cx, cy), (120, -90));         // an arrow from an origin
 matrix(m, "1 0; 0 1", (cx, cy));         // a bracketed matrix
 ```

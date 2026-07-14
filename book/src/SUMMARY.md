@@ -9,7 +9,6 @@
 - [Colour & style](colour.md)
 - [The language layer](language-layer.md)
 - [Kits — math, geometry, algorithms](kits.md)
-- [Going 3D](3d.md)
 - [Examples gallery](examples.md)
     - [Algorithms & data structures](ex-algorithms.md)
     - [Graphs](ex-graphs.md)
@@ -21,4 +20,3 @@
     - [Text & UI](ex-text.md)
     - [Generative & recursive](ex-generative.md)
     - [Boolean shapes](ex-boolean.md)
-    - [3D scenes](ex-3d.md)

@@ -542,6 +542,99 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "normal",
+            Ctor,
+            "math",
+            "the normal (perpendicular) line to a curve at x",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("x", Num, R),
+                ("len", Num, O),
+            ],
+        ),
+        spec(
+            "slope",
+            Ctor,
+            "math",
+            "a live readout of a curve's slope at x",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("x", Num, R),
+                ("offset", Point, O),
+            ],
+        ),
+        spec(
+            "area",
+            Ctor,
+            "math",
+            "the filled region under a curve from a to b",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("a", Num, R),
+                ("b", Num, R),
+                ("n", Num, O),
+            ],
+        ),
+        spec(
+            "integral",
+            Ctor,
+            "math",
+            "a live readout of the integral of a curve from a to b",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("a", Num, R),
+                ("b", Num, R),
+                ("at", Point, O),
+            ],
+        ),
+        spec(
+            "roots",
+            Ctor,
+            "math",
+            "dots where a curve crosses zero",
+            &[("id", Name, R), ("curve", Name, R), ("color", Color, O)],
+        ),
+        spec(
+            "newton",
+            Ctor,
+            "math",
+            "Newton's method zig-zag from a starting guess",
+            &[
+                ("id", Name, R),
+                ("curve", Name, R),
+                ("x0", Num, R),
+                ("steps", Num, O),
+            ],
+        ),
+        // variadic point list — leave params open (`&[]`) so any number of
+        // points is accepted without a false "takes at most N" rejection
+        spec(
+            "spline",
+            Ctor,
+            "math",
+            "a smooth curve through a list of points",
+            &[],
+        ),
+        spec(
+            "trajectory",
+            Ctor,
+            "math",
+            "an ODE path: dx/dt, dy/dt integrated from a start point",
+            &[
+                ("id", Name, R),
+                ("dx/dt", Str, R),
+                ("dy/dt", Str, R),
+                ("start", Point, R),
+                ("center", Point, R),
+                ("scale", Num, R),
+                ("steps", Num, O),
+            ],
+        ),
+        spec(
             "vector",
             Ctor,
             "math",
@@ -643,7 +736,16 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "circle-circle intersection",
             &[],
         ),
-        spec("tangent", Ctor, "geo", "tangent touch points", &[]),
+        // overloaded: `tangent(id, curve, x, [len])` is the calculus tangent to
+        // a plotted function; `tangent(id, p, c, thru)` is the circle
+        // construction. Params left open (`&[]`) so neither form false-rejects.
+        spec(
+            "tangent",
+            Ctor,
+            "math",
+            "tangent line to a curve at x (or tangent points to a circle)",
+            &[],
+        ),
         spec("reflect", Ctor, "geo", "reflect a point over a line", &[]),
         spec("bisector", Ctor, "geo", "angle bisector", &[]),
         spec("rotpoint", Ctor, "geo", "rotate a point about another", &[]),

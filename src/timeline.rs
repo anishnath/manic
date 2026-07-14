@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::easing::Easing;
-use crate::primitives::Shape;
+use crate::primitives::{GraphView, Shape};
 use crate::scene::Scene;
 
 /// A dynamically-typed animatable value.
@@ -70,6 +70,10 @@ pub enum Prop {
     /// Shape-morph fraction `0→1` — blends the entity's `Polyline` between the
     /// two outlines in [`crate::primitives::Entity::morph`].
     Morph,
+    /// A tangent's touch position `x` in the graph's own units
+    /// ([`crate::primitives::Tangent::x`]); the segment + contact dot recompute
+    /// each frame as it slides along the curve.
+    PlotX,
 }
 
 /// Where a track ends up. `Rel` and `Revert` are resolved to absolute values
@@ -204,6 +208,10 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
                 Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
                 _ => return None,
             },
+            Prop::PlotX => match &e.graph_view {
+                Some(gv) => Value::F(gv.x()),
+                None => return None,
+            },
             Prop::Rot3 => return None,
         });
     }
@@ -226,7 +234,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             }
             Value::F(0.0)
         }
-        Prop::Rot | Prop::Hue | Prop::Value => return None,
+        Prop::Rot | Prop::Hue | Prop::Value | Prop::PlotX => return None,
     })
 }
 
@@ -283,6 +291,46 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                     &mut e.shape
                 {
                     *to = p;
+                }
+            }
+            (Prop::PlotX, Value::F(nx)) => {
+                // move the view's parameter, then recompute the entity from it
+                if let Some(gv) = e.graph_view.as_mut() {
+                    gv.set_x(nx);
+                }
+                if let Some(gv) = e.graph_view.clone() {
+                    match &gv {
+                        // tangent/normal: slide the segment (dot rides its midpoint)
+                        GraphView::Tangent { .. } | GraphView::Normal { .. } => {
+                            if let Some((tail, head)) = gv.segment() {
+                                e.pos = if tail.x.is_finite() && tail.y.is_finite() {
+                                    tail
+                                } else {
+                                    gv.touch()
+                                };
+                                if let Shape::Line { to } = &mut e.shape {
+                                    *to = head;
+                                }
+                            }
+                        }
+                        // slope/integral readout: recompute the number, reposition
+                        GraphView::Slope { .. } | GraphView::Integral { .. } => {
+                            let v = gv.value();
+                            if let Some(c) = &mut e.counter {
+                                c.value = v;
+                                let text = c.render();
+                                if let Shape::Text { content, .. } = &mut e.shape {
+                                    *content = text;
+                                }
+                            }
+                            e.pos = gv.readout_pos();
+                        }
+                        // area: rebuild the swept region up to the new bound
+                        GraphView::Area { .. } => {
+                            let (tris, rings) = gv.region();
+                            e.shape = Shape::Region { tris, rings };
+                        }
+                    }
                 }
             }
             _ => {}

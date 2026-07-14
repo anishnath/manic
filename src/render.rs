@@ -446,6 +446,20 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 );
             }
             draw_path(&[p, q], trace, width * e.scale, stroke_c);
+            // a tangent/normal carries a contact dot at the touch point (the
+            // segment's midpoint, since the segment is centred on it)
+            if matches!(
+                e.graph_view,
+                Some(crate::primitives::GraphView::Tangent { .. })
+                    | Some(crate::primitives::GraphView::Normal { .. })
+            ) {
+                let mid = (p + q) * 0.5;
+                let r = 5.0 * k;
+                if glow_on {
+                    draw_circle(mid.x, mid.y, r * 1.9, halo(stroke_c, e.opacity, glow));
+                }
+                draw_circle(mid.x, mid.y, r, stroke_c);
+            }
         }
         Shape::Arrow { to } => {
             let pts = [p, rot_pt(view.xform(*to), p, rad)];

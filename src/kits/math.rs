@@ -11,7 +11,7 @@ use macroquad::prelude::{Color, Vec2};
 
 use crate::lang::diag::Error;
 use crate::lang::lower::{resolve_color, Args, Registry};
-use crate::primitives::{Entity, FontKind, Shape, StrokeStyle};
+use crate::primitives::{Counter, Entity, FontKind, GraphView, Shape, StrokeStyle};
 use crate::scene::Scene;
 use crate::style;
 
@@ -34,6 +34,28 @@ fn eval(name: &str, x: f32) -> Option<f32> {
         _ => return None,
     };
     y.is_finite().then_some(y)
+}
+
+/// The equivalent formula (in `x`) for a bareword named function, so `plot` can
+/// remember *every* graph as a compiled expression tree — one representation
+/// that `tangent`/`slope` can query, whether the author wrote `sin` or
+/// `"sin(x)+0.3*cos(4*x)"`.
+fn named_formula(name: &str) -> &'static str {
+    match name {
+        "sin" => "sin(x)",
+        "cos" => "cos(x)",
+        "tan" => "tan(x)",
+        "parabola" | "sq" | "square" => "x*x",
+        "cubic" | "cube" => "x*x*x",
+        "line" | "id" | "identity" => "x",
+        "abs" => "abs(x)",
+        "exp" => "exp(x)",
+        "sqrt" => "sqrt(x)",
+        "log" | "ln" => "ln(x)",
+        "recip" | "inv" => "1/x",
+        "gauss" | "bell" => "exp(-x*x)",
+        _ => "x",
+    }
 }
 
 fn known_fn(name: &str) -> bool {
@@ -71,6 +93,7 @@ fn known_fn(name: &str) -> bool {
 /// This is deliberately NOT the language's (still-deferred) variable/loop
 /// layer — it is a leaf evaluator scoped to a single plotted curve.
 pub(crate) mod expr {
+    #[derive(Debug, Clone)]
     pub enum Node {
         Num(f32),
         Var,
@@ -707,8 +730,366 @@ fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
             pts.push(Vec2::new(c.x + x * sx, c.y - y * sy));
         }
     }
+    // Remember the function + mapping so `tangent`/`slope` can query this graph
+    // by id — the author never retypes the formula. Every graph becomes one
+    // expression tree (named functions compile through `named_formula`).
+    let node = match f {
+        F::Named(name) => expr::compile(named_formula(&name))
+            .expect("named-function formula always compiles"),
+        F::Expr(node) => node,
+    };
     let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::CYAN);
     e.stroke = stroked(style::CYAN, 3.0);
+    e.graph = Some(crate::primitives::GraphFn {
+        node,
+        center: c,
+        sx,
+        sy,
+        x0,
+        x1,
+    });
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `tangent(id, graph, x, [len])` — the tangent line to a plotted function
+/// (`graph`, a `plot` id) at `x` in the graph's own units, with a contact dot.
+/// The slope is measured from the function itself (numerically), so it's correct
+/// as the touch point slides: `x` is animatable via `to(id, x, target, dur)`.
+/// `len` is the on-screen segment length in px (default 120). At a corner or
+/// asymptote the slope is undefined and only the dot is drawn — never a fake
+/// line.
+/// Fetch a plotted function's remembered graph (`plot` stored it on the entity),
+/// or a clear error naming the caller. Lets the analysis family query a curve by
+/// id — the author never retypes the formula.
+fn fetch_graph(
+    s: &Scene,
+    a: &Args,
+    idx: usize,
+    who: &str,
+) -> Result<crate::primitives::GraphFn, Error> {
+    let src = a.ident(idx)?;
+    s.get(&src).and_then(|e| e.graph.clone()).ok_or_else(|| {
+        Error::new(
+            format!(
+                "`{who}` needs a plotted function as argument {}, but `{src}` isn't a `plot` (draw the curve with `plot` first)",
+                idx + 1
+            ),
+            a.span_of(idx),
+        )
+    })
+}
+
+/// Shared body for `tangent`/`normal`: a line grazing (or perpendicular to) the
+/// curve at `x`, with a contact dot. `x` is animatable via `to(id, x, …)`.
+fn line_view(
+    s: &mut Scene,
+    a: &Args,
+    who: &str,
+    normal: bool,
+    color: Color,
+) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, who)?;
+    let x = a.num(2)?;
+    let half = a.opt_num(3)?.unwrap_or(120.0) * 0.5;
+    let gv = if normal {
+        GraphView::Normal { graph, x, half }
+    } else {
+        GraphView::Tangent { graph, x, half }
+    };
+    let (tail, head) = gv.segment().unwrap();
+    let pos = if tail.x.is_finite() && tail.y.is_finite() {
+        tail
+    } else {
+        gv.touch()
+    };
+    let mut e = Entity::new(id.clone(), Shape::Line { to: head }, pos, color);
+    e.stroke.width = 3.0;
+    e.graph_view = Some(gv);
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `tangent(id, curve, x, [len])` — the tangent line + contact dot to a plotted
+/// function at `x` (its own units). Slope read from the function itself, so it
+/// stays true as `x` slides (`to(id, x, target, dur)`); at a corner/asymptote
+/// only the dot draws. (Overloaded — see `geo::c_tangent` — with three name
+/// args it's the circle construction.)
+pub(crate) fn c_graph_tangent(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    line_view(s, a, "tangent", false, style::GOLD)
+}
+
+/// `normal(id, curve, x, [len])` — the normal (perpendicular) line + contact dot
+/// to a plotted function at `x`. Animatable exactly like `tangent`.
+fn c_normal(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    line_view(s, a, "normal", true, style::MAGENTA)
+}
+
+/// `slope(id, curve, x, [(dx,dy)])` — a live number showing the slope of a
+/// plotted function at `x`, riding just off the point (offset `(dx,dy)` px).
+/// Animate `to(id, x, target, dur)` and the readout climbs/falls with the curve.
+fn c_slope(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, "slope")?;
+    let x = a.num(2)?;
+    let off = a.pair(3).unwrap_or(Vec2::new(16.0, -20.0));
+    let gv = GraphView::Slope { graph, x, off };
+    let counter = Counter {
+        value: gv.value(),
+        decimals: 2,
+        prefix: String::new(),
+        suffix: String::new(),
+    };
+    let content = counter.render();
+    let mut e = Entity::new(
+        id.clone(),
+        Shape::Text {
+            content,
+            size: 24.0,
+        },
+        gv.readout_pos(),
+        style::GOLD,
+    );
+    e.font = FontKind::MonoBold;
+    e.counter = Some(counter);
+    e.graph_view = Some(gv);
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `integral(id, curve, a, b, [(px,py)])` — a live readout of the definite
+/// integral of a plotted function from `a` to `b`, pinned at screen `(px,py)`
+/// (defaults above the curve). Animate `to(id, x, b, dur)` — in step with an
+/// `area` sweep — and the number climbs to the true integral.
+fn c_integral(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, "integral")?;
+    let av = a.num(2)?;
+    let bv = a.num(3)?;
+    let at = a
+        .pair(4)
+        .unwrap_or(Vec2::new(graph.center.x, graph.center.y - 170.0));
+    let gv = GraphView::Integral {
+        graph,
+        a: av,
+        x: bv,
+        n: 80,
+        at,
+    };
+    let counter = Counter {
+        value: gv.value(),
+        decimals: 3,
+        prefix: String::new(),
+        suffix: String::new(),
+    };
+    let content = counter.render();
+    let mut e = Entity::new(
+        id.clone(),
+        Shape::Text {
+            content,
+            size: 26.0,
+        },
+        at,
+        style::LIME,
+    );
+    e.font = FontKind::MonoBold;
+    e.counter = Some(counter);
+    e.graph_view = Some(gv);
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `area(id, curve, a, b, [n])` — the filled region under a plotted function
+/// from `a` to `b` (its own units), sampled with `n` strips (default 60).
+/// Translucent so the curve reads through. To sweep it open dramatically, start
+/// collapsed (`area(r, f, 1, 1)`) and animate the right bound: `to(r, x, 4, 3)`.
+fn c_area(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, "area")?;
+    let av = a.num(2)?;
+    let bv = a.num(3)?;
+    let n = a.opt_num(4)?.map(|v| v as u32).unwrap_or(60);
+    let gv = GraphView::Area {
+        graph,
+        a: av,
+        x: bv,
+        n,
+    };
+    let (tris, rings) = gv.region();
+    let mut e = Entity::new(id.clone(), Shape::Region { tris, rings }, Vec2::ZERO, style::CYAN);
+    e.opacity = 0.30;
+    e.stroke.fill = true;
+    e.graph_view = Some(gv);
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `roots(id, curve, [color])` — mark every place a plotted function crosses
+/// zero with a dot (`{id}0`, `{id}1`, … tagged `id`). Found by scanning the
+/// curve's domain for sign changes and refining each by bisection.
+fn c_roots(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, "roots")?;
+    let color = if a.len() > 2 {
+        resolve_color(&a.ident(2)?, a.span_of(2))?
+    } else {
+        style::LIME
+    };
+    for (k, &r) in graph.roots().iter().enumerate() {
+        let mut e = Entity::new(format!("{id}{k}"), Shape::Circle { r: 6.0 }, graph.point(r), color);
+        e.stroke.fill = true;
+        e.stroke.outline = false;
+        e.tags.push(id.clone());
+        s.add(e);
+    }
+    Ok(())
+}
+
+/// `newton(id, curve, x0, [steps])` — Newton's method starting from guess `x0`,
+/// drawn as the classic zig-zag: from the curve, down each tangent to the x-axis
+/// (the next guess), back up to the curve, converging on a root. Declare
+/// `untraced(id)` and `draw(id, dur)` to watch the guesses walk to the root.
+fn c_newton(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let graph = fetch_graph(s, a, 1, "newton")?;
+    let x0 = a.num(2)?;
+    let steps = a.opt_num(3)?.map(|v| v as u32).unwrap_or(6);
+    let pts = graph.newton_path(x0, steps);
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::GOLD);
+    e.stroke.width = 2.5;
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// One Catmull-Rom point on the segment `p1→p2` (with neighbours `p0`,`p3`) at
+/// parameter `t ∈ [0,1]` — the standard tension-½ interpolant.
+fn catmull_point(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: f32) -> Vec2 {
+    let (t2, t3) = (t * t, t * t * t);
+    0.5 * (2.0 * p1
+        + (-p0 + p2) * t
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+}
+
+/// Sample a Catmull-Rom spline through `pts` (it passes through every point),
+/// `seg` samples per segment. Endpoint neighbours are reflected so the ends
+/// aren't clamped flat.
+fn catmull_rom(pts: &[Vec2], seg: usize) -> Vec<Vec2> {
+    let n = pts.len();
+    if n < 2 {
+        return pts.to_vec();
+    }
+    let mut out = Vec::with_capacity((n - 1) * seg + 1);
+    for i in 0..n - 1 {
+        let p0 = if i == 0 { 2.0 * pts[0] - pts[1] } else { pts[i - 1] };
+        let p1 = pts[i];
+        let p2 = pts[i + 1];
+        let p3 = if i + 2 < n {
+            pts[i + 2]
+        } else {
+            2.0 * pts[n - 1] - pts[n - 2]
+        };
+        for s in 0..seg {
+            out.push(catmull_point(p0, p1, p2, p3, s as f32 / seg as f32));
+        }
+    }
+    out.push(pts[n - 1]);
+    out
+}
+
+/// Integrate the autonomous system `dx/dt = fx(x,y)`, `dy/dt = fy(x,y)` from
+/// `(x0,y0)` with classic RK4 (`steps` steps of size `dt`), returning the path
+/// in math coords. Stops early on a non-finite state.
+fn rk4_path(
+    fx: &expr::Node,
+    fy: &expr::Node,
+    x0: f32,
+    y0: f32,
+    dt: f32,
+    steps: u32,
+) -> Vec<(f32, f32)> {
+    let mut out = Vec::with_capacity(steps as usize + 1);
+    let (mut x, mut y) = (x0, y0);
+    out.push((x, y));
+    for _ in 0..steps {
+        let (k1x, k1y) = (fx.eval(x, y), fy.eval(x, y));
+        let (ax, ay) = (x + dt / 2.0 * k1x, y + dt / 2.0 * k1y);
+        let (k2x, k2y) = (fx.eval(ax, ay), fy.eval(ax, ay));
+        let (bx, by) = (x + dt / 2.0 * k2x, y + dt / 2.0 * k2y);
+        let (k3x, k3y) = (fx.eval(bx, by), fy.eval(bx, by));
+        let (cx, cy) = (x + dt * k3x, y + dt * k3y);
+        let (k4x, k4y) = (fx.eval(cx, cy), fy.eval(cx, cy));
+        x += dt / 6.0 * (k1x + 2.0 * k2x + 2.0 * k3x + k4x);
+        y += dt / 6.0 * (k1y + 2.0 * k2y + 2.0 * k3y + k4y);
+        if !x.is_finite() || !y.is_finite() {
+            break;
+        }
+        out.push((x, y));
+    }
+    out
+}
+
+/// `spline(id, p0, p1, …)` — a smooth Catmull-Rom curve passing through every
+/// given point (screen coords), with a dot at each knot (`{id}.k0`, … tagged
+/// `{id}.knots`). Declare `untraced(id)` + `draw(id, dur)` to trace it on.
+/// manic's answer to "draw a smooth curve through these data points."
+fn c_spline(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let mut pts = Vec::new();
+    for i in 1..a.len() {
+        pts.push(a.pair(i)?);
+    }
+    if pts.len() < 2 {
+        return Err(Error::new(
+            "`spline` needs at least 2 points: `spline(id, (x0,y0), (x1,y1), …)`",
+            a.name_span,
+        ));
+    }
+    for (k, p) in pts.iter().enumerate() {
+        let mut d = Entity::new(format!("{id}.k{k}"), Shape::Circle { r: 5.0 }, *p, style::MAGENTA);
+        d.stroke.fill = true;
+        d.stroke.outline = false;
+        d.tags.push(format!("{id}.knots"));
+        s.add(d);
+    }
+    let curve = catmull_rom(&pts, 24);
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts: curve }, Vec2::ZERO, style::CYAN);
+    e.stroke.width = 3.0;
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
+/// `trajectory(id, "dx/dt", "dy/dt", (x0,y0), (cx,cy), scale, [steps])` — the
+/// path a point follows under the differential system `dx/dt = fx(x,y)`,
+/// `dy/dt = fy(x,y)`, integrated (RK4) from math point `(x0,y0)` and mapped to
+/// screen as `(cx + x*scale, cy − y*scale)`. Phase portraits, orbits, spirals.
+/// (For `dy/dx = f(x,y)`, use `"1"` and `"f(x,y)"`.) Declare `untraced(id)` +
+/// `draw(id, dur)` to watch the point flow along it.
+fn c_trajectory(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let fx = expr::compile(&a.text(1)?)
+        .map_err(|m| Error::new(format!("in trajectory dx/dt: {m}"), a.span_of(1)))?;
+    let fy = expr::compile(&a.text(2)?)
+        .map_err(|m| Error::new(format!("in trajectory dy/dt: {m}"), a.span_of(2)))?;
+    let start = a.pair(3)?;
+    let center = a.pair(4)?;
+    let scale = a.num(5)?;
+    let steps = a.opt_num(6)?.map(|v| v as u32).unwrap_or(400).clamp(2, 5000);
+    let path = rk4_path(&fx, &fy, start.x, start.y, 0.02, steps);
+    let pts: Vec<Vec2> = path
+        .iter()
+        .map(|&(x, y)| Vec2::new(center.x + x * scale, center.y - y * scale))
+        .collect();
+    let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::LIME);
+    e.stroke.width = 3.0;
     e.tags.push(id);
     s.add(e);
     Ok(())
@@ -1267,6 +1648,16 @@ pub fn register(r: &mut Registry) {
     r.ctor("complexplane", c_complexplane);
     r.ctor("polarplane", c_polarplane);
     r.ctor("plot", c_plot);
+    // `tangent` is registered by the geo kit, which dispatches the calculus
+    // (curve) form here — see `geo::c_tangent`.
+    r.ctor("normal", c_normal);
+    r.ctor("slope", c_slope);
+    r.ctor("area", c_area);
+    r.ctor("integral", c_integral);
+    r.ctor("roots", c_roots);
+    r.ctor("newton", c_newton);
+    r.ctor("spline", c_spline);
+    r.ctor("trajectory", c_trajectory);
     r.ctor("vector", c_vector);
     r.ctor("numberline", c_numberline);
     r.ctor("arc", c_arc);
@@ -1280,4 +1671,132 @@ pub fn register(r: &mut Registry) {
     r.ctor("mathtable", c_table);
     r.ctor("decimaltable", c_table);
     r.ctor("integertable", c_table);
+}
+
+#[cfg(test)]
+mod graph_tests {
+    use super::expr::compile;
+    use crate::primitives::{GraphFn, GraphView};
+    use macroquad::math::Vec2;
+
+    fn graph(src: &str) -> GraphFn {
+        GraphFn {
+            node: compile(src).unwrap(),
+            center: Vec2::ZERO,
+            sx: 100.0,
+            sy: 100.0,
+            x0: 0.0,
+            x1: 6.3,
+        }
+    }
+
+    #[test]
+    fn slope_matches_calculus() {
+        let g = graph("sin(x)");
+        // d/dx sin = cos: slope at 0 ≈ 1, at π/2 ≈ 0, at π ≈ -1
+        assert!((g.slope(0.0) - 1.0).abs() < 1e-2, "sin' (0) = {}", g.slope(0.0));
+        assert!(g.slope(std::f32::consts::FRAC_PI_2).abs() < 1e-2);
+        assert!((g.slope(std::f32::consts::PI) + 1.0).abs() < 1e-2);
+    }
+
+    #[test]
+    fn tangent_is_flat_at_a_peak() {
+        // at the peak x = π/2 the tangent segment is horizontal: endpoints share y
+        let gv = GraphView::Tangent {
+            graph: graph("sin(x)"),
+            x: std::f32::consts::FRAC_PI_2,
+            half: 80.0,
+        };
+        let (a, b) = gv.segment().unwrap();
+        assert!((a.y - b.y).abs() < 0.5, "peak tangent not flat: {a:?} {b:?}");
+        assert!((b.x - a.x - 160.0).abs() < 1.0, "segment length wrong");
+    }
+
+    #[test]
+    fn normal_is_perpendicular_to_tangent() {
+        let g = graph("x*x"); // slope 2 at x=1 (screen dir not axis-aligned)
+        let t = GraphView::Tangent { graph: g.clone(), x: 1.0, half: 50.0 };
+        let n = GraphView::Normal { graph: g, x: 1.0, half: 50.0 };
+        let (ta, tb) = t.segment().unwrap();
+        let (na, nb) = n.segment().unwrap();
+        let dt = tb - ta;
+        let dn = nb - na;
+        assert!(dt.dot(dn).abs() < 1.0, "normal not ⟂ tangent: dot = {}", dt.dot(dn));
+    }
+
+    #[test]
+    fn undefined_slope_draws_no_line() {
+        // 1/x has an asymptote at 0: the segment collapses to the touch point
+        let gv = GraphView::Tangent { graph: graph("1/x"), x: 0.0, half: 80.0 };
+        let (a, b) = gv.segment().unwrap();
+        assert_eq!(a, b, "a fake tangent was drawn at an asymptote");
+    }
+
+    #[test]
+    fn area_integral_matches_calculus() {
+        // ∫₀² x² dx = 8/3 ≈ 2.667
+        let gv = GraphView::Area { graph: graph("x*x"), a: 0.0, x: 2.0, n: 100 };
+        assert!((gv.value() - 8.0 / 3.0).abs() < 1e-2, "∫x² = {}", gv.value());
+        // ∫₀^π sin = 2
+        let gv = GraphView::Area { graph: graph("sin(x)"), a: 0.0, x: std::f32::consts::PI, n: 100 };
+        assert!((gv.value() - 2.0).abs() < 1e-2, "∫sin = {}", gv.value());
+    }
+
+    #[test]
+    fn slope_readout_tracks_the_curve() {
+        let gv = GraphView::Slope { graph: graph("sin(x)"), x: 0.0, off: Vec2::ZERO };
+        assert!((gv.value() - 1.0).abs() < 1e-2); // cos(0) = 1
+    }
+
+    #[test]
+    fn integral_readout_matches_area() {
+        // ∫₀² x² dx = 8/3 — the readout value equals the swept integral
+        let gv = GraphView::Integral { graph: graph("x*x"), a: 0.0, x: 2.0, n: 80, at: Vec2::ZERO };
+        assert!((gv.value() - 8.0 / 3.0).abs() < 1e-2, "∫x² readout = {}", gv.value());
+    }
+
+    #[test]
+    fn roots_finds_zero_crossings() {
+        // sin over (0, 6.3): zeros at 0…, π, 2π — π and 2π are interior crossings
+        let rs = graph("sin(x)").roots();
+        assert!(rs.iter().any(|&r| (r - std::f32::consts::PI).abs() < 1e-2), "no π root: {rs:?}");
+        assert!(rs.iter().any(|&r| (r - std::f32::consts::TAU).abs() < 1e-2), "no 2π root: {rs:?}");
+    }
+
+    #[test]
+    fn newton_converges_to_a_root() {
+        // x² − 2 from x0 = 3 → √2 ≈ 1.4142; last curve point maps back to it
+        let g = graph("x*x - 2");
+        let pts = g.newton_path(3.0, 20);
+        let last = pts.last().unwrap();
+        let x = (last.x - g.center.x) / g.sx; // screen → math
+        assert!((x - 2f32.sqrt()).abs() < 1e-2, "Newton landed at x = {x}, want √2");
+    }
+
+    #[test]
+    fn spline_passes_through_its_knots() {
+        let knots = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(100.0, 80.0),
+            Vec2::new(220.0, -30.0),
+            Vec2::new(300.0, 50.0),
+        ];
+        let curve = super::catmull_rom(&knots, 16);
+        // each knot appears exactly at a segment boundary (i*seg)
+        for (i, k) in knots.iter().enumerate() {
+            let at = &curve[(i * 16).min(curve.len() - 1)];
+            assert!(at.distance(*k) < 1e-2, "knot {i} missed: {at:?} vs {k:?}");
+        }
+    }
+
+    #[test]
+    fn trajectory_orbit_stays_on_its_circle() {
+        // dx/dt = -y, dy/dt = x is a pure rotation: |(x,y)| is conserved
+        let fx = compile("-y").unwrap();
+        let fy = compile("x").unwrap();
+        let path = super::rk4_path(&fx, &fy, 2.0, 0.0, 0.02, 400);
+        for &(x, y) in &path {
+            assert!(((x * x + y * y).sqrt() - 2.0).abs() < 1e-2, "left the r=2 orbit at ({x},{y})");
+        }
+    }
 }

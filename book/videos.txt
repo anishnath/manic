@@ -36,6 +36,13 @@ ex-function_graph|z5kvUfwjJ-k|Graph ANY Function From a Formula — manic
 ex-area_under_curve|_UzChCEwHyY|The Integral, Built From Rectangles — manic
 ex-riemann_rainbow|fs6X8MeIIgQ|Riemann Sums, in Rainbow — manic
 ex-riemann_readout|mIoDoCypQaQ|Watch a Riemann Sum Converge — manic
+ex-tangent|D9PHslz3e2U|The Tangent Line, Sliding Along a Curve — manic
+ex-analysis|SLennxNy6v4|Slope, Tangent, Area & Integral on One Curve — manic
+ex-newton|R7wwwW-_tP4|Newton's Method, Chasing a Root — manic
+ex-spline|luCo9NmmbaA|A Smooth Curve Through Any Points — manic
+ex-trajectory|-QeYAZ2GHVQ|Phase Portrait: Flowing Into a Spiral — manic
+ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integral — manic
+ex-inverse-derivatives|-HEjdSVXdXc|Why Inverse Functions Have Reciprocal Slopes — manic
 
 # ---- examples: linear algebra & tables ----
 ex-matrix|aT4DHaAfrIk|Matrices, Animated — manic

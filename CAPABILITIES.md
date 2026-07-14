@@ -289,13 +289,45 @@ out of nothing" and edge/point origins are scriptable rather than one call.
   0→1 about the anchor) would move `GrowFromCenter` / `SpinInFromNothing` to
   full support in a few lines.
 
-### Deeper math — how it can elevate the engine (future, no implementation committed)
+### Deeper math — how it can elevate the engine (mostly future)
 The current evaluator is enough to calculate values and sample plots. Real math
-would elevate manic when it makes a diagram *depend on a mathematical truth*:
+elevates manic when it makes a diagram *depend on a mathematical truth*:
 an intersection remains correct as inputs move, a tangent comes from the plotted
 function, an eigenvector is computed rather than authored, or an optimisation
 visibly converges. The goal is a small, dependable mathematical core, not a
 general-purpose CAS embedded in the DSL.
+
+**First rung shipped — a curve-analysis family.** `plot` now *remembers* its
+function + screen mapping on the entity (`Entity::graph`), and a shared
+`Entity::graph_view` (enum `GraphView`) drives four constructions that all
+*query the curve the author already drew* and animate one moving parameter `x`
+(`to(id, x, target, dur)` → `Prop::PlotX`):
+- **`tangent(id, curve, x, [len])`** — tangent line + contact dot; slope from the
+  function (numerical central difference), correct as it slides, honest at
+  corners/asymptotes (dot only, no fake line).
+- **`normal(id, curve, x, [len])`** — the perpendicular line + dot.
+- **`slope(id, curve, x, [(dx,dy)])`** — a live slope *number* riding the point.
+- **`area(id, curve, a, b, [n])`** — the filled region under the curve,
+  sweepable open via `to(id, x, b, dur)`.
+- **`integral(id, curve, a, b, [(px,py)])`** — a live number (composite Simpson)
+  that climbs to the true integral as it sweeps, in step with `area`.
+- **`roots(id, curve, [color])`** — a dot at every zero-crossing (sign-scan +
+  bisection).
+- **`newton(id, curve, x0, [steps])`** — the Newton's-method zig-zag from a guess,
+  drawn on with `draw` to animate the walk to a root.
+
+Beyond the curve-analysis family (these take points/formulas, not a `plot` id):
+- **`spline(id, p0, p1, …)`** — a smooth Catmull-Rom curve through given points
+  (interpolation), with knot dots.
+- **`trajectory(id, "dx/dt", "dy/dt", (x0,y0), (cx,cy), scale, [steps])`** — an
+  RK4-integrated ODE path (orbits, spirals, phase portraits).
+
+See `examples/tangent.manic` and `examples/analysis.manic`; unit tests in
+`kits::math::graph_tests` check the numbers against calculus (slope, ∫x²=8/3,
+∫sin=2, normal ⟂ tangent). This is the pattern the rest should follow: query the
+drawn function, return both a value and a drawable. Natural next step: expose the
+integral/slope as a bindable value (`let a = area_of(f,0,2)`) once the arg
+evaluator can reach the scene.
 
 - **Robust numerical geometry** — tolerance-aware orientation, intersection,
   containment, root-finding, and curve-parameter routines would make dynamic
@@ -307,12 +339,13 @@ general-purpose CAS embedded in the DSL.
   determinant, diagonalisation, least-squares fits, and 3D camera/object
   transforms derived from data. `nalgebra` is the likely focused dependency
   when one of these scenes is built.
-- **Calculus and numerical analysis** — differentiation, integration,
-  root-finding, interpolation, and ODE stepping would unlock tangents/normals
-  attached to `plot`, Riemann sums converging to an integral, Newton iteration,
-  vector fields, trajectories, and phase portraits. Numerical methods are often
-  the right first step because their intermediate states are already an
-  animation storyboard.
+- **Calculus and numerical analysis** ✅ **shipped** — differentiation
+  (`tangent`/`slope`/`normal`), definite integration (`area`/`integral`,
+  composite Simpson), root-finding (`roots` via sign-scan + bisection, and
+  `newton` — the Newton's-method zig-zag), interpolation (`spline`, Catmull-Rom),
+  and ODE stepping (`trajectory`, RK4 — orbits, spirals, phase portraits). The
+  whole everyday numerical-calculus toolkit is in; the only remaining calculus
+  work is niche (stiff/adaptive ODE solvers, higher-order interpolation).
 - **Constraints and optimisation** — a small solver for distances, angles,
   incidence, and bounds would let authors state a construction's invariant
   instead of manually updating its points. It unlocks movable geometry,

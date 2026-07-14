@@ -810,6 +810,11 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
     // position, rotation, and size).
     let (prop, target) = if let Some(cur) = s.get(&id) {
         match prop_name.as_str() {
+            // for a graph view (tangent/normal/slope/area), `x` is the moving
+            // parameter in the curve's own units — slide it, everything follows
+            "x" if cur.graph_view.is_some() => {
+                (Prop::PlotX, TargetValue::Abs(Value::F(a.num(2)?)))
+            }
             "x" => (
                 Prop::Pos,
                 TargetValue::Abs(Value::V(Vec2::new(a.num(2)?, cur.pos.y))),
