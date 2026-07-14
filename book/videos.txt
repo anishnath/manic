@@ -85,7 +85,7 @@ ex-hue_wave|OxZUBYYEtAk|A Wave of Colour — manic
 ex-hill_run|pzRBP1qbncc|A Tiny Animated Scene — manic
 ex-equal_cuts|AThpTutdcbE|Halving a Circle, Again & Again — manic
 ex-archimedes_pi|mfK_823Mb4I|How Archimedes Found π — manic
-ex-pieday||Happy Pi Day — a Generative π Card in manic
+ex-pieday|2sCPIyi1MB8|Happy Pi Day — a Generative π Card in manic
 
 # ---- examples: boolean shapes ----
 ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic
@@ -98,4 +98,4 @@ ex-param3|qs25EhKU_pE|A Torus, a Sphere & a Möbius Strip — manic
 ex-extrude3|VIVZVaGmIDU|Extrude 2D Shapes Into 3D Solids (with CSG) — manic
 ex-morph3|YMBQbAIlfQM|Morph a Cube Into a Sphere — manic
 ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
-ex-double-integral3||The Double Integral, in 3D — Volume as Finer Columns — manic
+ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic
