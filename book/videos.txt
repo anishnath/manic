@@ -85,6 +85,7 @@ ex-hue_wave|OxZUBYYEtAk|A Wave of Colour — manic
 ex-hill_run|pzRBP1qbncc|A Tiny Animated Scene — manic
 ex-equal_cuts|AThpTutdcbE|Halving a Circle, Again & Again — manic
 ex-archimedes_pi|mfK_823Mb4I|How Archimedes Found π — manic
+ex-pieday||Happy Pi Day — a Generative π Card in manic
 
 # ---- examples: boolean shapes ----
 ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic

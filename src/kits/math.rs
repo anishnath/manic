@@ -15,33 +15,17 @@ use crate::primitives::{Counter, Entity, FontKind, GraphFn, GraphSrc, GraphView,
 use crate::scene::Scene;
 use crate::style;
 
-/// Evaluate a named function at `x`. Returns `None` for names we don't know
-/// and non-finite results (asymptotes), so the caller can break the polyline.
-fn eval(name: &str, x: f32) -> Option<f32> {
-    let y = match name {
-        "sin" => x.sin(),
-        "cos" => x.cos(),
-        "tan" => x.tan(),
-        "parabola" | "sq" | "square" => x * x,
-        "cubic" | "cube" => x * x * x,
-        "line" | "id" | "identity" => x,
-        "abs" => x.abs(),
-        "exp" => x.exp(),
-        "sqrt" if x >= 0.0 => x.sqrt(),
-        "log" | "ln" if x > 0.0 => x.ln(),
-        "recip" | "inv" if x.abs() > 1e-3 => 1.0 / x,
-        "gauss" | "bell" => (-x * x).exp(),
-        _ => return None,
-    };
-    y.is_finite().then_some(y)
-}
-
-/// The equivalent formula (in `x`) for a bareword named function, so `plot` can
-/// remember *every* graph as a compiled expression tree — one representation
-/// that `tangent`/`slope` can query, whether the author wrote `sin` or
-/// `"sin(x)+0.3*cos(4*x)"`.
-fn named_formula(name: &str) -> &'static str {
-    match name {
+/// **The bareword named-function family** — the single source of truth. Each
+/// entry maps a bareword (and its aliases) to an equivalent formula in `x`, so
+/// `plot(f, …, cos, …)` becomes exactly the graph `"cos(x)"` would: it samples
+/// the same way and is queryable by `tangent`/`slope`/`deriv` etc. Returns
+/// `None` for an unknown name.
+///
+/// To ADD a variant, add one arm here (any valid formula-string function is
+/// allowed — see `expr::func`); everything else (validation, sampling, the
+/// stored `GraphFn`) derives from this automatically.
+fn named_formula(name: &str) -> Option<&'static str> {
+    Some(match name {
         "sin" => "sin(x)",
         "cos" => "cos(x)",
         "tan" => "tan(x)",
@@ -54,35 +38,19 @@ fn named_formula(name: &str) -> &'static str {
         "log" | "ln" => "ln(x)",
         "recip" | "inv" => "1/x",
         "gauss" | "bell" => "exp(-x*x)",
-        _ => "x",
-    }
+        // the cardinal sine
+        "sinc" => "sin(x)/x",
+        // activation / shaping functions
+        "sigmoid" | "logistic" => "1/(1 + exp(-x))",
+        "relu" => "0.5*(x + abs(x))",
+        "step" | "heaviside" => "0.5*(1 + sign(x))",
+        _ => return None,
+    })
 }
 
-fn known_fn(name: &str) -> bool {
-    matches!(
-        name,
-        "sin"
-            | "cos"
-            | "tan"
-            | "parabola"
-            | "sq"
-            | "square"
-            | "cubic"
-            | "cube"
-            | "line"
-            | "id"
-            | "identity"
-            | "abs"
-            | "exp"
-            | "sqrt"
-            | "log"
-            | "ln"
-            | "recip"
-            | "inv"
-            | "gauss"
-            | "bell"
-    )
-}
+/// A human-readable list of the bareword names, for error messages.
+const NAMED_FN_LIST: &str = "sin, cos, tan, parabola, cubic, line, abs, exp, \
+    sqrt, log, recip, gauss, sinc, sigmoid, relu, step";
 
 /// A tiny single-variable expression evaluator, so `plot` can take a formula
 /// string like `"cos(t) + 0.5*cos(7*t) + (1/7)*cos(14*t)"` — manic's answer to
@@ -694,50 +662,35 @@ fn c_plot(s: &mut Scene, a: &Args) -> Result<(), Error> {
         (-d, d)
     };
 
-    // arg 4 is either a "formula string" or a bare named-function word.
-    enum F {
-        Named(String),
-        Expr(expr::Node),
-    }
-    let f = if let Ok(src) = a.text(4) {
+    // arg 4 is either a "formula string" or a bareword named function — both
+    // compile to one expression tree, so sampling and the stored `GraphFn` share
+    // a single representation (the author never retypes the formula).
+    let node = if let Ok(src) = a.text(4) {
         expr::compile(&src)
-            .map(F::Expr)
             .map_err(|m| Error::new(format!("in plot formula: {m}"), a.span_of(4)))?
     } else {
         let name = a.ident(4)?;
-        if !known_fn(&name) {
-            return Err(Error::new(
+        let formula = named_formula(&name).ok_or_else(|| {
+            Error::new(
                 format!(
-                    "unknown function `{name}` — use a named one (sin, cos, tan, parabola, cubic, line, abs, exp, sqrt, log, recip, gauss) or a \"formula\" like \"cos(x)+0.5*sin(3*x)\""
+                    "unknown function `{name}` — use a named one ({NAMED_FN_LIST}) or a \"formula\" like \"cos(x)+0.5*sin(3*x)\""
                 ),
                 a.span_of(4),
-            ));
-        }
-        F::Named(name)
-    };
-    let sample = |x: f32| -> Option<f32> {
-        match &f {
-            F::Named(n) => eval(n, x),
-            F::Expr(node) => node.eval(x, 0.0).is_finite().then(|| node.eval(x, 0.0)),
-        }
+            )
+        })?;
+        expr::compile(formula).expect("named-function formula always compiles")
     };
 
     const N: usize = 600;
     let mut pts = Vec::with_capacity(N + 1);
     for i in 0..=N {
         let x = x0 + (x1 - x0) * i as f32 / N as f32;
-        if let Some(y) = sample(x) {
+        let y = node.eval(x, 0.0);
+        // non-finite (asymptotes, sqrt/log out of range) breaks the polyline
+        if y.is_finite() {
             pts.push(Vec2::new(c.x + x * sx, c.y - y * sy));
         }
     }
-    // Remember the function + mapping so `tangent`/`slope` can query this graph
-    // by id — the author never retypes the formula. Every graph becomes one
-    // expression tree (named functions compile through `named_formula`).
-    let node = match f {
-        F::Named(name) => expr::compile(named_formula(&name))
-            .expect("named-function formula always compiles"),
-        F::Expr(node) => node,
-    };
     let mut e = Entity::new(id.clone(), Shape::Polyline { pts }, Vec2::ZERO, style::CYAN);
     e.stroke = stroked(style::CYAN, 3.0);
     e.graph = Some(GraphFn {
@@ -2059,6 +2012,19 @@ mod graph_tests {
             x0: 0.0,
             x1: 6.3,
         }
+    }
+
+    #[test]
+    fn named_functions_resolve_and_evaluate() {
+        use super::named_formula;
+        assert!(named_formula("sinc").is_some() && named_formula("relu").is_some());
+        assert!(named_formula("definitely-not-a-fn").is_none());
+        // dropped: rcos/rsin (collide with the r*cos/r*sin glued-name typo)
+        assert!(named_formula("rcos").is_none() && named_formula("rsin").is_none());
+        let f = |n: &str| compile(named_formula(n).unwrap()).unwrap();
+        assert!(f("relu").eval(-2.0, 0.0).abs() < 1e-4 && (f("relu").eval(3.0, 0.0) - 3.0).abs() < 1e-4);
+        assert!((f("sigmoid").eval(0.0, 0.0) - 0.5).abs() < 1e-4);
+        assert!((f("step").eval(2.0, 0.0) - 1.0).abs() < 1e-4 && f("step").eval(-2.0, 0.0).abs() < 1e-4);
     }
 
     #[test]

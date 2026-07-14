@@ -337,7 +337,12 @@ entities named `{id}.x`, `{id}.tN`, etc.
 
 Named `plot` functions (`fn`): `sin`, `cos`, `tan`, `parabola` (`sq`, `square`),
 `cubic` (`cube`), `line` (`id`, `identity`), `abs`, `exp`, `sqrt`, `log`
-(`ln`), `recip` (`inv`), `gauss` (`bell`).
+(`ln`), `recip` (`inv`), `gauss` (`bell`), `sinc` (`sin x / x`), `sigmoid`
+(`logistic`), `relu`, `step` (`heaviside`). These are *plot barewords* only —
+each is shorthand for a formula (e.g. `sinc` = `"sin(x)/x"`); to use one inside
+an expression, write that formula. The whole family lives in one table
+(`named_formula` in `src/kits/math.rs`) — add an arm there and everything else
+derives from it.
 
 Formula strings accept the variable `x` (alias `t`); constants `pi`, `e`, `tau`;
 operators `+ - * / ^` and unary `-`; and the functions `sin`, `cos`, `tan`,
