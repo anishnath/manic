@@ -1,360 +1,137 @@
-title("Stunning Collatz Conjecture");
+title("Directed Graph with Curved Edges");
 canvas("16:9");
-template("terminal");
 
-let x0 = 100;
-let dx = (w - 200)/111;
-let baseY = cy + 215;
-let sy = 39;
+text(head, (cx, 70), "DiGraph: curved directed edges");
+size(head, 28);
+color(head, fg);
+display(head);
 
-text(head, (cx, 44), "The Collatz Conjecture");
-text(sub, (cx, 78), "a simple rule that turns arithmetic into a storm");
-text(cap, (cx, h - 34), "");
-size(head, 38);
-size(sub, 21);
-size(cap, 23);
-bold(head);
-color(head, cyan);
-color(sub, dim);
-color(cap, fg);
-hidden(head);
-hidden(sub);
-hidden(cap);
+dot(nodeA, (300, 300), 24);
+dot(nodeB, (620, 220), 24);
+dot(nodeC, (620, 430), 24);
+dot(nodeD, (940, 300), 24);
 
-for i in 0..80 {
-dot(star{i}, (cx + (430 + 55sin(tau*i/80))cos(tau*i/80), cy + (245 + 32cos(3tau*i/80))sin(tau*i*80)), 2);
-hue(star{i}, 360i/80);
-opacity(star{i}, 0.55);
-hidden(star{i});
-tag(star{i}, stars);
+color(nodeA, cyan);
+color(nodeB, cyan);
+color(nodeC, cyan);
+color(nodeD, cyan);
+
+text(labelA, (300, 300), "A");
+text(labelB, (620, 220), "B");
+text(labelC, (620, 430), "C");
+text(labelD, (940, 300), "D");
+
+size(labelA, 20);
+size(labelB, 20);
+size(labelC, 20);
+size(labelD, 20);
+
+color(labelA, fg);
+color(labelB, fg);
+color(labelC, fg);
+color(labelD, fg);
+
+spline(edgeAB, (300, 300), (390, 170), (520, 150), (620, 220));
+spline(edgeBA, (620, 220), (520, 80), (390, 100), (300, 300));
+spline(edgeAC, (300, 300), (400, 430), (520, 500), (620, 430));
+spline(edgeCA, (620, 430), (520, 560), (390, 520), (300, 300));
+spline(edgeBD, (620, 220), (730, 100), (850, 130), (940, 300));
+spline(edgeDB, (940, 300), (850, 40), (730, 50), (620, 220));
+spline(edgeCD, (620, 430), (730, 550), (850, 520), (940, 300));
+spline(edgeDC, (940, 300), (850, 600), (730, 590), (620, 430));
+
+arrow(headAB, (575, 190), (620, 220));
+arrow(headBA, (345, 205), (300, 300));
+arrow(headAC, (575, 445), (620, 430));
+arrow(headCA, (345, 325), (300, 300));
+arrow(headBD, (895, 235), (940, 300));
+arrow(headDB, (665, 195), (620, 220));
+arrow(headCD, (895, 370), (940, 300));
+arrow(headDC, (665, 455), (620, 430));
+
+color(edgeAB, dim);
+color(edgeBA, dim);
+color(edgeAC, dim);
+color(edgeCA, dim);
+color(edgeBD, dim);
+color(edgeDB, dim);
+color(edgeCD, dim);
+color(edgeDC, dim);
+
+color(headAB, cyan);
+color(headBA, cyan);
+color(headAC, cyan);
+color(headCA, cyan);
+color(headBD, cyan);
+color(headDB, cyan);
+color(headCD, cyan);
+color(headDC, cyan);
+
+stroke(edgeAB, 4);
+stroke(edgeBA, 4);
+stroke(edgeAC, 4);
+stroke(edgeCA, 4);
+stroke(edgeBD, 4);
+stroke(edgeDB, 4);
+stroke(edgeCD, 4);
+stroke(edgeDC, 4);
+
+stroke(headAB, 4);
+stroke(headBA, 4);
+stroke(headAC, 4);
+stroke(headCA, 4);
+stroke(headBD, 4);
+stroke(headDB, 4);
+stroke(headCD, 4);
+stroke(headDC, 4);
+
+untraced(edgeAB);
+untraced(edgeBA);
+untraced(edgeAC);
+untraced(edgeCA);
+untraced(edgeBD);
+untraced(edgeDB);
+untraced(edgeCD);
+untraced(edgeDC);
+
+untraced(headAB);
+untraced(headBA);
+untraced(headAC);
+untraced(headCA);
+untraced(headBD);
+untraced(headDB);
+untraced(headCD);
+untraced(headDC);
+
+caption(info, "Arrows show direction; paired curves show reciprocal edges.", (cx, h - 55), 20, dim);
+hidden(info.words);   // caption words are `{id}.w0..` tagged `{id}.words` — address that, not bare `info`
+
+show(nodeA, 0.4);
+show(nodeB, 0.4);
+show(nodeC, 0.4);
+show(nodeD, 0.4);
+show(labelA, 0.4);
+show(labelB, 0.4);
+show(labelC, 0.4);
+show(labelD, 0.4);
+show(head, 0.5);
+show(info.words, 0.5);
+
+stagger(0.12) {
+draw(edgeAB, 0.7);
+draw(headAB, 0.25);
+draw(edgeBA, 0.7);
+draw(headBA, 0.25);
+draw(edgeAC, 0.7);
+draw(headAC, 0.25);
+draw(edgeCA, 0.7);
+draw(headCA, 0.25);
+draw(edgeBD, 0.7);
+draw(headBD, 0.25);
+draw(edgeDB, 0.7);
+draw(headDB, 0.25);
+draw(edgeCD, 0.7);
+draw(headCD, 0.25);
+draw(edgeDC, 0.7);
+draw(headDC, 0.25);
 }
-
-for i in 0..18 {
-circle(halo{i}, (cx, cy + 40), 42 + i*24);
-hue(halo{i}, 200 + 8i);
-stroke(halo{i}, 1);
-opacity(halo{i}, 0.09);
-untraced(halo{i});
-tag(halo{i}, halos);
-}
-
-rect(ruleCard, (cx - 345, 154), 430, 132);
-rect(statusCard, (cx + 310, 154), 360, 132);
-filled(ruleCard);
-filled(statusCard);
-color(ruleCard, panel);
-color(statusCard, panel);
-opacity(ruleCard, 0.44);
-opacity(statusCard, 0.44);
-glow(ruleCard, 10);
-glow(statusCard, 10);
-hidden(ruleCard);
-hidden(statusCard);
-
-text(rule0, (cx - 345, 112), "the rule");
-text(rule1, (cx - 345, 150), "even:  n -> n / 2");
-text(rule2, (cx - 345, 184), "odd:   n -> 3n + 1");
-size(rule0, 27);
-size(rule1, 23);
-size(rule2, 23);
-bold(rule0);
-color(rule0, gold);
-color(rule1, cyan);
-color(rule2, magenta);
-hidden(rule0);
-hidden(rule1);
-hidden(rule2);
-
-counter(now, (cx + 310, 143), 27, 0, "n = ", "");
-counter(steps, (cx + 310, 183), 0, 0, "steps = ", "");
-size(now, 35);
-size(steps, 25);
-color(now, lime);
-color(steps, gold);
-hidden(now);
-hidden(steps);
-
-text(chartTitle, (cx, cy - 72), "hailstone orbit from 27");
-text(chartSub, (cx, cy - 43), "vertical height is ln(n), so one wild peak can fit on screen");
-size(chartTitle, 26);
-size(chartSub, 18);
-color(chartTitle, gold);
-color(chartSub, dim);
-hidden(chartTitle);
-hidden(chartSub);
-
-line(axisX, (x0 - 22, baseY), (x0 + 111*dx + 22, baseY));
-line(axisY, (x0 - 22, baseY), (x0 - 22, baseY - 380));
-stroke(axisX, 2);
-stroke(axisY, 2);
-color(axisX, dim);
-color(axisY, dim);
-untraced(axisX);
-untraced(axisY);
-
-spline(hail,
-(x0 + 0*dx, baseY - ln(27)sy),
-(x0 + 1dx, baseY - ln(82)sy),
-(x0 + 2dx, baseY - ln(41)sy),
-(x0 + 3dx, baseY - ln(124)sy),
-(x0 + 4dx, baseY - ln(62)sy),
-(x0 + 5dx, baseY - ln(31)sy),
-(x0 + 6dx, baseY - ln(94)sy),
-(x0 + 7dx, baseY - ln(47)sy),
-(x0 + 8dx, baseY - ln(142)sy),
-(x0 + 9dx, baseY - ln(71)sy),
-(x0 + 10dx, baseY - ln(214)sy),
-(x0 + 11dx, baseY - ln(107)sy),
-(x0 + 12dx, baseY - ln(322)sy),
-(x0 + 13dx, baseY - ln(161)sy),
-(x0 + 14dx, baseY - ln(484)sy),
-(x0 + 15dx, baseY - ln(242)sy),
-(x0 + 16dx, baseY - ln(121)sy),
-(x0 + 17dx, baseY - ln(364)sy),
-(x0 + 18dx, baseY - ln(182)sy),
-(x0 + 19dx, baseY - ln(91)sy),
-(x0 + 20dx, baseY - ln(274)sy),
-(x0 + 21dx, baseY - ln(137)sy),
-(x0 + 22dx, baseY - ln(412)sy),
-(x0 + 23dx, baseY - ln(206)sy),
-(x0 + 24dx, baseY - ln(103)sy),
-(x0 + 25dx, baseY - ln(310)sy),
-(x0 + 26dx, baseY - ln(155)sy),
-(x0 + 27dx, baseY - ln(466)sy),
-(x0 + 28dx, baseY - ln(233)sy),
-(x0 + 29dx, baseY - ln(700)sy),
-(x0 + 30dx, baseY - ln(350)sy),
-(x0 + 31dx, baseY - ln(175)sy),
-(x0 + 32dx, baseY - ln(526)sy),
-(x0 + 33dx, baseY - ln(263)sy),
-(x0 + 34dx, baseY - ln(790)sy),
-(x0 + 35dx, baseY - ln(395)sy),
-(x0 + 36dx, baseY - ln(1186)sy),
-(x0 + 37dx, baseY - ln(593)sy),
-(x0 + 38dx, baseY - ln(1780)sy),
-(x0 + 39dx, baseY - ln(890)sy),
-(x0 + 40dx, baseY - ln(445)sy),
-(x0 + 41dx, baseY - ln(1336)sy),
-(x0 + 42dx, baseY - ln(668)sy),
-(x0 + 43dx, baseY - ln(334)sy),
-(x0 + 44dx, baseY - ln(167)sy),
-(x0 + 45dx, baseY - ln(502)sy),
-(x0 + 46dx, baseY - ln(251)sy),
-(x0 + 47dx, baseY - ln(754)sy),
-(x0 + 48dx, baseY - ln(377)sy),
-(x0 + 49dx, baseY - ln(1132)sy),
-(x0 + 50dx, baseY - ln(566)sy),
-(x0 + 51dx, baseY - ln(283)sy),
-(x0 + 52dx, baseY - ln(850)sy),
-(x0 + 53dx, baseY - ln(425)sy),
-(x0 + 54dx, baseY - ln(1276)sy),
-(x0 + 55dx, baseY - ln(638)sy),
-(x0 + 56dx, baseY - ln(319)sy),
-(x0 + 57dx, baseY - ln(958)sy),
-(x0 + 58dx, baseY - ln(479)sy),
-(x0 + 59dx, baseY - ln(1438)sy),
-(x0 + 60dx, baseY - ln(719)sy),
-(x0 + 61dx, baseY - ln(2158)sy),
-(x0 + 62dx, baseY - ln(1079)sy),
-(x0 + 63dx, baseY - ln(3238)sy),
-(x0 + 64dx, baseY - ln(1619)sy),
-(x0 + 65dx, baseY - ln(4858)sy),
-(x0 + 66dx, baseY - ln(2429)sy),
-(x0 + 67dx, baseY - ln(7288)sy),
-(x0 + 68dx, baseY - ln(3644)sy),
-(x0 + 69dx, baseY - ln(1822)sy),
-(x0 + 70dx, baseY - ln(911)sy),
-(x0 + 71dx, baseY - ln(2734)sy),
-(x0 + 72dx, baseY - ln(1367)sy),
-(x0 + 73dx, baseY - ln(4102)sy),
-(x0 + 74dx, baseY - ln(2051)sy),
-(x0 + 75dx, baseY - ln(6154)sy),
-(x0 + 76dx, baseY - ln(3077)sy),
-(x0 + 77dx, baseY - ln(9232)sy),
-(x0 + 78dx, baseY - ln(4616)sy),
-(x0 + 79dx, baseY - ln(2308)sy),
-(x0 + 80dx, baseY - ln(1154)sy),
-(x0 + 81dx, baseY - ln(577)sy),
-(x0 + 82dx, baseY - ln(1732)sy),
-(x0 + 83dx, baseY - ln(866)sy),
-(x0 + 84dx, baseY - ln(433)sy),
-(x0 + 85dx, baseY - ln(1300)sy),
-(x0 + 86dx, baseY - ln(650)sy),
-(x0 + 87dx, baseY - ln(325)sy),
-(x0 + 88dx, baseY - ln(976)sy),
-(x0 + 89dx, baseY - ln(488)sy),
-(x0 + 90dx, baseY - ln(244)sy),
-(x0 + 91dx, baseY - ln(122)sy),
-(x0 + 92dx, baseY - ln(61)sy),
-(x0 + 93dx, baseY - ln(184)sy),
-(x0 + 94dx, baseY - ln(92)sy),
-(x0 + 95dx, baseY - ln(46)sy),
-(x0 + 96dx, baseY - ln(23)sy),
-(x0 + 97dx, baseY - ln(70)sy),
-(x0 + 98dx, baseY - ln(35)sy),
-(x0 + 99dx, baseY - ln(106)sy),
-(x0 + 100dx, baseY - ln(53)sy),
-(x0 + 101dx, baseY - ln(160)sy),
-(x0 + 102dx, baseY - ln(80)sy),
-(x0 + 103dx, baseY - ln(40)sy),
-(x0 + 104dx, baseY - ln(20)sy),
-(x0 + 105dx, baseY - ln(10)sy),
-(x0 + 106dx, baseY - ln(5)sy),
-(x0 + 107dx, baseY - ln(16)sy),
-(x0 + 108dx, baseY - ln(8)sy),
-(x0 + 109dx, baseY - ln(4)sy),
-(x0 + 110dx, baseY - ln(2)sy),
-(x0 + 111dx, baseY - ln(1)*sy)
-);
-
-stroke(hail, 5);
-color(hail, gold);
-glow(hail, 18);
-untraced(hail);
-hidden(hail.knots);
-
-line(peakLine, (x0 + 77dx, baseY), (x0 + 77dx, baseY - ln(9232)*sy));
-stroke(peakLine, 3);
-color(peakLine, magenta);
-glow(peakLine, 14);
-untraced(peakLine);
-
-dot(startDot, (x0 + 0*dx, baseY - ln(27)sy), 7);
-dot(liftDot, (x0 + 36dx, baseY - ln(1186)sy), 6);
-dot(highDot, (x0 + 67dx, baseY - ln(7288)sy), 7);
-dot(peakDot, (x0 + 77dx, baseY - ln(9232)sy), 9);
-dot(endDot, (x0 + 111dx, baseY - ln(1)*sy), 9);
-color(startDot, lime);
-color(liftDot, cyan);
-color(highDot, magenta);
-color(peakDot, magenta);
-color(endDot, gold);
-glow(startDot, 12);
-glow(liftDot, 10);
-glow(highDot, 12);
-glow(peakDot, 20);
-glow(endDot, 18);
-tag(startDot, milestoneDots);
-tag(liftDot, milestoneDots);
-tag(highDot, milestoneDots);
-tag(peakDot, milestoneDots);
-tag(endDot, milestoneDots);
-hidden(milestoneDots);
-
-text(startLab, (x0 + 4, baseY - ln(27)sy - 32), "start 27");
-text(liftLab, (x0 + 36dx, baseY - ln(1186)sy - 30), "1186");
-text(highLab, (x0 + 67dx - 8, baseY - ln(7288)sy - 30), "7288");
-text(peakLab, (x0 + 77dx + 35, baseY - ln(9232)sy - 8), "peak 9232");
-text(endLab, (x0 + 111dx - 20, baseY + 28), "falls to 1");
-size(startLab, 18);
-size(liftLab, 18);
-size(highLab, 18);
-size(peakLab, 22);
-size(endLab, 21);
-color(startLab, lime);
-color(liftLab, cyan);
-color(highLab, magenta);
-color(peakLab, magenta);
-color(endLab, gold);
-tag(startLab, milestoneLabels);
-tag(liftLab, milestoneLabels);
-tag(highLab, milestoneLabels);
-tag(peakLab, milestoneLabels);
-tag(endLab, milestoneLabels);
-hidden(milestoneLabels);
-
-bracelabel(stepBrace, (x0, baseY + 38), (x0 + 111*dx, baseY + 38), "111 steps", 18);
-color(stepBrace, dim);
-stroke(stepBrace, 2);
-hidden(stepBrace);
-
-text(loop, (cx + 330, baseY - 72), "4 -> 2 -> 1");
-text(final, (cx, h - 72), "conjecture: every positive starting value eventually reaches this loop");
-size(loop, 35);
-size(final, 22);
-bold(loop);
-color(loop, gold);
-color(final, lime);
-glow(loop, 15);
-hidden(loop);
-hidden(final);
-
-par {
-show(head, 0.7);
-show(sub, 0.7);
-show(cap, 0.5);
-}
-
-stagger(0.012) {
-for i in 0..80 {
-show(star{i}, 0.25);
-}
-}
-
-par {
-draw(halos, 1.5);
-show(ruleCard, 0.6);
-show(statusCard, 0.6);
-show(rule0, 0.5);
-show(rule1, 0.5);
-show(rule2, 0.5);
-show(now, 0.5);
-show(steps, 0.5);
-}
-
-say(cap, "Start at 27. If the number is odd, it jumps upward; if even, it cools down.", 0.5);
-
-par {
-show(chartTitle, 0.5);
-show(chartSub, 0.5);
-draw(axisX, 0.6);
-draw(axisY, 0.6);
-show(startDot, 0.35);
-show(startLab, 0.35);
-}
-
-say(cap, "The path looks random, but every move follows one tiny deterministic rule.", 0.5);
-
-par {
-draw(hail, 5.6, smooth);
-to(now, value, 9232, 5.6, smooth);
-to(steps, value, 77, 5.6, smooth);
-}
-
-par {
-show(liftDot, 0.3);
-show(highDot, 0.3);
-show(peakDot, 0.4);
-show(liftLab, 0.3);
-show(highLab, 0.3);
-show(peakLab, 0.4);
-draw(peakLine, 0.8);
-}
-
-pulse(peakDot, 0.8);
-say(cap, "From 27 it climbs to 9232 before the long descent begins.", 0.5);
-
-par {
-to(now, value, 1, 2.4, smooth);
-to(steps, value, 111, 2.4, smooth);
-show(endDot, 0.5);
-show(endLab, 0.5);
-show(stepBrace, 0.7);
-}
-
-par {
-show(loop, 0.6);
-show(final, 0.6);
-pulse(endDot, 0.8);
-pulse(loop, 0.8);
-}
-
-say(cap, "No one has proved that every starting number must fall into 4, 2, 1.", 0.5);
-
-par {
-flash(hail, gold);
-pulse(final, 1.0);
-pulse(head, 1.0);
-}
-
-wait(1.5);

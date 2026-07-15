@@ -46,6 +46,7 @@ pub mod kits;
 pub mod lang;
 pub mod layout;
 pub mod movie;
+pub mod ode;
 pub mod player;
 pub mod preset;
 pub mod primitives;

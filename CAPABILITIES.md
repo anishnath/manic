@@ -421,7 +421,9 @@ evaluator can reach the scene.
   (gradient / partials / tangent plane / volume) now ships. Numerical methods
   were the right first step because their intermediate states are already an
   animation storyboard.
-- **Statistics and probability** — 🚧 *Tiers 1–5 shipped (descriptive + shape + distributions + CLT/LLN/correlation + inference); remaining: more distributions, confidence intervals.* The widest
+- **Statistics and probability** — ✅ *DONE — Tiers 1–5 all shipped (descriptive
+  + shape + distributions + CLT/LLN/correlation + inference + confidence intervals
+  + random processes); a new 17-builtin `stats` kit with a seeded PRNG.* The widest
   everyday-relevance rung and the biggest non-programmer audience. Unifying idea:
   turn **data** — or a **random process** — into a picture that reveals its
   shape, centre, and spread, plus the truths that only appear *at scale*
@@ -476,8 +478,8 @@ evaluator can reach the scene.
     `lln_proportions`, coin-flip proportion settling onto 0.5, seeded; see
     `examples/lln.manic`); ✅ **`correlation`** (shipped —
     scatter + best-fit line + the Pearson **r** with a strength/direction reading;
-    `regression` helper returns `(m, k, r)`; see `examples/correlation.manic`);
-    **confidence intervals / error bars**.
+    `regression` helper returns `(m, k, r)`; see `examples/correlation.manic`); and
+    ✅ **confidence intervals / error bars** (shipped as `confidence`, Tier 4).
   - *Tier 4 — random processes:* ✅ **shipped.** **`montecarlo`** (π by darts,
     seeded), **`randomwalk`** (2-D wandering path, seeded); plus **`distribution`**
     (uniform / exponential / binomial / poisson) and **`confidence`** (a CI ± z·sd/√n)
@@ -503,24 +505,206 @@ evaluator can reach the scene.
   constrained mechanisms, fitting, gradient descent, and visual proofs by
   deformation. This needs explicit failure/degeneracy behavior, so it should
   follow robust predicates rather than precede them.
-- **Symbolic algebra** — simplification, factoring, equation solving, and
-  automatic differentiation would support step-by-step algebra and formula-led
-  constructions. It is valuable when the explanation is about *manipulating an
-  expression*, not merely plotting one. This is intentionally later: a CAS has
-  a much larger correctness and product-scope cost than numeric math.
-- **Probability and statistics** — deterministic sampling, distributions,
-  regression, histograms, and confidence intervals would broaden the engine
-  into data and algorithm explainers while retaining reproducible recordings.
+- **Symbolic algebra (CAS)** — 🅿️ *parked / design-only.* simplification,
+  factoring, equation solving, and automatic differentiation would support
+  step-by-step algebra and formula-led constructions. It is valuable when the
+  explanation is about *manipulating an expression*, not merely plotting one.
+  This is intentionally later: a CAS has a much larger correctness and
+  product-scope cost than numeric math.
+  - *Architecture (decided):* a **separate, pure, macroquad-free crate**
+    `crates/manic-cas` — expression tree, simplify, differentiate, expand/factor,
+    solve, and an ordered **step-list** — living at the language layer beside
+    `manic-lang`, **not** in the engine. It returns plain **data** (a normalized
+    result + the intermediate steps); a thin new engine **kit** (`kits/algebra.rs`)
+    is the adapter that turns each step into a tagged `text` entity the author
+    animates with existing verbs (`draw`/`stagger`/`morph`). Same "domain-agnostic
+    core + pluggable kit" shape as `stats`. The engine depends on `manic-cas` and
+    runs it at build/lowering time (like `plot`'s formula string); `manic-lang`
+    needs only catalog specs for the new builtins in v1, and can add a dependency
+    later for live browser-side symbolic preview (bigger WASM).
+  - *End-to-end (author's view):* write an expression/equation string → the CAS
+    derives the work → each step renders as an addressable entity → reveal them
+    line-by-line like a teacher at the board. Uses: step-by-step **solve**
+    (`2x+4=10 → 2x=6 → x=3`), a **symbolic derivative** that is both a formula
+    label *and* a plottable curve (reuses `plot`/`GraphFn`), **expand/factor** as
+    a `morph` between forms, **substitution** with highlighted replacement, and
+    **equation-driven geometry** (exact solved intersections). Results are
+    bindable (`let`) and flow into `counter`/downstream builtins like the numeric
+    layer.
+  - *Hard dependency:* the payoff lands only if the math **renders as math**
+    (`x² + 2x + 1`, stacked fractions), so CAS effectively pulls the (still
+    undecided) **LaTeX / typesetting** track forward with it — or at least a
+    `mathtext-lite` super/subscript + `\frac` subset. ASCII (`x^2 + 2*x + 1`)
+    undercuts the teaching benefit for the non-programmer audience.
+- **Probability and statistics** — ✅ *shipped* — deterministic (seeded) sampling,
+  distributions, regression, histograms, and confidence intervals broadened the
+  engine into data and algorithm explainers while retaining reproducible recordings.
 
 Recommended order: **robust predicates/root finding → linear algebra →
 calculus/numerical methods → constraints/optimisation → symbolic algebra**.
-*Status (2026-07):* root-finding and **calculus/numerical methods are shipped**
-(we took calculus ahead of linear algebra); **linear algebra is the active next
-rung** (see its bullet above). Each layer should expose computed values to the
+*Status (2026-07):* root-finding, **calculus/numerical methods**, **linear algebra**
+(2D Tiers 1–3 + the core 3D forms), and **statistics & probability** (Tiers 1–5)
+are all **shipped** — we took calculus ahead of linear algebra, then added the
+stats rung. **The active next rung is constraints/optimisation** (then symbolic
+algebra); the robust-predicates/numerical-geometry work remains valuable
+groundwork underneath both. Each layer should expose computed values to the
 existing timeline, counters, plots, geometry, and 3D scene rather than becoming
 a separate math subsystem.
 Typography is complementary but separate: LaTeX makes mathematics readable;
 the capabilities above make it behave correctly.
+
+### Physics — a new domain (in progress) 🚧
+
+Physics is the natural **next domain** (alongside `algo` and the math family — see
+manic's "domain-agnostic core + pluggable kits" thesis), and it is exceptionally
+well-timed: physics *is* applied calculus, and the calculus/ODE substrate already
+ships. **Unifying idea:** a system **evolves under forces/rules**; show the motion
+*and* the invisible quantities (velocity, force, energy, momentum) that govern it —
+animation-first, so each builtin shows a *process*, not a static diagram.
+
+**Seeded by a goldmine.** `crypto-tool` already holds **38 RK4 sims**
+(`crypto-tool/src/main/webapp/physics/labs/js/sims/*.js`) plus a shared core
+(`../core/solver.js` = generic n-dim RK4/Euler/midpoint, `state.js`,
+`rigid-body.js`, `collision.js`) and reusable views (`energy-bar.js`,
+`time-graph.js`, `potential-well.js`, `direction-field.js`). Each sim is a **uniform
+declarative spec** that already splits *physics-as-data* from *rendering* — exactly
+manic's kit shape. Per-sim fields: `vars` (state vector w/ index + symbol),
+`params` (value/min/max/step/unit), `init(p)`, **`evaluate(vars,change,params)`**
+(the ODE right-hand side — the physics), `energy()` (KE/PE/total),
+`potentialEnergy`+`peWellConfig`, `theoreticalPeriod`, `trailPoint()` (body world
+position), **`vectors()`** (velocity + acceleration at the body), `worldRect`
+(world→screen map), `presets`, `views` (sim/phase/time/energy/well). The physics
+(derivatives + energy formulas + world layout) is **language-agnostic** and
+transcribes directly into manic sim definitions.
+
+**The one real substrate change — generalize the integrator.** manic's `trajectory`
+is a 2-var RK4 (`dx/dt`, `dy/dt`); these sims are **n-dimensional** state vectors
+with an `evaluate` that fills `change[]`. So the single engine addition is a
+**general n-dim RK4** (the JS `solver.js` is already generic on `vars.length` — a
+direct reference). Everything else is reuse. **Determinism is preserved** by the
+`trajectory` precedent: **pre-simulate the whole run at build time** into sampled
+tracks, then the stateless timeline just replays them — so scrubbing and
+frame-identical recordings still hold (a rare, valuable property: reproducible
+physics videos).
+
+**Reuse map (mostly existing machinery):**
+
+| crypto-tool sim field | manic mechanism | New? |
+|---|---|---|
+| `evaluate` RHS | RK4 integrator (**generalize `trajectory` → n-dim**) | the one substrate change |
+| `trailPoint()` / positions | drawn body (dot/rod) + traced path | reuse |
+| `vectors()` (v, a) | `arrow`/`vector` glued to the body via updaters (`follow`/`derive`) | reuse |
+| `energy()` | `counter` + energy bars | reuse |
+| phase / time views | `plot` (x(t), v(t), E(t), phase portrait) | reuse |
+| `worldRect` | plot-style screen mapping (pixels-per-metre) | reuse |
+
+**Open decisions:**
+- **World units** — physics has real units (m, s, kg); needs a world→screen scale
+  like `plot`'s mapping. `worldRect` in every sim already supplies it. Small.
+- **One kit or several** — start with a single `physics` kit (like `stats`), split
+  by category later (mechanics / E&M / waves) if it grows.
+- **Sim spec in-engine vs authored** — likely a declarative sim registry in the kit
+  (mirroring the JS specs), with the author choosing which to stage + how to pace it.
+
+**Tiered inventory (RK4-clean unless noted; ⭐ = flagship):**
+- **T1 · trivial (≈3-var):** spring, vertical-spring, spring-incline, pendulum,
+  drop-mass, pulley-scale, bungee.
+- **T2 · oscillation / chaos:** ⭐**double-pendulum**, double-spring,
+  spring-pendulum, compare-pendulum, kapitza-pendulum, resonance,
+  series-parallel-springs.
+- **T3 · coupled / control (bigger state):** cart-pendulum, cart-pole, robot-arm,
+  quadrotor, brachistochrone, piston, car-suspension, molecule.
+- **T4 · collisions:** newtons-cradle, collide-blocks, billiards, bullet-block, ramp.
+- **T5 · electromagnetism:** generator, oscillating-charge,
+  current-coil-magnetic-field, generator-3d.
+- **Stretch / separate domains:** string-wave (waves, 203 vars), pile (rigid body,
+  100), states-of-matter (thermodynamics), navier-stokes (fluids), and the
+  `circuit/` MNA simulator + `pycharge/` relativistic-EM subsystems — their own
+  future domains, **not** RK4 point-mechanics.
+
+**Why now:** it is mostly *reuse* (integrator generalization + drawables that exist)
+sitting on a *ready, tuned* physics corpus; the double pendulum alone is a
+standout demo; and it visibly *depends on* the shipped calculus/ODE core — the same
+"the diagram is true, not drawn" thesis, applied to motion.
+
+#### Design — "adapt, simulate, connect"
+
+**Unifying model:** *a simulation = named state + their time-derivatives + a map
+from state → drawables — all expressed with the formula strings manic already
+evaluates.* That single model gives two layers of ease and three integration seams.
+
+**Layer 1 — named sims (adapt-by-tweaking), for everyone.** The ~20 goldmine RK4
+sims ship as named builtins; a non-programmer picks one and changes numbers/presets
+— zero physics knowledge:
+```
+pendulum(p, center, length: 2, gravity: 9.81, angle0: 60);
+draw(p);   // an ordinary entity → animate on the timeline
+```
+
+**Layer 2 — the system builder (author-your-own), for the creative user.** The same
+pendulum from its equations — you write the *math*, not the plumbing:
+```
+system(s, center, scale: 120);
+state(s, "theta", 60);  state(s, "omega", 0);
+flow(s, "theta", "omega");                 // dθ/dt = ω
+flow(s, "omega", "-(g/L)*sin(theta)");     // dω/dt = −(g/L)·sinθ
+body(s, bob, "L*sin(theta)", "-L*cos(theta)");
+rod(s, arm, origin, bob);
+simulate(s, 12);                           // pre-integrate 12 s (RK4, deterministic)
+```
+
+**Three seams:**
+1. **Simulate** — pre-integrate at build time into sampled state tracks (the
+   `trajectory` precedent); the stateless timeline *replays* via a `time` track
+   (`to(s, time, 12, dur)` → scrub / slow-mo / pause / replay for free).
+2. **Animation engine** — every `body`/`rod`/`vector`/energy-bar is a tagged
+   entity id → `draw`/`show`/`pulse`/`follow`/`section`/presets/branding all apply.
+3. **Math engine** — a **shared world→screen mapping** (physics `scale`/world-rect
+   *is* `plot`'s `GraphView`) + **bindable state** let physics and math combine on
+   one stage: spring → `plot` x(t) → `tangent` = velocity; pendulum → (θ,ω) phase
+   portrait via the `trajectory` plotter; damped spring → `leastsquares` the decay
+   envelope; orbit → swept `area` = Kepler's 2nd law. One file, two kits, no glue.
+
+**Adaptation ladder (why it's "easy"):** 1. tweak a preset/param → 2. restyle / add
+a trail or force arrows → 3. override one equation of a built-in → 4. author a new
+system from `state`+`flow`. Rung 1 needs no physics.
+
+**Scope decisions (agreed):** ship **named sims + a minimal builder** in v1; builder
+surface = `state`/`flow`/`body`/`rod`/`vector`/`energy`/`simulate` (collisions /
+constraints later); **one `physics` kit** (split by category only if it grows);
+**pendulum is the flagship** (cleanest teaching arc), double-pendulum the wow demo.
+
+#### What needs to be done (ordered)
+
+1. ✅ **Generalize RK4 → n-dim** — `src/ode.rs`: generic `rk4_step`/`euler_step`,
+   `integrate` (every step) and `integrate_sampled` (**substep control** — sim at a
+   fine `dt`, emit at frame resolution) over an n-vector state with an
+   `eval(state, deriv)` closure (modeled on the well-tested `core/solver.js`).
+   Reused scratch (no per-step alloc); stops on non-finite. **Time-dependent
+   forcing** supported via the clock-variable trick (`d[TIME]=1`) — driven/damped
+   systems just carry time in the state. Unit-tested against analytic truth (exp
+   decay = e⁻ᵗ; SHO tracks cos/−sin + conserves energy; driven `y'=cos(t)`⇒sin;
+   convergence order as `dt` halves; **determinism**; sampled/substep consistency;
+   blow-up stops early). The 2-var `rk4_path` (trajectory) now delegates to it — the
+   n = 2 special case (dedup + validation). 8 tests; 116 engine tests green, no
+   regression.
+2. **Extend the formula evaluator to named variables** — today `expr::Node::eval`
+   is 2-var (`x`,`y`); physics needs evaluation over an arbitrary named-state env
+   (`theta`,`omega`,…, plus `let` params). This is what lets `flow`/`body` take
+   formula strings.
+3. **Sim-container entity + `time` playback param** — holds the sampled tracks and
+   a playback cursor (mirror `plot`'s `PlotX` / `trajectory`'s pre-integration), so
+   `to(s, time, …)` drives every bound body/vector/plot.
+4. **Shared world-units mapping with `plot`** — the math↔physics seam (pixels-per-
+   metre == `GraphView`).
+5. **Named-sim registry** — transcribe the goldmine specs
+   (`evaluate`/`energy`/`trailPoint`/`vectors`/`worldRect`/`presets`) into the kit.
+6. **Builder builtins** — `system`/`state`/`flow`/`body`/`rod`/`vector`/`energy`/
+   `simulate` in a new `src/kits/physics.rs`.
+7. **Math-seam demos + examples + a lesson** (pendulum flagship; the combo demos).
+8. **Checklist wiring per builtin** — catalog + LANGUAGE + SYSTEM_PROMPT +
+   CAPABILITIES + tests + example + WASM rebuild + UI snapshot (the builtin
+   checklist).
 
 ### 3D — status (roadmap #1–#6 all shipped)
 The foundation and the full 3D roadmap below have shipped. Coverage against the

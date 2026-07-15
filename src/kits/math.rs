@@ -1332,25 +1332,12 @@ fn rk4_path(
     dt: f32,
     steps: u32,
 ) -> Vec<(f32, f32)> {
-    let mut out = Vec::with_capacity(steps as usize + 1);
-    let (mut x, mut y) = (x0, y0);
-    out.push((x, y));
-    for _ in 0..steps {
-        let (k1x, k1y) = (fx.eval(x, y), fy.eval(x, y));
-        let (ax, ay) = (x + dt / 2.0 * k1x, y + dt / 2.0 * k1y);
-        let (k2x, k2y) = (fx.eval(ax, ay), fy.eval(ax, ay));
-        let (bx, by) = (x + dt / 2.0 * k2x, y + dt / 2.0 * k2y);
-        let (k3x, k3y) = (fx.eval(bx, by), fy.eval(bx, by));
-        let (cx, cy) = (x + dt * k3x, y + dt * k3y);
-        let (k4x, k4y) = (fx.eval(cx, cy), fy.eval(cx, cy));
-        x += dt / 6.0 * (k1x + 2.0 * k2x + 2.0 * k3x + k4x);
-        y += dt / 6.0 * (k1y + 2.0 * k2y + 2.0 * k3y + k4y);
-        if !x.is_finite() || !y.is_finite() {
-            break;
-        }
-        out.push((x, y));
-    }
-    out
+    // The 2-var phase-plane flow is the n = 2 case of the generic integrator.
+    let traj = crate::ode::integrate(&[x0, y0], dt, steps as usize, |st, d| {
+        d[0] = fx.eval(st[0], st[1]);
+        d[1] = fy.eval(st[0], st[1]);
+    });
+    traj.into_iter().map(|s| (s[0], s[1])).collect()
 }
 
 /// `spline(id, p0, p1, …)` — a smooth Catmull-Rom curve passing through every
