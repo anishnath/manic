@@ -540,6 +540,15 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
     f(scene, &args_of(s))
 }
 
+/// Verbs whose first argument is a *structure id they consume* (not a broadcast
+/// target): `karaoke`/`wordpop` operate on a `caption` as a whole and look up its
+/// `{id}.w0…` words themselves. Because `caption` tags the bare `{id}` (so generic
+/// verbs like `show`/`draw` broadcast over its words), these must be excluded from
+/// broadcast — otherwise `karaoke(cap)` would fan out to `karaoke(cap.w0)`, …
+fn verb_consumes_structure_id(verb: &str) -> bool {
+    matches!(verb, "karaoke" | "wordpop")
+}
+
 /// Invoke a verb, broadcasting over a tag group if the first argument names a
 /// tag rather than an entity. So `draw(g.edges)` runs `draw` on every entity
 /// tagged `g.edges`, in parallel — the ergonomic that makes graphs, cells, and
@@ -547,7 +556,7 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn run_verb(f: VerbFn, scene: &Scene, s: &Stmt) -> Result<Clip, Error> {
     if let Some(first) = s.args.first() {
         if let ExprKind::Ident(name) = &first.kind {
-            if !scene.contains(name) {
+            if !verb_consumes_structure_id(&s.name) && !scene.contains(name) {
                 let ids = tagged_ids(scene, name);
                 if !ids.is_empty() {
                     let mut clips = Vec::with_capacity(ids.len());
