@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision an Ubuntu EC2 box to run the manic binary headlessly.
+# Provision an Ubuntu EC2 box to run the manic binary headlessly. yes
 #
 # macroquad loads OpenGL/X11 at runtime, so even the prebuilt binary needs these
 # .so's present; rendering also needs a virtual display (Xvfb) + Mesa software GL
