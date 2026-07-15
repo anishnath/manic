@@ -130,8 +130,9 @@ fn sample_outline(e: &Entity, n: usize) -> Vec<Vec2> {
 }
 
 /// `caption(id, "some words", (cx,cy), [size], [color])` — lay out the words in
-/// a centred row as `{id}.w0`, `{id}.w1`, … (tagged `{id}.words`). Animate them
-/// in sequence with `karaoke` / `wordpop`, or address the group by tag.
+/// a centred row as `{id}.w0`, `{id}.w1`, … (tagged both the bare `{id}` and
+/// `{id}.words`). Animate them in sequence with `karaoke` / `wordpop`, or address
+/// the whole group by the bare `id` (`show(id)`/`draw(id)`/`hidden(id)` broadcast).
 /// Widths use the monospace advance (~0.6 em), so no render-time measuring.
 fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
@@ -162,7 +163,9 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
             color,
         );
         e.font = FontKind::MonoBold;
-        e.tags = vec![format!("{id}.words")];
+        // Tag both the bare `{id}` (so `show`/`draw`/`hidden`/… broadcast over the
+        // whole caption, like every other grouped builtin) and `{id}.words`.
+        e.tags = vec![id.clone(), format!("{id}.words")];
         s.add(e);
         char_pos += len + 1;
     }

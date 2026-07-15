@@ -104,7 +104,7 @@ untraced(headCD);
 untraced(headDC);
 
 caption(info, "Arrows show direction; paired curves show reciprocal edges.", (cx, h - 55), 20, dim);
-hidden(info.words);   // caption words are `{id}.w0..` tagged `{id}.words` — address that, not bare `info`
+hidden(info);   // bare id broadcasts over the whole caption
 
 show(nodeA, 0.4);
 show(nodeB, 0.4);
@@ -115,7 +115,7 @@ show(labelB, 0.4);
 show(labelC, 0.4);
 show(labelD, 0.4);
 show(head, 0.5);
-show(info.words, 0.5);
+show(info, 0.5);
 
 stagger(0.12) {
 draw(edgeAB, 0.7);

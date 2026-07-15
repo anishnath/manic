@@ -168,7 +168,7 @@ address.
 |---|---|
 | `text(id, (x,y), "str")` | text centred at `(x,y)`, mono, size 28 |
 | `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` | a numeric readout; animate with `to(id, value, target)` so it counts live |
-| `caption(id, "some words", (x,y), [size], [color])` | lays words out in a centred row as `{id}.w0…` (tag `{id}.words`); animate with `karaoke`/`wordpop` |
+| `caption(id, "some words", (x,y), [size], [color])` | lays words out in a centred row as `{id}.w0…` (tagged bare `{id}` + `{id}.words`); `show`/`draw`/`hidden(id)` broadcast over the whole caption, or animate with `karaoke`/`wordpop` |
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
