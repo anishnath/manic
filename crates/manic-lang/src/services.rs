@@ -13,7 +13,8 @@
 
 use crate::ast::{Expr, ExprKind, Stmt};
 use crate::catalog::{
-    catalog, BuiltinSpec, Ty, CANVAS_PRESETS, COLORS, EASINGS, KEYWORDS, RESERVED_VARS, TEMPLATES,
+    catalog, BuiltinSpec, Ty, CANVAS_PRESETS, COLORS, EASINGS, KEYWORDS, NAMED_FNS, RESERVED_VARS,
+    TEMPLATES,
 };
 use crate::diag::{Error, Span};
 use crate::expand::expand;
@@ -303,6 +304,7 @@ fn validate_stmt(
         let (vocab, what): (&[&str], &str) = match param.ty {
             Ty::Color => (COLORS, "colour"),
             Ty::Ease => (EASINGS, "easing"),
+            Ty::Fn => (NAMED_FNS, "function"),
             _ => continue,
         };
         if let ExprKind::Ident(v) = &arg.kind {
@@ -487,6 +489,7 @@ pub fn complete(src: &str, offset: u32) -> Vec<Completion> {
             match ty {
                 Some(Ty::Color) => vocab(COLORS, "color"),
                 Some(Ty::Ease) => vocab(EASINGS, "ease"),
+                Some(Ty::Fn) => vocab(NAMED_FNS, "function"),
                 Some(Ty::Ident) => file_ids(src)
                     .into_iter()
                     .filter(|id| starts_with(id))
@@ -562,6 +565,23 @@ mod tests {
     fn check_clean_program() {
         let d = check("circle(sun, (0,0), 40);");
         assert!(d.is_empty(), "expected no diagnostics, got {d:?}");
+    }
+
+    #[test]
+    fn check_flags_unknown_plot_function() {
+        // an unknown bareword function is flagged (was silently accepted → Render
+        // wrongly enabled; the `acos` drift). Suggestion offered.
+        let d = check("plot(f, (0,0), 80, 60, foobar);");
+        let err = d.iter().find(|x| x.severity == "error").expect("expected an error");
+        assert!(err.message.contains("function"), "msg: {}", err.message);
+        // a valid bareword (incl. the newly-added inverse trig) is accepted
+        assert!(check("plot(f, (0,0), 80, 60, acos);")
+            .iter()
+            .all(|x| x.severity != "error"));
+        // a formula string is fine — only barewords are name-checked
+        assert!(check("plot(f, (0,0), 80, 60, \"acos(x)\");")
+            .iter()
+            .all(|x| x.severity != "error"));
     }
 
     #[test]

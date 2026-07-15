@@ -9,6 +9,7 @@ pub mod algo;
 pub mod brand;
 pub mod geo;
 pub mod math;
+pub mod physics;
 pub mod stats;
 pub mod std;
 pub mod three;

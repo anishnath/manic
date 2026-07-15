@@ -24,33 +24,52 @@ use crate::style;
 /// To ADD a variant, add one arm here (any valid formula-string function is
 /// allowed — see `expr::func`); everything else (validation, sampling, the
 /// stored `GraphFn`) derives from this automatically.
+/// The canonical `(bareword, formula)` table. `named_formula`, the error-message
+/// list, and the editor's `catalog::NAMED_FNS` vocab all derive from these names;
+/// a sync test (`catalog_named_fns_match_engine`) keeps engine and catalog equal.
+pub(crate) const NAMED_FORMULAS: &[(&str, &str)] = &[
+    ("sin", "sin(x)"),
+    ("cos", "cos(x)"),
+    ("tan", "tan(x)"),
+    // inverse trig (the evaluator already supports asin/acos/atan)
+    ("asin", "asin(x)"),
+    ("arcsin", "asin(x)"),
+    ("acos", "acos(x)"),
+    ("arccos", "acos(x)"),
+    ("atan", "atan(x)"),
+    ("arctan", "atan(x)"),
+    ("parabola", "x*x"),
+    ("sq", "x*x"),
+    ("square", "x*x"),
+    ("cubic", "x*x*x"),
+    ("cube", "x*x*x"),
+    ("line", "x"),
+    ("id", "x"),
+    ("identity", "x"),
+    ("abs", "abs(x)"),
+    ("exp", "exp(x)"),
+    ("sqrt", "sqrt(x)"),
+    ("log", "ln(x)"),
+    ("ln", "ln(x)"),
+    ("recip", "1/x"),
+    ("inv", "1/x"),
+    ("gauss", "exp(-x*x)"),
+    ("bell", "exp(-x*x)"),
+    ("sinc", "sin(x)/x"), // the cardinal sine
+    ("sigmoid", "1/(1 + exp(-x))"),
+    ("logistic", "1/(1 + exp(-x))"),
+    ("relu", "0.5*(x + abs(x))"),
+    ("step", "0.5*(1 + sign(x))"),
+    ("heaviside", "0.5*(1 + sign(x))"),
+];
+
 fn named_formula(name: &str) -> Option<&'static str> {
-    Some(match name {
-        "sin" => "sin(x)",
-        "cos" => "cos(x)",
-        "tan" => "tan(x)",
-        "parabola" | "sq" | "square" => "x*x",
-        "cubic" | "cube" => "x*x*x",
-        "line" | "id" | "identity" => "x",
-        "abs" => "abs(x)",
-        "exp" => "exp(x)",
-        "sqrt" => "sqrt(x)",
-        "log" | "ln" => "ln(x)",
-        "recip" | "inv" => "1/x",
-        "gauss" | "bell" => "exp(-x*x)",
-        // the cardinal sine
-        "sinc" => "sin(x)/x",
-        // activation / shaping functions
-        "sigmoid" | "logistic" => "1/(1 + exp(-x))",
-        "relu" => "0.5*(x + abs(x))",
-        "step" | "heaviside" => "0.5*(1 + sign(x))",
-        _ => return None,
-    })
+    NAMED_FORMULAS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f)
 }
 
 /// A human-readable list of the bareword names, for error messages.
-const NAMED_FN_LIST: &str = "sin, cos, tan, parabola, cubic, line, abs, exp, \
-    sqrt, log, recip, gauss, sinc, sigmoid, relu, step";
+const NAMED_FN_LIST: &str = "sin, cos, tan, asin, acos, atan, parabola, cubic, \
+    line, abs, exp, sqrt, log, recip, gauss, sinc, sigmoid, relu, step";
 
 /// A tiny single-variable expression evaluator, so `plot` can take a formula
 /// string like `"cos(t) + 0.5*cos(7*t) + (1/7)*cos(14*t)"` — manic's answer to
@@ -2878,6 +2897,31 @@ mod graph_tests {
         assert!(f("relu").eval(-2.0, 0.0).abs() < 1e-4 && (f("relu").eval(3.0, 0.0) - 3.0).abs() < 1e-4);
         assert!((f("sigmoid").eval(0.0, 0.0) - 0.5).abs() < 1e-4);
         assert!((f("step").eval(2.0, 0.0) - 1.0).abs() < 1e-4 && f("step").eval(-2.0, 0.0).abs() < 1e-4);
+    }
+
+    /// The editor's `NAMED_FNS` vocab (manic-lang catalog) must equal exactly the
+    /// engine's `named_formula` names — otherwise the browser would flag a valid
+    /// bareword (false error) or miss an invalid one (Render wrongly enabled, the
+    /// `acos` drift). Also asserts every formula compiles + evaluates.
+    #[test]
+    fn catalog_named_fns_match_engine() {
+        use super::{named_formula, NAMED_FORMULAS};
+        use std::collections::BTreeSet;
+        let engine: BTreeSet<&str> = NAMED_FORMULAS.iter().map(|(n, _)| *n).collect();
+        let cat: BTreeSet<&str> = manic_lang::catalog::NAMED_FNS.iter().copied().collect();
+        assert_eq!(
+            engine, cat,
+            "named-fn vocab drift — only in engine: {:?}; only in catalog: {:?}",
+            engine.difference(&cat).collect::<Vec<_>>(),
+            cat.difference(&engine).collect::<Vec<_>>(),
+        );
+        for (n, formula) in NAMED_FORMULAS {
+            let g = compile(formula).unwrap_or_else(|e| panic!("{n}: `{formula}` bad: {e}"));
+            assert!(g.eval(0.5, 0.0).is_finite(), "{n} did not evaluate finitely");
+        }
+        // the newly-added inverse trig is correct
+        assert!(compile(named_formula("acos").unwrap()).unwrap().eval(1.0, 0.0).abs() < 1e-4); // acos 1 = 0
+        assert!(compile(named_formula("asin").unwrap()).unwrap().eval(0.0, 0.0).abs() < 1e-4); // asin 0 = 0
     }
 
     #[test]

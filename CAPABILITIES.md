@@ -697,8 +697,15 @@ constraints later); **one `physics` kit** (split by category only if it grows);
    `to(s, time, …)` drives every bound body/vector/plot.
 4. **Shared world-units mapping with `plot`** — the math↔physics seam (pixels-per-
    metre == `GraphView`).
-5. **Named-sim registry** — transcribe the goldmine specs
+5. 🚧 **Named-sim registry** — transcribe the goldmine specs
    (`evaluate`/`energy`/`trailPoint`/`vectors`/`worldRect`/`presets`) into the kit.
+   *Started:* `src/kits/physics.rs` has the declarative **`Sim` trait**
+   (`state0`/`deriv`/`energy`/`body`) + `simulate()` (bridges to `crate::ode`) +
+   the first sim **`Pendulum`** (simple/damped/driven, clock-variable time),
+   physics-checked (reproduces 2π√(L/g); conserves energy undamped; damping bleeds
+   it) — 3 tests. No builtin registered yet. NB: Layer-1 named sims are Rust
+   closures, so task ② (formula evaluator) is **not** needed for them — only for
+   the Layer-2 builder.
 6. **Builder builtins** — `system`/`state`/`flow`/`body`/`rod`/`vector`/`energy`/
    `simulate` in a new `src/kits/physics.rs`.
 7. **Math-seam demos + examples + a lesson** (pendulum flagship; the combo demos).

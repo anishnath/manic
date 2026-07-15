@@ -34,6 +34,9 @@ pub enum Ty {
     Color,
     /// An easing name.
     Ease,
+    /// A named plot function (`sin`/`cos`/…) — a bareword from [`NAMED_FNS`], or
+    /// a `"formula"` string instead (validated only when written as a bareword).
+    Fn,
 }
 
 #[derive(Debug, Clone)]
@@ -545,7 +548,7 @@ pub fn catalog() -> Vec<BuiltinSpec> {
                 ("center", Point, R),
                 ("sx", Num, R),
                 ("sy", Num, R),
-                ("formula", Str, R),
+                ("formula", Fn, R),
                 ("domain", Num, O),
             ],
         ),
@@ -1817,6 +1820,17 @@ pub const EASINGS: &[&str] = &[
     "bounce",
     "elastic",
     "spring",
+];
+
+/// Named plot functions accepted where a `Fn` argument is allowed (`plot`'s
+/// function slot) — a bareword alternative to a `"formula"` string. MUST stay in
+/// sync with the engine's `named_formula` table; guarded by the engine test
+/// `catalog_named_fns_match_engine`.
+pub const NAMED_FNS: &[&str] = &[
+    "sin", "cos", "tan", "asin", "arcsin", "acos", "arccos", "atan", "arctan",
+    "parabola", "sq", "square", "cubic", "cube", "line", "id", "identity", "abs",
+    "exp", "sqrt", "log", "ln", "recip", "inv", "gauss", "bell", "sinc",
+    "sigmoid", "logistic", "relu", "step", "heaviside",
 ];
 
 /// Build-time control keywords (handled by the parser, not the registry).

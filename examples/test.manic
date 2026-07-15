@@ -1,137 +1,165 @@
-title("Directed Graph with Curved Edges");
+title("Derivative Relationship: cos x and arccos x");
 canvas("16:9");
 
-text(head, (cx, 70), "DiGraph: curved directed edges");
-size(head, 28);
-color(head, fg);
-display(head);
+// ===== PALETTE =====
+let CW = 500;
+let CH = 500;
+let GY = 160;
 
-dot(nodeA, (300, 300), 24);
-dot(nodeB, (620, 220), 24);
-dot(nodeC, (620, 430), 24);
-dot(nodeD, (940, 300), 24);
+// ===== HEADER =====
+text(hdr, (cx, 42), "Inverse Derivative Relationship");
+size(hdr, 30); color(hdr, cyan); bold(hdr); display(hdr); hidden(hdr);
 
-color(nodeA, cyan);
-color(nodeB, cyan);
-color(nodeC, cyan);
-color(nodeD, cyan);
+text(sub, (cx, 78), "(d/dx)(cos x) = -sin x = -sqrt(1 - cos^2 x)");
+size(sub, 18); color(sub, dim); display(sub); hidden(sub);
 
-text(labelA, (300, 300), "A");
-text(labelB, (620, 220), "B");
-text(labelC, (620, 430), "C");
-text(labelD, (940, 300), "D");
+// ===== LEFT SIDE: TWO GRAPHS =====
+// cos(x) graph
+axes(ax1, (170, GY + 200), 140, 150, 1);
+plot(cosf, (170, GY + 200), 80, 140, cos, (0, 7));
+color(cosf, cyan); stroke(cosf, 3); untraced(cosf);
 
-size(labelA, 20);
-size(labelB, 20);
-size(labelC, 20);
-size(labelD, 20);
+text(cosLbl, (170, GY + 15), "y = cos(x)");
+size(cosLbl, 18); color(cosLbl, cyan); display(cosLbl); hidden(cosLbl);
 
-color(labelA, fg);
-color(labelB, fg);
-color(labelC, fg);
-color(labelD, fg);
+// arccos(x) graph
+axes(ax2, (420, GY + 200), 140, 150, 1);
+plot(acosf, (420, GY + 200), 130, 140, acos, (-1, 1));
+color(acosf, magenta); stroke(acosf, 3); untraced(acosf);
 
-spline(edgeAB, (300, 300), (390, 170), (520, 150), (620, 220));
-spline(edgeBA, (620, 220), (520, 80), (390, 100), (300, 300));
-spline(edgeAC, (300, 300), (400, 430), (520, 500), (620, 430));
-spline(edgeCA, (620, 430), (520, 560), (390, 520), (300, 300));
-spline(edgeBD, (620, 220), (730, 100), (850, 130), (940, 300));
-spline(edgeDB, (940, 300), (850, 40), (730, 50), (620, 220));
-spline(edgeCD, (620, 430), (730, 550), (850, 520), (940, 300));
-spline(edgeDC, (940, 300), (850, 600), (730, 590), (620, 430));
+text(acosLbl, (420, GY + 15), "y = arccos(x)");
+size(acosLbl, 18); color(acosLbl, magenta); display(acosLbl); hidden(acosLbl);
 
-arrow(headAB, (575, 190), (620, 220));
-arrow(headBA, (345, 205), (300, 300));
-arrow(headAC, (575, 445), (620, 430));
-arrow(headCA, (345, 325), (300, 300));
-arrow(headBD, (895, 235), (940, 300));
-arrow(headDB, (665, 195), (620, 220));
-arrow(headCD, (895, 370), (940, 300));
-arrow(headDC, (665, 455), (620, 430));
+// Derivative of cos — slope tangent visual
+text(dcos, (170, GY + 380), "d/dx(cos x) = -sin x");
+size(dcos, 18); color(dcos, gold); bold(dcos); display(dcos); hidden(dcos);
 
-color(edgeAB, dim);
-color(edgeBA, dim);
-color(edgeAC, dim);
-color(edgeCA, dim);
-color(edgeBD, dim);
-color(edgeDB, dim);
-color(edgeCD, dim);
-color(edgeDC, dim);
+text(dacos, (420, GY + 380), "d/dx(arccos x) = -1/sqrt(1-x^2)");
+size(dacos, 17); color(dacos, gold); bold(dacos); display(dacos); hidden(dacos);
 
-color(headAB, cyan);
-color(headBA, cyan);
-color(headAC, cyan);
-color(headCA, cyan);
-color(headBD, cyan);
-color(headDB, cyan);
-color(headCD, cyan);
-color(headDC, cyan);
+// ===== ARROW between graphs =====
+arrow(link, (290, GY + 200), (330, GY + 200));
+color(link, dim); stroke(link, 3); untraced(link);
 
-stroke(edgeAB, 4);
-stroke(edgeBA, 4);
-stroke(edgeAC, 4);
-stroke(edgeCA, 4);
-stroke(edgeBD, 4);
-stroke(edgeDB, 4);
-stroke(edgeCD, 4);
-stroke(edgeDC, 4);
+text(invLbl, (310, GY + 185), "inverse");
+size(invLbl, 14); color(invLbl, fg); display(invLbl); hidden(invLbl);
 
-stroke(headAB, 4);
-stroke(headBA, 4);
-stroke(headAC, 4);
-stroke(headCA, 4);
-stroke(headBD, 4);
-stroke(headDB, 4);
-stroke(headCD, 4);
-stroke(headDC, 4);
+// ===== RIGHT SIDE: DERIVATION =====
 
-untraced(edgeAB);
-untraced(edgeBA);
-untraced(edgeAC);
-untraced(edgeCA);
-untraced(edgeBD);
-untraced(edgeDB);
-untraced(edgeCD);
-untraced(edgeDC);
+// Step 1
+text(t1, (690, 155), "Step 1: Start with the identity");
+size(t1, 18); color(t1, fg); bold(t1); display(t1); hidden(t1);
 
-untraced(headAB);
-untraced(headBA);
-untraced(headAC);
-untraced(headCA);
-untraced(headBD);
-untraced(headDB);
-untraced(headCD);
-untraced(headDC);
+text(eq1, (690, 190), "sin^2(x) + cos^2(x) = 1");
+size(eq1, 20); color(eq1, cyan); display(eq1); hidden(eq1);
 
-caption(info, "Arrows show direction; paired curves show reciprocal edges.", (cx, h - 55), 20, dim);
-hidden(info);   // bare id broadcasts over the whole caption
+text(eq1b, (690, 222), "sin(x) = sqrt(1 - cos^2(x))");
+size(eq1b, 20); color(eq1b, dim); display(eq1b); hidden(eq1b);
 
-show(nodeA, 0.4);
-show(nodeB, 0.4);
-show(nodeC, 0.4);
-show(nodeD, 0.4);
-show(labelA, 0.4);
-show(labelB, 0.4);
-show(labelC, 0.4);
-show(labelD, 0.4);
-show(head, 0.5);
-show(info, 0.5);
+// Step 2
+text(t2, (690, 275), "Step 2: Derivative of cos x");
+size(t2, 18); color(t2, fg); bold(t2); display(t2); hidden(t2);
 
-stagger(0.12) {
-draw(edgeAB, 0.7);
-draw(headAB, 0.25);
-draw(edgeBA, 0.7);
-draw(headBA, 0.25);
-draw(edgeAC, 0.7);
-draw(headAC, 0.25);
-draw(edgeCA, 0.7);
-draw(headCA, 0.25);
-draw(edgeBD, 0.7);
-draw(headBD, 0.25);
-draw(edgeDB, 0.7);
-draw(headDB, 0.25);
-draw(edgeCD, 0.7);
-draw(headCD, 0.25);
-draw(edgeDC, 0.7);
-draw(headDC, 0.25);
-}
+text(eq2, (690, 310), "(d/dx)(cos x) = -sin x");
+size(eq2, 20); color(eq2, cyan); display(eq2); hidden(eq2);
+
+text(eq2b, (690, 342), "= -sqrt(1 - cos^2(x))");
+size(eq2b, 20); color(eq2b, dim); display(eq2b); hidden(eq2b);
+
+// Box highlight for result 1
+rect(b1, (690, 298), 300, 70);
+color(b1, cyan); outline(b1, cyan); stroke(b1, 1);
+opacity(b1, 0.15); z(b1, -1); hidden(b1);
+
+// Step 3 — Inverse function theorem
+text(t3, (690, 410), "Step 3: Inverse Function Theorem");
+size(t3, 18); color(t3, fg); bold(t3); display(t3); hidden(t3);
+
+text(eq3, (690, 445), "If y = cos(x) then x = arccos(y)");
+size(eq3, 19); color(eq3, dim); display(eq3); hidden(eq3);
+
+text(eq3b, (690, 475), "d/dx[f^-1(x)] = 1 / f'(f^-1(x))");
+size(eq3b, 20); color(eq3b, gold); display(eq3b); hidden(eq3b);
+
+// Step 4 — Substitute
+text(t4, (690, 535), "Step 4: Substitute into formula");
+size(t4, 18); color(t4, fg); bold(t4); display(t4); hidden(t4);
+
+text(eq4, (690, 568), "f'(cos theta) = -sqrt(1 - cos^2 theta)");
+size(eq4, 18); color(eq4, dim); display(eq4); hidden(eq4);
+
+text(eq4b, (690, 598), "Let theta = arccos(x)");
+size(eq4b, 19); color(eq4b, magenta); display(eq4b); hidden(eq4b);
+
+text(eq4c, (690, 630), "f'(arccos x) = -sqrt(1 - x^2)");
+size(eq4c, 18); color(eq4c, dim); display(eq4c); hidden(eq4c);
+
+// Step 5 — Final Result
+text(t5, (690, 690), "Result:");
+size(t5, 22); color(t5, fg); bold(t5); display(t5); hidden(t5);
+
+text(ans1, (690, 725), "(d/dx)(arccos x) = -1/sqrt(1-x^2)");
+size(ans1, 22); color(ans1, lime); bold(ans1); display(ans1); hidden(ans1);
+
+rect(b2, (690, 708), 370, 45);
+color(b2, lime); outline(b2, lime); stroke(b2, 1);
+opacity(b2, 0.15); z(b2, -1); hidden(b2);
+
+// ===== TIMELINE =====
+show(hdr, 0.5);
+show(sub, 0.5);
+wait(0.8);
+
+// Draw graphs
+par {
+  draw(cosf, 1.2);
+  draw(acosf, 1.2);
+};
+par {
+  show(cosLbl, 0.4);
+  show(acosLbl, 0.4);
+};
+draw(link, 0.3);
+show(invLbl, 0.3);
+wait(0.5);
+
+// Derivation steps
+show(t1, 0.3);
+stagger(0.35) {
+  show(eq1, 0.3);
+  show(eq1b, 0.3);
+};
+wait(0.3);
+
+show(t2, 0.3);
+stagger(0.35) {
+  show(eq2, 0.3);
+  show(eq2b, 0.3);
+};
+show(b1, 0.4);
+wait(0.4);
+
+show(t3, 0.3);
+stagger(0.35) {
+  show(eq3, 0.3);
+  show(eq3b, 0.3);
+};
+wait(0.4);
+
+show(t4, 0.3);
+stagger(0.35) {
+  show(eq4, 0.3);
+  show(eq4b, 0.3);
+  show(eq4c, 0.3);
+};
+wait(0.4);
+
+show(t5, 0.4);
+show(ans1, 0.6);
+show(b2, 0.5);
+flash(ans1, lime);
+pulse(ans1, 0.6);
+par {
+  show(dcos, 0.4);
+  show(dacos, 0.4);
+};

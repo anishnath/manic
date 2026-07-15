@@ -62,6 +62,13 @@ impl Parser {
     fn program(&mut self) -> Result<Vec<Stmt>, Error> {
         let mut stmts = Vec::new();
         while self.peek_tok() != &Tok::Eof {
+            // Tolerate a redundant `;` (empty statement) — e.g. a reflexive
+            // semicolon after a `par`/`seq`/`stagger`/`def`/`for`/`if` block,
+            // which take no terminator. Harmless, like `;` in C/JS/Java.
+            if self.peek_tok() == &Tok::Semi {
+                self.bump();
+                continue;
+            }
             stmts.push(self.stmt()?);
         }
         Ok(stmts)
@@ -298,6 +305,12 @@ impl Parser {
         while self.peek_tok() != &Tok::RBrace {
             if self.peek_tok() == &Tok::Eof {
                 return Err(Error::new("unterminated `{ ... }` block", self.span()));
+            }
+            // Tolerate a redundant `;` inside a block too (e.g. a nested block
+            // followed by a stray semicolon).
+            if self.peek_tok() == &Tok::Semi {
+                self.bump();
+                continue;
             }
             stmts.push(self.stmt()?);
         }
@@ -644,6 +657,18 @@ fn describe(t: &Tok) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tolerates_redundant_semicolons() {
+        // a trailing `;` after a block (a common reflex) is harmless, not an error
+        let p = parse("par {\n  draw(a, 1.2);\n  draw(b, 1.2);\n};\n").unwrap();
+        assert_eq!(p.stmts.len(), 1, "the `par` block is the only statement");
+        assert_eq!(p.stmts[0].name, "par");
+        // stray / empty semicolons anywhere are skipped
+        let p2 = parse(";;\ncircle(a, (0,0), 5);;\n").unwrap();
+        assert_eq!(p2.stmts.len(), 1);
+        assert_eq!(p2.stmts[0].name, "circle");
+    }
 
     #[test]
     fn parses_calls_pairs_and_blocks() {

@@ -345,7 +345,8 @@ entities named `{id}.x`, `{id}.tN`, etc.
 | `annulus(id, (cx,cy), outer, inner)` | a filled ring between two radii |
 | `pie(id, (cx,cy), r, n)` | a circle cut into `n` equal filled sectors, each addressable as `{id}0 … {id}{n-1}` (tag `id`) |
 
-Named `plot` functions (`fn`): `sin`, `cos`, `tan`, `parabola` (`sq`, `square`),
+Named `plot` functions (`fn`): `sin`, `cos`, `tan`, `asin` (`arcsin`), `acos`
+(`arccos`), `atan` (`arctan`), `parabola` (`sq`, `square`),
 `cubic` (`cube`), `line` (`id`, `identity`), `abs`, `exp`, `sqrt`, `log`
 (`ln`), `recip` (`inv`), `gauss` (`bell`), `sinc` (`sin x / x`), `sigmoid`
 (`logistic`), `relu`, `step` (`heaviside`). These are *plot barewords* only —
