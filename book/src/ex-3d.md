@@ -52,6 +52,45 @@ Morphing across families — a cube into a sphere, a saddle into a bowl, a helix
 
 <div class="manic-video" data-video="ex-morph3"></div>
 
+## linear-algebra-3d — the essence, in 3D
+
+The 3D companion to the `linear-algebra` lesson: one matrix
+`[[1,0,0],[0,3,1],[0,1,3]]` (det 8; eigenvalues 1, 2, 4) seen two ways on an
+orbiting stage — first as a transformation (the unit cube → a parallelepiped
+whose volume is the determinant), then through its eigenvectors (the invariant
+axes that only stretch). Start here for 3D.
+
+```manic
+{{#include ../../examples/linear-algebra-3d.manic}}
+```
+
+<div class="manic-video" data-video="ex-linear-algebra-3d"></div>
+
+## linear-map3
+
+Linear algebra in 3D: a 3×3 matrix deforms the unit cube into a parallelepiped,
+with basis arrows i/j/k landing on the matrix's columns and the enclosed volume
+labelled as the determinant (`linmap3`). The 3D echo of `linear-map`.
+
+```manic
+{{#include ../../examples/linear-map3.manic}}
+```
+
+<div class="manic-video" data-video="ex-linear-map3"></div>
+
+## eigen3
+
+The real eigenvectors of a 3×3 matrix, in 3D: the invariant lines through the
+origin that only stretch (by λ) when the matrix acts (`eigen3`). The 3D echo of
+`eigen`. A symmetric matrix gives three perpendicular real eigen-axes; a rotation
+leaves one real axis and two complex eigenvalues.
+
+```manic
+{{#include ../../examples/eigen3.manic}}
+```
+
+<div class="manic-video" data-video="ex-eigen3"></div>
+
 ## matrix3
 
 A 3×3×3 block of cubes, with a shear matrix **M** and its inverse **M⁻¹** applied and undone.

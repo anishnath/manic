@@ -9,6 +9,7 @@ pub mod algo;
 pub mod brand;
 pub mod geo;
 pub mod math;
+pub mod stats;
 pub mod std;
 pub mod three;
 
@@ -23,6 +24,7 @@ pub fn default_registry() -> Registry {
     geo::register(&mut r);
     brand::register(&mut r);
     three::register(&mut r);
+    stats::register(&mut r);
     r
 }
 
@@ -129,5 +131,25 @@ mod catalog_tests {
             "shipped examples the editor check() rejects (catalog/arity/syntax drift):\n  {}",
             offenders.join("\n  ")
         );
+    }
+
+    /// `polygon` is a variadic ctor (id + ≥3 points + optional colour). Guard
+    /// the parse/catalog path: a well-formed call must produce no errors, and
+    /// the builtin must be known to the editor.
+    #[test]
+    fn polygon_call_checks_clean() {
+        let errs = |src: &str| {
+            manic_lang::services::check(src)
+                .into_iter()
+                .filter(|d| d.severity == "error")
+                .count()
+        };
+        assert_eq!(errs("canvas(\"16:9\");\npolygon(p, (0,0), (100,0), (50,80));\n"), 0);
+        assert_eq!(
+            errs("canvas(\"16:9\");\npolygon(p, (0,0), (100,0), (50,80), lime);\n"),
+            0
+        );
+        // an unknown name is still caught (sanity: check() isn't a no-op)
+        assert!(errs("canvas(\"16:9\");\nnotabuiltin(p, (0,0));\n") > 0);
     }
 }

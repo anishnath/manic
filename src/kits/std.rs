@@ -391,6 +391,44 @@ fn c_line(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` — a filled polygon through
+/// the given points (screen coordinates; ≥ 3). A trailing colour word is optional.
+/// Filled with a matching outline; drop the opacity (`opacity(id, 0.3)`) for a
+/// translucent region, or `outline(id)` for edges only.
+fn c_polygon(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    // Collect points from index 1; a non-pair arg (the optional colour) ends the list.
+    let mut pts = Vec::new();
+    let mut i = 1;
+    while i < a.len() {
+        match a.pair(i) {
+            Ok(p) => {
+                pts.push(p);
+                i += 1;
+            }
+            Err(_) => break,
+        }
+    }
+    if pts.len() < 3 {
+        return Err(Error::new(
+            "polygon needs at least 3 points".to_string(),
+            a.span_of(0),
+        ));
+    }
+    let color = if i < a.len() {
+        resolve_color(&a.ident(i)?, a.span_of(i))?
+    } else {
+        style::CYAN
+    };
+    let mut e = Entity::new(id.clone(), Shape::Polygon { pts }, Vec2::ZERO, color);
+    e.stroke.fill = true;
+    e.stroke.outline = true;
+    e.stroke.outline_color = Some(color);
+    e.tags.push(id);
+    s.add(e);
+    Ok(())
+}
+
 fn c_arrow(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let from = a.pair(1)?;
@@ -1127,6 +1165,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
     r.ctor("line", c_line);
+    r.ctor("polygon", c_polygon);
     r.ctor("arrow", c_arrow);
     r.ctor("brace", c_brace);
     r.ctor("bracelabel", c_bracelabel);

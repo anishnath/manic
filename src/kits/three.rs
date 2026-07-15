@@ -1064,7 +1064,255 @@ fn v_look(s: &Scene, a: &Args) -> Result<Clip, Error> {
     })
 }
 
+/// The 8 corners (local space), 12 edges, and 12 triangle faces of the
+/// parallelepiped spanned by column vectors `c1, c2, c3` — the image of the unit
+/// cube. Corner `i` has bits x = i&1, y = i&2, z = i&4.
+fn parallelepiped(c1: Vec3, c2: Vec3, c3: Vec3) -> (Vec<Vec3>, Vec<(u32, u32)>, Vec<[u32; 3]>) {
+    let mut verts = Vec::with_capacity(8);
+    for i in 0..8u32 {
+        let (x, y, z) = ((i & 1) as f32, ((i >> 1) & 1) as f32, ((i >> 2) & 1) as f32);
+        verts.push(c1 * x + c2 * y + c3 * z);
+    }
+    let edges = vec![
+        (0, 1), (0, 2), (0, 4), (1, 3), (1, 5), (2, 3),
+        (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7),
+    ];
+    let faces = vec![
+        [0, 1, 3], [0, 3, 2], // z = 0
+        [4, 5, 7], [4, 7, 6], // z = 1
+        [0, 1, 5], [0, 5, 4], // y = 0
+        [2, 3, 7], [2, 7, 6], // y = 1
+        [0, 2, 6], [0, 6, 4], // x = 0
+        [1, 3, 7], [1, 7, 5], // x = 1
+    ];
+    (verts, edges, faces)
+}
+
+/// Determinant of the 3×3 `[[a,b,c],[d,e,f],[g,h,i]]`.
+#[allow(clippy::too_many_arguments)]
+fn det3(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32, g: f32, h: f32, i: f32) -> f32 {
+    a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+}
+
+/// `linmap3(id, (cx,cy,cz), a,b,c,d,e,f,g,h,i, [color])` — a 3×3 matrix applied to
+/// space (the 3-D echo of `linmap`/`determinant`): the unit cube (faint wireframe)
+/// becomes a parallelepiped — its image — with basis arrows i (cyan), j (magenta),
+/// k (lime) landing on the matrix's columns. The parallelepiped's signed volume
+/// IS the determinant (labelled); it flips colour when det < 0 and collapses to a
+/// plane/line when det = 0.
+fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let o = a.triple(1)?;
+    let m = [
+        a.num(2)?, a.num(3)?, a.num(4)?,
+        a.num(5)?, a.num(6)?, a.num(7)?,
+        a.num(8)?, a.num(9)?, a.num(10)?,
+    ];
+    // columns = images of the basis vectors  (î → (a,d,g), etc.)
+    let c1 = vec3(m[0], m[3], m[6]);
+    let c2 = vec3(m[1], m[4], m[7]);
+    let c3 = vec3(m[2], m[5], m[8]);
+    let det = det3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    let fill = if a.len() > 11 {
+        resolve_color(&a.ident(11)?, a.span_of(11))?
+    } else if det < 0.0 {
+        style::MAGENTA
+    } else {
+        style::LIME
+    };
+    // faint reference unit cube (identity), wireframe only
+    let (uv, ue, _) = parallelepiped(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+    let mut refc = Entity3D::new(
+        format!("{id}.ref"),
+        Shape3D::Mesh { verts: uv, edges: ue, faces: vec![] },
+        o,
+        style::DIM,
+    );
+    refc.opacity = 0.4;
+    refc.tags.push(id.clone());
+    s.add_3d(refc);
+    // the image parallelepiped (filled + wireframe)
+    let (pv, pe, pf) = parallelepiped(c1, c2, c3);
+    let mut img = Entity3D::new(
+        id.clone(),
+        Shape3D::Mesh { verts: pv, edges: pe, faces: pf },
+        o,
+        fill,
+    );
+    img.opacity = 0.32;
+    img.tags.push(id.clone());
+    s.add_3d(img);
+    // basis arrows on the columns, with pinned labels
+    for (nm, col, col_c) in [("i", c1, style::CYAN), ("j", c2, style::MAGENTA), ("k", c3, style::LIME)] {
+        let mut arr = Entity3D::new(format!("{id}.{nm}"), Shape3D::Arrow { to: col }, o, col_c);
+        arr.tags.push(id.clone());
+        s.add_3d(arr);
+        let lbl = format!("{id}.l{nm}");
+        let mut t = Entity::new(lbl.clone(), Shape::Text { content: nm.to_string(), size: 22.0 }, Vec2::ZERO, col_c);
+        t.tags.push(id.clone());
+        s.add(t);
+        s.pins.push(Pin3 {
+            label: lbl,
+            target: Pin3Target::Point(o + col),
+            offset: vec2(10.0, -10.0),
+            declutter: true,
+        });
+    }
+    // det = signed volume, pinned to the parallelepiped's centroid
+    let centroid = o + (c1 + c2 + c3) * 0.5;
+    let vlbl = format!("{id}.val");
+    let mut vt = Entity::new(
+        vlbl.clone(),
+        Shape::Text { content: format!("det = {det:.2}"), size: 24.0 },
+        Vec2::ZERO,
+        style::GOLD,
+    );
+    vt.tags.push(id.clone());
+    s.add(vt);
+    s.pins.push(Pin3 {
+        label: vlbl,
+        target: Pin3Target::Point(centroid),
+        offset: vec2(0.0, 0.0),
+        declutter: false,
+    });
+    Ok(())
+}
+
+/// Real roots of `x³ + a2·x² + a1·x + a0`. Returns 1 root (one real, two complex)
+/// or 3 roots (all real, counting multiplicity) — so the count tells the caller
+/// how many eigenvalues are complex.
+fn real_cubic_roots(a2: f32, a1: f32, a0: f32) -> Vec<f32> {
+    let shift = -a2 / 3.0;
+    // depressed cubic t³ + p·t + q = 0  (x = t + shift)
+    let p = a1 - a2 * a2 / 3.0;
+    let q = 2.0 * a2 * a2 * a2 / 27.0 - a2 * a1 / 3.0 + a0;
+    let disc = q * q / 4.0 + p * p * p / 27.0;
+    if disc > 1e-9 {
+        let s = disc.sqrt();
+        let u = (-q / 2.0 + s).cbrt();
+        let v = (-q / 2.0 - s).cbrt();
+        vec![u + v + shift]
+    } else if p.abs() < 1e-9 {
+        vec![shift, shift, shift] // triple root
+    } else {
+        let r = (-p / 3.0).sqrt();
+        let phi = ((3.0 * q) / (2.0 * p) * (-3.0 / p).sqrt()).clamp(-1.0, 1.0).acos();
+        (0..3)
+            .map(|k| 2.0 * r * (phi / 3.0 - std::f32::consts::TAU * k as f32 / 3.0).cos() + shift)
+            .collect()
+    }
+}
+
+/// A unit eigenvector of the 3×3 `m` for eigenvalue `l`: a null vector of
+/// `A − λI`, found as the largest cross product of its rows (they span the row
+/// space, so their cross is orthogonal to both — i.e. in the null space).
+fn eigvec3(m: &[f32; 9], l: f32) -> Vec3 {
+    let b0 = vec3(m[0] - l, m[1], m[2]);
+    let b1 = vec3(m[3], m[4] - l, m[5]);
+    let b2 = vec3(m[6], m[7], m[8] - l);
+    let cands = [b0.cross(b1), b1.cross(b2), b2.cross(b0)];
+    let best = cands
+        .iter()
+        .copied()
+        .max_by(|a, b| a.length().partial_cmp(&b.length()).unwrap())
+        .unwrap();
+    if best.length() < 1e-5 {
+        vec3(1.0, 0.0, 0.0) // degenerate (repeated/scalar eigenspace) — pick an axis
+    } else {
+        best.normalize()
+    }
+}
+
+/// Real eigenpairs `(λ, unit eigenvector)` of the 3×3 `m`, plus how many of the
+/// three eigenvalues are complex (0 or 2). Repeated real eigenvalues are merged.
+fn eig3(m: &[f32; 9]) -> (Vec<(f32, Vec3)>, usize) {
+    let tr = m[0] + m[4] + m[8];
+    let minors = (m[4] * m[8] - m[5] * m[7]) + (m[0] * m[8] - m[2] * m[6]) + (m[0] * m[4] - m[1] * m[3]);
+    let dt = det3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    let roots = real_cubic_roots(-tr, minors, -dt);
+    let n_complex = 3 - roots.len();
+    let mut lambdas: Vec<f32> = Vec::new();
+    for r in roots {
+        if !lambdas.iter().any(|x: &f32| (x - r).abs() < 1e-3) {
+            lambdas.push(r);
+        }
+    }
+    let pairs = lambdas.into_iter().map(|l| (l, eigvec3(m, l))).collect();
+    (pairs, n_complex)
+}
+
+/// `eigen3(id, (cx,cy,cz), a,b,c,d,e,f,g,h,i, [color])` — the real **eigenvectors**
+/// of a 3×3 matrix as invariant lines through the origin (a vector on them only
+/// stretches, by λ). The 3-D echo of `eigen`. A real 3×3 always has ≥1 real
+/// eigenvector; a rotation leaves 2 complex eigenvalues, noted.
+fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let o = a.triple(1)?;
+    let m = [
+        a.num(2)?, a.num(3)?, a.num(4)?,
+        a.num(5)?, a.num(6)?, a.num(7)?,
+        a.num(8)?, a.num(9)?, a.num(10)?,
+    ];
+    let explicit = if a.len() > 11 {
+        Some(resolve_color(&a.ident(11)?, a.span_of(11))?)
+    } else {
+        None
+    };
+    let (pairs, n_complex) = eig3(&m);
+    let palette = [style::CYAN, style::MAGENTA, style::LIME];
+    let ext = 2.5;
+    for (k, (l, v)) in pairs.iter().enumerate() {
+        let col = explicit.unwrap_or(palette[k % 3]);
+        let mut line = Entity3D::new(
+            format!("{id}.axis{k}"),
+            Shape3D::Line { to: *v * (2.0 * ext) },
+            o - *v * ext,
+            col,
+        );
+        line.tags.push(id.clone());
+        s.add_3d(line);
+        let lbl = format!("{id}.l{k}");
+        let mut t = Entity::new(
+            lbl.clone(),
+            Shape::Text { content: format!("lambda = {l:.2}"), size: 22.0 },
+            Vec2::ZERO,
+            col,
+        );
+        t.tags.push(id.clone());
+        s.add(t);
+        s.pins.push(Pin3 {
+            label: lbl,
+            target: Pin3Target::Point(o + *v * ext),
+            offset: vec2(10.0, -10.0),
+            declutter: true,
+        });
+    }
+    if n_complex > 0 {
+        let note = format!("{id}.note");
+        let mut t = Entity::new(
+            note.clone(),
+            Shape::Text {
+                content: format!("+ {n_complex} complex eigenvalues (a rotation)"),
+                size: 20.0,
+            },
+            Vec2::ZERO,
+            style::DIM,
+        );
+        t.tags.push(id.clone());
+        s.add(t);
+        s.pins.push(Pin3 {
+            label: note,
+            target: Pin3Target::Point(o),
+            offset: vec2(0.0, 44.0),
+            declutter: false,
+        });
+    }
+    Ok(())
+}
+
 pub fn register(r: &mut Registry) {
+    r.ctor("linmap3", c_linmap3);
+    r.ctor("eigen3", c_eigen3);
     r.ctor("camera3", c_camera);
     r.ctor("point3", c_point);
     r.ctor("line3", c_line);
@@ -1099,6 +1347,45 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn det3_is_the_signed_volume() {
+        // the identity leaves the unit cube (volume 1)
+        assert!((det3(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0) - 1.0).abs() < 1e-5);
+        // a diagonal scales volume by the product of the diagonal
+        assert!((det3(2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0) - 24.0).abs() < 1e-4);
+        // a shear preserves volume (det = 1)
+        assert!((det3(1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0) - 1.0).abs() < 1e-5);
+        // swapping two columns flips orientation (det < 0)
+        assert!(det3(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0) < 0.0);
+        // the parallelepiped has 8 corners, 12 edges, 12 triangle faces
+        let (v, e, f) = parallelepiped(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+        assert_eq!((v.len(), e.len(), f.len()), (8, 12, 12));
+    }
+
+    #[test]
+    fn eig3_finds_real_eigenpairs() {
+        // diagonal diag(2,3,4): eigenvalues 2,3,4 along the axes, A·v = λ·v
+        let d = [2.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 4.0];
+        let (pairs, nc) = eig3(&d);
+        assert_eq!(nc, 0);
+        assert_eq!(pairs.len(), 3);
+        for (l, v) in &pairs {
+            let av = vec3(
+                d[0] * v.x + d[1] * v.y + d[2] * v.z,
+                d[3] * v.x + d[4] * v.y + d[5] * v.z,
+                d[6] * v.x + d[7] * v.y + d[8] * v.z,
+            );
+            assert!((av - *v * *l).length() < 1e-3, "A·v != λ·v for λ={l}");
+        }
+        assert!([2.0, 3.0, 4.0].iter().all(|t| pairs.iter().any(|(l, _)| (l - t).abs() < 1e-3)));
+        // a 90° rotation about z: one real eigenvalue (λ=1, axis = z), two complex
+        let rot = [0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
+        let (rp, rc) = eig3(&rot);
+        assert_eq!(rc, 2);
+        assert_eq!(rp.len(), 1);
+        assert!((rp[0].0 - 1.0).abs() < 1e-3 && rp[0].1.z.abs() > 0.99); // eigenaxis is z
+    }
 
     #[test]
     fn surface_partials_match_calculus() {

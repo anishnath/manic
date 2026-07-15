@@ -333,12 +333,61 @@ evaluator can reach the scene.
   containment, root-finding, and curve-parameter routines would make dynamic
   constructions stable near parallel lines, tangencies, and degeneracies.
   This improves every geometry kit before adding any new notation.
-- **Linear algebra** — matrices, vectors, decompositions, eigenvalues/
-  eigenvectors, determinants, and linear solves would turn `transform` into a
-  genuine linear-algebra explainer: show a basis moving, area scaling by a
-  determinant, diagonalisation, least-squares fits, and 3D camera/object
-  transforms derived from data. `nalgebra` is the likely focused dependency
-  when one of these scenes is built.
+- **Linear algebra** — ✅ *DONE — 2D Tiers 1–3 complete, plus the core 3D forms.*
+  The unifying idea: a matrix *does something to space*, and the computed
+  quantities (determinant, eigenvalues, solutions) are exposed visually — the
+  2D/3D analog of what `GraphFn`/`SurfaceFn` did for calculus.
+  - *Substrate (shipped):* a small **closed-form** numeric core — `det2`/`eig2`/
+    `solve2` (2×2), `det3`/`eig3` (3×3, with a real-cubic root solver), `fit_line`
+    (least-squares), `rref_steps` (Gauss-Jordan). **No `nalgebra`** — the 2×2/3×3
+    cases are handled directly. The `MatrixFn` "matrix-remembers-its-numbers by
+    id" idea was **closed as unneeded**: every builtin takes the matrix inline,
+    and `let a = …` variables already give the define-once / reference-many
+    ergonomic without coupling to the visual `matrix` entity. (A matrix-by-id
+    binding could still be added later if a workflow wants it — the `surf`-on-
+    entity pattern shows how — but nothing in Tiers 1–3 needed it.)
+  - ✅ *Tier 1 — what a matrix IS (flagship trio, shipped):* **`linmap`** (the
+    deformed grid + basis î,ĵ landing on the matrix's columns, over a faint
+    identity grid); **`determinant`** (the unit square → parallelogram, area =
+    det, flips colour when det<0, collapses to a line at det=0); **`eigen`** (the
+    real eigenvector directions + eigenvalues; a note for complex/rotation).
+    All math y-up via `det2`/`eig2` (closed-form 2×2 — no `nalgebra` yet). See
+    `examples/linear-map.manic`.
+  - ✅ *Tier 2 — systems, spans, rank (shipped):* **`linsolve`** (`Ax=b` as the
+    row picture — the two rows as lines meeting at the solution, a gold dot + its
+    coords; parallel rows = "no unique solution"); **`span`** (the line/plane a
+    set of vectors reaches — two independent vectors → the whole plane, one or
+    two parallel vectors → a line, i.e. the rank/collapse picture that ties to
+    `determinant`). 2D via `solve2` (Cramer) + the cross-product test. See
+    `examples/linear-system.manic`.
+  - *Tier 3 — decompositions & operations:* ✅ **`diagonalise`** (shipped —
+    `A = P D P⁻¹` made visual: the eigen-grid + unit eigen-cell and its image, a
+    pure stretch by λ along each eigenvector, no shear; `eig2`-based, math y-up,
+    complex/repeated → note; alias `diagonalize`; see `examples/diagonalise.manic`).
+    ✅ **`rref`** (shipped — animated Gaussian elimination: one matrix per
+    elimination state drawn in place, cross-faded `s{k-1}`→`s{k}` with the row-op
+    captioned; the last state is the RREF, and for `[A|b]` its final column is the
+    solution; `rref_steps` Gauss-Jordan core; see `examples/rref.manic`).
+    ✅ **projection & least-squares** (shipped — `project` drops a vector onto a
+    subspace line: the shadow `p = (b·a/a·a)a` and the residual `b−p` at a right
+    angle; `leastsquares` fits `y = m x + c` to a point cloud with its vertical
+    residuals — the same orthogonal-projection principle. See
+    `examples/projection.manic`).
+    **Tier 3 complete.**
+  - *3D forms:* ✅ **`linmap3`** (shipped — a 3×3 matrix deforming the unit cube
+    into a parallelepiped: basis arrows i/j/k on the columns, and the enclosed
+    **volume = the determinant**, `det3`-based, colour flips on det < 0, collapses
+    at det = 0; see `examples/linear-map3.manic`). ✅ **`eigen3`** (shipped — the
+    real eigenvector directions of a 3×3 as invariant lines + λ labels; the
+    characteristic cubic solved for real roots, eigenvectors via row cross
+    products, complex eigenvalues noted; see `examples/eigen3.manic`). Remaining
+    3D: **planes intersecting for a 3×3 solve** (the 3D row picture of `Ax = b`).
+  - *3D lesson:* `examples/linear-algebra-3d.manic` ties the 3D forms together
+    (one matrix, transformation then eigenvectors), the companion to the 2D
+    `examples/linear-algebra.manic` five-idea lesson.
+  - *Remaining (optional, not blocking "done"):* a 3D **`Ax=b` as three
+    intersecting planes** viz would round out the 3D row picture; everything else
+    in the rung is shipped.
 - **Calculus and numerical analysis** — the numerical *operations* on a curve
   are shipped: differentiation (`tangent`/`slope`/`normal`/`deriv`), definite
   integration (`area`/`integral`/`accum`, composite Simpson), root-finding
@@ -372,6 +421,82 @@ evaluator can reach the scene.
   (gradient / partials / tangent plane / volume) now ships. Numerical methods
   were the right first step because their intermediate states are already an
   animation storyboard.
+- **Statistics and probability** — 🚧 *Tiers 1–5 shipped (descriptive + shape + distributions + CLT/LLN/correlation + inference); remaining: more distributions, confidence intervals.* The widest
+  everyday-relevance rung and the biggest non-programmer audience. Unifying idea:
+  turn **data** — or a **random process** — into a picture that reveals its
+  shape, centre, and spread, plus the truths that only appear *at scale*
+  (distributions, convergence, relationships). Animation-first, so each builtin
+  shows a *process*, not a static chart: a histogram **builds up** bar by bar,
+  sample means **pile into a bell**, a running proportion **settles** onto the
+  true probability. Reuses much of what already ships: `plot`/`GraphFn` for
+  distribution curves (the `gauss`/`bell` named functions already exist),
+  `area`/`integral`/`accum` for probability-as-area and PDF→CDF, `leastsquares`
+  for regression (already shipped), and the number-list parsing from
+  `leastsquares` for datasets.
+  - *Substrate (new):* a small stats core — mean / median / quantiles /
+    variance-std, histogram binning, correlation `r` — plus distribution
+    formulas (normal PDF/CDF, uniform, exponential, binomial, Poisson) as
+    plottable curves. **Critical design constraint:** sampling demos need a
+    **seeded, deterministic PRNG** (an LCG seeded from a DSL argument), NOT system
+    entropy — a "1000 coin flips" scene must render the same frames every time
+    (reproducible renders are core to the engine). Data is a number list
+    (`"v1 v2 v3 …"`), reusing the `leastsquares` parser.
+  - *Tier 1 — describe a dataset (flagship trio):* ✅ **`histogram`** (shipped —
+    bins a number list into bars, the shape of the data, staggered in bar by bar;
+    gold mean marker + range labels; bars tagged `{id}.bar{k}`/`{id}.bars`;
+    `histogram_bins` core; new `stats` kit; see `examples/histogram.manic`).
+    **`summary`** — the **descriptive-statistics** workhorse: the data as dots on
+    a number line, with **mean / median / mode** markers and the **spread** (a
+    ±σ band), plus live readouts of **range, variance, standard deviation**. One
+    builtin covers most of central-tendency + dispersion. **`boxplot`** — the
+    five-number summary (min · Q1 · median · Q3 · max) as a box-and-whisker, so
+    the box *is* the **interquartile range (IQR)** and whiskers/outliers show
+    tails. A tiny **`skew`** label (left / right / zero) can piggyback on
+    `histogram` for **shape**. All cheap: reuse bars / number-line / point parsing.
+    ✅ *Shipped:* **`summary`** (`describe` → mean/median/mode/range/variance/std)
+    and **`boxplot`** (`five_number` → min·Q1·median·Q3·max, IQR box, 1.5·IQR
+    outlier detection; see `examples/summary.manic`, `examples/boxplot.manic`)
+    and **`skew`** (`skewness` moment coefficient, mean-vs-median tell, labelled
+    right/left/symmetric; see `examples/skew.manic`) — **descriptive statistics
+    and shape are complete** (central tendency + dispersion + skewness).
+  - *Tier 2 — distributions:* ✅ **`bellcurve`** (shipped — the normal/Gaussian
+    bell for μ, σ with the 68–95–99.7 rule shaded as nested ±1σ/±2σ/±3σ bands,
+    mean line, % labels, value ticks; alias `gaussian`; named `bellcurve` not
+    `normal` to avoid the calculus perpendicular-line builtin; see
+    `examples/bellcurve.manic`); the other named
+    distributions (uniform / exponential / binomial bars / Poisson);
+    **probability = area** under the curve between `a` and `b` (reuses `area`);
+    and **PDF → CDF** as the running integral of the density (reuses `accum`).
+  - *Tier 3 — truths at scale:* ✅ **`clt`** (shipped — the Central Limit Theorem:
+    histograms the averages of `samplesize` dice over `trials` runs → they pile
+    into a bell that hugs the theoretical normal; **seeded LCG** (`lcg_next`,
+    `clt_means`) so the render is reproducible — this is the promised seeded PRNG
+    substrate; see `examples/clt.manic`). Remaining: the **Law of Large Numbers** (a
+    running proportion/mean converging to the truth) — ✅ **`lln`** (shipped:
+    `lln_proportions`, coin-flip proportion settling onto 0.5, seeded; see
+    `examples/lln.manic`); ✅ **`correlation`** (shipped —
+    scatter + best-fit line + the Pearson **r** with a strength/direction reading;
+    `regression` helper returns `(m, k, r)`; see `examples/correlation.manic`);
+    **confidence intervals / error bars**.
+  - *Tier 4 — random processes:* ✅ **shipped.** **`montecarlo`** (π by darts,
+    seeded), **`randomwalk`** (2-D wandering path, seeded); plus **`distribution`**
+    (uniform / exponential / binomial / poisson) and **`confidence`** (a CI ± z·sd/√n)
+    round out the distributions/inference. See `examples/probability.manic` (a
+    4-idea playground).
+  - *Tier 5 — inference:* ✅ **shipped.** **`hypothesis`** (two-tailed z-test —
+    p-value as shaded normal tails vs alpha; `normal_tail` numeric core),
+    **`covariance`** (signed-area rectangles about the mean cross;
+    `covariance_of`), and **`bayes`** (Beta-Bernoulli prior → likelihood →
+    posterior for a coin's bias). See `examples/hypothesis.manic`,
+    `examples/covariance.manic`, `examples/bayes.manic`.
+  - *Recommended first slice:* the **Tier 1 trio** (`histogram`/`summary`/
+    `boxplot`) — the "describe data" core, all cheap reuse — then **`normal`**
+    (Tier 2), which reuses `plot` + `area` and unlocks the 68–95–99.7 rule. The
+    **CLT** (Tier 3) is the flagship *payoff* once the PRNG + `histogram` exist,
+    and the natural capstone lesson (`examples/statistics.manic`), mirroring the
+    LA five-idea lessons.
+  - *3D:* largely N/A / low priority (a bivariate-normal surface via `surface3`,
+    or a 3D scatter — nice-to-have, not core to the rung).
 - **Constraints and optimisation** — a small solver for distances, angles,
   incidence, and bounds would let authors state a construction's invariant
   instead of manually updating its points. It unlocks movable geometry,
@@ -389,8 +514,11 @@ evaluator can reach the scene.
 
 Recommended order: **robust predicates/root finding → linear algebra →
 calculus/numerical methods → constraints/optimisation → symbolic algebra**.
-Each layer should expose computed values to the existing timeline, counters,
-plots, geometry, and 3D scene rather than becoming a separate math subsystem.
+*Status (2026-07):* root-finding and **calculus/numerical methods are shipped**
+(we took calculus ahead of linear algebra); **linear algebra is the active next
+rung** (see its bullet above). Each layer should expose computed values to the
+existing timeline, counters, plots, geometry, and 3D scene rather than becoming
+a separate math subsystem.
 Typography is complementary but separate: LaTeX makes mathematics readable;
 the capabilities above make it behave correctly.
 

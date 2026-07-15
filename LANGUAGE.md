@@ -173,6 +173,7 @@ address.
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
+| `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
 | `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point |
 | `brace(id, (x1,y1), (x2,y2), [depth])` | a curly brace spanning the two points, bulging `depth` px to one side (default 22; negative flips the side) |
 | `bracelabel(id, (x1,y1), (x2,y2), "text", [depth])` (alias `bracetext`) | a brace with a text label centred just beyond its cusp; child `{id}.label` |
@@ -326,6 +327,15 @@ entities named `{id}.x`, `{id}.tN`, etc.
 | `spline(id, p0, p1, …)` | a smooth curve (Catmull-Rom) passing through every given point — manic's "draw a smooth curve through these data points." Knot dots are `{id}.k0`, … (tagged `{id}.knots`). `untraced(id)` + `draw(id, dur)` traces it on. |
 | `trajectory(id, "dx/dt", "dy/dt", (x0,y0), (cx,cy), scale, [steps])` | the path a point follows under the ODE system `dx/dt = fx(x,y)`, `dy/dt = fy(x,y)`, integrated (RK4) from math point `(x0,y0)` and drawn as `(cx + x·scale, cy − y·scale)` — orbits, spirals, phase portraits. For `dy/dx = f(x,y)`, pass `"1"` and `"f(x,y)"`. `untraced(id)` + `draw(id, dur)` flows the point along it. |
 | `vector(id, (cx,cy), (dx,dy), [color])` | an arrow from the origin to `(cx+dx, cy−dy)` (dy is up); default magenta |
+| `linmap(id, (cx,cy), unit, a, b, c, d, [span])` | the 2×2 matrix `[[a,b],[c,d]]` applied to the plane (math y-up, `unit` px per unit): a faint identity grid under the deformed (cyan) grid, with basis î (gold) and ĵ (magenta) landing on the columns `(a,c)`, `(b,d)`. Tagged `id`. |
+| `determinant(id, (cx,cy), unit, a, b, c, d, [color])` | the unit square and its image under the matrix (a filled parallelogram), labelled **area = det**. Fill flips colour when det < 0; collapses to a line at det = 0. |
+| `eigen(id, (cx,cy), unit, a, b, c, d, [color])` | the matrix's **real eigenvector directions** as lines through the origin (invariant — only stretch by the eigenvalue λ, shown). Complex eigenvalues leave a short note. |
+| `linsolve(id, (cx,cy), unit, a, b, c, d, e, f, [span])` | the **row picture** of `Ax=b`: `a·x+b·y=e` (cyan) and `c·x+d·y=f` (magenta) drawn as two lines; their intersection is the solution, marked with a gold dot and its coords. Parallel rows (det = 0) leave a "no unique solution" note. |
+| `span(id, (cx,cy), unit, (vx,vy), [(wx,wy)], [color])` | the **span** of one or two vectors (as arrows from the origin): one vector — or two parallel ones — spans a **line** (the rank-1 collapse); two independent vectors span the **whole plane** (a faint region). |
+| `diagonalise(id, (cx,cy), unit, a, b, c, d, [color])` | `A = P D P⁻¹` made visual: draws the (skewed) **eigen-grid**, the eigen-axes, and the unit eigen-cell together with its image under `A` — a pure **stretch** by λ along each eigenvector, no shear (A is *diagonal* in its own basis). `diagonalize` is an alias. Complex/repeated eigenvalues leave a note. |
+| `rref(id, "2 1 5 ; 1 3 10", (cx,cy), [cellw], [rowh])` | **animated Gaussian elimination**: reduces the matrix (rows split on `;`) to reduced row-echelon form one row operation at a time. Draws static brackets + one matrix per state `{id}.s0`, `{id}.s1`, … (all hidden) at the same spot, with each row-op text as `{id}.op0`, `{id}.op1`, …. Reveal the states in order (cross-fade `s{k-1}`→`s{k}`) to watch the numbers change in place. For an augmented `[A\|b]`, the last state's final column is the solution. |
+| `project(id, (cx,cy), unit, (bx,by), (ax,ay), [color])` | **orthogonal projection** of vector `b` onto the line spanned by `a`: the subspace line (`{id}.line`), `b` (`{id}.b`), its shadow `p = (b·a / a·a) a` (`{id}.p`), the residual `b − p` (`{id}.res`) meeting the line at a right angle (`{id}.rt`), plus labels. The nearest point of the subspace to `b`. |
+| `leastsquares(id, (cx,cy), unit, "x1 y1  x2 y2  …", [color])` | the **best-fit line** through a point cloud (linear regression): the points (`{id}.points`), the line `y = m x + c` minimising the squared vertical residuals (`{id}.line` + `{id}.eq`), and each residual (`{id}.residuals`). The same principle as `project`. |
 | `numberline(id, (cx,cy), halfw, from, to, step)` | an axis with ticks and labels from `from` to `to` |
 | `arrowfield(id, (cx,cy), halfw, halfh, field, [n])` | a grid of arrows sampling a named vector `field`, coloured by magnitude (cyan→lime→magenta); `n` arrows across |
 | `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space **or comma** — so no comma inside an entry, and every row must have the same number of entries); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
@@ -547,6 +557,35 @@ circumcircle(cc, A, B, C);   incircle(ic, A, B, C);   centroid(G, A, B, C);
 foot(F, C, A, B);   segment(alt, C, F);   anglemark(angC, A, C, B);
 ```
 
+## The stats kit
+
+Turn a dataset into a picture. The dataset is a plain number list (`"v1 v2 v3 …"`,
+parsed like `leastsquares`). Tier 1 — *describe a dataset*:
+
+| builtin | what it draws |
+| --- | --- |
+| `histogram(id, (cx,cy), "v1 v2 …", [bins], [width], [height], [color])` | bins the numbers into bars — the **shape** of the data. Bars are `{id}.bar0`, `{id}.bar1`, … (tagged `{id}` and `{id}.bars`, exactly `bins` of them so a `for k in 0..bins { draw(id.bar{k}) }` loop is safe) so they stagger in and recolour as a group. A gold `{id}.meanline` + `{id}.mean` mark the mean; `{id}.min` / `{id}.max` label the range. Default bin count ≈ √n (clamped 5–20). Pass `rainbow` as the colour to give every bar its own hue (no loop needed). |
+| `summary(id, (cx,cy), "v1 v2 …", [width], [color])` | **describe a dataset**: the data as dots on a number line (`{id}.dots`) with **mean** (gold), **median** (magenta) and **mode** (lime) markers (`{id}.meanmark`/`.medianmark`/`.modemark` + `.*lbl`), a translucent **±1σ band** (`{id}.band`), and a readout of **n / range / variance / std** (`{id}.readout`). Central tendency + dispersion in one call. |
+| `skew(id, (cx,cy), "v1 v2 …", [bins], [width], [height], [color])` | the **shape** of a dataset: a histogram with the **mean** (gold) and **median** (magenta) marked and a labelled **skewness** (`{id}.skewlbl` — right / left / ≈ symmetric). Mean right of median ⇒ right-skewed. Bars `{id}.bar{k}` (`{id}.bars`); pass `rainbow` for per-bar hues. |
+| `boxplot(id, (cx,cy), "v1 v2 …", [width], [color])` | the **five-number summary** as a box-and-whisker: the box (`{id}.box`) spans Q1→Q3 (its width IS the **IQR**), `{id}.med` marks the median, whiskers (`{id}.whiskerlo`/`.whiskerhi` + caps) reach the extreme non-outliers (within 1.5·IQR), and points beyond are **outliers** (`{id}.out{k}`, tagged `{id}.outliers`). Value labels + `{id}.iqr`. |
+| `correlation(id, (cx,cy), unit, "x1 y1  x2 y2 …", [color])` | how strongly two variables move together: the **scatter** (`{id}.p{k}`, tagged `{id}.points`), the best-fit **line** (`{id}.line`), and the **Pearson correlation r** (`{id}.r`, with a strong/moderate/weak · positive/negative reading). `unit` = px per data unit (x & y share it — use comparable ranges). |
+| `bellcurve(id, (cx,cy), mu, sigma, [unit], [color])` | the normal / Gaussian **bell curve** with the **68-95-99.7 rule** shaded: `{id}.curve`, nested ±1σ/±2σ/±3σ bands (`{id}.band1/2/3`, tagged `{id}.bands`), `{id}.mean`, the `{id}.p1/2/3` percentages, and value ticks `{id}.t-3…t3` (μ, μ±σ, …). `unit` = px per σ (default 80); the bell is standardised, μ/σ set the axis values. Alias `gaussian`. |
+| `hypothesis(id, (cx,cy), z, [alpha], [unit])` | a two-tailed **significance test**: the standard-normal null distribution with the tails beyond ±z shaded (`{id}.tails`) — their area is the **p-value** (`{id}.p`), compared to `alpha` (default 0.05) for the verdict (`{id}.verdict`). |
+| `covariance(id, (cx,cy), unit, "x1 y1  x2 y2 …", [color])` | **covariance** as signed area: a cross at the means, and per-point rectangles (`{id}.rects`) cyan where `(x-x̄)(y-ȳ)>0`, magenta where negative — their balance is the covariance (`{id}.cov`). |
+| `bayes(id, (cx,cy), heads, tails, [width], [height])` | **Bayesian updating** for a coin's bias: a mild **prior** (`{id}.prior`), the **likelihood** from the data (`{id}.likelihood`), and the **posterior** (`{id}.posterior`) between them — pulled toward the data, sharpening with evidence. |
+| `distribution(id, (cx,cy), "kind", a, [b], [color])` | a named distribution: **uniform**(lo=a, hi=b) and **exponential**(rate=a) as density curves; **binomial**(n=a, p=b) and **poisson**(mean=a) as probability bars (`{id}.bars`). Pass `rainbow` for per-bar hues. |
+| `confidence(id, (cx,cy), mean, sd, n, [level], [width])` | a **confidence interval** for a mean: the estimate on a number line (`{id}.estimate`) with an error bar of ± z·sd/√n (z from `level`, default 95%). `{id}.bar` + caps, `{id}.ci`. |
+| `montecarlo(id, (cx,cy), points, [seed], [size])` | estimate **π by darts**: random points in a square, inside the circle cyan / outside magenta (`{id}.points`); π ≈ 4·inside/total (`{id}.pi`). Seeded / reproducible. |
+| `randomwalk(id, (cx,cy), steps, [seed], [scale])` | a 2-D **random walk**: from the centre, each step a random direction — the wandering `{id}.path` with `{id}.start` (lime) and `{id}.end` (gold). Seeded. |
+| `lln(id, (cx,cy), trials, [seed], [width], [height])` | the **Law of Large Numbers**: the running proportion of heads over many coin flips (`{id}.curve`) — wild at first, settling onto the true 0.5 (`{id}.ref`). Seeded / deterministic. Draw the curve in to *watch* it converge. |
+| `clt(id, (cx,cy), samplesize, trials, [seed], [width], [height], [color])` | the **Central Limit Theorem**: `trials` experiments, each the average of `samplesize` dice, histogrammed — the averages pile into a bell. Draws the histogram of sample means (`{id}.bar{k}`, tagged `{id}.bars`, exactly 30), the normal curve they converge to (`{id}.curve`), the mean line, ticks 1–6, and `{id}.info`. **Seeded** (deterministic — same `seed` → identical render). Pass `rainbow` for per-bar hues. |
+
+```manic
+histogram(h, (cx, cy), "72 85 90 68 95 88 76 91 83 79 84 60 97 81", 10);
+untraced(h.bars);
+stagger(0.06) { for k in 0..10 { draw(h.bar{k}, 0.35); } }   // bars build up
+```
+
 ## The 3D kit
 
 3D is rendered with depth testing beneath the normal 2D scene. Declare one
@@ -560,6 +599,8 @@ scrubbable like every other Manic track.
 | `line3(id, from, to)` | depth-tested 3D segment |
 | `arrow3(id, from, to)` | depth-tested 3D vector |
 | `cube3(id, center, (sx,sy,sz))` | cuboid centred at `center` |
+| `linmap3(id, (cx,cy,cz), a,b,c,d,e,f,g,h,i, [color])` | a 3×3 matrix `[[a,b,c],[d,e,f],[g,h,i]]` applied to space (the 3-D echo of `linmap`/`determinant`): the unit cube (faint wireframe `{id}.ref`) becomes a parallelepiped (`{id}`), with basis arrows `{id}.i`/`.j`/`.k` on the matrix's columns. The enclosed **volume = the determinant** (`{id}.val`) — colour flips when det < 0, collapses flat at det = 0. |
+| `eigen3(id, (cx,cy,cz), a,b,c,d,e,f,g,h,i, [color])` | the real **eigenvectors** of a 3×3 matrix as invariant lines through the origin (`{id}.axis0…`) with `lambda = λ` labels — the directions a vector only *stretches*, never turns (3-D echo of `eigen`). A real 3×3 always has ≥ 1 real eigenvector; complex eigenvalues (a rotation) get a note. |
 | `sphere3(id, center, radius)` | sphere centred at `center` |
 | `grid3(id, center, half, [spacing])` | XY ground grid from `-half` to `half` |
 | `axes3(id, origin, length, [step])` | cyan x, magenta y, lime z arrows **with tick marks + numbers** every `step` (default 1; `step ≤ 0` = plain arrows), tagged as `id`. Tick numbers sit off each axis in a distinct direction and auto-declutter per frame (a number is hidden while it would collide with another), so a foreshortened or short axis stays readable and the numbers reappear as the orbit spreads it out |

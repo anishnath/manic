@@ -279,6 +279,9 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
         "gold" | "amber" | "yellow" => style::GOLD,
         "dim" | "gray" | "grey" => style::DIM,
         "panel" => style::PANEL,
+        // `rainbow` is a per-element spectrum used by bar builtins (histogram,
+        // …); where a single colour is needed it falls back to cyan.
+        "rainbow" => style::CYAN,
         other => {
             return Err(Error::new(
                 format!(

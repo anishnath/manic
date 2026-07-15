@@ -1957,6 +1957,764 @@ fn c_table(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+// ===================== linear algebra (flagship trio) =====================
+// A 2×2 matrix [[a,b],[c,d]] *does something to space*. These draw it in math
+// y-up (grid point (gx,gy) → screen (cx + gx*u, cy − gy*u)), so î,ĵ land on the
+// matrix's columns, the area scales by the determinant, and eigenvectors are
+// the real invariant directions.
+
+/// The 2×2 determinant.
+fn det2(a: f32, b: f32, c: f32, d: f32) -> f32 {
+    a * d - b * c
+}
+
+/// Solve `[[a,b],[c,d]] x = (e,f)` by Cramer's rule; `None` when the matrix is
+/// singular (det ≈ 0 — the two rows are parallel lines, no unique solution).
+fn solve2(a: f32, b: f32, c: f32, d: f32, e: f32, f: f32) -> Option<(f32, f32)> {
+    let det = a * d - b * c;
+    if det.abs() < 1e-6 {
+        return None;
+    }
+    Some(((e * d - b * f) / det, (a * f - e * c) / det))
+}
+
+/// Real eigenpairs `(λ, unit eigenvector)` of `[[a,b],[c,d]]`; empty when the
+/// eigenvalues are complex (a rotation — no real invariant line).
+fn eig2(a: f32, b: f32, c: f32, d: f32) -> Vec<(f32, Vec2)> {
+    let (tr, det) = (a + d, a * d - b * c);
+    let disc = tr * tr - 4.0 * det;
+    if disc < -1e-6 {
+        return Vec::new();
+    }
+    let sq = disc.max(0.0).sqrt();
+    let lambdas: Vec<f32> = if sq < 1e-5 {
+        vec![tr / 2.0]
+    } else {
+        vec![(tr + sq) / 2.0, (tr - sq) / 2.0]
+    };
+    lambdas
+        .into_iter()
+        .map(|l| {
+            let v = if b.abs() > 1e-6 {
+                Vec2::new(b, l - a)
+            } else if c.abs() > 1e-6 {
+                Vec2::new(l - d, c)
+            } else if (l - a).abs() < (l - d).abs() {
+                Vec2::new(1.0, 0.0)
+            } else {
+                Vec2::new(0.0, 1.0)
+            };
+            let n = v.length();
+            (l, if n > 1e-6 { v / n } else { Vec2::new(1.0, 0.0) })
+        })
+        .collect()
+}
+
+/// `linmap(id, (cx,cy), unit, a, b, c, d, [span])` — a 2×2 matrix applied to the
+/// plane: a faint identity grid under the deformed (cyan) grid, with the basis
+/// î (gold) and ĵ (magenta) landing on the matrix's columns `(a,c)` and `(b,d)`.
+fn c_linmap(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let (m11, m12, m21, m22) = (a.num(3)?, a.num(4)?, a.num(5)?, a.num(6)?);
+    let span = a.opt_num(7)?.map(|v| v as i32).unwrap_or(4).clamp(1, 10);
+    let sc = |gx: f32, gy: f32| Vec2::new(c.x + gx * u, c.y - gy * u);
+    let map = |gx: f32, gy: f32| (m11 * gx + m12 * gy, m21 * gx + m22 * gy);
+    let sp = span as f32;
+    for k in -span..=span {
+        let g = k as f32;
+        // faint identity grid
+        add_line(s, format!("{id}.ih{k}"), sc(-sp, g), sc(sp, g), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+        add_line(s, format!("{id}.iv{k}"), sc(g, -sp), sc(g, sp), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+        // deformed grid = identity mapped by M
+        let (hx0, hy0) = map(-sp, g);
+        let (hx1, hy1) = map(sp, g);
+        add_line(s, format!("{id}.h{k}"), sc(hx0, hy0), sc(hx1, hy1), style::CYAN, 1.5, 0.85, -1, vec![id.clone()]);
+        let (vx0, vy0) = map(g, -sp);
+        let (vx1, vy1) = map(g, sp);
+        add_line(s, format!("{id}.v{k}"), sc(vx0, vy0), sc(vx1, vy1), style::CYAN, 1.5, 0.85, -1, vec![id.clone()]);
+    }
+    // basis vectors, landing on the columns
+    for (nm, tox, toy, col, lab) in [
+        ("i", m11, m21, style::GOLD, "i"),
+        ("j", m12, m22, style::MAGENTA, "j"),
+    ] {
+        let mut arr = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(tox, toy) }, sc(0.0, 0.0), col);
+        arr.stroke.width = 4.0;
+        arr.tags.push(id.clone());
+        s.add(arr);
+        let mut t = Entity::new(
+            format!("{id}.l{nm}"),
+            Shape::Text { content: lab.to_string(), size: 22.0 },
+            sc(tox, toy) + Vec2::new(14.0, -12.0),
+            col,
+        );
+        t.font = FontKind::MonoBold;
+        t.tags.push(id.clone());
+        s.add(t);
+    }
+    Ok(())
+}
+
+/// `determinant(id, (cx,cy), unit, a, b, c, d, [color])` — the unit square (faint)
+/// and its image under the matrix (a filled parallelogram), labelled with the
+/// signed area = det. The fill flips colour when det < 0 (orientation reversed);
+/// at det = 0 the parallelogram collapses to a line.
+fn c_determinant(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let (m11, m12, m21, m22) = (a.num(3)?, a.num(4)?, a.num(5)?, a.num(6)?);
+    let det = det2(m11, m12, m21, m22);
+    let color = if a.len() > 7 {
+        resolve_color(&a.ident(7)?, a.span_of(7))?
+    } else if det < 0.0 {
+        style::MAGENTA
+    } else {
+        style::LIME
+    };
+    let sc = |gx: f32, gy: f32| Vec2::new(c.x + gx * u, c.y - gy * u);
+    // faint unit square (identity)
+    let unit_sq = vec![sc(0.0, 0.0), sc(1.0, 0.0), sc(1.0, 1.0), sc(0.0, 1.0)];
+    let mut usq = Entity::new(format!("{id}.unit"), Shape::Polygon { pts: unit_sq }, Vec2::ZERO, style::DIM);
+    usq.stroke.fill = false;
+    usq.stroke.outline = true;
+    usq.opacity = 0.35;
+    usq.tags.push(id.clone());
+    s.add(usq);
+    // image parallelogram: columns (m11,m21) and (m12,m22)
+    let para = vec![sc(0.0, 0.0), sc(m11, m21), sc(m11 + m12, m21 + m22), sc(m12, m22)];
+    let mut e = Entity::new(id.clone(), Shape::Polygon { pts: para }, Vec2::ZERO, color);
+    e.stroke.fill = true;
+    e.stroke.outline = true;
+    e.stroke.outline_color = Some(color);
+    e.opacity = 0.45;
+    e.tags.push(id.clone());
+    s.add(e);
+    let mid = sc(0.5 * (m11 + m12), 0.5 * (m21 + m22));
+    let mut lbl = Entity::new(
+        format!("{id}.val"),
+        Shape::Text { content: format!("det = {det:.2}"), size: 24.0 },
+        mid,
+        color,
+    );
+    lbl.font = FontKind::MonoBold;
+    lbl.tags.push(id);
+    s.add(lbl);
+    Ok(())
+}
+
+/// `eigen(id, (cx,cy), unit, a, b, c, d, [color])` — the matrix's real
+/// eigenvectors as lines through the origin (the invariant directions — a vector
+/// on them only stretches, by the eigenvalue λ, shown). Complex eigenvalues (a
+/// rotation) leave a short note instead.
+fn c_eigen(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let (m11, m12, m21, m22) = (a.num(3)?, a.num(4)?, a.num(5)?, a.num(6)?);
+    let color = if a.len() > 7 {
+        resolve_color(&a.ident(7)?, a.span_of(7))?
+    } else {
+        style::GOLD
+    };
+    let sc = |gx: f32, gy: f32| Vec2::new(c.x + gx * u, c.y - gy * u);
+    let pairs = eig2(m11, m12, m21, m22);
+    if pairs.is_empty() {
+        let mut note = Entity::new(
+            format!("{id}.note"),
+            Shape::Text { content: "complex eigenvalues (a rotation)".to_string(), size: 20.0 },
+            c + Vec2::new(0.0, u * 2.6),
+            style::DIM,
+        );
+        note.tags.push(id);
+        s.add(note);
+        return Ok(());
+    }
+    let ext = 4.0;
+    for (k, (l, v)) in pairs.iter().enumerate() {
+        add_line(
+            s,
+            format!("{id}.line{k}"),
+            sc(-v.x * ext, -v.y * ext),
+            sc(v.x * ext, v.y * ext),
+            color,
+            3.0,
+            1.0,
+            2,
+            vec![id.clone()],
+        );
+        let mut lbl = Entity::new(
+            format!("{id}.l{k}"),
+            Shape::Text { content: format!("lambda = {l:.2}"), size: 20.0 },
+            sc(v.x * (ext - 0.6), v.y * (ext - 0.6)) + Vec2::new(0.0, -14.0),
+            color,
+        );
+        lbl.font = FontKind::MonoBold;
+        lbl.tags.push(id.clone());
+        s.add(lbl);
+    }
+    Ok(())
+}
+
+/// `diagonalise(id, (cx,cy), unit, a, b, c, d, [color])` — the eigendecomposition
+/// `A = P D P⁻¹` made visual: in the **eigenbasis** the matrix is a pure diagonal
+/// stretch. Draws the (generally skewed) eigen-grid, the eigen-axes, and the unit
+/// eigen-cell together with its **image** under A — a cell stretched by λ₁ along
+/// e₁ and λ₂ along e₂ with NO shear (its edges stay parallel to the eigenvectors).
+/// Complex/repeated eigenvalues (no real 2-D eigenbasis) leave a short note.
+fn c_diagonalise(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let (m11, m12, m21, m22) = (a.num(3)?, a.num(4)?, a.num(5)?, a.num(6)?);
+    let color = if a.len() > 7 {
+        resolve_color(&a.ident(7)?, a.span_of(7))?
+    } else {
+        style::CYAN
+    };
+    let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
+    let pairs = eig2(m11, m12, m21, m22);
+    if pairs.len() < 2 {
+        let mut note = Entity::new(
+            format!("{id}.note"),
+            Shape::Text {
+                content: "no real eigenbasis (complex or repeated eigenvalues)".to_string(),
+                size: 20.0,
+            },
+            c + Vec2::new(0.0, u * 2.6),
+            style::DIM,
+        );
+        note.tags.push(id);
+        s.add(note);
+        return Ok(());
+    }
+    let (l1, e1) = pairs[0];
+    let (l2, e2) = pairs[1];
+    let span = 3i32;
+    let sp = span as f32;
+    // faint eigen-grid: the (skewed) coordinate frame of the eigenbasis.
+    for k in -span..=span {
+        let kf = k as f32;
+        add_line(s, format!("{id}.g{k}a"), sc(-sp * e1 + kf * e2), sc(sp * e1 + kf * e2), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+        add_line(s, format!("{id}.g{k}b"), sc(kf * e1 - sp * e2), sc(kf * e1 + sp * e2), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+    }
+    // eigen-axes through the origin (the invariant directions)
+    let ext = sp + 0.5;
+    add_line(s, format!("{id}.axis1"), sc(-ext * e1), sc(ext * e1), style::GOLD, 2.0, 0.8, -1, vec![id.clone()]);
+    add_line(s, format!("{id}.axis2"), sc(-ext * e2), sc(ext * e2), style::MAGENTA, 2.0, 0.8, -1, vec![id.clone()]);
+    // unit eigen-cell (faint) and its image under A: stretched by λ along each axis.
+    let cell = vec![sc(Vec2::ZERO), sc(e1), sc(e1 + e2), sc(e2)];
+    let mut ce = Entity::new(format!("{id}.cell"), Shape::Polygon { pts: cell }, Vec2::ZERO, style::DIM);
+    ce.stroke.fill = false;
+    ce.stroke.outline = true;
+    ce.opacity = 0.5;
+    ce.tags.push(id.clone());
+    s.add(ce);
+    let img = vec![sc(Vec2::ZERO), sc(l1 * e1), sc(l1 * e1 + l2 * e2), sc(l2 * e2)];
+    let mut ie = Entity::new(format!("{id}.img"), Shape::Polygon { pts: img }, Vec2::ZERO, color);
+    ie.stroke.fill = true;
+    ie.stroke.outline = true;
+    ie.stroke.outline_color = Some(color);
+    ie.opacity = 0.4;
+    ie.tags.push(id.clone());
+    s.add(ie);
+    // the eigenvectors' images λ·e as arrows (only stretch, never turn)
+    for (nm, l, e, col) in [("v1", l1, e1, style::GOLD), ("v2", l2, e2, style::MAGENTA)] {
+        let mut arr = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(l * e) }, sc(Vec2::ZERO), col);
+        arr.stroke.width = 4.0;
+        arr.tags.push(id.clone());
+        s.add(arr);
+        let mut lbl = Entity::new(
+            format!("{id}.{nm}l"),
+            Shape::Text { content: format!("lambda = {l:.2}"), size: 20.0 },
+            sc(l * e) + Vec2::new(10.0, -12.0),
+            col,
+        );
+        lbl.font = FontKind::MonoBold;
+        lbl.tags.push(id.clone());
+        s.add(lbl);
+    }
+    Ok(())
+}
+
+/// Format a value for a matrix cell: integers plain, otherwise up to 2 decimals
+/// with trailing zeros trimmed. Snaps tiny values (incl. -0.0) to "0".
+fn fmt_cell(v: f32) -> String {
+    let r = (v * 100.0).round() / 100.0;
+    if r.abs() < 1e-6 {
+        return "0".to_string();
+    }
+    if (r - r.round()).abs() < 1e-6 {
+        format!("{}", r.round() as i64)
+    } else {
+        format!("{r:.2}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
+/// Gauss-Jordan elimination: returns each intermediate matrix state paired with
+/// the row operation that produced it. The first entry is the untouched input
+/// ("start"); the last is the reduced row-echelon form.
+fn rref_steps(m0: Vec<Vec<f32>>) -> Vec<(Vec<Vec<f32>>, String)> {
+    let mut m = m0;
+    let nrows = m.len();
+    let ncols = m[0].len();
+    let mut steps = vec![(m.clone(), "start".to_string())];
+    let mut pr = 0usize; // current pivot row
+    for col in 0..ncols {
+        if pr >= nrows {
+            break;
+        }
+        // partial pivot: the largest |value| at or below pr in this column
+        let mut piv = pr;
+        for r in (pr + 1)..nrows {
+            if m[r][col].abs() > m[piv][col].abs() {
+                piv = r;
+            }
+        }
+        if m[piv][col].abs() < 1e-9 {
+            continue; // no pivot available in this column
+        }
+        if piv != pr {
+            m.swap(piv, pr);
+            steps.push((m.clone(), format!("swap R{} <-> R{}", pr + 1, piv + 1)));
+        }
+        let pv = m[pr][col];
+        if (pv - 1.0).abs() > 1e-9 {
+            for j in 0..ncols {
+                m[pr][j] /= pv;
+            }
+            steps.push((m.clone(), format!("R{} -> R{} / {}", pr + 1, pr + 1, fmt_cell(pv))));
+        }
+        for r in 0..nrows {
+            if r == pr {
+                continue;
+            }
+            let f = m[r][col];
+            if f.abs() > 1e-9 {
+                for j in 0..ncols {
+                    m[r][j] -= f * m[pr][j];
+                }
+                let sign = if f > 0.0 { "-" } else { "+" };
+                steps.push((
+                    m.clone(),
+                    format!("R{} -> R{} {} {} R{}", r + 1, r + 1, sign, fmt_cell(f.abs()), pr + 1),
+                ));
+            }
+        }
+        pr += 1;
+    }
+    steps
+}
+
+/// `rref(id, "2 1 5 ; 1 3 10", (cx,cy), [cellw], [rowh])` — animated Gaussian
+/// elimination. The matrix (rows split on `;`) is reduced to reduced row-echelon
+/// form one row operation at a time. Every intermediate state is drawn at the
+/// SAME spot as its own matrix, tagged `{id}.s{k}` (all hidden but the brackets),
+/// with the row-op text as `{id}.op{k}`. Reveal them in order (cross-fade
+/// `s{k-1}`→`s{k}`) to watch the numbers transform in place; `{id}.s0` is the
+/// untouched input, the last `s{k}` is the RREF (for an augmented `A|b`, its last
+/// column is the solution).
+fn c_rref(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let src = a.text(1)?;
+    let c = a.pair(2)?;
+    let cw = a.opt_num(3)?.unwrap_or(96.0);
+    let ch = a.opt_num(4)?.unwrap_or(64.0);
+    let mut rows: Vec<Vec<f32>> = Vec::new();
+    for seg in src.split(';') {
+        let toks = tokens(seg);
+        if toks.is_empty() {
+            continue;
+        }
+        let mut row = Vec::with_capacity(toks.len());
+        for t in &toks {
+            match t.parse::<f32>() {
+                Ok(v) => row.push(v),
+                Err(_) => {
+                    return Err(Error::new(
+                        format!("rref entry `{t}` is not a number (rows separated by `;`)"),
+                        a.span_of(1),
+                    ))
+                }
+            }
+        }
+        rows.push(row);
+    }
+    if rows.is_empty() {
+        return Err(Error::new("rref has no entries".to_string(), a.span_of(1)));
+    }
+    let ncols = rows[0].len();
+    if rows.iter().any(|r| r.len() != ncols) {
+        return Err(Error::new(
+            "rref rows must all have the same length".to_string(),
+            a.span_of(1),
+        ));
+    }
+    let nrows = rows.len();
+    let steps = rref_steps(rows);
+    let totalw = (ncols as f32 - 1.0) * cw;
+    let totalh = (nrows as f32 - 1.0) * ch;
+    let x0 = c.x - totalw / 2.0;
+    let y0 = c.y - totalh / 2.0;
+    // static brackets flanking the grid (always visible — the frame the numbers fill)
+    let pad = ch * 0.45;
+    let serif = 14.0;
+    let margin = cw * 0.5;
+    let (top, bot) = (y0 - pad, y0 + totalh + pad);
+    for (nm, bx, dir) in [("lbrack", x0 - margin, 1.0f32), ("rbrack", x0 + totalw + margin, -1.0)] {
+        let mut b = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Polyline {
+                pts: vec![
+                    Vec2::new(bx + dir * serif, top),
+                    Vec2::new(bx, top),
+                    Vec2::new(bx, bot),
+                    Vec2::new(bx + dir * serif, bot),
+                ],
+            },
+            Vec2::ZERO,
+            style::CYAN,
+        );
+        b.stroke.width = 3.0;
+        b.tags.push(id.clone());
+        s.add(b);
+    }
+    // each elimination state, stacked at the same center, hidden until revealed
+    for (k, (grid, _op)) in steps.iter().enumerate() {
+        for (i, row) in grid.iter().enumerate() {
+            for (j, val) in row.iter().enumerate() {
+                let pos = Vec2::new(x0 + cw * j as f32, y0 + ch * i as f32);
+                let mut e = Entity::new(
+                    format!("{id}.s{k}r{i}c{j}"),
+                    Shape::Text { content: fmt_cell(*val), size: 30.0 },
+                    pos,
+                    style::FG,
+                );
+                e.font = FontKind::MonoBold;
+                e.z = 2;
+                e.opacity = 0.0;
+                e.tags = vec![id.clone(), format!("{id}.s{k}")];
+                s.add(e);
+            }
+        }
+    }
+    // the row-operation caption for each state (overlaid below the matrix), hidden
+    for (k, (_grid, op)) in steps.iter().enumerate() {
+        let mut t = Entity::new(
+            format!("{id}.op{k}"),
+            Shape::Text { content: op.clone(), size: 24.0 },
+            Vec2::new(c.x, y0 + totalh + ch * 0.95),
+            style::GOLD,
+        );
+        t.font = FontKind::MonoBold;
+        t.opacity = 0.0;
+        t.tags.push(id.clone());
+        s.add(t);
+    }
+    Ok(())
+}
+
+/// `project(id, (cx,cy), unit, (bx,by), (ax,ay), [color])` — the orthogonal
+/// projection of vector **b** onto the line spanned by **a**: draws the subspace
+/// line, b, its shadow `p = (b·a / a·a) a` on the line, and the residual `b - p`
+/// meeting the line at a right angle (the shortest distance from b to the space).
+fn c_project(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let b = a.pair(3)?;
+    let av = a.pair(4)?;
+    let color = if a.len() > 5 {
+        resolve_color(&a.ident(5)?, a.span_of(5))?
+    } else {
+        style::CYAN
+    };
+    let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
+    let denom = av.x * av.x + av.y * av.y;
+    if denom < 1e-9 {
+        return Err(Error::new(
+            "project: the subspace vector (ax,ay) cannot be zero".to_string(),
+            a.span_of(4),
+        ));
+    }
+    let t = (b.x * av.x + b.y * av.y) / denom; // b·a / a·a
+    let p = Vec2::new(t * av.x, t * av.y); // the projection point
+    // the subspace: the line spanned by a, through the origin
+    let n = denom.sqrt();
+    let ah = av / n;
+    let ext = 4.5;
+    add_line(s, format!("{id}.line"), sc(-ext * ah), sc(ext * ah), style::DIM, 2.0, 0.7, -1, vec![id.clone()]);
+    // b (the vector), p (its shadow), and the residual b - p
+    let arrow = |s: &mut Scene, nm: &str, to: Vec2, col| {
+        let mut e = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(to) }, sc(Vec2::ZERO), col);
+        e.stroke.width = 4.0;
+        e.tags.push(id.clone());
+        s.add(e);
+    };
+    arrow(s, "b", b, color);
+    arrow(s, "p", p, style::GOLD);
+    add_line(s, format!("{id}.res"), sc(p), sc(b), style::MAGENTA, 2.5, 0.9, 0, vec![id.clone()]);
+    // right-angle mark at p, in the corner between the line and the residual
+    let eh = {
+        let d = b - p;
+        let l = d.length().max(1e-6);
+        d / l
+    };
+    let sq = 0.3;
+    let d1 = ah * (if t >= 0.0 { -sq } else { sq });
+    let d2 = eh * sq;
+    let mut rt = Entity::new(
+        format!("{id}.rt"),
+        Shape::Polyline { pts: vec![sc(p + d1), sc(p + d1 + d2), sc(p + d2)] },
+        Vec2::ZERO,
+        style::DIM,
+    );
+    rt.stroke.width = 2.0;
+    rt.tags.push(id.clone());
+    s.add(rt);
+    // labels
+    for (nm, at, txt, col) in [
+        ("blabel", b, "b", color),
+        ("plabel", p, "proj", style::GOLD),
+    ] {
+        let mut lbl = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Text { content: txt.to_string(), size: 22.0 },
+            sc(at) + Vec2::new(12.0, -12.0),
+            col,
+        );
+        lbl.font = FontKind::MonoBold;
+        lbl.tags.push(id.clone());
+        s.add(lbl);
+    }
+    Ok(())
+}
+
+/// Least-squares fit `y = m x + k` through points; `None` if every point shares
+/// one x (a vertical line, not expressible as `y = m x + k`).
+fn fit_line(pts: &[Vec2]) -> Option<(f32, f32)> {
+    let n = pts.len() as f32;
+    let (mut sx, mut sy, mut sxx, mut sxy) = (0.0f32, 0.0, 0.0, 0.0);
+    for p in pts {
+        sx += p.x;
+        sy += p.y;
+        sxx += p.x * p.x;
+        sxy += p.x * p.y;
+    }
+    let d = n * sxx - sx * sx;
+    if d.abs() < 1e-9 {
+        return None;
+    }
+    let m = (n * sxy - sx * sy) / d;
+    Some((m, (sy - m * sx) / n))
+}
+
+/// `leastsquares(id, (cx,cy), unit, "x1 y1  x2 y2  …", [color])` — the best-fit
+/// line through a point cloud. Draws the points, the line `y = m x + c` that
+/// minimises the sum of squared **vertical residuals**, and each residual as a
+/// thin segment from its point to the line. Also known as linear regression.
+fn c_leastsquares(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let src = a.text(3)?;
+    let color = if a.len() > 4 {
+        resolve_color(&a.ident(4)?, a.span_of(4))?
+    } else {
+        style::CYAN
+    };
+    let nums: Vec<f32> = tokens(&src).iter().filter_map(|t| t.parse::<f32>().ok()).collect();
+    if nums.len() < 4 || nums.len() % 2 != 0 {
+        return Err(Error::new(
+            "leastsquares needs an even list of at least two points: \"x1 y1 x2 y2 ...\"".to_string(),
+            a.span_of(3),
+        ));
+    }
+    let pts: Vec<Vec2> = nums.chunks(2).map(|p| Vec2::new(p[0], p[1])).collect();
+    let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
+    let (m, k) = fit_line(&pts).ok_or_else(|| {
+        Error::new(
+            "leastsquares: all points share one x — no y = m x + c fit (a vertical line)".to_string(),
+            a.span_of(3),
+        )
+    })?;
+    let x0 = pts.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+    let x1 = pts.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+    let pad = (x1 - x0) * 0.12 + 0.5;
+    let (lx0, lx1) = (x0 - pad, x1 + pad);
+    add_line(
+        s,
+        format!("{id}.line"),
+        sc(Vec2::new(lx0, m * lx0 + k)),
+        sc(Vec2::new(lx1, m * lx1 + k)),
+        style::GOLD,
+        3.0,
+        1.0,
+        0,
+        vec![id.clone()],
+    );
+    // residuals (thin vertical segments) then the points on top
+    for (i, p) in pts.iter().enumerate() {
+        let yhat = m * p.x + k;
+        add_line(s, format!("{id}.r{i}"), sc(*p), sc(Vec2::new(p.x, yhat)), style::MAGENTA, 2.0, 0.8, -1, vec![id.clone(), format!("{id}.residuals")]);
+    }
+    for (i, p) in pts.iter().enumerate() {
+        let mut e = Entity::new(format!("{id}.p{i}"), Shape::Circle { r: 7.0 }, sc(*p), color);
+        e.stroke.fill = true;
+        e.z = 2;
+        e.tags = vec![id.clone(), format!("{id}.points")];
+        s.add(e);
+    }
+    let sign = if k >= 0.0 { "+" } else { "-" };
+    let midx = (lx0 + lx1) / 2.0;
+    let mut lbl = Entity::new(
+        format!("{id}.eq"),
+        Shape::Text {
+            content: format!("y = {:.2} x {} {:.2}", m, sign, k.abs()),
+            size: 22.0,
+        },
+        sc(Vec2::new(midx, m * midx + k)) + Vec2::new(-40.0, -34.0),
+        style::GOLD,
+    );
+    lbl.font = FontKind::MonoBold;
+    lbl.tags.push(id);
+    s.add(lbl);
+    Ok(())
+}
+
+/// Two math-coord endpoints of the line `A·x + B·y = C`, spanning ±`ext` along
+/// whichever axis keeps the segment in view. `None` for a degenerate equation.
+fn line_eq_pts(a: f32, b: f32, cc: f32, ext: f32) -> Option<(Vec2, Vec2)> {
+    if a.abs() < 1e-6 && b.abs() < 1e-6 {
+        return None;
+    }
+    if b.abs() >= a.abs() {
+        Some((
+            Vec2::new(-ext, (cc + a * ext) / b),
+            Vec2::new(ext, (cc - a * ext) / b),
+        ))
+    } else {
+        Some((
+            Vec2::new((cc + b * ext) / a, -ext),
+            Vec2::new((cc - b * ext) / a, ext),
+        ))
+    }
+}
+
+/// `linsolve(id, (cx,cy), unit, a, b, c, d, e, f, [span])` — the *row picture* of
+/// `Ax=b`: `a·x+b·y=e` and `c·x+d·y=f` drawn as two lines; their intersection is
+/// the solution (a gold dot + its coords). Parallel lines (det = 0) → a note.
+fn c_linsolve(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let (m11, m12, m21, m22) = (a.num(3)?, a.num(4)?, a.num(5)?, a.num(6)?);
+    let (e, f) = (a.num(7)?, a.num(8)?);
+    let ext = a.opt_num(9)?.map(|v| v as f32).unwrap_or(5.0);
+    let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
+    if let Some((p0, p1)) = line_eq_pts(m11, m12, e, ext) {
+        add_line(s, format!("{id}.r1"), sc(p0), sc(p1), style::CYAN, 3.0, 1.0, 0, vec![id.clone()]);
+    }
+    if let Some((p0, p1)) = line_eq_pts(m21, m22, f, ext) {
+        add_line(s, format!("{id}.r2"), sc(p0), sc(p1), style::MAGENTA, 3.0, 1.0, 0, vec![id.clone()]);
+    }
+    let (sx, sy) = match solve2(m11, m12, m21, m22, e, f) {
+        Some(xy) => xy,
+        None => {
+            let mut note = Entity::new(
+                format!("{id}.note"),
+                Shape::Text { content: "no unique solution (parallel lines)".to_string(), size: 20.0 },
+                c + Vec2::new(0.0, u * 2.6),
+                style::DIM,
+            );
+            note.tags.push(id);
+            s.add(note);
+            return Ok(());
+        }
+    };
+    let mut dot = Entity::new(id.clone(), Shape::Circle { r: 8.0 }, sc(Vec2::new(sx, sy)), style::GOLD);
+    dot.stroke.fill = true;
+    dot.tags.push(id.clone());
+    s.add(dot);
+    let mut lbl = Entity::new(
+        format!("{id}.val"),
+        Shape::Text { content: format!("({sx:.2}, {sy:.2})"), size: 22.0 },
+        sc(Vec2::new(sx, sy)) + Vec2::new(18.0, -18.0),
+        style::GOLD,
+    );
+    lbl.font = FontKind::MonoBold;
+    lbl.tags.push(id);
+    s.add(lbl);
+    Ok(())
+}
+
+/// `span(id, (cx,cy), unit, (vx,vy), [(wx,wy)], [color])` — the span of one or two
+/// vectors: one vector (or two dependent ones) spans a **line** through the
+/// origin; two independent vectors span the **whole plane** (a faint region).
+/// The dependent case is the rank/collapse picture.
+fn c_span(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c = a.pair(1)?;
+    let u = a.num(2)?;
+    let v = a.pair(3)?;
+    // arg 4 is either the second vector (a pair) or the colour
+    let (w, cidx) = match a.pair(4) {
+        Ok(p) => (Some(p), 5),
+        Err(_) => (None, 4),
+    };
+    let color = if a.len() > cidx {
+        resolve_color(&a.ident(cidx)?, a.span_of(cidx))?
+    } else {
+        style::GOLD
+    };
+    let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
+    let o = sc(Vec2::ZERO);
+    let ext = 5.0;
+    let arrow = |s: &mut Scene, nm: &str, p: Vec2, col| {
+        let mut e = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(p) }, o, col);
+        e.stroke.width = 4.0;
+        e.tags.push(id.clone());
+        s.add(e);
+    };
+    arrow(s, "v", v, color);
+    let span_line = |s: &mut Scene, dir: Vec2| {
+        let n = dir.length().max(1e-6);
+        let d = dir / n * ext;
+        add_line(s, format!("{id}.line"), sc(-d), sc(d), style::DIM, 2.0, 0.85, -1, vec![id.clone()]);
+    };
+    match w {
+        None => span_line(s, v),
+        Some(w) => {
+            arrow(s, "w", w, style::MAGENTA);
+            let cross = v.x * w.y - v.y * w.x;
+            if cross.abs() < 1e-6 {
+                span_line(s, v); // dependent → a line (rank 1)
+            } else {
+                // independent → the whole plane (a faint region)
+                let sq = vec![
+                    sc(Vec2::new(-ext, -ext)),
+                    sc(Vec2::new(ext, -ext)),
+                    sc(Vec2::new(ext, ext)),
+                    sc(Vec2::new(-ext, ext)),
+                ];
+                let mut e = Entity::new(format!("{id}.plane"), Shape::Polygon { pts: sq }, Vec2::ZERO, style::CYAN);
+                e.stroke.fill = true;
+                e.stroke.outline = false;
+                e.opacity = 0.14;
+                e.z = -2;
+                e.tags.push(id.clone());
+                s.add(e);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Register the math kit into `r`.
 pub fn register(r: &mut Registry) {
     r.ctor("axes", c_axes);
@@ -1990,6 +2748,16 @@ pub fn register(r: &mut Registry) {
     r.ctor("pie", c_pie);
     r.ctor("arrowfield", c_arrowfield);
     r.ctor("vectorfield", c_arrowfield);
+    r.ctor("linmap", c_linmap);
+    r.ctor("determinant", c_determinant);
+    r.ctor("eigen", c_eigen);
+    r.ctor("linsolve", c_linsolve);
+    r.ctor("span", c_span);
+    r.ctor("diagonalise", c_diagonalise);
+    r.ctor("diagonalize", c_diagonalise);
+    r.ctor("rref", c_rref);
+    r.ctor("project", c_project);
+    r.ctor("leastsquares", c_leastsquares);
     r.ctor("matrix", c_matrix);
     r.ctor("table", c_table);
     r.ctor("mathtable", c_table);
@@ -2012,6 +2780,104 @@ mod graph_tests {
             x0: 0.0,
             x1: 6.3,
         }
+    }
+
+    #[test]
+    fn determinant_and_eigen_match_linear_algebra() {
+        use super::{det2, eig2};
+        assert!((det2(1.0, 2.0, 3.0, 4.0) + 2.0).abs() < 1e-5); // 1*4 - 2*3 = -2
+        // symmetric [[2,1],[1,2]]: eigenvalues 3 and 1, eigenvectors (1,1) & (1,-1)
+        let e = eig2(2.0, 1.0, 1.0, 2.0);
+        assert_eq!(e.len(), 2);
+        assert!(e.iter().any(|(l, _)| (l - 3.0).abs() < 1e-3));
+        assert!(e.iter().any(|(l, _)| (l - 1.0).abs() < 1e-3));
+        // the λ=3 eigenvector points along (1,1)
+        let (_, v3) = e.iter().find(|(l, _)| (l - 3.0).abs() < 1e-3).unwrap();
+        assert!((v3.x - v3.y).abs() < 1e-3);
+        // a 90° rotation [[0,-1],[1,0]] has no real eigenvectors
+        assert!(eig2(0.0, -1.0, 1.0, 0.0).is_empty());
+        // a shear [[1,1],[0,1]] preserves area (det 1) and fixes the x-axis
+        assert!((det2(1.0, 1.0, 0.0, 1.0) - 1.0).abs() < 1e-5);
+        let sh = eig2(1.0, 1.0, 0.0, 1.0);
+        assert!(sh.iter().all(|(_, v)| v.y.abs() < 1e-3)); // eigenvector on the x-axis
+    }
+
+    #[test]
+    fn diagonalise_eigenpairs_only_stretch() {
+        use super::eig2;
+        // the property `diagonalise` draws: A·e = λ·e (each eigenvector only scales)
+        let (a, b, c, d) = (2.0, 1.0, 1.0, 2.0);
+        let pairs = eig2(a, b, c, d);
+        assert_eq!(pairs.len(), 2);
+        for (l, e) in pairs {
+            let (aex, aey) = (a * e.x + b * e.y, c * e.x + d * e.y); // A·e
+            assert!((aex - l * e.x).abs() < 1e-3 && (aey - l * e.y).abs() < 1e-3);
+        }
+        // a pure rotation has no real eigenbasis → diagonalise draws its note
+        assert!(eig2(0.0, -1.0, 1.0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn rref_reduces_to_identity_and_solution() {
+        use super::rref_steps;
+        // [2 1 | 5 ; 1 3 | 10]  (the system 2x+y=5, x+3y=10) reduces to
+        // [1 0 | 1 ; 0 1 | 3] — identity on the left, solution (1,3) on the right.
+        let steps = rref_steps(vec![vec![2.0, 1.0, 5.0], vec![1.0, 3.0, 10.0]]);
+        let (last, _) = steps.last().unwrap();
+        assert!((last[0][0] - 1.0).abs() < 1e-4 && last[0][1].abs() < 1e-4 && (last[0][2] - 1.0).abs() < 1e-4);
+        assert!(last[1][0].abs() < 1e-4 && (last[1][1] - 1.0).abs() < 1e-4 && (last[1][2] - 3.0).abs() < 1e-4);
+        assert!(steps.len() >= 4); // start + real row operations, not a no-op
+        // a singular left block leaves a row of zeros (no unique solution)
+        let sing = rref_steps(vec![vec![1.0, 2.0, 3.0], vec![2.0, 4.0, 7.0]]);
+        let (ls, _) = sing.last().unwrap();
+        assert!(ls[1][0].abs() < 1e-4 && ls[1][1].abs() < 1e-4); // bottom row's A-part is zero
+    }
+
+    #[test]
+    fn projection_residual_is_perpendicular_to_the_subspace() {
+        // p = (b·a / a·a) a; the residual b - p must be orthogonal to a
+        let (b, av) = (Vec2::new(1.0, 3.0), Vec2::new(3.0, 1.0));
+        let t = (b.x * av.x + b.y * av.y) / (av.x * av.x + av.y * av.y);
+        let p = Vec2::new(t * av.x, t * av.y);
+        let e = b - p;
+        assert!((e.x * av.x + e.y * av.y).abs() < 1e-5, "residual not perpendicular");
+        // a vector already on the line projects to itself
+        let on = Vec2::new(6.0, 2.0); // = 2·a
+        let t2 = (on.x * av.x + on.y * av.y) / (av.x * av.x + av.y * av.y);
+        assert!((t2 * av.x - on.x).abs() < 1e-4 && (t2 * av.y - on.y).abs() < 1e-4);
+    }
+
+    #[test]
+    fn leastsquares_recovers_a_known_line() {
+        use super::fit_line;
+        // points exactly on y = 2x + 1 → the fit recovers m = 2, k = 1
+        let pts = [
+            Vec2::new(0.0, 1.0),
+            Vec2::new(1.0, 3.0),
+            Vec2::new(2.0, 5.0),
+            Vec2::new(3.0, 7.0),
+        ];
+        let (m, k) = fit_line(&pts).unwrap();
+        assert!((m - 2.0).abs() < 1e-4 && (k - 1.0).abs() < 1e-4);
+        // a vertical cloud has no y = m x + k fit
+        assert!(fit_line(&[Vec2::new(2.0, 0.0), Vec2::new(2.0, 5.0)]).is_none());
+    }
+
+    #[test]
+    fn linsolve_intersection_solves_the_system() {
+        use super::{line_eq_pts, solve2};
+        // [[2,1],[1,3]] x = (5,10): unique solution (1, 3)
+        let (x, y) = solve2(2.0, 1.0, 1.0, 3.0, 5.0, 10.0).unwrap();
+        assert!((x - 1.0).abs() < 1e-4 && (y - 3.0).abs() < 1e-4);
+        // the solution satisfies both equations
+        assert!((2.0 * x + 1.0 * y - 5.0).abs() < 1e-4);
+        assert!((1.0 * x + 3.0 * y - 10.0).abs() < 1e-4);
+        // parallel rows (det 0) → no unique solution
+        assert!(solve2(1.0, 2.0, 2.0, 4.0, 3.0, 9.0).is_none());
+        // both endpoints of a drawn row lie on that row's line: 2x + 1y = 5
+        let (p0, p1) = line_eq_pts(2.0, 1.0, 5.0, 5.0).unwrap();
+        assert!((2.0 * p0.x + p0.y - 5.0).abs() < 1e-3);
+        assert!((2.0 * p1.x + p1.y - 5.0).abs() < 1e-3);
     }
 
     #[test]
