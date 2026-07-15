@@ -45,33 +45,33 @@ ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integra
 ex-inverse-derivatives|-HEjdSVXdXc|Why Inverse Functions Have Reciprocal Slopes — manic
 
 # ---- examples: linear algebra & tables ----
-ex-linear-algebra||Linear Algebra in Five Ideas — A Complete Visual Lesson — manic
+ex-linear-algebra|qjMYJQqvwCg|Linear Algebra in Five Ideas — A Complete Visual Lesson — manic
 ex-matrix|aT4DHaAfrIk|Matrices, Animated — manic
 ex-matrix_addition|aEphi9Qv_sY|Adding Matrices, Cell by Cell — manic
 ex-matrix_addition_plane|sfp4_kIdCyc|Matrix Addition on the Plane — manic
 ex-linear_transform|ap351ptsYTM|What a 2×2 Matrix Does to Space — manic
-ex-linear-map||Matrix, Determinant & Eigenvectors — What a Matrix Does — manic
-ex-linear-system||Solving & Spanning: Systems, Span & Rank, Visualized — manic
-ex-diagonalise||Diagonalisation: Why a Matrix Is Just a Stretch in Its Own Basis — manic
-ex-rref||Gaussian Elimination, Animated: Reducing a Matrix to RREF — manic
-ex-projection||Projection & Least-Squares: Why the Best-Fit Line Is a Shadow — manic
+ex-linear-map|jcx8IyArWBE|Matrix, Determinant & Eigenvectors — What a Matrix Does — manic
+ex-linear-system|laBz0JoL-cE|Solving & Spanning: Systems, Span & Rank, Visualized — manic
+ex-diagonalise|JaU9290_fU0|Diagonalisation: Why a Matrix Is Just a Stretch in Its Own Basis — manic
+ex-rref|pNyLALOWWwE|Gaussian Elimination, Animated: Reducing a Matrix to RREF — manic
+ex-projection|mPsaxmsfcZQ|Projection & Least-Squares: Why the Best-Fit Line Is a Shadow — manic
 ex-table|4veAPoMkQ74|Build a Table in manic
 ex-table_braces|wnBQGLRhl1o|Tables + Braces — manic
 
 # ---- examples: statistics & probability ----
-ex-statistics||Statistics in Three Ideas — Data, the Bell & the CLT — manic
-ex-histogram||The Shape of Your Data — Histograms, Animated — manic
-ex-summary||Mean, Median, Mode & Spread — Describe Any Dataset — manic
-ex-boxplot||Box-and-Whisker Plots & Outliers, Explained — manic
-ex-skew||Skewness: Which Way Does the Tail Point? — manic
-ex-bellcurve||The Bell Curve & the 68-95-99.7 Rule, Visualized — manic
-ex-clt||The Central Limit Theorem — Why Averages Are Always a Bell — manic
-ex-correlation||Correlation r — Do Two Things Move Together? — manic
-ex-lln||The Law of Large Numbers — Why the Long Run Settles Down — manic
-ex-hypothesis||Hypothesis Testing & p-values, Visualized — manic
-ex-covariance||Covariance as Signed Area — manic
-ex-bayes||Bayes' Theorem: Updating a Belief With Data — manic
-ex-probability||A Probability Playground — Distributions, CI, Monte-Carlo & Random Walks — manic
+ex-statistics|VGVgU9wNAYM|Statistics in Three Ideas — Data, the Bell & the CLT — manic
+ex-histogram|PQn6SORxCqw|The Shape of Your Data — Histograms, Animated — manic
+ex-summary|McOGIY0zdBs|Mean, Median, Mode & Spread — Describe Any Dataset — manic
+ex-boxplot|RstqImgruIU|Box-and-Whisker Plots & Outliers, Explained — manic
+ex-skew|KARVC2CdFII|Skewness: Which Way Does the Tail Point? — manic
+ex-bellcurve|OoB1BlKkHC4|The Bell Curve & the 68-95-99.7 Rule, Visualized — manic
+ex-clt|WmFyxyIuS5Y|The Central Limit Theorem — Why Averages Are Always a Bell — manic
+ex-correlation|zlF5a8Jr9M0|Correlation r — Do Two Things Move Together? — manic
+ex-lln|qyanPpb_NZY|The Law of Large Numbers — Why the Long Run Settles Down — manic
+ex-hypothesis|LHCkQ4qZ4ME|Hypothesis Testing & p-values, Visualized — manic
+ex-covariance|kvJHgWVcYTQ|Covariance as Signed Area — manic
+ex-bayes|YnqPXFlT-UI|Bayes' Theorem: Updating a Belief With Data — manic
+ex-probability|l9sqYflGPL8|A Probability Playground — Distributions, CI, Monte-Carlo & Random Walks — manic
 
 # ---- examples: vectors, fields & coordinates ----
 ex-vector_field|k79A0njUBr4|A Vector Field, Coloured by Force — manic
@@ -112,7 +112,7 @@ ex-pieday|2sCPIyi1MB8|Happy Pi Day — a Generative π Card in manic
 ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic
 
 # ---- 3D scenes ----
-ex-linear-algebra-3d||Linear Algebra in 3D — Transformations & Eigenvectors, Animated — manic
+ex-linear-algebra-3d|tgpmiaNCm5g|Linear Algebra in 3D — Transformations & Eigenvectors, Animated — manic
 threed|SHzotXyfJVY|manic Goes 3D — Cubes, Spheres & a Spinning Camera
 ex-three_d|O-XeXhzSyZo|The 3D Basics on One Stage — manic
 ex-solids3|t3F4xpf79W0|Prisms, Cones & a Lathed Vase in 3D — manic
@@ -120,6 +120,6 @@ ex-param3|qs25EhKU_pE|A Torus, a Sphere & a Möbius Strip — manic
 ex-extrude3|VIVZVaGmIDU|Extrude 2D Shapes Into 3D Solids (with CSG) — manic
 ex-morph3|YMBQbAIlfQM|Morph a Cube Into a Sphere — manic
 ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
-ex-linear-map3||A 3×3 Matrix Deforms a Cube — Determinant as Volume, in 3D — manic
-ex-eigen3||Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axes — manic
+ex-linear-map3|McLljqiPcFI|A 3×3 Matrix Deforms a Cube — Determinant as Volume, in 3D — manic
+ex-eigen3|eZpNxcOa_cs|Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axes — manic
 ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic

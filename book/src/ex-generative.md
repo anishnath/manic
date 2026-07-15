@@ -51,14 +51,3 @@ Bounding pi with inscribed / circumscribed polygons.
 ```
 
 <div class="manic-video" data-video="ex-archimedes_pi"></div>
-
-## pieday
-
-A Pi Day card: a rainbow petal-flower built from a loop of circles, radial rays,
-the digits of π, and the definition `circumference / diameter = pi`.
-
-```manic
-{{#include ../../examples/pieday.manic}}
-```
-
-<div class="manic-video" data-video="ex-pieday"></div>
