@@ -245,4 +245,55 @@ impl Movie {
         let tl = Timeline::resolve(&self.scene, specs, events, end + 1.0);
         (self.scene.clone(), tl)
     }
+
+    /// Whole-file sanity check: verify every animation (track) and text event
+    /// references an entity that actually exists in the scene — the same
+    /// condition [`Timeline::resolve`] asserts, surfaced as a recoverable error
+    /// so `manic check` catches it *before* render instead of panicking at
+    /// finalize. Returns the sorted, de-duplicated list of offending ids.
+    ///
+    /// No false positives: tag-broadcast has already expanded groups to concrete
+    /// ids by this point, so any track/event id absent from the scene is a real
+    /// mistake (a typo, or animating a builtin's bare id when only sub-ids exist).
+    pub fn validate(&self) -> Result<(), String> {
+        use std::collections::BTreeSet;
+        let mut unknown: BTreeSet<String> = BTreeSet::new();
+        for (_, clip) in &self.placed {
+            for t in &clip.tracks {
+                if !self.scene.contains(&t.id) {
+                    unknown.insert(t.id.clone());
+                }
+            }
+            for e in &clip.events {
+                if !self.scene.contains(&e.id) {
+                    unknown.insert(e.id.clone());
+                }
+            }
+        }
+        if unknown.is_empty() {
+            Ok(())
+        } else {
+            let list: Vec<_> = unknown.into_iter().collect();
+            Err(format!(
+                "animation references unknown entity id(s): {}",
+                list.join(", ")
+            ))
+        }
+    }
+}
+
+#[cfg(test)]
+mod validate_tests {
+    #[test]
+    fn flags_animation_on_unknown_id() {
+        let m = crate::parse("dot(a, (100,100), 5);\nshow(b, 0.5);").unwrap();
+        let err = m.validate().unwrap_err();
+        assert!(err.contains('b'), "should name the unknown id: {err}");
+    }
+
+    #[test]
+    fn passes_when_all_ids_exist() {
+        let m = crate::parse("dot(a, (100,100), 5);\nshow(a, 0.5);").unwrap();
+        assert!(m.validate().is_ok(), "all ids exist → should validate");
+    }
 }

@@ -53,7 +53,14 @@ fn main() {
             + movie.base().entities_3d.len().saturating_sub(usize::from(
                 movie.base().get_3d(manic::movie::CAMERA3_ID).is_some(),
             ));
-        println!("ok — {file}: parses, {n} entities");
+        // Whole-file sanity check: parse already built the scene; now verify the
+        // timeline references only real entities (catches the render-time
+        // "unknown entity id" panic class before it ever reaches a window).
+        if let Err(msg) = movie.validate() {
+            eprintln!("error — {file}: {msg}\n");
+            exit(1);
+        }
+        println!("ok — {file}: parses + validates, {n} entities");
         exit(0);
     }
 
