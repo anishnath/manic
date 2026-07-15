@@ -578,7 +578,45 @@ fn run_verb(f: VerbFn, scene: &Scene, s: &Stmt) -> Result<Clip, Error> {
             }
         }
     }
-    f(scene, &args_of(s))
+    let clip = f(scene, &args_of(s))?;
+    check_clip_targets(scene, &clip, s)?;
+    Ok(clip)
+}
+
+/// After a verb runs, verify its clip animates only entities that exist — turning
+/// the render-time "unknown entity id" panic into a precise **parse-time**
+/// diagnostic that points at the offending id and suggests the nearest real name.
+/// Broadcast already expanded tags to real ids, so this only bites a mistyped or
+/// absent bare id (e.g. `show(ghost)` or `show(cap)` when only `cap.words` exists).
+fn check_clip_targets(scene: &Scene, clip: &Clip, s: &Stmt) -> Result<(), Error> {
+    for id in clip
+        .tracks
+        .iter()
+        .map(|t| &t.id)
+        .chain(clip.events.iter().map(|e| &e.id))
+    {
+        if !scene.contains(id) {
+            return Err(unknown_id_error(scene, id, s));
+        }
+    }
+    Ok(())
+}
+
+/// Build the "unknown id" diagnostic: point at the id token the author typed (the
+/// first argument, when it matches), else the call name, and offer a "did you
+/// mean" suggestion drawn from the scene's entity ids + tags.
+fn unknown_id_error(scene: &Scene, id: &str, s: &Stmt) -> Error {
+    let span = s
+        .args
+        .first()
+        .filter(|f| matches!(&f.kind, ExprKind::Ident(n) if n == id))
+        .map(|f| f.span)
+        .unwrap_or(s.name_span);
+    let base = format!("`{id}` is not created — no entity or tag has this id");
+    match crate::namehint::nearest_name(id, &crate::namehint::candidate_names(scene)) {
+        Some(sugg) => Error::new(format!("{base}; did you mean `{sugg}`?"), span),
+        None => Error::new(format!("{base} — create it (a shape/text/…) before animating it"), span),
+    }
 }
 
 /// Lower a statement that appears *inside* a `par`/`seq`/`stagger` block into a

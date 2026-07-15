@@ -271,29 +271,67 @@ impl Movie {
             }
         }
         if unknown.is_empty() {
-            Ok(())
-        } else {
-            let list: Vec<_> = unknown.into_iter().collect();
-            Err(format!(
-                "animation references unknown entity id(s): {}",
-                list.join(", ")
-            ))
+            return Ok(());
         }
+        // Every entity id and tag an author could legitimately have meant.
+        let candidates = crate::namehint::candidate_names(&self.scene);
+        let mut lines = vec![format!(
+            "{} unknown entity id(s) in animations — nothing is created with {}:",
+            unknown.len(),
+            if unknown.len() == 1 { "this name" } else { "these names" }
+        )];
+        for id in &unknown {
+            match crate::namehint::nearest_name(id, &candidates) {
+                Some(sugg) => lines.push(format!("  • `{id}` — did you mean `{sugg}`?")),
+                None => lines.push(format!(
+                    "  • `{id}` — create it before animating it (a shape/text/… with this id or tag)"
+                )),
+            }
+        }
+        Err(lines.join("\n"))
     }
 }
 
 #[cfg(test)]
 mod validate_tests {
+    /// Unknown ids are now caught at PARSE time (in lowering) with a spanned
+    /// diagnostic — before finalize — so every command (run/record/check) reports
+    /// the exact line + a "did you mean".
     #[test]
-    fn flags_animation_on_unknown_id() {
-        let m = crate::parse("dot(a, (100,100), 5);\nshow(b, 0.5);").unwrap();
-        let err = m.validate().unwrap_err();
-        assert!(err.contains('b'), "should name the unknown id: {err}");
+    fn parse_flags_animation_on_unknown_id() {
+        let src = "dot(a, (100,100), 5);\nshow(b, 0.5);";
+        let err = crate::parse(src).err().expect("expected a parse error");
+        let msg = crate::lang::diag::render(src, &err);
+        assert!(msg.contains('b'), "error should name the unknown id:\n{msg}");
+        assert!(msg.contains("not created"), "should explain the problem:\n{msg}");
     }
 
     #[test]
-    fn passes_when_all_ids_exist() {
+    fn parse_passes_when_all_ids_exist() {
         let m = crate::parse("dot(a, (100,100), 5);\nshow(a, 0.5);").unwrap();
         assert!(m.validate().is_ok(), "all ids exist → should validate");
+    }
+
+    /// `Movie::validate` (the `manic check` net) directly flags a bad track even
+    /// one hand-built past the parse-time check (e.g. a mut-verb path).
+    #[test]
+    fn validate_catches_hand_built_bad_track() {
+        use crate::easing::Easing;
+        use crate::timeline::{Clip, Prop, TargetValue, TrackSpec};
+        let mut m = crate::parse("dot(a, (0,0), 5);").unwrap();
+        m.play(Clip {
+            tracks: vec![TrackSpec {
+                id: "nope".into(),
+                prop: Prop::Opacity,
+                target: TargetValue::Revert,
+                start: 0.0,
+                dur: 0.5,
+                easing: Easing::default(),
+            }],
+            events: vec![],
+            dur: 0.5,
+        });
+        let err = m.validate().unwrap_err();
+        assert!(err.contains("nope"), "validate should flag it: {err}");
     }
 }
