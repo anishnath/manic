@@ -7,6 +7,7 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Calculus & functions](ex-calculus.md) — 12 examples
 - [Linear algebra & tables](ex-linalg.md) — 12 examples
 - [Statistics & probability](ex-stats.md) — 13 examples
+- [Physics — simulations](ex-physics.md) — 17 examples
 - [Vectors, fields & coordinates](ex-vectors.md) — 3 examples
 - [Geometry (olympiad)](ex-geometry.md) — 8 examples
 - [Transforms & morphing](ex-transforms.md) — 3 examples

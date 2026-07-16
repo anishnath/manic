@@ -123,3 +123,20 @@ ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
 ex-linear-map3|McLljqiPcFI|A 3×3 Matrix Deforms a Cube — Determinant as Volume, in 3D — manic
 ex-eigen3|eZpNxcOa_cs|Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axes — manic
 ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic
+ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
+ex-pendulum-damped|KhANpUmTPtc|Damped Pendulum — Watch Energy Bleed Away — manic
+ex-pendulum-annotated|IcW5DCpAGaw|Anatomy of a Pendulum — Physics + Base manic — manic
+ex-spring|QlCWSkW3JtY|Mass on a Spring — SHM in Four Views — manic
+ex-spring-damped|aLI3iOg_uJY|Damped Spring — Oscillation Decays — manic
+ex-double-pendulum|hpIsPE7z9F8|Double Pendulum — Deterministic Chaos — manic
+ex-spring-pendulum|7nEXwteCl80|Elastic Pendulum — Swing Meets Bounce — manic
+ex-kapitza|CeA8UVctOD4|Kapitza Pendulum — Stable Upside-Down — manic
+ex-cart-pendulum|vSFO4L-jQSY|Cart-Pendulum — Coupled Motion — manic
+ex-compare-pendulum|Moh5BnDaWBk|Two Pendulums, One Hair Apart — Chaos — manic
+ex-vertical-spring|mV69srx4HAs|Vertical Spring — Bobbing Under Gravity — manic
+ex-spring-incline|jFdhSxdoWMY|Spring on an Incline — manic
+ex-bungee|uwa-ev1hwpY|Bungee Jump — Free-Fall Then Bounce — manic
+ex-resonance|J7pDtK4CeRU|Resonance — Driving Near Natural Frequency — manic
+ex-double-spring|4ad4U8EIu44|Coupled Springs — Energy Sloshes (Beating) — manic
+ex-series-parallel-springs|PZjrCgzR7o8|Series vs Parallel Springs — manic
+ex-car-suspension|HRc7qGHzrbg|Car Suspension — Riding the Road — manic

@@ -205,7 +205,10 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
                 Value::F(0.0)
             }
             Prop::To => match &e.shape {
-                Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } => Value::V(*to),
+                Shape::Line { to }
+                | Shape::Arrow { to }
+                | Shape::Curve { to, .. }
+                | Shape::Coil { to, .. } => Value::V(*to),
                 _ => return None,
             },
             Prop::PlotX => match &e.graph_view {
@@ -287,8 +290,10 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                 }
             }
             (Prop::To, Value::V(p)) => {
-                if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } =
-                    &mut e.shape
+                if let Shape::Line { to }
+                | Shape::Arrow { to }
+                | Shape::Curve { to, .. }
+                | Shape::Coil { to, .. } = &mut e.shape
                 {
                     *to = p;
                 }

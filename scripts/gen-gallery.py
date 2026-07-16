@@ -158,6 +158,72 @@ SECTIONS = [
     "Monte-Carlo estimate of π, and a random walk (`distribution`, `confidence`,\n"
     "`montecarlo`, `randomwalk`)."),
  ]),
+ dict(slug="physics", title="Physics — simulations",
+   intro="Each simulation is **pre-simulated with RK4** at build time — deterministic "
+         "and replayable — and its parts are ordinary manic entities the whole language "
+         "composes with. The phase / time / well / energy views are optional and generic: "
+         "any sim inherits them.",
+   sub=SUB, items=[
+   ("pendulum",
+    "One pendulum shown four ways from a single deterministic swing: the motion (with a\n"
+    "velocity arrow + KE/PE bars), the phase portrait (θ vs ω), a time series, the\n"
+    "potential-energy well, and energy over time (`pendulum` + `phase`/`timegraph`/\n"
+    "`well`/`energygraph` + `swing`)."),
+   ("pendulum-damped",
+    "The same four views with friction on (`damping`): the swing decays, the phase loop\n"
+    "spirals inward, the well ball settles, and the total-energy line drops — dissipation\n"
+    "told the same way by every panel."),
+   ("pendulum-annotated",
+    "A guided anatomy lesson proving physics composes with base manic: `section` chapters,\n"
+    "`text` / `arrow` / `bracelabel` annotations, and `show`/`recolor`/`flash`/`pulse` all\n"
+    "driving the sim's parts — no special physics mode."),
+   ("spring",
+    "A mass on a spring (simple harmonic motion) drawn with a real stretching coil — the\n"
+    "same generic views on a *different* system; note the energy well is a **parabola**\n"
+    "(½kx²) rather than the pendulum's cosine (`spring` + the views + `run`)."),
+   ("spring-damped",
+    "The damped spring: the coil's oscillation decays, the phase ellipse spirals in, the\n"
+    "ball settles in the parabola, and total energy bleeds away."),
+   ("double-pendulum",
+    "Deterministic chaos: two arms hinged end-to-end whose outer bob traces a wild,\n"
+    "unrepeatable curve — yet the render is frame-identical every run. A 4-D system, so\n"
+    "it shows `phase` (θ₁ vs θ₂) and `energygraph` but has no potential `well`\n"
+    "(`doublependulum` + views + `run`)."),
+   ("spring-pendulum",
+    "An elastic pendulum — a bob on a springy rod (drawn as a stretching coil) that both\n"
+    "swings and bounces, energy sloshing between the two modes (`springpendulum`)."),
+   ("kapitza",
+    "The Kapitza pendulum: vibrate the pivot fast enough and the **inverted** position\n"
+    "becomes stable — the bob hovers near the top instead of falling (`kapitza`)."),
+   ("cart-pendulum",
+    "A pendulum on a spring-mounted cart rolling on a track — the classic control-theory\n"
+    "system; cart and bob trade momentum and energy (`cartpendulum`)."),
+   ("compare-pendulum",
+    "Sensitive dependence: two identical driven pendulums started 0.001 rad apart drift\n"
+    "onto completely different paths — the butterfly effect, watched in `phase`/`timegraph`\n"
+    "(`comparependulum`)."),
+   ("vertical-spring",
+    "A mass bobbing on a vertical spring under gravity — gravity shifts the equilibrium\n"
+    "but the energy well stays a parabola (`verticalspring`)."),
+   ("spring-incline",
+    "A mass on a spring on an inclined plane; gravity's along-ramp component sets a new\n"
+    "stretched rest point it oscillates about (`springincline`)."),
+   ("bungee",
+    "A bungee jump: free-fall, then a ONE-SIDED elastic cord (it only pulls) catches and\n"
+    "bounces the jumper — note the lopsided energy well (`bungee`)."),
+   ("resonance",
+    "A driven spring pushed near its natural frequency √(k/m): the amplitude climbs and\n"
+    "climbs — resonance, watched building up in `phase`/`energygraph` (`resonance`)."),
+   ("double-spring",
+    "Two masses coupled by springs between walls — push one and the energy sloshes back\n"
+    "and forth (beating); normal modes show as diagonals in `phase` (`doublespring`)."),
+   ("series-parallel-springs",
+    "The same mass on springs in series (soft, slow) vs parallel (stiff, fast), side by\n"
+    "side — the `timegraph` makes the frequency difference obvious (`seriesparallel`)."),
+   ("car-suspension",
+    "A quarter-car riding a scrolling road — a speed bump, a washboard stretch, and a\n"
+    "pothole — its spring+damper soaking up the ride (`carsuspension`)."),
+ ]),
  dict(slug="vectors", title="Vectors, fields & coordinates", intro="", sub=SUB, items=[
    ("vector_field", "A magnitude-coloured vector field."),
    ("coordinates", "Axes, planes, number lines, polar & complex planes."),
@@ -246,38 +312,45 @@ SUMMARY_POST = [
  "- [Troubleshooting](troubleshooting.md)",
 ]
 
-# section pages
-for sec in SECTIONS:
-    lines = [f"# {sec['title']}\n"]
-    if sec["intro"]:
-        lines.append(sec["intro"] + "\n")
-    lines.append(sec["sub"] + "\n")
-    for item in sec["items"]:
-        name, desc = item[0], item[1]
-        header = item[2] if len(item) > 2 else name
-        lines.append(f"## {header}\n")
-        lines.append(desc + "\n")
-        lines.append("```manic")
-        lines.append(f"{{{{#include ../../examples/{name}.manic}}}}")
-        lines.append("```\n")
-        lines.append(f'<div class="manic-video" data-video="ex-{name}"></div>\n')
-    (SRC / f"ex-{sec['slug']}.md").write_text("\n".join(lines))
+def main():
+    # section pages
+    for sec in SECTIONS:
+        lines = [f"# {sec['title']}\n"]
+        if sec["intro"]:
+            lines.append(sec["intro"] + "\n")
+        lines.append(sec["sub"] + "\n")
+        for item in sec["items"]:
+            name, desc = item[0], item[1]
+            header = item[2] if len(item) > 2 else name
+            lines.append(f"## {header}\n")
+            lines.append(desc + "\n")
+            lines.append("```manic")
+            lines.append(f"{{{{#include ../../examples/{name}.manic}}}}")
+            lines.append("```\n")
+            lines.append(f'<div class="manic-video" data-video="ex-{name}"></div>\n')
+        (SRC / f"ex-{sec['slug']}.md").write_text("\n".join(lines))
 
-# index
-idx = ["# Examples gallery\n",
-       "Every animation in `examples/`, by topic — **the code and the clip for each**. "
-       "Run any of them with `manic examples/<name>.manic`. Project: <https://8gwifi.org/manic>.\n"]
-for sec in SECTIONS:
-    n = len(sec["items"])
-    idx.append(f"- [{sec['title']}](ex-{sec['slug']}.md) — {n} example{'s' if n != 1 else ''}")
-(SRC / "examples.md").write_text("\n".join(idx) + "\n")
+    # index
+    idx = ["# Examples gallery\n",
+           "Every animation in `examples/`, by topic — **the code and the clip for each**. "
+           "Run any of them with `manic examples/<name>.manic`. Project: <https://8gwifi.org/manic>.\n"]
+    for sec in SECTIONS:
+        n = len(sec["items"])
+        idx.append(f"- [{sec['title']}](ex-{sec['slug']}.md) — {n} example{'s' if n != 1 else ''}")
+    (SRC / "examples.md").write_text("\n".join(idx) + "\n")
 
-# SUMMARY (nest sections under the gallery)
-summ = ["# Summary\n", "[Introduction](introduction.md)\n"] + SUMMARY_PRE
-for sec in SECTIONS:
-    summ.append(f"    - [{sec['title']}](ex-{sec['slug']}.md)")
-summ += SUMMARY_POST
-(SRC / "SUMMARY.md").write_text("\n".join(summ) + "\n")
+    # SUMMARY (nest sections under the gallery)
+    summ = ["# Summary\n", "[Introduction](introduction.md)\n"] + SUMMARY_PRE
+    for sec in SECTIONS:
+        summ.append(f"    - [{sec['title']}](ex-{sec['slug']}.md)")
+    summ += SUMMARY_POST
+    (SRC / "SUMMARY.md").write_text("\n".join(summ) + "\n")
 
-total = sum(len(s["items"]) for s in SECTIONS)
-print(f"generated {len(SECTIONS)} section pages ({total} examples) + index + SUMMARY")
+    total = sum(len(s["items"]) for s in SECTIONS)
+    print(f"generated {len(SECTIONS)} section pages ({total} examples) + index + SUMMARY")
+
+
+# Importable: other scripts (e.g. the playground index.json generator) read
+# `SECTIONS` without triggering the book write.
+if __name__ == "__main__":
+    main()

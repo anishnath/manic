@@ -16,6 +16,7 @@
     - [Calculus & functions](ex-calculus.md)
     - [Linear algebra & tables](ex-linalg.md)
     - [Statistics & probability](ex-stats.md)
+    - [Physics — simulations](ex-physics.md)
     - [Vectors, fields & coordinates](ex-vectors.md)
     - [Geometry (olympiad)](ex-geometry.md)
     - [Transforms & morphing](ex-transforms.md)

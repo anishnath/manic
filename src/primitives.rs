@@ -19,6 +19,9 @@ pub enum Shape {
     /// Quadratic bézier from `pos` to `to` bending through `ctrl`;
     /// `arrow` adds a head at `to`.
     Curve { ctrl: Vec2, to: Vec2, arrow: bool },
+    /// A spring/coil zigzag from `pos` to `to` (absolute) with `turns` coils —
+    /// stretches and compresses as `to` animates (like a `Line`). Stroked only.
+    Coil { to: Vec2, turns: u32 },
     /// Filled/outlined polygon. Points are absolute; `pos` is added as an
     /// offset so the whole polygon can be moved by animating `pos`.
     Polygon { pts: Vec<Vec2> },

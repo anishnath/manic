@@ -587,6 +587,45 @@ untraced(h.bars);
 stagger(0.06) { for k in 0..10 { draw(h.bar{k}, 0.35); } }   // bars build up
 ```
 
+## The physics kit
+
+A **simulation** is built from its physics and PRE-SIMULATED (RK4) at build time,
+so the render is deterministic (frame-identical every run). The pendulum is the
+first named sim; more follow the same shape.
+
+| call | makes |
+|---|---|
+| `pendulum(id, [center], [length], [angle0], [unit], [damping])` | a swinging pendulum. Only `id` is required. `center` is the pivot (default `(640,200)`); `length` in metres (default 1), `angle0` the release angle in **degrees** from vertical (default 30), `unit` px-per-metre (default 150), `damping` (default 0). Lays out `{id}.pivot`, `{id}.rod`, `{id}.bob`, the faint swing arc `{id}.path`, plus overlays (`{id}.overlays`): the velocity arrow `{id}.vel` and the KE/PE energy bars `{id}.ke`/`{id}.pe` + labels. All tagged bare `{id}` + `{id}.parts`. Static until you call `swing`. |
+| `spring(id, [center], [stiffness], [x0], [unit], [damping])` | a mass on a spring. Only `id` required. `center` = equilibrium (default `(640,320)`); `stiffness` k (default 10); `x0` initial displacement m (default 1.3); `unit` px/m (default 110); `damping` (default 0). Lays out `{id}.wall`, `{id}.spring`, `{id}.mass`, `{id}.path` + the shared velocity arrow / energy bars. Its energy well is a **parabola** ½kx². Animate with `run(id)`. |
+| `doublependulum(id, [center], [angle1], [angle2], [unit])` | the chaotic double pendulum (two arms hinged end-to-end). Only `id` required. `angle1`/`angle2` release angles in **degrees** (default 90 each). Parts `{id}.pivot/.rod1/.bob1/.rod2/.bob2` + the outer bob's trail `{id}.path`. A 4-D system — supports `phase`/`timegraph`/`energygraph` but **not** `well`. Animate with `run(id)`. |
+| `springpendulum(id, [center], [angle0], [stretch0], [unit], [damping])` | an **elastic pendulum** (swings + bounces); the springy rod is drawn as a stretching coil. Energy sloshes between swing and bounce. |
+| `kapitza(id, [center], [angle0], [vibeamp], [unit])` | a **Kapitza pendulum** — a strong enough `vibeamp` (pivot vibration) stabilises the **inverted** position (start `angle0` near 165–180°). Driven, so energy isn't conserved. |
+| `cartpendulum(id, [center], [angle0], [unit])` | a pendulum on a **spring-mounted cart** rolling on a track (`{id}.track/.wall/.spring/.cart/.rod/.bob`). |
+| `comparependulum(id, [center], [angle0], [unit])` | **two chaotic pendulums** started ≈0.001 rad apart — sensitive dependence; they diverge (`{id}.rodA/.bobA` cyan, `{id}.rodB/.bobB` magenta). Watch it in `phase`/`timegraph`. |
+| `verticalspring(id, [center], [stretch0], [unit], [damping])` | a mass bobbing on a **vertical** spring under gravity (parabolic well, shifted). |
+| `springincline(id, [center], [angle], [unit], [damping])` | a mass on a spring on an **inclined plane** (`angle` in degrees). |
+| `bungee(id, [center], [unit], [damping])` | a **bungee jump** — free-fall, then a one-sided elastic cord (`{id}.platform/.cord/.jumper`); lopsided energy well. |
+| `resonance(id, [center], [drivefreq], [unit], [damping])` | a **driven spring** — a drive near the natural √(k/m) pumps the amplitude up (resonance). |
+| `doublespring(id, [center], [unit])` | **two coupled masses** between walls (three coils) — energy sloshes (beating); `phase` shows normal modes. |
+| `seriesparallel(id, [center], [unit])` | springs in **series vs parallel** side by side — soft/slow vs stiff/fast (see it in `timegraph`). |
+| `carsuspension(id, [center], [unit])` | a **quarter-car** riding a scrolling road (bump/washboard/pothole) on a spring+damper. |
+| `run(id, [dur])` (alias `swing`) | replay a sim's pre-simulated motion over `dur` seconds (default 6) — every part, velocity arrow, energy bar, **and view marker** animates along it. Works for **any** sim (the whole pendulum + spring families). |
+| `phase(id, (cx,cy), [size])` | **phase portrait** of a sim (e.g. θ vs ω) in a `2·size` panel at `(cx,cy)` — a closed loop when energy is conserved, an inward spiral when damped. A dot rides the curve during `swing`. Call the sim ctor first. |
+| `well(id, (cx,cy), [size])` | the **potential-energy well** U(pos) of a sim, with the body as a ball rolling in it (its height = current PE) — a marble-in-a-bowl view. The ball rides the curve during `swing`. |
+| `timegraph(id, (cx,cy), [size])` | the sim's phase variables as **curves over time** (θ(t) cyan, ω(t) magenta) with a vertical sweep line marking "now" during `swing`. |
+| `energygraph(id, (cx,cy), [size])` | **KE (cyan) / PE (magenta) / total (gold)** energy as curves over time — total flat when conserved, decaying when damped — with a sweep line. |
+
+Views are **optional and generic** — any sim that stores the needed data (a
+phase pair, a well curve) supports them; a sim that doesn't simply can't use that
+view. They read the sim's pre-simulated data, so they cost nothing at render time.
+
+```manic
+pendulum(p, (cx, 190), 2, 50);   // length 2 m, released from 50°
+untraced(p.path);
+draw(p.path, 1.0);               // trace the arc it will follow
+swing(p, 8);                     // then play the motion over 8 s
+```
+
 ## The 3D kit
 
 3D is rendered with depth testing beneath the normal 2D scene. Declare one

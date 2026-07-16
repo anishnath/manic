@@ -120,6 +120,36 @@ fn bezier_pts(from: Vec2, ctrl: Vec2, to: Vec2, n: usize) -> Vec<Vec2> {
         .collect()
 }
 
+/// A spring coil as a zigzag polyline from `p` to `q`: a short straight lead-in
+/// at each end and `turns` alternating perpendicular peaks between. The amplitude
+/// scales (clamped) with length, so it reads as a coil that stretches/compresses.
+fn coil_points(p: Vec2, q: Vec2, turns: u32) -> Vec<Vec2> {
+    let d = q - p;
+    let len = d.length();
+    if len < 1.0 || turns == 0 {
+        return vec![p, q];
+    }
+    let dir = d / len;
+    let perp = Vec2::new(-dir.y, dir.x);
+    let amp = (len * 0.05).clamp(6.0, 16.0);
+    let lead = 0.12;
+    let a = p + dir * (len * lead);
+    let b = q - dir * (len * lead);
+    let seg = (turns * 2).max(2);
+    let mut pts = Vec::with_capacity(seg as usize + 4);
+    pts.push(p);
+    pts.push(a);
+    for i in 1..seg {
+        let f = i as f32 / seg as f32;
+        let along = a.lerp(b, f);
+        let off = if i % 2 == 1 { amp } else { -amp };
+        pts.push(along + perp * off);
+    }
+    pts.push(b);
+    pts.push(q);
+    pts
+}
+
 fn circle_pts(c: Vec2, r: f32, n: usize) -> Vec<Vec2> {
     (0..=n)
         .map(|i| {
@@ -460,6 +490,14 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 }
                 draw_circle(mid.x, mid.y, r, stroke_c);
             }
+        }
+        Shape::Coil { to, turns } => {
+            let q = rot_pt(view.xform(*to), p, rad);
+            let pts = coil_points(p, q, *turns);
+            if glow_on {
+                draw_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow));
+            }
+            draw_path(&pts, trace, width * e.scale, stroke_c);
         }
         Shape::Arrow { to } => {
             let pts = [p, rot_pt(view.xform(*to), p, rad)];

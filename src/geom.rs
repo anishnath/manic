@@ -128,7 +128,7 @@ pub fn entity_to_multipolygon(e: &Entity) -> Result<MultiPolygon<f64>, String> {
         Shape::Region { .. } => {
             Err("boolean operands must be basic shapes (circle, rect, polygon, sector) — nesting booleans isn't supported yet".into())
         }
-        Shape::Line { .. } | Shape::Arrow { .. } | Shape::Curve { .. } => {
+        Shape::Line { .. } | Shape::Arrow { .. } | Shape::Curve { .. } | Shape::Coil { .. } => {
             Err("can't boolean a line/arrow — it has no area".into())
         }
         Shape::Polyline { .. } => Err("can't boolean a polyline — it has no area".into()),

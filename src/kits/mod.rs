@@ -26,6 +26,7 @@ pub fn default_registry() -> Registry {
     brand::register(&mut r);
     three::register(&mut r);
     stats::register(&mut r);
+    physics::register(&mut r);
     r
 }
 

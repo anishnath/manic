@@ -56,6 +56,40 @@ orbit3(70, 25, 12, 4, smooth);            // swing the camera around
 
 It has its own chapter — see [Going 3D](3d.md).
 
+## stats
+
+Turn **data** — or a random process — into a picture that reveals its shape,
+centre, and spread. Each builtin animates a *process*: a histogram builds up bar
+by bar, sample means pile into a bell, a running proportion settles onto the truth.
+
+```manic
+histogram(h, (cx, cy), "72 85 90 68 95 88 76 91 83", 8, 640, 300, rainbow);
+bellcurve(b, (cx, cy), 100, 15);          // the 68-95-99.7 rule
+clt(c, (cx, cy), 5, 1200);                 // the Central Limit Theorem
+```
+
+`histogram` · `summary` · `boxplot` · `skew` · `bellcurve` · `correlation` ·
+`lln` · `clt` · `hypothesis` · `covariance` · `bayes` · `distribution` ·
+`confidence` · `montecarlo` · `randomwalk`. Seeded, so renders are reproducible.
+
+## physics
+
+Simulations built from their physics and **pre-simulated with RK4** at build time,
+so every render is deterministic. Each sim's parts are ordinary manic entities, and
+the optional views (`phase` · `well` · `timegraph` · `energygraph`) show the same
+motion as math panels. `run(id)` (alias `swing`) plays it.
+
+```manic
+pendulum(p, (cx, 200), 2, 50);   phase(p, (980, 200), 120);
+well(p, (980, 470), 120);        run(p, 8);   // one swing, three views
+doublependulum(dp, (400, 240));  par { run(dp, 12); draw(dp.path, 12); }  // chaos
+```
+
+Pendulum family: `pendulum` · `doublependulum` · `springpendulum` · `kapitza` ·
+`cartpendulum` · `comparependulum`. Spring family: `spring` · `verticalspring` ·
+`springincline` · `bungee` · `resonance` · `doublespring` · `seriesparallel` ·
+`carsuspension`.
+
 ---
 
 Each kit has a full reference at <https://8gwifi.org/manic>, and you can see them

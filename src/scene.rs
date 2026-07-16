@@ -8,6 +8,45 @@ use macroquad::prelude::{Color, Vec2, Vec3};
 use crate::primitives::{Align, Entity, FontKind, Shape, StrokeStyle};
 use crate::primitives3d::Entity3D;
 use crate::style;
+use crate::timeline::Prop;
+
+/// One pre-simulated playback track: an entity sub-id, the property to drive
+/// (`Pos`/`To`), and its per-frame screen positions. Physics ctors build these
+/// and store them in [`Scene::sims`]; the playback verb (`swing`) replays each as
+/// a keyframed track chain.
+#[derive(Debug, Clone)]
+pub struct PlaybackTrack {
+    pub id: String,
+    pub prop: Prop,
+    pub points: Vec<Vec2>,
+}
+
+/// Everything a pre-simulated sim exposes — the reusable **baseline** for every
+/// physics sim. A sim's ctor fills this once; the sim-view drawables replay via
+/// `playback`, and the OPTIONAL view builtins (`phase`/`well`/…) read the raw
+/// data series to render extra panels. Generic over the `Sim` trait, so any sim
+/// (pendulum, spring, double-pendulum, …) gets the same views for free — a sim
+/// that leaves a field empty simply doesn't support that view.
+#[derive(Debug, Clone, Default)]
+pub struct SimData {
+    /// Screen-space keyframes replayed by `swing` (sim-view parts + any markers
+    /// the view builtins append).
+    pub playback: Vec<PlaybackTrack>,
+    /// Raw state vector per frame (e.g. `[θ, ω, t]`).
+    pub states: Vec<Vec<f32>>,
+    /// `(kinetic, potential)` energy per frame.
+    pub energy: Vec<(f32, f32)>,
+    /// Simulated seconds per frame (the sample interval) — the `time`-view x axis.
+    pub dt: f32,
+    /// State-variable labels (`θ`, `ω`, …) for axis/legend text.
+    pub labels: Vec<String>,
+    /// State indices `(x, y)` to plot against each other in the phase portrait.
+    pub phase_xy: Option<(usize, usize)>,
+    /// The state index that is "position" (the well-view x axis).
+    pub pos_var: Option<usize>,
+    /// Sampled `(position, potential-energy)` for the potential-well curve.
+    pub well: Vec<(f32, f32)>,
+}
 
 /// A 2D label glued to a 3D position (`pin3`). Reprojected every frame at
 /// render time, so the label tracks the point as the camera orbits.
@@ -57,6 +96,11 @@ pub struct Scene {
     pub occ: HashMap<String, Vec<String>>,
     /// 2D labels bound to 3D positions (`pin3`), applied per-frame by the player.
     pub pins: Vec<Pin3>,
+    /// Pre-simulated playback for physics sims (`physics` kit): maps a sim id to
+    /// its list of [`PlaybackTrack`]s (bob position, rod endpoint, velocity arrow,
+    /// energy bars, …). The ctor (`pendulum`) pre-integrates and fills this; the
+    /// playback verb (`swing`) reads it to emit the keyframed replay. Build-time only.
+    pub sims: HashMap<String, SimData>,
 }
 
 impl Scene {

@@ -107,7 +107,8 @@ are occurrences across the `geometry/` samples.
   `pulse`, `scale`) also address 3D entities. See **3D foundation** below.
 
 ### Primitives (engine)
-`Circle`, `Rect`, `Line`, `Arrow`, `Curve`, `Polygon`, `Polyline`, `Arc`
+`Circle`, `Rect`, `Line`, `Arrow`, `Curve`, `Coil` (spring zigzag pos→to,
+stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
 (arc/sector/annulus), `Region` (boolean result), `Text`; 3D `Point`, `Line`,
 `Arrow`, `Cube`, `Sphere`, and XY `Grid`.
 
@@ -712,6 +713,70 @@ constraints later); **one `physics` kit** (split by category only if it grows);
 8. **Checklist wiring per builtin** — catalog + LANGUAGE + SYSTEM_PROMPT +
    CAPABILITIES + tests + example + WASM rebuild + UI snapshot (the builtin
    checklist).
+
+**Layer-1 status — the pendulum swings end-to-end.** ✅ The first named sim is
+*shipped* as two builtins: **`pendulum(id,(cx,cy),[length],[angle0],[unit],
+[damping])`** (ctor — builds the `Pendulum`, pre-simulates 240 RK4 frames at build
+time, lays out `{id}.pivot`/`{id}.rod`/`{id}.bob`/`{id}.path` tagged bare `{id}`+
+`{id}.parts`, stores the screen-space body path in a new `Scene.sims` side-table)
+and **`swing(id,[dur])`** (verb — replays that path as a keyframed `Pos`/`To`
+track chain; `swing` is in `verb_consumes_structure_id` so it doesn't broadcast
+over the bare-id tag). This covers a pragmatic ③ (playback via the `Scene.sims`
+side-table of typed `PlaybackTrack`s + `resolve`'s keyframe chaining — no new
+`Prop` needed) and a minimal ④ (per-pendulum `unit` px/m). **Overlays shipped:**
+the velocity arrow `{id}.vel` (gold, tangent, length ∝ speed) and the KE/PE energy
+bars `{id}.ke`/`{id}.pe` (cyan/magenta, normalised to initial total energy so a
+damped swing visibly bleeds energy) with labels, tagged `{id}.overlays`. **Args
+are minimal-required:** only `id` is mandatory — `center` (default `(640,200)`),
+`length`, `angle0`, `unit`, `damping` all default, so `pendulum(p); swing(p)`
+works. `examples/pendulum.manic` renders deterministically. Registered,
+catalog-matched, arity-audited, editor-checked; 124 engine + 36 manic-lang tests
+green; WASM rebuilt+copied; docs synced.
+**Generic view layer shipped.** A sim's ctor now stores a reusable `SimData`
+(raw state trajectory + `(KE,PE)` per frame + `dt` + var labels + phase/pos-var
+metadata + a sampled well curve; in `scene.rs`), and **opt-in view builtins read
+it generically** — `phase(id,(cx,cy),[size])` (phase portrait: closed loop vs
+damped spiral) and `well(id,(cx,cy),[size])` (potential-energy well with the body
+as a ball rolling in it). Each lays out its own auto-fit panel + curve + a marker
+that it *appends to the sim's `swing` playback*, so all views animate together.
+The `Sim` trait carries the view metadata as **defaulted methods**, so a sim
+opts into a view just by overriding one (a sim that doesn't stays view-less) —
+the "perfect baseline template" for future sims. **All four views ship:** `phase` (portrait), `well` (potential well),
+`timegraph` (θ(t)/ω(t) with a sweep line), and `energygraph` (KE/PE/total over
+time). The two graph views share an `add_time_view` helper (multi-curve + swept
+"now" line). `examples/pendulum.manic` is a **four-view dashboard** (sim + 2×2
+panels), renders deterministically.
+
+**Second sim shipped — the baseline generalises.** `spring(id,[center],
+[stiffness],[x0],[unit],[damping])` is a mass–spring (SHM) — a different system
+(state `[x,v]`, motion along x, a **parabolic** well ½kx² vs the pendulum's
+cosine) that inherits all four views *for free* via the same `Sim` trait. The
+velocity-arrow + energy-bar overlays were extracted into a shared `add_overlays`
+helper both sims call, and the playback verb was generalised to **`run(id,[dur])`**
+(with **`swing`** kept as a pendulum-friendly alias — both map to `v_play`).
+`examples/spring.manic` is a four-view spring dashboard; renders deterministically.
+**Third sim shipped — the double pendulum⭐ (chaos).** `doublependulum(id,
+[center],[angle1],[angle2],[unit])` — two arms hinged end-to-end, the coupled EOM
+transcribed from the goldmine; deterministic yet sensitive to initial conditions.
+Parts `{id}.pivot/.rod1/.bob1/.rod2/.bob2` + the outer bob's chaotic trail
+`{id}.path` (trace it with `par { run(dp,d); draw(dp.path,d); }`). It's a 4-D
+system, so `phase`(θ₁ vs θ₂)/`timegraph`/`energygraph` apply but **`well` is
+refused** with a clear error (the generic view layer degrades gracefully — a sim
+opts out of a view just by leaving its metadata empty). `examples/double-pendulum.manic`.
+**Full pendulum family shipped** (all on the one `Sim` trait): `pendulum`,
+`doublependulum` (chaos), `springpendulum` (elastic — swings + bounces, coil),
+`kapitza` (inverted-stable via fast pivot vibration), `cartpendulum` (spring cart
++ pendulum), `comparependulum` (two 0.001-rad-apart pendulums diverging). **Full spring family shipped** too: `spring` (SHM), `verticalspring`,
+`springincline`, `bungee` (one-sided cord), `resonance` (driven), `doublespring`
+(coupled/beating), `seriesparallel` (series vs parallel), `carsuspension`
+(quarter-car on a scrolling road) — springs drawn with the real stretching `Coil`
+primitive. **13 sims total**; each is ~a struct + a ctor; all inherit the four
+views where they apply (driven/4-D/multi-body sims skip `well`; multi-body sims
+skip the single-body overlays and compute their energy series inline). ~17 physics
+examples in the gallery. **Remaining Layer-1 polish:** a shared world→screen map
+with `plot` (so a sim + a graph share coordinates). A dedicated time-indexed
+playback `Prop` stays a future optimization if the per-frame track chain proves
+heavy.
 
 ### 3D — status (roadmap #1–#6 all shipped)
 The foundation and the full 3D roadmap below have shipped. Coverage against the

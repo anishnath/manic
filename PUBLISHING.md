@@ -123,16 +123,38 @@ cp crates/manic-lang/pkg/manic_lang.js \
 cp SYSTEM_PROMPT.md "$CT/system-prompt.md"
 ```
 
-**c) Examples** — the gallery `.manic` files used as playground templates
-(copies the files + writes `index.json`); see the crypto-tool playground tooling.
+**c) Examples** — the gallery `.manic` files used as playground templates. One
+script reuses the same `SECTIONS` table as `gen-gallery.py` (so the playground
+list can't drift from the book gallery): it copies every `examples/*.manic` into
+`$CT/examples/` and writes `$CT/examples/index.json` (grouped by category, 3d→
+`threed`). Run it after `gen-gallery.py`:
+
+```sh
+python3 scripts/gen-ui-index.py
+```
 
 Then rebuild/redeploy the `crypto-tool` WAR so the refreshed assets ship.
 
 ## One-shot recap
 
 ```sh
+CT=/Users/anish/git/crypto-tool/src/main/webapp/manic
+
 python3 scripts/gen-gallery.py                         # 1  gallery pages (if examples changed)
-bash scripts/render-samples.sh                         # 3  render mp4s
-python youtube/manic_youtube.py --all --privacy public # 3–5 render + upload + embed
-cp -R book/book/. /Users/anish/git/crypto-tool/src/main/webapp/manic/docs/   # 6 deploy
+mdbook build book                                      # 2  build the book
+python youtube/manic_youtube.py --all --privacy public # 3–5 render + upload + embed videos
+#   (or `bash scripts/embed-videos.sh` alone to keep PLACEHOLDER "coming soon" cards)
+cp -R book/book/. "$CT/docs/"                           # 6  deploy the book
+
+# sibling playground assets (rebuild + copy when their sources change):
+python3 scripts/gen-ui-index.py                         # c  examples/*.manic + index.json
+export PATH="$(dirname "$(rustup which rustc)"):$HOME/.cargo/bin:$PATH"
+wasm-pack build crates/manic-lang --target web --out-dir pkg --features wasm  # a
+cp crates/manic-lang/pkg/manic_lang.js crates/manic-lang/pkg/manic_lang_bg.wasm "$CT/wasm/"
+cp SYSTEM_PROMPT.md "$CT/system-prompt.md"              # b  AI system prompt
+# then rebuild/redeploy the crypto-tool WAR
 ```
+
+**Videos are the one thing not yet done for the physics kit** — its 17 examples
+are `PLACEHOLDER` rows (coming-soon cards). To ship real players: `cargo build
+--release` (the release binary must include the current kits), then steps 3–5.

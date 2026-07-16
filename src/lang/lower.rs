@@ -516,7 +516,7 @@ fn tagged_ids(scene: &Scene, tag: &str) -> Vec<String> {
 fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
     if let Some(first) = s.args.first() {
         if let ExprKind::Ident(name) = &first.kind {
-            if !scene.contains(name) {
+            if !consumes_structure_id(&s.name) && !scene.contains(name) {
                 let ids = tagged_ids(scene, name);
                 if !ids.is_empty() {
                     for id in ids {
@@ -540,13 +540,18 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
     f(scene, &args_of(s))
 }
 
-/// Verbs whose first argument is a *structure id they consume* (not a broadcast
-/// target): `karaoke`/`wordpop` operate on a `caption` as a whole and look up its
-/// `{id}.w0…` words themselves. Because `caption` tags the bare `{id}` (so generic
-/// verbs like `show`/`draw` broadcast over its words), these must be excluded from
-/// broadcast — otherwise `karaoke(cap)` would fan out to `karaoke(cap.w0)`, …
-fn verb_consumes_structure_id(verb: &str) -> bool {
-    matches!(verb, "karaoke" | "wordpop")
+/// Builtins whose first argument is a *structure id they consume* (not a
+/// broadcast target). Structures like `caption`/`pendulum` tag the bare `{id}` so
+/// generic verbs (`show`/`draw`/`hidden`) broadcast over their parts — but the
+/// builtins that OPERATE on the structure as a whole (looking up its sub-entities
+/// themselves) must be excluded, or `karaoke(cap)`/`swing(p)`/`phase(p)` would
+/// fan out to `karaoke(cap.w0)` etc. Applies to both verbs (`run_verb`) and
+/// ctors (`run_ctor`). See memory `tag-broadcast-structure-verbs`.
+fn consumes_structure_id(name: &str) -> bool {
+    matches!(
+        name,
+        "karaoke" | "wordpop" | "swing" | "run" | "phase" | "well" | "timegraph" | "energygraph"
+    )
 }
 
 /// Invoke a verb, broadcasting over a tag group if the first argument names a
@@ -556,7 +561,7 @@ fn verb_consumes_structure_id(verb: &str) -> bool {
 fn run_verb(f: VerbFn, scene: &Scene, s: &Stmt) -> Result<Clip, Error> {
     if let Some(first) = s.args.first() {
         if let ExprKind::Ident(name) = &first.kind {
-            if !verb_consumes_structure_id(&s.name) && !scene.contains(name) {
+            if !consumes_structure_id(&s.name) && !scene.contains(name) {
                 let ids = tagged_ids(scene, name);
                 if !ids.is_empty() {
                     let mut clips = Vec::with_capacity(ids.len());
