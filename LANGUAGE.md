@@ -618,11 +618,17 @@ first named sim; more follow the same shape.
 | `pulleyscale(id, [center], [m1], [m2], [unit])` | an Atwood machine over **two** pulleys with an in-line **spring scale** reading the rope tension 2·m₁·m₂·g/(m₁+m₂) — not the sum of weights (`{id}.scale/.reading/.mass1/.mass2`). |
 | `blocktackle(id, [center], [load], [effort], [strands], [unit])` | a **compound pulley** (block & tackle): a `load` on a movable block held by `strands` = N rope segments, pulled by an `effort` mass. N gives a **mechanical advantage of N** — an effort of only load/N balances the load, and the effort end travels N× as far. N=1 is the Atwood. `{id}.fixed/.movable/.load/.strand{i}/.effort`. |
 | `compoundpulley(id, [center], [mA], [mB], [mC], [unit])` | a **compound pulley with a movable pulley**: a fixed top pulley carries mass A and a movable lower pulley; the movable pulley carries B and C. String constraints link them (a_A = −a_P, a_B + a_C = 2·a_P; T₁ = 2·T₂). **Static when mA = mB + mC.** `{id}.top/.mov/.massA/.massB/.massC/.rope*`. |
-| `ramp(id, [center], [angle], [mass], [applied], [unit])` | a block sliding on an **inclined plane** with static/kinetic **friction** (`angle` in degrees; optional horizontal `applied` force). Friction dissipates energy, so `energygraph`'s total decays (`{id}.incline/.surface/.block`). |
+| `ramp(id, [center], [angle], [mass], [applied], [unit])` | a block sliding on an **inclined plane** with static/kinetic **friction** (`angle` in degrees; optional horizontal `applied` force). Friction dissipates energy, so `energygraph`'s total decays (`{id}.incline/.surface/.block`). Reveal its **free-body diagram** with `forces(id)`. |
+| `inclinepulley(id, [center], [angle], [m1], [m2], [unit])` | the **incline-Atwood**: a block `m1` on an incline tied over a pulley at the top to a hanging mass `m2`. a = (m₂g − m₁g·sinθ)/(m₁+m₂). `{id}.incline/.pulley/.block/.rope1/.rope2/.mass2`. |
+| `doubleincline(id, [center], [angle1], [angle2], [m1], [m2], [unit])` | two blocks on a **wedge's two slopes**, tied over an apex pulley (right slope rough). Slides toward the heavier/steeper side. `{id}.wedge/.pulley/.mass1/.mass2`. |
+| `inclinebumper(id, [center], [angle], [mass], [stiffness], [unit])` | a block **slides down an incline into a spring bumper** at the base (one-sided contact), compresses it, and launches back — free-slide then spring. `{id}.incline/.spring/.plate/.block`. |
+| `springchain(id, [center], [angle], [unit])` | **three blocks joined by two springs** on an incline — coupled oscillators / normal modes (shown in the incline's frame; uniform gravity doesn't affect the internal motion). `{id}.block1..3/.spring1/.spring2`. |
+| `looptrack(id, [center], [radius], [height], [unit])` | a ball rolls down a ramp and around a vertical **loop-the-loop** (a curved track). Energy solver v=√(2g(H−y)) along the arc — it slows at the top; `height` must exceed 2·`radius`. `{id}.ramp/.loop/.ball`. |
 | `dropmass(id, [center], [dropheight], [unit])` | a mass dropped onto a spring-block that **sticks** (inelastic collision) — `energygraph`'s total **steps down** at impact, then the heavier mass oscillates about a lower equilibrium (`{id}.spring/.block/.drop/.eq1/.eq2`). |
 | `raft(id, [center], [personmass], [raftmass], [unit])` | a person walking on a **floating raft** — momentum conservation keeps the **centre of mass fixed**, so the raft slides the opposite way (`{id}.water/.cm/.raft/.body/.head`). Kinematic — no energy/phase views. |
 | `brachistochrone(id, [center], [unit])` | four beads **race under gravity** from A to B down four curves (straight/arc/parabola/**cycloid**); the cycloid wins. Each is a full RK4 bead-on-wire integration (`{id}.straight/.circle/.parabola/.cycloid`, beads `{id}.bead_*`). |
 | `run(id, [dur])` (alias `swing`) | replay a sim's pre-simulated motion over `dur` seconds (default 6) — every part, velocity arrow, energy bar, **and view marker** animates along it. Works for **any** sim (the whole pendulum + spring families). |
+| `forces(id, [dur])` | reveal a sim's **free-body force diagram** — the force vectors on the body (for `ramp`: gravity `mg`, normal `N`, friction `f`, and the acceleration `a`), which then ride the body during `run`. Currently provided by `ramp`. |
 | `phase(id, (cx,cy), [size])` | **phase portrait** of a sim (e.g. θ vs ω) in a `2·size` panel at `(cx,cy)` — a closed loop when energy is conserved, an inward spiral when damped. A dot rides the curve during `swing`. Call the sim ctor first. |
 | `well(id, (cx,cy), [size])` | the **potential-energy well** U(pos) of a sim, with the body as a ball rolling in it (its height = current PE) — a marble-in-a-bowl view. The ball rides the curve during `swing`. |
 | `timegraph(id, (cx,cy), [size])` | the sim's phase variables as **curves over time** (θ(t) cyan, ω(t) magenta) with a vertical sweep line marking "now" during `swing`. |
@@ -761,8 +767,9 @@ difference(bite, sq, cr, lime);   // the square with a circular bite removed
 
 ## Colors
 
-`fg` (foreground / `white`) · `void` (`bg`) · `cyan` (`blue`) · `magenta`
-(`pink`, `accent`, `red`) · `lime` (`green`) · `gold` (`amber`, `yellow`) ·
+`fg` (foreground / `white`) · `void` (`bg`) · `cyan` · `magenta` (`pink`,
+`accent`) · `lime` (`green`) · `gold` (`amber`, `yellow`) · `red` (`crimson`) ·
+`orange` · `blue` (`azure`, a true blue — distinct from `cyan`) ·
 `dim` (`gray`, `grey`) · `panel`.
 
 ## Easings

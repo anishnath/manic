@@ -7,10 +7,12 @@ glow on the dark default background:
 
 | name | is | name | is |
 |---|---|---|---|
-| `cyan` | electric blue | `dim` | muted grey-violet |
-| `magenta` | hot pink | `fg` | near-white (default text) |
-| `lime` | green | `panel` | dark fill |
-| `void` | the background | | |
+| `cyan` | electric blue | `gold` | warm amber |
+| `magenta` | hot pink | `red` | warm red |
+| `lime` | green | `orange` | orange |
+| `blue` | true blue (≠ cyan) | `dim` | muted grey-violet |
+| `void` | the background | `fg` | near-white (default text) |
+| `panel` | dark fill | | |
 
 ```manic
 color(sun, cyan);

@@ -273,10 +273,13 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
     Ok(match name {
         "fg" | "white" => style::FG,
         "void" | "bg" => style::VOID,
-        "cyan" | "blue" => style::CYAN,
-        "magenta" | "pink" | "accent" | "red" => style::MAGENTA,
+        "cyan" => style::CYAN,
+        "magenta" | "pink" | "accent" => style::MAGENTA,
         "lime" | "green" => style::LIME,
         "gold" | "amber" | "yellow" => style::GOLD,
+        "red" | "crimson" => style::RED,
+        "orange" => style::ORANGE,
+        "blue" | "azure" => style::BLUE,
         "dim" | "gray" | "grey" => style::DIM,
         "panel" => style::PANEL,
         // `rainbow` is a per-element spectrum used by bar builtins (histogram,
@@ -285,7 +288,7 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
         other => {
             return Err(Error::new(
                 format!(
-                    "unknown color `{other}` (try: fg, cyan, magenta, lime, gold, dim, panel, void)"
+                    "unknown color `{other}` (try: fg, cyan, magenta, lime, gold, red, orange, blue, dim, panel, void)"
                 ),
                 span,
             ))
@@ -550,7 +553,7 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn consumes_structure_id(name: &str) -> bool {
     matches!(
         name,
-        "karaoke" | "wordpop" | "swing" | "run" | "phase" | "well" | "timegraph" | "energygraph"
+        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph"
     )
 }
 

@@ -2004,6 +2004,41 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             &[("id", Name, R), ("center", Point, O), ("dropheight", Num, O), ("unit", Num, O)],
         ),
         spec(
+            "inclinepulley",
+            Ctor,
+            "physics",
+            "a block on an incline tied over a top pulley to a hanging mass (incline-Atwood)",
+            &[("id", Name, R), ("center", Point, O), ("angle", Num, O), ("m1", Num, O), ("m2", Num, O), ("unit", Num, O)],
+        ),
+        spec(
+            "doubleincline",
+            Ctor,
+            "physics",
+            "two blocks on a wedge's two slopes, tied over an apex pulley (right slope rough)",
+            &[("id", Name, R), ("center", Point, O), ("angle1", Num, O), ("angle2", Num, O), ("m1", Num, O), ("m2", Num, O), ("unit", Num, O)],
+        ),
+        spec(
+            "inclinebumper",
+            Ctor,
+            "physics",
+            "a block slides down an incline into a spring bumper at the base, then bounces back",
+            &[("id", Name, R), ("center", Point, O), ("angle", Num, O), ("mass", Num, O), ("stiffness", Num, O), ("unit", Num, O)],
+        ),
+        spec(
+            "springchain",
+            Ctor,
+            "physics",
+            "three blocks joined by two springs on an incline — coupled oscillators / normal modes",
+            &[("id", Name, R), ("center", Point, O), ("angle", Num, O), ("unit", Num, O)],
+        ),
+        spec(
+            "looptrack",
+            Ctor,
+            "physics",
+            "a ball rolls down a ramp and around a vertical loop-the-loop (curved track)",
+            &[("id", Name, R), ("center", Point, O), ("radius", Num, O), ("height", Num, O), ("unit", Num, O)],
+        ),
+        spec(
             "raft",
             Ctor,
             "physics",
@@ -2029,6 +2064,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             Verb,
             "physics",
             "replay a pendulum's motion over [dur] seconds (alias of run)",
+            &[("id", Ident, R), ("dur", Num, O)],
+        ),
+        spec(
+            "forces",
+            Verb,
+            "physics",
+            "reveal a sim's free-body force diagram (ramp: gravity, normal, friction, a)",
             &[("id", Ident, R), ("dur", Num, O)],
         ),
         spec(
@@ -2063,7 +2105,7 @@ pub fn catalog() -> Vec<BuiltinSpec> {
 }
 
 /// Palette colour names (the only colours the DSL accepts).
-pub const COLORS: &[&str] = &["fg", "void", "cyan", "magenta", "lime", "gold", "dim", "panel", "rainbow"];
+pub const COLORS: &[&str] = &["fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel", "rainbow"];
 
 /// Easing names accepted where a `[ease]` argument is allowed.
 pub const EASINGS: &[&str] = &[

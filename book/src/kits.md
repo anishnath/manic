@@ -88,8 +88,10 @@ doublependulum(dp, (400, 240));  par { run(dp, 12); draw(dp.path, 12); }  // cha
 Pendulum family: `pendulum` · `doublependulum` · `springpendulum` · `kapitza` ·
 `cartpendulum` · `comparependulum`. Spring family: `spring` · `verticalspring` ·
 `springincline` · `bungee` · `resonance` · `doublespring` · `seriesparallel` ·
-`carsuspension`. Mechanics: `robotarm` · `piston` · `molecule` · `ramp` ·
-`dropmass` · `raft` · `brachistochrone`. Pulleys: `pulley` (Atwood) ·
+`carsuspension`. Mechanics: `robotarm` · `piston` · `molecule` · `ramp` (with a `forces(id)`
+free-body diagram) · `inclinepulley` · `doubleincline` · `inclinebumper` ·
+`springchain` · `looptrack` (a curved-track loop-the-loop) · `dropmass` · `raft` ·
+`brachistochrone`. Pulleys: `pulley` (Atwood) ·
 `pulleyscale` (reads the tension) · `blocktackle` (N-strand block & tackle) ·
 `compoundpulley` (fixed + movable, masses A/B/C).
 

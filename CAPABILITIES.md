@@ -607,25 +607,39 @@ physics videos).
 - **Sim spec in-engine vs authored** — likely a declarative sim registry in the kit
   (mirroring the JS specs), with the author choosing which to stage + how to pace it.
 
-**SHIPPED so far (23 sims):** pendulum family (pendulum, double-pendulum⭐,
-spring-pendulum, kapitza, cart-pendulum, compare-pendulum) · spring family
-(spring, vertical-spring, spring-incline, bungee, resonance, double-spring,
-series-parallel-springs, car-suspension) · mechanics (piston, molecule,
-robot-arm, pulley/Atwood, pulley-scale, ramp, drop-mass, raft-cm,
-brachistochrone). All on the one `Sim` trait + n-dim RK4 + the four generic
-views. **Still open:** cart-pole (needs a balancing controller — LQR/PD gains to
-tune), quadrotor (13-var control); collisions (newtons-cradle, collide-blocks,
-billiards, bullet-block — need an impulse/contact mechanic); E&M and waves.
+**SHIPPED so far (30 sims):**
+- **Pendulum family ✅ COMPLETE:** pendulum, double-pendulum⭐, spring-pendulum,
+  kapitza, cart-pendulum, compare-pendulum.
+- **Spring family ✅ COMPLETE:** spring, vertical-spring, spring-incline, bungee,
+  resonance, double-spring, series-parallel-springs, car-suspension, **spring-chain**
+  (3-mass/2-spring coupled oscillators on an incline).
+- **Pulley family ✅ COMPLETE:** pulley/Atwood, pulley-scale, block-tackle
+  (N-strand block & tackle), compound-pulley (fixed + movable, A/B/C),
+  incline-pulley (the incline-Atwood).
+- **Inclines ✅:** ramp (+ `forces(id)` free-body diagram view), incline-bumper
+  (slide into a spring), double-incline (two-slope wedge + apex pulley),
+  **loop-track** (ramp → vertical loop-the-loop — the curved-track solver).
+- **Other mechanics:** piston, molecule, robot-arm, drop-mass, raft-cm,
+  brachistochrone.
+All on the one `Sim` trait + n-dim RK4 + the four generic views (plus the
+build-time energy/kinematic solvers for the event/curved-track cases). Textbook
+rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
+**Still open:** cart-pole (needs a balancing controller — LQR/PD gains to tune),
+quadrotor (13-var control); collisions (newtons-cradle, collide-blocks, billiards,
+bullet-block — need an impulse/contact mechanic); E&M and waves.
 
-**Tiered inventory (RK4-clean unless noted; ⭐ = flagship):**
-- **T1 · trivial (≈3-var):** spring, vertical-spring, spring-incline, pendulum,
-  drop-mass, pulley-scale, bungee.
-- **T2 · oscillation / chaos:** ⭐**double-pendulum**, double-spring,
-  spring-pendulum, compare-pendulum, kapitza-pendulum, resonance,
-  series-parallel-springs.
-- **T3 · coupled / control (bigger state):** cart-pendulum, cart-pole, robot-arm,
-  quadrotor, brachistochrone, piston, car-suspension, molecule.
-- **T4 · collisions:** newtons-cradle, collide-blocks, billiards, bullet-block, ramp.
+**Tiered inventory (✅ = shipped; ⭐ = flagship):**
+- **T1 · trivial (≈3-var):** spring ✅, vertical-spring ✅, spring-incline ✅,
+  pendulum ✅, drop-mass ✅, pulley-scale ✅, bungee ✅.
+- **T2 · oscillation / chaos:** ⭐**double-pendulum** ✅, double-spring ✅,
+  spring-pendulum ✅, compare-pendulum ✅, kapitza-pendulum ✅, resonance ✅,
+  series-parallel-springs ✅, spring-chain ✅.
+- **T3 · coupled / control (bigger state):** cart-pendulum ✅, cart-pole (open),
+  robot-arm ✅, quadrotor (open), brachistochrone ✅, piston ✅, car-suspension ✅,
+  molecule ✅.
+- **Pulleys / inclines ✅:** pulley/Atwood, block-tackle, compound-pulley,
+  incline-pulley, ramp (+forces), incline-bumper, double-incline, loop-track.
+- **T4 · collisions (open):** newtons-cradle, collide-blocks, billiards, bullet-block.
 - **T5 · electromagnetism:** generator, oscillating-charge,
   current-coil-magnetic-field, generator-3d.
 - **Stretch / separate domains:** string-wave (waves, 203 vars), pile (rigid body,

@@ -19,6 +19,13 @@ pub const CYAN: Color = Color::new(0.0, 0.898, 1.0, 1.0);
 /// Secondary spot color: acid lime. Use for "the other branch" / success.
 pub const LIME: Color = Color::new(0.486, 1.0, 0.42, 1.0);
 pub const GOLD: Color = Color::new(1.0, 0.82, 0.4, 1.0);
+/// Warm red — danger, the net/acceleration vector, "the result". (Distinct from
+/// magenta; the classic physics-diagram red.)
+pub const RED: Color = Color::new(0.95, 0.27, 0.32, 1.0);
+/// Orange — a warm accent between red and gold.
+pub const ORANGE: Color = Color::new(1.0, 0.55, 0.16, 1.0);
+/// True blue — distinct from the structural cyan (e.g. gravity vectors, water).
+pub const BLUE: Color = Color::new(0.36, 0.52, 1.0, 1.0);
 /// De-emphasised muted slate-violet for annotations, indices, rules.
 pub const DIM: Color = Color::new(0.42, 0.40, 0.56, 1.0);
 /// Slightly lifted panel fill (nodes, cells, section cards) over the void.

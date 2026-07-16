@@ -159,3 +159,10 @@ ex-compound-pulley|PLACEHOLDER|Compound Pulley — Fixed + Movable, Masses A/B/C
 ex-textbook-doubly-list|PLACEHOLDER|Doubly Linked List — Textbook Style (Agnostic Treatment) — manic
 ex-pulley-paper|PLACEHOLDER|Atwood Machine — Textbook Style, Animated — manic
 ex-spring-paper|PLACEHOLDER|Mass on a Spring — Textbook Style, Animated — manic
+ex-textbook-incline-fbd|PLACEHOLDER|Free-Body Diagram of an Incline — Textbook Style — manic
+ex-incline-pulley|PLACEHOLDER|incline pulley — manic
+ex-double-incline|PLACEHOLDER|double incline — manic
+ex-incline-bumper|PLACEHOLDER|incline bumper — manic
+ex-incline-showcase|PLACEHOLDER|Four Incline Problems, One Paper Page — manic
+ex-loop-track|PLACEHOLDER|loop track — manic
+ex-spring-chain|PLACEHOLDER|spring chain — manic

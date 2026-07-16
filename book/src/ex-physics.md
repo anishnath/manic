@@ -306,6 +306,91 @@ constraints link them (a_A = −a_P, a_B + a_C = 2·a_P); static when mA = mB+mC
 
 <div class="manic-video" data-video="ex-compound-pulley"></div>
 
+## incline-pulley
+
+The incline-Atwood: a block on an incline tied over a pulley at the top to a hanging
+mass. m₂ outpulls m₁·sinθ, so the block climbs while the mass descends — `energygraph`
+tracks the KE↔PE trade (`inclinepulley`).
+
+```manic
+{{#include ../../examples/incline-pulley.manic}}
+```
+
+<div class="manic-video" data-video="ex-incline-pulley"></div>
+
+## double-incline
+
+Two blocks on a wedge's two slopes, tied over a pulley at the apex (right slope rough).
+The 70 kg block on the gentle 30° slope beats the 12 kg block on the steep 50° smooth
+slope — connected motion on two inclines (`doubleincline`).
+
+```manic
+{{#include ../../examples/double-incline.manic}}
+```
+
+<div class="manic-video" data-video="ex-double-incline"></div>
+
+## incline-bumper
+
+A block slides down an incline into a spring bumper at the base, compresses it, and
+launches back up — one-sided contact, gravity PE ↔ kinetic ↔ spring PE, energy
+conserved (`inclinebumper`).
+
+```manic
+{{#include ../../examples/incline-bumper.manic}}
+```
+
+<div class="manic-video" data-video="ex-incline-bumper"></div>
+
+## loop-track
+
+A ball rolls down a ramp and around a vertical LOOP-THE-LOOP — the curved-track case.
+A bead energy solver (v = √(2g(H−y)) along the arc) so it visibly slows at the top;
+release above 2·radius to clear it. `energygraph` tracks KE↔PE (`looptrack`).
+
+```manic
+{{#include ../../examples/loop-track.manic}}
+```
+
+<div class="manic-video" data-video="ex-loop-track"></div>
+
+## spring-chain
+
+Three blocks joined by two springs on an incline — coupled oscillators. Pull one and the
+whole chain rings (normal modes / beating); shown in the incline's frame since uniform
+gravity doesn't touch the internal motion (`springchain`).
+
+```manic
+{{#include ../../examples/spring-chain.manic}}
+```
+
+<div class="manic-video" data-video="ex-spring-chain"></div>
+
+## incline-showcase
+
+One paper page, FOUR live incline problems: a friction ramp, an incline+pulley, a
+two-slope wedge, and a spring bumper — revealed one at a time with narration, then all
+run in parallel. Real base-manic staging (`template("paper")` + `hidden`/`show` + `say`
++ `par`), not a physics dump.
+
+```manic
+{{#include ../../examples/incline-showcase.manic}}
+```
+
+<div class="manic-video" data-video="ex-incline-showcase"></div>
+
+## textbook-incline-fbd
+
+A block on an incline as a physics-class FREE-BODY DIAGRAM: the reusable `forces(id)`
+view draws gravity/normal/friction/`a` vectors on the block, a second panel redraws them
+from a point, and `template("paper")` inks it — then `run` slides the block (`ramp`).
+
+```manic
+{{#include ../../examples/textbook-incline-fbd.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-incline-fbd"></div>
+
 ## pulley-annotated
 
 The Atwood machine elevated with CAMERA work: `cam` + `zoom` push in on the two masses

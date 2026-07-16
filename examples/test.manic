@@ -1,232 +1,208 @@
-title("Problem 4: The Triangle-Cutting Game");
+title("Understanding a Piecewise Function");
 canvas("16:9");
 
-text(problem1, (cx, 55), "A triangle is repeatedly cut and reduced.");
-size(problem1, 28);
-color(problem1, fg);
-display(problem1);
+template("paper");
+masthead("PIECEWISE FUNCTIONS", "Q7");
 
-text(problem2, (cx, 92), "Stop when any angle is exactly theta.");
-size(problem2, 22);
-color(problem2, cyan);
-display(problem2);
+// --- cast ---
+text(titleq, (cx, 88), "Which rule applies to each input x?");
+size(titleq, 32);
+bold(titleq);
+color(titleq, fg);
+hidden(titleq);
 
-text(question, (cx, h - 45), "For which theta can Mulan force a win in finitely many steps?");
-size(question, 22);
-color(question, gold);
-display(question);
+text(flabel, (230, 195), "f(x) =");
+size(flabel, 42);
+color(flabel, fg);
+hidden(flabel);
 
-text(stage1title, (0.2w, 150), "1. Start with T");
-text(stage2title, (0.5w, 150), "2. Mulan chooses P");
-text(stage3title, (0.8*w, 150), "3. Keep one triangle");
-size(stage1title, 21);
-size(stage2title, 21);
-size(stage3title, 21);
-color(stage1title, fg);
-color(stage2title, fg);
-color(stage3title, fg);
-display(stage1title);
-display(stage2title);
-display(stage3title);
+text(lbrace, (395, 195), "{");
+size(lbrace, 120);
+color(lbrace, fg);
+hidden(lbrace);
 
-polygon(tri1, (0.1w, 470), (0.3w, 470), (0.2*w, 220), panel);
-filled(tri1);
-color(tri1, panel);
+text(expr1, (500, 145), "|x| + 3       if  x <= -3");
+size(expr1, 31);
+color(expr1, cyan);
+hidden(expr1);
 
-dot(a1, (0.1w, 470), 7);
-dot(b1, (0.3w, 470), 7);
-dot(c1, (0.2*w, 220), 7);
+text(expr2, (500, 200), "-2x           if  -3 < x < 3");
+size(expr2, 31);
+color(expr2, magenta);
+hidden(expr2);
 
-text(la1, (0.1w - 20, 500), "A");
-text(lb1, (0.3w + 12, 500), "B");
-text(lc1, (0.2w - 12, 195), "C");
-text(theta1, (0.2w - 70, 270), "theta?");
-size(la1, 18);
-size(lb1, 18);
-size(lc1, 18);
-size(theta1, 19);
-color(la1, fg);
-color(lb1, fg);
-color(lc1, fg);
-color(theta1, gold);
-display(la1);
-display(lb1);
-display(lc1);
-display(theta1);
+text(expr3, (500, 255), "6x + 2        if  x >= 3");
+size(expr3, 31);
+color(expr3, gold);
+hidden(expr3);
 
-polygon(tri2left, (0.1w, 470), (0.22w, 470), (0.2w, 220), panel);
-polygon(tri2right, (0.22w, 470), (0.3w, 470), (0.2w, 220), dim);
-filled(tri2left);
-filled(tri2right);
-color(tri2left, cyan);
-color(tri2right, dim);
+text(guide, (cx, 335), "Locate x on the number line, then choose its matching rule.");
+size(guide, 24);
+color(guide, dim);
+hidden(guide);
 
-line(cut1, (0.22w, 470), (0.2w, 220));
-stroke(cut1, 5);
-color(cut1, gold);
-untraced(cut1);
+line(axisline, (190, 470), (1090, 470));
+color(axisline, fg);
+stroke(axisline, 3);
+untraced(axisline);
 
-dot(p1, (0.22w, 470), 9);
-text(lp1, (0.22w - 8, 505), "P");
-size(lp1, 20);
-color(lp1, gold);
-display(lp1);
+arrow(leftarr, (210, 470), (185, 470));
+color(leftarr, fg);
+stroke(leftarr, 3);
+untraced(leftarr);
 
-text(cutlabel, (0.2*w, 555), "cut P to opposite vertex C");
-size(cutlabel, 18);
-color(cutlabel, gold);
-display(cutlabel);
+arrow(rightarr, (1070, 470), (1095, 470));
+color(rightarr, fg);
+stroke(rightarr, 3);
+untraced(rightarr);
 
-arrow(next1, (0.34w, 350), (0.39w, 350));
-color(next1, cyan);
-stroke(next1, 4);
-text(discardlabel, (0.365*w, 320), "discard one");
-size(discardlabel, 17);
-color(discardlabel, dim);
-display(discardlabel);
+line(tickm3, (400, 452), (400, 488));
+color(tickm3, fg);
+stroke(tickm3, 3);
+untraced(tickm3);
 
-polygon(tri3left, (0.42w, 470), (0.58w, 470), (0.5w, 220), panel);
-polygon(tri3right, (0.58w, 470), (0.65w, 330), (0.5w, 220), dim);
-filled(tri3left);
-filled(tri3right);
-color(tri3left, cyan);
-color(tri3right, dim);
+line(tick0, (640, 452), (640, 488));
+color(tick0, fg);
+stroke(tick0, 3);
+untraced(tick0);
 
-dot(a2, (0.42w, 470), 7);
-dot(b2, (0.58w, 470), 7);
-dot(c2, (0.5w, 220), 7);
-dot(q2, (0.65w, 330), 9);
+line(tick3, (880, 452), (880, 488));
+color(tick3, fg);
+stroke(tick3, 3);
+untraced(tick3);
 
-line(cut2, (0.42w, 470), (0.65w, 330));
-stroke(cut2, 5);
-color(cut2, gold);
-untraced(cut2);
+text(labelm3, (400, 525), "-3");
+size(labelm3, 26);
+color(labelm3, fg);
+hidden(labelm3);
 
-text(lq2, (0.65*w + 10, 330), "Q");
-size(lq2, 20);
-color(lq2, gold);
-display(lq2);
+text(label0, (640, 525), "0");
+size(label0, 26);
+color(label0, fg);
+hidden(label0);
 
-line(cross1, (0.59w, 280), (0.63w, 320));
-line(cross2, (0.63w, 280), (0.59w, 320));
-stroke(cross1, 5);
-stroke(cross2, 5);
-color(cross1, magenta);
-color(cross2, magenta);
+text(label3, (880, 525), "3");
+size(label3, 26);
+color(label3, fg);
+hidden(label3);
 
-arrow(next2, (0.68w, 350), (0.73w, 350));
-color(next2, cyan);
-stroke(next2, 4);
+line(regionleft, (215, 430), (390, 430));
+color(regionleft, cyan);
+stroke(regionleft, 9);
+untraced(regionleft);
 
-polygon(tri4, (0.73w, 470), (0.88w, 470), (0.81*w, 300), cyan);
-filled(tri4);
-color(tri4, cyan);
+line(regionmid, (410, 430), (870, 430));
+color(regionmid, magenta);
+stroke(regionmid, 9);
+untraced(regionmid);
 
-dot(a3, (0.73w, 470), 7);
-dot(b3, (0.88w, 470), 7);
-dot(q3, (0.81*w, 300), 7);
+line(regionright, (890, 430), (1065, 430));
+color(regionright, gold);
+stroke(regionright, 9);
+untraced(regionright);
 
-text(la3, (0.73w - 18, 500), "A'");
-text(lb3, (0.88w + 8, 500), "B'");
-text(lq3, (0.81w - 15, 275), "Q");
-text(theta3, (0.81w - 70, 350), "theta?");
-size(la3, 18);
-size(lb3, 18);
-size(lq3, 18);
-size(theta3, 19);
-color(la3, fg);
-color(lb3, fg);
-color(lq3, fg);
-color(theta3, gold);
-display(la3);
-display(lb3);
-display(lq3);
-display(theta3);
+dot(closedm3, (400, 430), 10);
+color(closedm3, cyan);
+filled(closedm3);
+hidden(closedm3);
 
-text(rule1, (0.5*w, 605), "Mulan chooses the cut. Shan-Yu chooses which resulting triangle survives.");
-size(rule1, 20);
-color(rule1, fg);
-display(rule1);
+circle(openm3, (400, 430), 10);
+color(openm3, magenta);
+stroke(openm3, 4);
+hidden(openm3);
 
-hidden(tri2left);
-hidden(tri2right);
-hidden(cut1);
-hidden(p1);
-hidden(lp1);
-hidden(cutlabel);
-hidden(tri3left);
-hidden(tri3right);
-hidden(cut2);
-hidden(q2);
-hidden(lq2);
-hidden(cross1);
-hidden(cross2);
-hidden(tri4);
-hidden(a3);
-hidden(b3);
-hidden(q3);
-hidden(la3);
-hidden(lb3);
-hidden(lq3);
-hidden(theta3);
-hidden(next1);
-hidden(next2);
-hidden(discardlabel);
-hidden(rule1);
+circle(open3, (880, 430), 10);
+color(open3, magenta);
+stroke(open3, 4);
+hidden(open3);
 
-show(problem1, 0.5);
-show(problem2, 0.5);
-show(question, 0.5);
-show(stage1title, 0.5);
-show(la1, 0.3);
-show(lb1, 0.3);
-show(lc1, 0.3);
-show(theta1, 0.3);
-show(tri1, 0.8);
+dot(closed3, (880, 430), 10);
+color(closed3, gold);
+filled(closed3);
+hidden(closed3);
 
-wait(1);
+text(regionlab1, (300, 390), "x <= -3");
+size(regionlab1, 25);
+color(regionlab1, cyan);
+hidden(regionlab1);
 
-show(p1, 0.4);
-show(lp1, 0.4);
-show(cutlabel, 0.4);
-draw(cut1, 0.8);
+text(regionlab2, (640, 390), "-3 < x < 3");
+size(regionlab2, 25);
+color(regionlab2, magenta);
+hidden(regionlab2);
 
-wait(1);
+text(regionlab3, (980, 390), "x >= 3");
+size(regionlab3, 25);
+color(regionlab3, gold);
+hidden(regionlab3);
 
-show(tri2left, 0.5);
-show(tri2right, 0.5);
-show(discardlabel, 0.4);
-show(cross1, 0.3);
-show(cross2, 0.3);
+text(keyclosed, (355, 610), "filled dot: included");
+size(keyclosed, 21);
+color(keyclosed, fg);
+hidden(keyclosed);
 
-wait(1);
+dot(keydot, (245, 605), 8);
+color(keydot, fg);
+filled(keydot);
+hidden(keydot);
 
-show(stage2title, 0.4);
-show(next1, 0.5);
+text(keyopen, (820, 610), "open dot: not included");
+size(keyopen, 21);
+color(keyopen, fg);
+hidden(keyopen);
 
-wait(1);
+circle(keycircle, (690, 605), 8);
+color(keycircle, fg);
+stroke(keycircle, 3);
+hidden(keycircle);
 
-show(tri3left, 0.5);
-show(tri3right, 0.5);
-show(cut2, 0.8);
-show(q2, 0.4);
-show(lq2, 0.4);
-show(cross1, 0.3);
-show(cross2, 0.3);
+// --- script ---
+show(titleq, 0.5);
+par {
+show(flabel, 0.4);
+show(lbrace, 0.5);
+}
+stagger(0.3) {
+show(expr1, 0.35);
+show(expr2, 0.35);
+show(expr3, 0.35);
+}
+show(guide, 0.45);
 
-wait(1);
-
-show(stage3title, 0.4);
-show(next2, 0.5);
-show(tri4, 0.7);
-show(a3, 0.3);
-show(b3, 0.3);
-show(q3, 0.3);
-show(la3, 0.3);
-show(lb3, 0.3);
-show(lq3, 0.3);
-show(theta3, 0.3);
-
-wait(1);
-
-show(rule1, 0.5);
+par {
+draw(axisline, 0.6);
+draw(leftarr, 0.3);
+draw(rightarr, 0.3);
+}
+par {
+draw(tickm3, 0.3);
+draw(tick0, 0.3);
+draw(tick3, 0.3);
+}
+par {
+show(labelm3, 0.25);
+show(label0, 0.25);
+show(label3, 0.25);
+}
+stagger(0.3) {
+draw(regionleft, 0.45);
+draw(regionmid, 0.6);
+draw(regionright, 0.45);
+}
+par {
+show(regionlab1, 0.3);
+show(regionlab2, 0.3);
+show(regionlab3, 0.3);
+}
+par {
+show(closedm3, 0.3);
+show(openm3, 0.3);
+show(open3, 0.3);
+show(closed3, 0.3);
+}
+par {
+show(keydot, 0.25);
+show(keyclosed, 0.35);
+show(keycircle, 0.25);
+show(keyopen, 0.35);
+}
