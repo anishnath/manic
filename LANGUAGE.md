@@ -173,6 +173,7 @@ address.
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
+| `support(id, (cx,cy), [len], ["dir"])` | a **hatched fixed support** (wall / ceiling / floor) for mechanics diagrams — a baseline `{id}.line` + diagonal hatch ticks `{id}.tick{i}`. `"dir"` is the OPEN side: `"down"` (ceiling, default), `"up"` (floor), `"left"`/`"right"` (walls). Tagged bare `{id}` + `{id}.parts`. Pairs with `template("paper")` for a textbook look |
 | `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
 | `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point |
 | `brace(id, (x1,y1), (x2,y2), [depth])` | a curly brace spanning the two points, bulging `depth` px to one side (default 22; negative flips the side) |
@@ -187,6 +188,7 @@ Each takes the target id as the first argument.
 | `hidden(id)` | start invisible (reveal later with `show`) |
 | `untraced(id)` | start with the stroke undrawn (reveal with `draw`) |
 | `cursor(id)` | give a text entity a `_` typewriter cursor (pairs with `type`/`trace`) |
+| `sticky(id)` | pin to screen coordinates so it stays fixed while the camera `cam`/`zoom`s (a HUD overlay — captions, counters, readouts). Broadcasts over a tag |
 | `rot(id, deg)` | start rotated by `deg` degrees |
 | `opacity(id, n)` | explicit starting opacity 0..1 |
 | `color(id, name)` | fill / primary color |
@@ -609,6 +611,17 @@ first named sim; more follow the same shape.
 | `doublespring(id, [center], [unit])` | **two coupled masses** between walls (three coils) — energy sloshes (beating); `phase` shows normal modes. |
 | `seriesparallel(id, [center], [unit])` | springs in **series vs parallel** side by side — soft/slow vs stiff/fast (see it in `timegraph`). |
 | `carsuspension(id, [center], [unit])` | a **quarter-car** riding a scrolling road (bump/washboard/pothole) on a spring+damper. |
+| `piston(id, [center], [rpm], [unit])` | an **engine piston** (slider-crank): a spinning crank + rod drive a piston up/down in a cylinder. Kinematic — no phase/energy views. |
+| `molecule(id, [center], [atoms], [unit])` | **N atoms bonded by springs**, vibrating about their shape (`{id}.atom{i}`, `{id}.bond{i}{j}` coils); `energygraph` shows the conserved energy. |
+| `robotarm(id, [center], [mode], [unit])` | a **two-link arm** tracking a target by inverse-kinematics velocity control (`{id}.base/.link1/.elbow/.link2/.ee/.target`, trail `{id}.path`). `mode` **1 = trace a circle** (default), 2 = figure-8, 0 = reach a fixed point and settle. In modes 1/2 the gripper follows the moving target for the whole run. |
+| `pulley(id, [center], [m1], [m2], [unit])` | a vertical **Atwood machine** — two masses over one pulley, accelerating at (m₁−m₂)g/(m₁+m₂) (`{id}.wheel/.mass1/.mass2/.ropeL/.ropeR`). `energygraph` shows the KE↔PE trade. |
+| `pulleyscale(id, [center], [m1], [m2], [unit])` | an Atwood machine over **two** pulleys with an in-line **spring scale** reading the rope tension 2·m₁·m₂·g/(m₁+m₂) — not the sum of weights (`{id}.scale/.reading/.mass1/.mass2`). |
+| `blocktackle(id, [center], [load], [effort], [strands], [unit])` | a **compound pulley** (block & tackle): a `load` on a movable block held by `strands` = N rope segments, pulled by an `effort` mass. N gives a **mechanical advantage of N** — an effort of only load/N balances the load, and the effort end travels N× as far. N=1 is the Atwood. `{id}.fixed/.movable/.load/.strand{i}/.effort`. |
+| `compoundpulley(id, [center], [mA], [mB], [mC], [unit])` | a **compound pulley with a movable pulley**: a fixed top pulley carries mass A and a movable lower pulley; the movable pulley carries B and C. String constraints link them (a_A = −a_P, a_B + a_C = 2·a_P; T₁ = 2·T₂). **Static when mA = mB + mC.** `{id}.top/.mov/.massA/.massB/.massC/.rope*`. |
+| `ramp(id, [center], [angle], [mass], [applied], [unit])` | a block sliding on an **inclined plane** with static/kinetic **friction** (`angle` in degrees; optional horizontal `applied` force). Friction dissipates energy, so `energygraph`'s total decays (`{id}.incline/.surface/.block`). |
+| `dropmass(id, [center], [dropheight], [unit])` | a mass dropped onto a spring-block that **sticks** (inelastic collision) — `energygraph`'s total **steps down** at impact, then the heavier mass oscillates about a lower equilibrium (`{id}.spring/.block/.drop/.eq1/.eq2`). |
+| `raft(id, [center], [personmass], [raftmass], [unit])` | a person walking on a **floating raft** — momentum conservation keeps the **centre of mass fixed**, so the raft slides the opposite way (`{id}.water/.cm/.raft/.body/.head`). Kinematic — no energy/phase views. |
+| `brachistochrone(id, [center], [unit])` | four beads **race under gravity** from A to B down four curves (straight/arc/parabola/**cycloid**); the cycloid wins. Each is a full RK4 bead-on-wire integration (`{id}.straight/.circle/.parabola/.cycloid`, beads `{id}.bead_*`). |
 | `run(id, [dur])` (alias `swing`) | replay a sim's pre-simulated motion over `dur` seconds (default 6) — every part, velocity arrow, energy bar, **and view marker** animates along it. Works for **any** sim (the whole pendulum + spring families). |
 | `phase(id, (cx,cy), [size])` | **phase portrait** of a sim (e.g. θ vs ω) in a `2·size` panel at `(cx,cy)` — a closed loop when energy is conserved, an inward spiral when damped. A dot rides the curve during `swing`. Call the sim ctor first. |
 | `well(id, (cx,cy), [size])` | the **potential-energy well** U(pos) of a sim, with the body as a ball rolling in it (its height = current PE) — a marble-in-a-bowl view. The ball rides the curve during `swing`. |

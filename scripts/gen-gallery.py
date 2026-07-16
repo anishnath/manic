@@ -24,6 +24,11 @@ SECTIONS = [
    ("two_pointer", "`lo`/`hi` index carets scanning inward on a sorted array."),
    ("stack_queue", "LIFO stack + FIFO queue, with action-point carets."),
    ("linked_list", "Singly / doubly / circular — classic node anatomy + pointer re-threading."),
+   ("textbook-doubly-list",
+    "The paper/`support` TEXTBOOK treatment on the algo kit — proof it's domain-agnostic:\n"
+    "`template(\"paper\")` + a hatched `support` rule turn the doubly linked list into a flat\n"
+    "exam-paper figure (the theme's palette remap inks it automatically), then it inserts\n"
+    "and removes. Same styling that dressed the physics sims, on a data structure."),
    ("hashmap", "Hash a key to a bucket; collisions chain on (separate chaining)."),
  ]),
  dict(slug="graphs", title="Graphs", intro="", sub=SUB, items=[
@@ -184,6 +189,14 @@ SECTIONS = [
    ("spring-damped",
     "The damped spring: the coil's oscillation decays, the phase ellipse spirals in, the\n"
     "ball settles in the parabola, and total energy bleeds away."),
+   ("spring-annotated",
+    "Elevating the spring with a TYPEWRITER lab-note (`type` + `cursor`) and LIVE COUNTERS\n"
+    "(`counter` + `to(_, value, …)`) ticking k and the period up — Hooke's law → parabolic\n"
+    "well → SHM, with no stage-covering section cards. One of three elevation styles."),
+   ("spring-paper",
+    "The SAME spring sim dressed as a textbook figure AND run: `template(\"paper\")` inks it,\n"
+    "a hatched `support` wall, a forest-green coil and outlined mass box, Hooke's law and x₀\n"
+    "revealed, then `run` plays the SHM — the paper treatment on a LIVE sim (see pulley-paper)."),
    ("double-pendulum",
     "Deterministic chaos: two arms hinged end-to-end whose outer bob traces a wild,\n"
     "unrepeatable curve — yet the render is frame-identical every run. A 4-D system, so\n"
@@ -223,6 +236,69 @@ SECTIONS = [
    ("car-suspension",
     "A quarter-car riding a scrolling road — a speed bump, a washboard stretch, and a\n"
     "pothole — its spring+damper soaking up the ride (`carsuspension`)."),
+   ("piston",
+    "An engine piston: a spinning crank + connecting rod turn rotation into the piston's\n"
+    "up-and-down stroke — the slider-crank mechanism (`piston`)."),
+   ("molecule",
+    "A molecule as balls and springs — atoms bonded on every side, vibrating about their\n"
+    "equilibrium shape with the total energy conserved (`molecule`)."),
+   ("robot-arm",
+    "A two-link robot arm reaching for a target: the joint rates come from the analytic\n"
+    "inverse Jacobian, so the arm drives its end-effector to the goal and settles there —\n"
+    "inverse kinematics as a solved motion (`robotarm`)."),
+   ("pulley",
+    "The Atwood machine: two masses over one pulley, the heavier one accelerating down at\n"
+    "(m₁−m₂)g/(m₁+m₂). `energygraph` shows kinetic energy climbing as potential falls\n"
+    "(`pulley`)."),
+   ("pulley-scale",
+    "The surprise every physics class remembers: an in-line spring scale on an Atwood\n"
+    "machine reads the rope TENSION 2·m₁·m₂·g/(m₁+m₂) — not the sum of the two weights\n"
+    "(`pulleyscale`)."),
+   ("block-tackle",
+    "A compound pulley (block & tackle): a load on a movable block held by N rope strands,\n"
+    "pulled by an effort mass. N strands = a mechanical advantage of N — an effort of only\n"
+    "load/N balances the load, but the effort end travels N× as far (`blocktackle`)."),
+   ("compound-pulley",
+    "A compound pulley with a MOVABLE pulley: a fixed top pulley carries mass A on one side\n"
+    "and a movable lower pulley on the other; that pulley carries B and C. The string\n"
+    "constraints link them (a_A = −a_P, a_B + a_C = 2·a_P); static when mA = mB+mC\n"
+    "(`compoundpulley`)."),
+   ("pulley-annotated",
+    "The Atwood machine elevated with CAMERA work: `cam` + `zoom` push in on the two masses\n"
+    "for the imbalance beat and glow the heavier one, a `counter` ticks the acceleration up,\n"
+    "then it pulls back to release — cinematography instead of section cards."),
+   ("pulley-paper",
+    "The SAME Atwood sim dressed as a textbook figure AND run: `template(\"paper\")` inks it\n"
+    "automatically, a hatched `support` ceiling, a forest-green wheel and outlined mass boxes,\n"
+    "a base-manic reveal, then `run` plays the motion — the paper treatment on a LIVE sim."),
+   ("ramp",
+    "A block sliding down an inclined plane with static/kinetic friction — the full force\n"
+    "model. Friction turns motion into heat, so the total-energy line steadily falls\n"
+    "(`ramp` + `energygraph`)."),
+   ("drop-mass",
+    "A mass dropped onto a spring-block STICKS — a perfectly inelastic collision. Watch the\n"
+    "total-energy line step down at impact, then the heavier combined mass oscillate about\n"
+    "a lower equilibrium (`dropmass` + `energygraph`)."),
+   ("raft-cm",
+    "A person walks back and forth on a floating raft; with no external force the centre of\n"
+    "mass stays fixed, so the raft glides the opposite way — momentum conservation you can\n"
+    "see (`raft`)."),
+   ("brachistochrone",
+    "Four beads race under gravity from A to B down a straight line, a circular arc, a\n"
+    "parabola, and a cycloid. The cycloid — the curve of fastest descent — wins, even\n"
+    "though it dips lower and travels farther (`brachistochrone`)."),
+   ("brachistochrone-annotated",
+    "The elevation recipe on a RACE, told with KINETIC TYPOGRAPHY: `wordpop` pops the\n"
+    "question in, `karaoke` sweeps a highlight across the four path names as the curves\n"
+    "sketch on, then `flash`/`glow` crown the cycloid — a third, distinct elevation style."),
+   ("textbook-pulley",
+    "A physics-TEXTBOOK figure, manic style: the `template(\"paper\")` white page, a hatched\n"
+    "`support` ceiling, a green pulley wheel, and outlined labelled mass boxes — the classic\n"
+    "m over 2m+3m arrangement, all base primitives."),
+   ("textbook-tension",
+    "Another textbook figure: two support ropes at 60°/30° meeting a knot, a string over a\n"
+    "hanging pulley carrying 10 kg with the other end anchored to a hatched floor — `support`\n"
+    "+ `template(\"paper\")` for the flat exam-paper look."),
  ]),
  dict(slug="vectors", title="Vectors, fields & coordinates", intro="", sub=SUB, items=[
    ("vector_field", "A magnitude-coloured vector field."),
@@ -305,6 +381,7 @@ SUMMARY_PRE = [
  "- [Colour & style](colour.md)",
  "- [The language layer](language-layer.md)",
  "- [Kits — math, geometry, algorithms](kits.md)",
+ "- [Elevating a scene](elevating.md)",
  "- [Going 3D](3d.md)",
  "- [Examples gallery](examples.md)",
 ]

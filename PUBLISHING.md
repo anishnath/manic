@@ -155,6 +155,7 @@ cp SYSTEM_PROMPT.md "$CT/system-prompt.md"              # b  AI system prompt
 # then rebuild/redeploy the crypto-tool WAR
 ```
 
-**Videos are the one thing not yet done for the physics kit** — its 17 examples
-are `PLACEHOLDER` rows (coming-soon cards). To ship real players: `cargo build
---release` (the release binary must include the current kits), then steps 3–5.
+**Videos are the one thing not yet done for the newer physics / textbook examples**
+— those rows are `PLACEHOLDER` (coming-soon cards) in `book/videos.txt`. To ship
+real players: `cargo build --release` (the release binary must include the current
+kits), then steps 3–5.

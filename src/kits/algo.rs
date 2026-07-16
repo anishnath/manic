@@ -777,7 +777,7 @@ fn place_node(
     };
     b.opacity = op;
     b.z = 3;
-    b.tags = vec![tag.clone()];
+    b.tags = vec![list.to_string(), tag.clone()];
     s.add(b);
 
     let mut t = Entity::new(
@@ -792,7 +792,7 @@ fn place_node(
     t.font = FontKind::MonoBold;
     t.z = 5;
     t.follow = Some((nid.to_string(), Vec2::new(g.data_off, 0.0)));
-    t.tags = vec![tag.clone()];
+    t.tags = vec![list.to_string(), tag.clone()];
     s.add(t);
 
     for (j, off) in g.dividers.iter().enumerate() {
@@ -813,7 +813,7 @@ fn place_node(
         };
         d.z = 4;
         d.follow = Some((nid.to_string(), Vec2::new(*off, 0.0)));
-        d.tags = vec![tag.clone()];
+        d.tags = vec![list.to_string(), tag.clone()];
         s.add(d);
     }
 
@@ -826,7 +826,7 @@ fn place_node(
         );
         e.z = 6;
         e.follow = Some((nid.to_string(), Vec2::new(off, 0.0)));
-        e.tags = vec![tag.clone()];
+        e.tags = vec![list.to_string(), tag.clone()];
         s.add(e);
     };
     dot("pn", g.next_off, s);
@@ -887,7 +887,7 @@ fn wire(
         e.stroke.width = 2.5;
         e.z = 1;
         e.trace = trace0;
-        e.tags = vec![format!("{id}.{kind_tag}")];
+        e.tags = vec![id.to_string(), format!("{id}.{kind_tag}")];
         s.add(e);
         if !initial {
             tracks.push(tk(
@@ -945,7 +945,7 @@ fn wire(
             e.stroke.width = 2.5;
             e.z = 1;
             e.trace = trace0;
-            e.tags = vec![format!("{id}.next")];
+            e.tags = vec![id.to_string(), format!("{id}.next")];
             s.add(e);
             if !initial {
                 tracks.push(tk(
@@ -1090,6 +1090,7 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
     );
     head.font = FontKind::MonoBold;
     head.z = 6;
+    head.tags = vec![id.clone()];
     s.add(head);
     if kind != "circular" {
         let mut nul = Entity::new(
@@ -1103,6 +1104,7 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
         );
         nul.font = FontKind::MonoBold;
         nul.z = 6;
+        nul.tags = vec![id.clone()];
         s.add(nul);
     }
     if kind == "doubly" {
@@ -1117,6 +1119,7 @@ fn c_list(s: &mut Scene, a: &Args) -> Result<(), Error> {
         );
         nul.font = FontKind::MonoBold;
         nul.z = 6;
+        nul.tags = vec![id.clone()];
         s.add(nul);
     }
 
@@ -1920,6 +1923,24 @@ mod tests {
     }
     fn close(a: f32, b: f32) -> bool {
         (a - b).abs() < 0.5
+    }
+
+    // ---- list: the bare id broadcasts over every part (like graph/caption) ----
+    #[test]
+    fn list_bare_id_broadcasts_and_ops_still_work() {
+        let m = movie("list(dll, \"3 8 5\", (640,300), doubly, 70, 50); color(dll, magenta); insert(dll, 1, \"7\");");
+        // color(dll, …) reached the node box, its value text, the head/NULL labels,
+        // and a structural arrow — i.e. the whole list is addressable by `dll`
+        for part in ["dll.node0", "dll.node0.v", "dll.head", "dll.null", "dll.ar0"] {
+            assert_eq!(
+                m.base().get(part).unwrap().color,
+                crate::style::MAGENTA,
+                "color(dll,…) should broadcast to `{part}`"
+            );
+        }
+        // insert is a mut_verb — it consumes the id (bypasses broadcast) and still
+        // threads a 4th node into the occupancy
+        assert_eq!(m.scene.occ["dll"].len(), 4, "insert should add a node");
     }
 
     // ---- array: stateful swap chains (bubble sort) ----

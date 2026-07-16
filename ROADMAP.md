@@ -90,7 +90,23 @@ gaps to close:
 - [ ] `plot` from a small arithmetic expression (`"x^2 - 3"`) — a tiny
       expression evaluator, so functions aren't limited to the named set.
 
-### The next domain — `algo` kit (started)
+### Shipped domains (since this section was written)
+
+- [x] **`algo` kit** — graphs, arrays + sorting (`swap`/`compare`), linked lists
+      (singly/doubly/circular), stacks/queues, hash maps, BFS/DFS, Dijkstra.
+- [x] **`geo` kit** — olympiad constructions (see below).
+- [x] **`stats` kit** — histograms, summary/boxplot/skew, bell curve + CLT,
+      LLN, correlation, hypothesis testing, covariance, Bayes (13 builtins).
+- [x] **`physics` kit** — n-dim RK4 + a `Sim` trait + four generic views
+      (`phase`/`well`/`timegraph`/`energygraph`); ~25 sims: the pendulum family,
+      the spring family, and mechanics (robot arm, pulleys incl. Atwood /
+      block-and-tackle / compound, ramp, drop-mass, raft, brachistochrone,
+      piston, molecule). Determinism preserved by pre-simulating at build time.
+- [x] **Textbook / paper rendering** — `template("paper")` palette remap + the
+      std `support` (hatched wall/ceiling/floor) and `sticky` (screen-pin)
+      primitives compose over ANY kit (physics figures, a linked list, …).
+
+### The `algo` kit — how it started
 
 - [x] **`graph`** (Manim `Graph`/`DiGraph`) — labelled circle nodes + `a-b`
       (line) / `a>b` (arrow) edges trimmed to borders; `circular`/`row`/`grid`

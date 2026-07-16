@@ -607,6 +607,16 @@ physics videos).
 - **Sim spec in-engine vs authored** — likely a declarative sim registry in the kit
   (mirroring the JS specs), with the author choosing which to stage + how to pace it.
 
+**SHIPPED so far (23 sims):** pendulum family (pendulum, double-pendulum⭐,
+spring-pendulum, kapitza, cart-pendulum, compare-pendulum) · spring family
+(spring, vertical-spring, spring-incline, bungee, resonance, double-spring,
+series-parallel-springs, car-suspension) · mechanics (piston, molecule,
+robot-arm, pulley/Atwood, pulley-scale, ramp, drop-mass, raft-cm,
+brachistochrone). All on the one `Sim` trait + n-dim RK4 + the four generic
+views. **Still open:** cart-pole (needs a balancing controller — LQR/PD gains to
+tune), quadrotor (13-var control); collisions (newtons-cradle, collide-blocks,
+billiards, bullet-block — need an impulse/contact mechanic); E&M and waves.
+
 **Tiered inventory (RK4-clean unless noted; ⭐ = flagship):**
 - **T1 · trivial (≈3-var):** spring, vertical-spring, spring-incline, pendulum,
   drop-mass, pulley-scale, bungee.

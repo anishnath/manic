@@ -172,6 +172,47 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `support(id, (cx,cy), [len], ["dir"])` — a **hatched fixed support**: the
+/// diagonal-tick pattern that marks a wall / ceiling / floor in mechanics
+/// diagrams. `len` is the baseline length in px (default 220); `"dir"` is the
+/// OPEN side (where things hang / rest): `"down"` (ceiling, default), `"up"`
+/// (floor), `"left"` or `"right"` (walls). Lays out the baseline `{id}.line` +
+/// hatch ticks `{id}.tick{i}`, tagged bare `{id}` + `{id}.parts` so `color(id,…)`
+/// and `show(id)`/`draw(id)` broadcast over the whole support.
+fn c_support(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = a.pair(1)?;
+    let len = a.opt_num(2)?.unwrap_or(220.0).max(12.0);
+    let dir = if a.len() > 3 { a.text(3)? } else { "down".to_string() };
+    // material normal — points INTO the solid, away from the open side
+    let nrm = match dir.as_str() {
+        "up" => Vec2::new(0.0, 1.0),     // floor: solid below the line
+        "left" => Vec2::new(1.0, 0.0),   // wall, open left → solid on the right
+        "right" => Vec2::new(-1.0, 0.0), // wall, open right → solid on the left
+        _ => Vec2::new(0.0, -1.0),       // "down" / ceiling: solid above the line
+    };
+    let u = Vec2::new(-nrm.y, nrm.x); // unit along the baseline
+    let (tick, spacing) = (13.0f32, 15.0f32);
+    let p0 = center - u * (len / 2.0);
+    let tdir = (nrm + u).normalize_or_zero() * tick; // 45° hatch into the solid
+
+    let parts = format!("{id}.parts");
+    let tags = vec![id.clone(), parts.clone()];
+    let mut base = Entity::new(format!("{id}.line"), Shape::Line { to: center + u * (len / 2.0) }, p0, style::FG);
+    base.stroke.width = 3.0;
+    base.tags = tags.clone();
+    s.add(base);
+    let n = (len / spacing) as usize;
+    for i in 0..=n {
+        let bp = p0 + u * (i as f32 * spacing);
+        let mut t = Entity::new(format!("{id}.tick{i}"), Shape::Line { to: bp + tdir }, bp, style::FG);
+        t.stroke.width = 1.5;
+        t.tags = tags.clone();
+        s.add(t);
+    }
+    Ok(())
+}
+
 /// The word ids of a caption, in order (`{id}.w0`, `{id}.w1`, …).
 fn caption_words(s: &Scene, id: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -681,6 +722,14 @@ fn m_cursor(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `sticky(id)` — pin an entity to screen coordinates so it stays fixed while the
+/// camera pans or zooms (a HUD overlay). Use for captions / counters / readouts
+/// that must stay readable through a `cam`/`zoom` move. Broadcasts over a tag.
+fn m_sticky(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    ent_mut(s, a)?.sticky = true;
+    Ok(())
+}
+
 fn m_rot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let deg = a.num(1)?;
     ent_mut(s, a)?.rot = deg;
@@ -1162,6 +1211,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("text", c_text);
     r.ctor("counter", c_counter);
     r.ctor("caption", c_caption);
+    r.ctor("support", c_support);
     r.ctor("morph", c_morph);
     r.ctor("copy", c_copy);
     r.ctor("dot", c_dot);
@@ -1177,6 +1227,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("hidden", m_hidden);
     r.ctor("untraced", m_untraced);
     r.ctor("cursor", m_cursor);
+    r.ctor("sticky", m_sticky);
     r.ctor("rot", m_rot);
     r.ctor("opacity", m_opacity);
     r.ctor("color", m_color);
@@ -1225,4 +1276,43 @@ pub fn register(r: &mut Registry) {
     r.mut_verb("swap", v_swap); // two entities, or stateful array slot-swap
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
     r.verb("wordpop", v_wordpop); // pop caption words in one at a time
+}
+
+#[cfg(test)]
+mod tests {
+    /// `sticky(id)` sets the screen-pin flag on an entity, and broadcasts over a tag.
+    #[test]
+    fn sticky_pins_entity_and_broadcasts() {
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             text(hud, (cx, 40), \"score\"); display(hud); sticky(hud);\n\
+             text(a, (100, 100), \"x\"); tag(a, grp);\n\
+             text(b, (200, 100), \"y\"); tag(b, grp);\n\
+             sticky(grp);\n",
+        )
+        .unwrap();
+        assert!(m.base().get("hud").unwrap().sticky, "sticky(hud) should pin the entity");
+        assert!(m.base().get("a").unwrap().sticky, "sticky(grp) should broadcast to tagged `a`");
+        assert!(m.base().get("b").unwrap().sticky, "sticky(grp) should broadcast to tagged `b`");
+        assert!(m.validate().is_ok());
+    }
+
+    /// `support(...)` lays out a hatched support (baseline + ticks), the bare id
+    /// broadcasts over the whole thing, and the `dir` string is accepted.
+    #[test]
+    fn support_builds_hatched_baseline() {
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             support(ceil, (cx, 100), 300);\n\
+             support(floor, (cx, 600), 200, \"up\");\n\
+             color(ceil, cyan);\n",
+        )
+        .unwrap();
+        for sub in ["ceil.line", "ceil.tick0", "floor.line", "floor.tick0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        // the bare id tags every part, so color(ceil, …) broadcasts to the ticks
+        assert_eq!(m.base().get("ceil.tick0").unwrap().color, crate::style::CYAN);
+        assert!(m.validate().is_ok());
+    }
 }

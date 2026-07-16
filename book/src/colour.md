@@ -71,4 +71,31 @@ canvas(1280, 720);     // explicit
 `portrait` / `9:16` is 1080×1920 — pair it with the `reel` render preset for
 vertical / social clips.
 
+## Templates — the whole look
+
+`template("...")` sets the movie's **look** in one call: the background, how the
+palette renders, the glow, and any page chrome. Put it near the top, after
+`canvas(...)`.
+
+```manic
+canvas("16:9");
+template("paper");     // a flat white exam-paper page
+```
+
+| template | look |
+|---|---|
+| `plain` | the default — neon on near-black, no chrome |
+| `terminal` | the neon-terminal frame (border, title, masthead) |
+| `paper` (aliases `light`, `print`) | white page, dark ink — for print / textbook figures |
+| `blueprint` (alias `blue`) | white & cyan lines on deep navy |
+
+The clever part is the **palette remap**: a template doesn't just change the
+background, it re-maps every palette colour to that template's role. So on
+`paper`, `panel` → light box, `fg` → dark ink, `lime` → forest green, and so on —
+which means your existing scene renders legibly on the new page **without
+recolouring anything**. That's why `template("paper")` alone turns a pulley,
+a spring, or a linked list into a clean textbook figure (see
+[Elevating a scene](elevating.md)). `paper`/`blueprint` also drop the glow for
+crisp print output.
+
 Next: loops, variables, and macros → [The language layer](language-layer.md).

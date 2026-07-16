@@ -42,6 +42,19 @@ Singly / doubly / circular — classic node anatomy + pointer re-threading.
 
 <div class="manic-video" data-video="ex-linked_list"></div>
 
+## textbook-doubly-list
+
+The paper/`support` TEXTBOOK treatment on the algo kit — proof it's domain-agnostic:
+`template("paper")` + a hatched `support` rule turn the doubly linked list into a flat
+exam-paper figure (the theme's palette remap inks it automatically), then it inserts
+and removes. Same styling that dressed the physics sims, on a data structure.
+
+```manic
+{{#include ../../examples/textbook-doubly-list.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-doubly-list"></div>
+
 ## hashmap
 
 Hash a key to a bucket; collisions chain on (separate chaining).

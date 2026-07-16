@@ -88,7 +88,14 @@ doublependulum(dp, (400, 240));  par { run(dp, 12); draw(dp.path, 12); }  // cha
 Pendulum family: `pendulum` · `doublependulum` · `springpendulum` · `kapitza` ·
 `cartpendulum` · `comparependulum`. Spring family: `spring` · `verticalspring` ·
 `springincline` · `bungee` · `resonance` · `doublespring` · `seriesparallel` ·
-`carsuspension`.
+`carsuspension`. Mechanics: `robotarm` · `piston` · `molecule` · `ramp` ·
+`dropmass` · `raft` · `brachistochrone`. Pulleys: `pulley` (Atwood) ·
+`pulleyscale` (reads the tension) · `blocktackle` (N-strand block & tackle) ·
+`compoundpulley` (fixed + movable, masses A/B/C).
+
+Because a sim's parts are ordinary entities, any base look composes over them —
+e.g. `template("paper")` + a hatched `support` turns a pulley or spring into a
+textbook figure (see [Elevating a scene](elevating.md) and the `*-paper` examples).
 
 ---
 

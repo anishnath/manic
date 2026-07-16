@@ -51,7 +51,7 @@ whatever. The core must know nothing about any of them.
         │  shapes, verbs  │      │  axes, plot,     │
         │  modifiers      │      │  vector, …       │
         └─────────────────┘      └──────────────────┘
-                                  (algo kit: next)
+                       (also shipped: geo, algo, stats, physics kits)
 ```
 
 Two decisions make a new domain cheap:

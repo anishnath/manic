@@ -78,6 +78,9 @@ cam((300, 200), 1.0);   // pan the camera centre
 zoom(1.6, 0.8);         // zoom to 1.6x
 ```
 
+The camera moves the whole world, so a caption or counter would slide off with it.
+Mark it `sticky(id)` to pin it to the screen and keep it readable through the move.
+
 ## One verb, a whole group
 
 If a name refers to a **tag** (a group) instead of a single entity, the verb

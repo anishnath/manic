@@ -140,3 +140,22 @@ ex-resonance|J7pDtK4CeRU|Resonance — Driving Near Natural Frequency — manic
 ex-double-spring|4ad4U8EIu44|Coupled Springs — Energy Sloshes (Beating) — manic
 ex-series-parallel-springs|PZjrCgzR7o8|Series vs Parallel Springs — manic
 ex-car-suspension|HRc7qGHzrbg|Car Suspension — Riding the Road — manic
+ex-piston|PLACEHOLDER|Engine Piston — The Slider-Crank — manic
+ex-molecule|PLACEHOLDER|Vibrating Molecule — Balls and Springs — manic
+ex-robot-arm|PLACEHOLDER|Robot Arm — Reaching by Inverse Kinematics — manic
+ex-pulley|PLACEHOLDER|Atwood Machine — Unequal Masses Accelerate — manic
+ex-pulley-scale|PLACEHOLDER|Pulley Scale — It Reads the Tension — manic
+ex-ramp|PLACEHOLDER|Inclined Plane — Friction Dissipates Energy — manic
+ex-drop-mass|PLACEHOLDER|Drop Mass — An Inelastic Collision Loses Energy — manic
+ex-raft-cm|PLACEHOLDER|Raft — Centre of Mass Stays Fixed — manic
+ex-brachistochrone|PLACEHOLDER|Brachistochrone — The Cycloid Wins — manic
+ex-spring-annotated|PLACEHOLDER|Anatomy of a Spring — Hooke's Law & SHM — manic
+ex-pulley-annotated|PLACEHOLDER|The Atwood Machine — Guided Lesson — manic
+ex-brachistochrone-annotated|PLACEHOLDER|Brachistochrone Race — Guided Lesson — manic
+ex-block-tackle|PLACEHOLDER|Block & Tackle — Compound Pulley Mechanical Advantage — manic
+ex-textbook-pulley|PLACEHOLDER|Textbook Pulley Figure — Paper Style — manic
+ex-textbook-tension|PLACEHOLDER|Textbook Tension Figure — 60/30 Ropes — manic
+ex-compound-pulley|PLACEHOLDER|Compound Pulley — Fixed + Movable, Masses A/B/C — manic
+ex-textbook-doubly-list|PLACEHOLDER|Doubly Linked List — Textbook Style (Agnostic Treatment) — manic
+ex-pulley-paper|PLACEHOLDER|Atwood Machine — Textbook Style, Animated — manic
+ex-spring-paper|PLACEHOLDER|Mass on a Spring — Textbook Style, Animated — manic

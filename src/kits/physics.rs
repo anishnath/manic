@@ -940,6 +940,540 @@ impl Sim for CarSuspension {
     }
 }
 
+/// An **automotive piston** — a slider-crank mechanism. The crank spins at a
+/// constant rate; the piston's height follows H(θ) = a·cosθ + √(L² − a²sin²θ).
+/// State = `[θ, t]` (kinematic — driven, not force-integrated). From
+/// `sims/piston.js`. Dimensions in mm.
+pub struct Piston {
+    pub a: f32,   // crank radius
+    pub l: f32,   // connecting-rod length
+    pub rpm: f32, // crank speed
+}
+impl Piston {
+    fn omega(&self) -> f32 {
+        self.rpm * std::f32::consts::TAU / 60.0
+    }
+    /// Crank-pin world position (mm), crank centre at origin.
+    pub fn pin(&self, th: f32) -> (f32, f32) {
+        (self.a * th.sin(), self.a * th.cos())
+    }
+    /// Piston height above the crank centre (mm).
+    pub fn height(&self, th: f32) -> f32 {
+        self.a * th.cos() + (self.l * self.l - self.a * self.a * th.sin() * th.sin()).max(0.0).sqrt()
+    }
+}
+impl Sim for Piston {
+    fn state0(&self) -> Vec<f32> {
+        vec![0.0, 0.0]
+    }
+    fn deriv(&self, _s: &[f32], d: &mut [f32]) {
+        d[0] = self.omega();
+        d[1] = 1.0;
+    }
+    fn energy(&self, _s: &[f32]) -> Energy {
+        Energy { kinetic: 0.0, potential: 0.0 }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (0.0, self.height(s[0]))
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["θ".into(), "t".into()]
+    }
+    // kinematic mechanism — no phase/well/energy views
+}
+
+/// A **vibrating molecule**: N atoms in 2D connected by springs on every bond,
+/// oscillating about their equilibrium shape (gravity off, so they vibrate in
+/// place). State = `[x₁,y₁,vx₁,vy₁, …, t]`. From `sims/molecule.js`.
+pub struct Molecule {
+    pub n: usize,
+    pub k: f32,
+    pub rest: f32,
+    pub mass: f32,
+    pub damping: f32,
+}
+impl Sim for Molecule {
+    fn state0(&self) -> Vec<f32> {
+        use std::f32::consts::{FRAC_PI_2, TAU};
+        let mut st = vec![0.0; 4 * self.n + 1];
+        let radius = self.rest * 0.8;
+        for i in 0..self.n {
+            let a = TAU * i as f32 / self.n as f32 - FRAC_PI_2;
+            let r = if i == 0 { radius * 1.4 } else { radius }; // atom 0 pulled out → vibration
+            st[i * 4] = r * a.cos();
+            st[i * 4 + 1] = r * a.sin();
+        }
+        st
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        let n = self.n;
+        for i in 0..n {
+            d[i * 4] = s[i * 4 + 2];
+            d[i * 4 + 1] = s[i * 4 + 3];
+            d[i * 4 + 2] = -self.damping * s[i * 4 + 2] / self.mass;
+            d[i * 4 + 3] = -self.damping * s[i * 4 + 3] / self.mass;
+        }
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let dx = s[j * 4] - s[i * 4];
+                let dy = s[j * 4 + 1] - s[i * 4 + 1];
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist < 1e-6 {
+                    continue;
+                }
+                let fmag = self.k * (dist - self.rest) / dist;
+                let (fx, fy) = (fmag * dx, fmag * dy);
+                d[i * 4 + 2] += fx / self.mass;
+                d[i * 4 + 3] += fy / self.mass;
+                d[j * 4 + 2] -= fx / self.mass;
+                d[j * 4 + 3] -= fy / self.mass;
+            }
+        }
+        d[4 * n] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        let mut ke = 0.0;
+        for i in 0..self.n {
+            ke += 0.5 * self.mass * (s[i * 4 + 2].powi(2) + s[i * 4 + 3].powi(2));
+        }
+        let mut pe = 0.0;
+        for i in 0..self.n {
+            for j in (i + 1)..self.n {
+                let dx = s[j * 4] - s[i * 4];
+                let dy = s[j * 4 + 1] - s[i * 4 + 1];
+                pe += 0.5 * self.k * ((dx * dx + dy * dy).sqrt() - self.rest).powi(2);
+            }
+        }
+        Energy { kinetic: ke, potential: pe }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (s[0], s[1])
+    }
+    // 2-D N-body — no phase/well; `energygraph` still works (energy is conserved)
+}
+
+// ── mechanics: arms, pulleys, inclines, curves ──────────────────────────────
+
+/// A two-link **robot arm** reaching for a target by inverse-kinematics velocity
+/// control. State = `[θ₁, θ₂, t]`; the joint rates are the analytic 2×2 inverse
+/// Jacobian times a proportional gain on the end-effector error, so the arm
+/// drives its gripper onto the target. First-order control (velocities, not
+/// torques). The target can be fixed (`mode 0` — reach and settle) or moving
+/// (`mode 1` circle, `mode 2` figure-8) so the arm tracks it continuously.
+/// Transcribed from `sims/robot-arm.js`.
+pub struct RobotArm {
+    pub l1: f32,
+    pub l2: f32,
+    pub gain: f32,
+    pub mode: u8, // 0 = fixed target, 1 = trace a circle, 2 = trace a figure-8
+    pub tx: f32,  // fixed-target position (mode 0)
+    pub ty: f32,
+}
+impl RobotArm {
+    /// The target position at time `t` (moving for modes 1/2).
+    pub fn target(&self, t: f32) -> (f32, f32) {
+        use std::f32::consts::TAU;
+        match self.mode {
+            1 => { let w = TAU / 5.0; (0.7 + 0.3 * (w * t).cos(), 0.7 + 0.3 * (w * t).sin()) }
+            2 => { let w = TAU / 6.0; (0.7 + 0.4 * (w * t).sin(), 0.5 + 0.3 * (2.0 * w * t).sin()) }
+            _ => (self.tx, self.ty),
+        }
+    }
+    /// Elbow (joint-1) world position.
+    pub fn elbow(&self, s: &[f32]) -> (f32, f32) {
+        (self.l1 * s[0].cos(), self.l1 * s[0].sin())
+    }
+}
+impl Sim for RobotArm {
+    fn state0(&self) -> Vec<f32> {
+        use std::f32::consts::FRAC_PI_4;
+        vec![FRAC_PI_4, -FRAC_PI_4, 0.0]
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        let (t1, t2) = (s[0], s[1]);
+        let (s1, c1) = (t1.sin(), t1.cos());
+        let (s12, c12) = ((t1 + t2).sin(), (t1 + t2).cos());
+        let xe = self.l1 * c1 + self.l2 * c12;
+        let ye = self.l1 * s1 + self.l2 * s12;
+        let (tx, ty) = self.target(s[2]);
+        let (ex, ey) = (tx - xe, ty - ye);
+        // 2×2 Jacobian of (xe, ye) w.r.t (θ₁, θ₂)
+        let j11 = -self.l1 * s1 - self.l2 * s12;
+        let j12 = -self.l2 * s12;
+        let j21 = self.l1 * c1 + self.l2 * c12;
+        let j22 = self.l2 * c12;
+        let mut det = j11 * j22 - j12 * j21; // = l1·l2·sinθ₂
+        let min_det = 0.01; // singularity floor (near full-stretch / fold)
+        if det.abs() < min_det {
+            det = if det < 0.0 { -min_det } else { min_det };
+        }
+        // inverse-Jacobian velocity command, gain·error, clamped
+        let w1 = self.gain * (j22 * ex - j12 * ey) / det;
+        let w2 = self.gain * (-j21 * ex + j11 * ey) / det;
+        d[0] = w1.clamp(-8.0, 8.0);
+        d[1] = w2.clamp(-8.0, 8.0);
+        d[2] = 1.0;
+    }
+    fn energy(&self, _s: &[f32]) -> Energy {
+        Energy { kinetic: 0.0, potential: 0.0 }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        let (t1, t2) = (s[0], s[1]);
+        (
+            self.l1 * t1.cos() + self.l2 * (t1 + t2).cos(),
+            self.l1 * t1.sin() + self.l2 * (t1 + t2).sin(),
+        )
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["θ₁".into(), "θ₂".into(), "t".into()]
+    }
+    fn phase_xy(&self) -> Option<(usize, usize)> {
+        Some((0, 1)) // joint-space path to the target
+    }
+    // kinematic controller — no potential well, no mechanical energy
+}
+
+/// A vertical **Atwood machine**: two masses on a light string over a single
+/// pulley. State = `[s, v, t]` — `s` is how far m₁ has descended (m₂ rises the
+/// same distance), `v` its rate. Constant acceleration a = ((m₁−m₂)g − b·v)/
+/// (m₁+m₂). The steady rope tension is 2·m₁·m₂·g/(m₁+m₂) — *between* the two
+/// weights, the point the scale variant makes visible. From `sims/pulley-scale.js`.
+pub struct Pulley {
+    pub m1: f32,
+    pub m2: f32,
+    pub g: f32,
+    pub damping: f32,
+}
+impl Pulley {
+    /// Steady-state rope tension 2·m₁·m₂·g/(m₁+m₂).
+    pub fn tension(&self) -> f32 {
+        2.0 * self.m1 * self.m2 * self.g / (self.m1 + self.m2)
+    }
+}
+impl Sim for Pulley {
+    fn state0(&self) -> Vec<f32> {
+        vec![0.0, 0.0, 0.0]
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        let v = s[1];
+        d[0] = v;
+        d[1] = ((self.m1 - self.m2) * self.g - self.damping * v) / (self.m1 + self.m2);
+        d[2] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        Energy {
+            kinetic: 0.5 * (self.m1 + self.m2) * s[1] * s[1],
+            potential: (self.m2 - self.m1) * self.g * s[0],
+        }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (0.0, -s[0]) // m₁ descends
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["s".into(), "v".into(), "t".into()]
+    }
+    // monotone accel — no phase/well; energygraph shows the KE↔PE trade
+}
+
+/// A **compound pulley** (fixed pulley + movable pulley, three masses): a fixed
+/// top pulley whose rope carries mass A on one side and a MOVABLE lower pulley P
+/// on the other; P's rope carries masses B and C. State = `[xA, vA, xB, vB, xC,
+/// vC, t]`, downward positive. The string constraints tie them together —
+/// a_A = −a_P and a_B + a_C = 2·a_P — and the massless movable pulley gives
+/// T₁ = 2·T₂, so the accelerations are constant:
+///   T₂ = 4g/(4/mA + 1/mB + 1/mC),  a_A = g − 2T₂/mA,  a_B = g − T₂/mB,  a_C = g − T₂/mC.
+/// It is static exactly when mA = mB + mC. This is the classic A/B/C figure.
+pub struct CompoundPulley {
+    pub ma: f32,
+    pub mb: f32,
+    pub mc: f32,
+    pub g: f32,
+}
+impl CompoundPulley {
+    fn tension2(&self) -> f32 {
+        4.0 * self.g / (4.0 / self.ma + 1.0 / self.mb + 1.0 / self.mc)
+    }
+    /// The three (constant) mass accelerations `(a_A, a_B, a_C)`, down positive.
+    pub fn accels(&self) -> (f32, f32, f32) {
+        let t2 = self.tension2();
+        (self.g - 2.0 * t2 / self.ma, self.g - t2 / self.mb, self.g - t2 / self.mc)
+    }
+}
+impl Sim for CompoundPulley {
+    fn state0(&self) -> Vec<f32> {
+        vec![0.0; 7]
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        let (aa, ab, ac) = self.accels();
+        d[0] = s[1];
+        d[1] = aa;
+        d[2] = s[3];
+        d[3] = ab;
+        d[4] = s[5];
+        d[5] = ac;
+        d[6] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        Energy {
+            kinetic: 0.5 * (self.ma * s[1] * s[1] + self.mb * s[3] * s[3] + self.mc * s[5] * s[5]),
+            potential: -self.g * (self.ma * s[0] + self.mb * s[2] + self.mc * s[4]),
+        }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (0.0, -s[0]) // mass A
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["x_A".into(), "v_A".into(), "x_B".into(), "v_B".into(), "x_C".into(), "v_C".into(), "t".into()]
+    }
+    // 3-mass constrained system — no phase/well; energygraph shows KE↔PE
+}
+
+/// A **block-and-tackle** (compound pulley): a load `M` on a movable block held
+/// by `N` rope strands, pulled by an effort mass `m`. State = `[x, v, t]`, x the
+/// load's rise. The `N` strands give a **mechanical advantage of N** — the effort
+/// end moves N× as far as the load, so an effort of only `M/N` balances the load.
+/// Constraint dynamics: a = (N·m − M)·g / (M + N²·m). N = 1 recovers the Atwood.
+pub struct BlockTackle {
+    pub load: f32,
+    pub effort: f32,
+    pub strands: f32, // N — the number of supporting rope segments = the advantage
+    pub g: f32,
+}
+impl BlockTackle {
+    fn accel(&self) -> f32 {
+        let n = self.strands;
+        (n * self.effort - self.load) * self.g / (self.load + n * n * self.effort)
+    }
+}
+impl Sim for BlockTackle {
+    fn state0(&self) -> Vec<f32> {
+        vec![0.0, 0.0, 0.0]
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        d[0] = s[1];
+        d[1] = self.accel();
+        d[2] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        let n = self.strands;
+        Energy {
+            // effort end moves N·v, so its KE carries the N² factor
+            kinetic: 0.5 * (self.load + n * n * self.effort) * s[1] * s[1],
+            potential: (self.load - n * self.effort) * self.g * s[0],
+        }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (0.0, s[0]) // the load rises
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["x".into(), "v".into(), "t".into()]
+    }
+    // monotone accel — no phase/well; energygraph shows the KE↔PE trade
+}
+
+/// A block on an **inclined plane** with friction. State = `[s, v, t]` — `s` is
+/// distance up the incline, `v` its rate. Full force model: gravity component
+/// down the slope, normal force, a static/kinetic friction switch, and an
+/// optional horizontal applied force. Friction dissipates mechanical energy, so
+/// the energy total decays. Transcribed from `sims/ramp.js`.
+pub struct Ramp {
+    pub g: f32,
+    pub angle: f32, // incline, radians
+    pub mass: f32,
+    pub mu_s: f32,
+    pub mu_k: f32,
+    pub applied: f32, // horizontal applied force, N
+    pub s0: f32,      // start distance up the incline
+}
+impl Ramp {
+    fn accel(&self, v: f32) -> f32 {
+        let (st, ct) = (self.angle.sin(), self.angle.cos());
+        let fg_par = self.mass * self.g * st;
+        let fg_perp = self.mass * self.g * ct;
+        let fa_along = self.applied * ct;
+        let fa_into = self.applied * st;
+        let n = (fg_perp + fa_into).max(0.0);
+        let fnet_nf = fa_along - fg_par; // net force excluding friction
+        let ff = if v.abs() > 1e-3 {
+            -v.signum() * self.mu_k * n // kinetic: opposes velocity
+        } else {
+            let fs_max = self.mu_s * n; // static: cancels the net, up to its budget
+            if fnet_nf.abs() <= fs_max {
+                -fnet_nf
+            } else {
+                -fnet_nf.signum() * self.mu_k * n
+            }
+        };
+        (fnet_nf + ff) / self.mass
+    }
+}
+impl Sim for Ramp {
+    fn state0(&self) -> Vec<f32> {
+        vec![self.s0, 0.0, 0.0]
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        d[0] = s[1];
+        d[1] = self.accel(s[1]);
+        d[2] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        Energy {
+            kinetic: 0.5 * self.mass * s[1] * s[1],
+            potential: self.mass * self.g * s[0] * self.angle.sin(), // height = s·sinθ
+        }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (s[0] * self.angle.cos(), s[0] * self.angle.sin())
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["s".into(), "v".into(), "t".into()]
+    }
+    fn phase_xy(&self) -> Option<(usize, usize)> {
+        Some((0, 1))
+    }
+    // the "well" here is a straight ramp (linear PE), so no well view
+}
+
+/// One of the racing descent curves for the brachistochrone. Each provides
+/// `y(x)`, `y'(x)`, `y''(x)` on `x ∈ [0, D]`, with **y measured downward** (so
+/// gravity acts in +y). The cycloid — the true brachistochrone — is built by a
+/// Newton solve for its parameter range and inverted through a lookup table.
+#[derive(Clone)]
+pub enum Curve {
+    Straight { m: f32 },
+    Parabola { h: f32, d: f32 },
+    Circle { r: f32 },
+    Cycloid { r: f32, table: Vec<(f32, f32)> }, // (x, θ) samples
+}
+impl Curve {
+    fn y(&self, x: f32) -> f32 {
+        match self {
+            Curve::Straight { m } => m * x,
+            Curve::Parabola { h, d } => h * (1.0 - (1.0 - x / d).powi(2)),
+            Curve::Circle { r } => r - (r * r - x * x).max(0.0).sqrt(),
+            Curve::Cycloid { r, table, .. } => {
+                let th = theta_from_x(x, table);
+                r * (1.0 - th.cos())
+            }
+        }
+    }
+    fn dy(&self, x: f32) -> f32 {
+        match self {
+            Curve::Straight { m } => *m,
+            Curve::Parabola { h, d } => 2.0 * h * (1.0 - x / d) / d,
+            Curve::Circle { r } => x / (r * r - x * x).max(0.01).sqrt(),
+            Curve::Cycloid { table, .. } => {
+                let th = theta_from_x(x, table);
+                (th.sin() / (1.0 - th.cos()).max(1e-6)).clamp(-2000.0, 2000.0)
+            }
+        }
+    }
+    fn d2y(&self, x: f32) -> f32 {
+        match self {
+            Curve::Straight { .. } => 0.0,
+            Curve::Parabola { h, d } => -2.0 * h / (d * d),
+            Curve::Circle { r } => {
+                let sq = (r * r - x * x).max(0.01);
+                r * r / (sq * sq.sqrt())
+            }
+            Curve::Cycloid { r, table, .. } => {
+                let th = theta_from_x(x, table);
+                (-1.0 / (r * (1.0 - th.cos()).max(1e-6).powi(2))).max(-1e6)
+            }
+        }
+    }
+}
+
+/// Invert `x = r(θ − sinθ)` via a monotone `(x, θ)` table (linear interpolation).
+fn theta_from_x(x: f32, table: &[(f32, f32)]) -> f32 {
+    if x <= table[0].0 {
+        return table[0].1;
+    }
+    let last = table[table.len() - 1];
+    if x >= last.0 {
+        return last.1;
+    }
+    for w in table.windows(2) {
+        let (x0, t0) = w[0];
+        let (x1, t1) = w[1];
+        if x <= x1 {
+            let f = (x - x0) / (x1 - x0 + 1e-12);
+            return t0 + f * (t1 - t0);
+        }
+    }
+    last.1
+}
+
+/// Build the cycloid through (0,0)→(d,h): Newton-solve θ_end so `r(θ_end−sinθ_end)=d`
+/// with `r = h/(1−cosθ_end)`, then sample an `(x, θ)` inversion table.
+fn build_cycloid(d: f32, h: f32) -> Curve {
+    use std::f32::consts::{PI, TAU};
+    let mut theta_end = PI;
+    for _ in 0..20 {
+        let r = h / (1.0 - theta_end.cos());
+        let x_end = r * (theta_end - theta_end.sin());
+        let dx = r * (1.0 - theta_end.cos());
+        theta_end -= (x_end - d) / dx;
+        theta_end = theta_end.clamp(0.1, TAU);
+    }
+    let r = h / (1.0 - theta_end.cos());
+    let n = 200usize;
+    let table: Vec<(f32, f32)> = (0..=n)
+        .map(|i| {
+            let th = theta_end * i as f32 / n as f32;
+            (r * (th - th.sin()), th)
+        })
+        .collect();
+    Curve::Cycloid { r, table }
+}
+
+/// A **bead sliding on a wire** under gravity — the brachistochrone racer. State
+/// = `[x, ẋ, t]` in the horizontal coordinate x; the constrained equation of
+/// motion is ẍ = (g·f′ − 2ẋ²·f′·f″)/(1+f′²) − b·ẋ for the curve `y = f(x)`. Four
+/// beads on four curves race from A=(0,0) to B=(D,H); the cycloid wins. From
+/// `sims/brachistochrone.js`.
+pub struct Bead {
+    pub g: f32,
+    pub b: f32, // damping
+    pub d: f32, // horizontal span D
+    pub h: f32, // vertical drop H
+    pub curve: Curve,
+}
+impl Sim for Bead {
+    fn state0(&self) -> Vec<f32> {
+        vec![0.02, 0.0, 0.0] // start just off the origin to dodge the cusp singularity
+    }
+    fn deriv(&self, s: &[f32], dd: &mut [f32]) {
+        let (x, v) = (s[0], s[1]);
+        dd[2] = 1.0;
+        if x >= self.d {
+            dd[0] = 0.0;
+            dd[1] = 0.0;
+            return;
+        }
+        let fp = self.curve.dy(x);
+        let fpp = self.curve.d2y(x);
+        let denom = 1.0 + fp * fp;
+        dd[0] = v;
+        dd[1] = (self.g * fp - 2.0 * v * v * fp * fpp) / denom - self.b * v;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        let (x, v) = (s[0], s[1]);
+        let fp = self.curve.dy(x);
+        Energy {
+            kinetic: 0.5 * v * v * (1.0 + fp * fp), // true along-curve speed²
+            potential: self.g * (self.h - self.curve.y(x)),
+        }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (s[0], -self.curve.y(s[0])) // f is y-down → negate for the y-up ctor mapping
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["x".into(), "v".into(), "t".into()]
+    }
+    // several beads under one id — no per-bead phase/well
+}
+
 // ── shared sim overlays (velocity arrow + KE/PE energy bars) ────────────────
 
 /// Standard overlays reused by every sim: a velocity arrow riding the body and
@@ -1949,6 +2483,956 @@ fn c_carsuspension(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `piston(id, [center], [rpm], [unit])` — an engine piston: a spinning crank
+/// drives a connecting rod that pushes a piston up and down in a cylinder.
+fn c_piston(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 470.0) };
+    let rpm = a.opt_num(2)?.unwrap_or(60.0).max(1.0);
+    let u = a.opt_num(3)?.unwrap_or(1.4);
+    let p = Piston { a: 50.0, l: 150.0, rpm };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let states = simulate(&p, sim_dt, substeps, SAMPLES);
+    let o = center;
+    let pin: Vec<Vec2> = states.iter().map(|st| { let (px, py) = p.pin(st[0]); Vec2::new(o.x + px * u, o.y - py * u) }).collect();
+    let piston_top: Vec<Vec2> = states.iter().map(|st| Vec2::new(o.x, o.y - p.height(st[0]) * u)).collect();
+    let (pin0, top0) = (pin[0], piston_top[0]);
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let half_bore = 43.0 * u;
+    // cylinder walls (fixed) spanning the piston's travel
+    for (sid, x) in [(format!("{id}.cylL"), o.x - half_bore), (format!("{id}.cylR"), o.x + half_bore)] {
+        let mut w = Entity::new(sid, Shape::Line { to: Vec2::new(x, o.y - 300.0 * u) }, Vec2::new(x, o.y - 80.0 * u), style::DIM);
+        w.stroke.width = 3.0;
+        w.opacity = 0.6;
+        w.tags = ct();
+        s.add(w);
+    }
+    // crank circle (the crank's swept path)
+    let mut crank = Entity::new(format!("{id}.crank"), Shape::Circle { r: p.a * u }, o, style::DIM);
+    crank.stroke.fill = false;
+    crank.stroke.outline = true;
+    crank.stroke.width = 2.0;
+    crank.opacity = 0.5;
+    crank.tags = ct();
+    s.add(crank);
+    let mut arm = Entity::new(format!("{id}.arm"), Shape::Line { to: pin0 }, o, style::GOLD);
+    arm.stroke.width = 4.0;
+    arm.tags = ct();
+    s.add(arm);
+    let mut rod = Entity::new(format!("{id}.rod"), Shape::Line { to: top0 }, pin0, style::FG);
+    rod.stroke.width = 3.0;
+    rod.tags = ct();
+    s.add(rod);
+    let mut pistn = Entity::new(format!("{id}.piston"), Shape::Rect { w: 2.0 * half_bore - 8.0, h: 40.0 }, top0, style::CYAN);
+    pistn.stroke.fill = true;
+    pistn.stroke.outline = false;
+    pistn.tags = ct();
+    s.add(pistn);
+    let mut hub = Entity::new(format!("{id}.hub"), Shape::Circle { r: 6.0 }, o, style::GOLD);
+    hub.stroke.fill = true;
+    hub.stroke.outline = false;
+    hub.tags = ct();
+    s.add(hub);
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.arm"), prop: Prop::To, points: pin.clone() },
+        PlaybackTrack { id: format!("{id}.rod"), prop: Prop::Pos, points: pin },
+        PlaybackTrack { id: format!("{id}.rod"), prop: Prop::To, points: piston_top.clone() },
+        PlaybackTrack { id: format!("{id}.piston"), prop: Prop::Pos, points: piston_top },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: p.labels(), phase_xy: p.phase_xy(), pos_var: p.pos_var(),
+        well: p.well_curve(), energy: states.iter().map(|_| (0.0, 0.0)).collect(),
+        dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `molecule(id, [center], [atoms], [unit])` — N atoms bonded by springs,
+/// vibrating about their equilibrium shape.
+fn c_molecule(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(560.0, 300.0) };
+    let n = (a.opt_num(2)?.unwrap_or(3.0) as usize).clamp(2, 6);
+    let u = a.opt_num(3)?.unwrap_or(70.0);
+    let mol = Molecule { n, k: 12.0, rest: 2.0, mass: 0.5, damping: 0.0 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let states = simulate(&mol, sim_dt, substeps, SAMPLES);
+    let to_screen = |wx: f32, wy: f32| Vec2::new(center.x + wx * u, center.y - wy * u);
+    let atom_pts: Vec<Vec<Vec2>> = (0..n)
+        .map(|i| states.iter().map(|st| to_screen(st[i * 4], st[i * 4 + 1])).collect())
+        .collect();
+    let energy: Vec<(f32, f32)> = states.iter().map(|st| { let e = mol.energy(st); (e.kinetic, e.potential) }).collect();
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut playback = Vec::new();
+    // bonds (every pair) — drawn first, behind the atoms; real spring coils so
+    // the bonds visibly stretch and compress as the atoms vibrate
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let bid = format!("{id}.bond{i}{j}");
+            let mut b = Entity::new(bid.clone(), Shape::Coil { to: atom_pts[j][0], turns: 7 }, atom_pts[i][0], style::LIME);
+            b.stroke.width = 2.5;
+            b.tags = ct();
+            s.add(b);
+            playback.push(PlaybackTrack { id: bid.clone(), prop: Prop::Pos, points: atom_pts[i].clone() });
+            playback.push(PlaybackTrack { id: bid, prop: Prop::To, points: atom_pts[j].clone() });
+        }
+    }
+    for i in 0..n {
+        let aid = format!("{id}.atom{i}");
+        let col = if i == 0 { style::MAGENTA } else { style::CYAN };
+        let mut at = Entity::new(aid.clone(), Shape::Circle { r: 16.0 }, atom_pts[i][0], col);
+        at.stroke.fill = true;
+        at.stroke.outline = false;
+        at.tags = ct();
+        s.add(at);
+        playback.push(PlaybackTrack { id: aid, prop: Prop::Pos, points: atom_pts[i].clone() });
+    }
+    s.sims.insert(id, SimData {
+        playback, labels: mol.labels(), phase_xy: mol.phase_xy(), pos_var: mol.pos_var(),
+        well: mol.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// Once `state[pi]` first leaves `[lo, hi]`, hold every later frame clamped to
+/// that bound with zero velocity — a body coming to rest against a floor/stop.
+fn freeze_range(states: &mut [Vec<f32>], pi: usize, vi: usize, lo: f32, hi: f32) {
+    let mut hit: Option<Vec<f32>> = None;
+    for st in states.iter_mut() {
+        if let Some(h) = &hit {
+            st.clone_from(h);
+        } else if st[pi] <= lo || st[pi] >= hi {
+            st[pi] = st[pi].clamp(lo, hi);
+            st[vi] = 0.0;
+            hit = Some(st.clone());
+        }
+    }
+}
+
+/// `robotarm(id, [center], [mode], [unit])` — a two-link arm that reaches for a
+/// target by inverse-kinematics velocity control. `center` is the base (default
+/// `(500, 440)`); `mode` selects the target: **1 = trace a circle** (default),
+/// 2 = trace a figure-8, 0 = reach a fixed point and settle; `unit` px-per-metre
+/// (default 150). Lays out `{id}.base`, `{id}.link1`, `{id}.elbow`, `{id}.link2`,
+/// `{id}.ee`, the (moving) target `{id}.target`, and the end-effector trail
+/// `{id}.path`. Animate with `run(id)` — in mode 1/2 the gripper tracks the
+/// moving target continuously, tracing the shape.
+fn c_robotarm(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(500.0, 440.0) };
+    let mode = a.opt_num(2)?.unwrap_or(1.0).clamp(0.0, 2.0) as u8;
+    let unit = a.opt_num(3)?.unwrap_or(150.0);
+    let arm = RobotArm { l1: 1.0, l2: 0.5, gain: 5.0, mode, tx: 1.0, ty: 0.8 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let states = simulate(&arm, sim_dt, substeps, SAMPLES);
+    let to_screen = |(wx, wy): (f32, f32)| Vec2::new(center.x + wx * unit, center.y - wy * unit);
+    let elbow_pts: Vec<Vec2> = states.iter().map(|st| to_screen(arm.elbow(st))).collect();
+    let ee_pts: Vec<Vec2> = states.iter().map(|st| to_screen(arm.body(st))).collect();
+    let target_pts: Vec<Vec2> = states.iter().map(|st| to_screen(arm.target(st[2]))).collect();
+    let (elb0, ee0) = (elbow_pts[0], ee_pts[0]);
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+
+    let mut trail = Entity::new(format!("{id}.path"), Shape::Polyline { pts: ee_pts.clone() }, Vec2::ZERO, style::DIM);
+    trail.stroke.width = 2.0;
+    trail.opacity = 0.4;
+    trail.tags = ct();
+    s.add(trail);
+    let mut tgt = Entity::new(format!("{id}.target"), Shape::Circle { r: 11.0 }, target_pts[0], style::LIME);
+    tgt.stroke.fill = false;
+    tgt.stroke.outline = true;
+    tgt.stroke.width = 2.5;
+    tgt.tags = ct();
+    s.add(tgt);
+    let mut link1 = Entity::new(format!("{id}.link1"), Shape::Line { to: elb0 }, center, style::GOLD);
+    link1.stroke.width = 6.0;
+    link1.tags = ct();
+    s.add(link1);
+    let mut link2 = Entity::new(format!("{id}.link2"), Shape::Line { to: ee0 }, elb0, style::CYAN);
+    link2.stroke.width = 5.0;
+    link2.tags = ct();
+    s.add(link2);
+    let mut base = Entity::new(format!("{id}.base"), Shape::Circle { r: 9.0 }, center, style::DIM);
+    base.stroke.fill = true;
+    base.stroke.outline = false;
+    base.tags = ct();
+    s.add(base);
+    let mut elbow = Entity::new(format!("{id}.elbow"), Shape::Circle { r: 6.0 }, elb0, style::GOLD);
+    elbow.stroke.fill = true;
+    elbow.stroke.outline = false;
+    elbow.tags = ct();
+    s.add(elbow);
+    let mut ee = Entity::new(format!("{id}.ee"), Shape::Circle { r: 9.0 }, ee0, style::CYAN);
+    ee.stroke.fill = true;
+    ee.stroke.outline = false;
+    ee.tags = ct();
+    s.add(ee);
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.link1"), prop: Prop::To, points: elbow_pts.clone() },
+        PlaybackTrack { id: format!("{id}.elbow"), prop: Prop::Pos, points: elbow_pts.clone() },
+        PlaybackTrack { id: format!("{id}.link2"), prop: Prop::Pos, points: elbow_pts },
+        PlaybackTrack { id: format!("{id}.link2"), prop: Prop::To, points: ee_pts.clone() },
+        PlaybackTrack { id: format!("{id}.ee"), prop: Prop::Pos, points: ee_pts },
+        PlaybackTrack { id: format!("{id}.target"), prop: Prop::Pos, points: target_pts },
+    ];
+    let energy = states.iter().map(|_| (0.0, 0.0)).collect();
+    s.sims.insert(id, SimData {
+        playback, labels: arm.labels(), phase_xy: arm.phase_xy(), pos_var: arm.pos_var(),
+        well: arm.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// Lay out two hanging masses + their vertical ropes for a pulley machine, given
+/// the two anchor points at the top of each rope. Returns the per-frame screen
+/// positions so the caller can add pulley wheels / a scale between them.
+fn pulley_masses(
+    s: &mut Scene,
+    id: &str,
+    ct: &dyn Fn() -> Vec<String>,
+    states: &[Vec<f32>],
+    left_top: Vec2,
+    right_top: Vec2,
+    hang0: f32,
+    unit: f32,
+    m1: f32,
+    m2: f32,
+) -> (Vec<Vec2>, Vec<Vec2>) {
+    let left_pts: Vec<Vec2> = states.iter().map(|st| Vec2::new(left_top.x, left_top.y + hang0 + st[0] * unit)).collect();
+    let right_pts: Vec<Vec2> = states.iter().map(|st| Vec2::new(right_top.x, right_top.y + hang0 - st[0] * unit)).collect();
+    let (w1, w2) = (24.0 + 5.0 * m1.sqrt(), 24.0 + 5.0 * m2.sqrt());
+    let mut lr = Entity::new(format!("{id}.ropeL"), Shape::Line { to: left_pts[0] }, left_top, style::DIM);
+    lr.stroke.width = 2.0;
+    lr.tags = ct();
+    s.add(lr);
+    let mut rr = Entity::new(format!("{id}.ropeR"), Shape::Line { to: right_pts[0] }, right_top, style::DIM);
+    rr.stroke.width = 2.0;
+    rr.tags = ct();
+    s.add(rr);
+    let mut lm = Entity::new(format!("{id}.mass1"), Shape::Rect { w: w1, h: w1 }, left_pts[0], style::CYAN);
+    lm.stroke.fill = true;
+    lm.stroke.outline = false;
+    lm.tags = ct();
+    s.add(lm);
+    let mut rm = Entity::new(format!("{id}.mass2"), Shape::Rect { w: w2, h: w2 }, right_pts[0], style::MAGENTA);
+    rm.stroke.fill = true;
+    rm.stroke.outline = false;
+    rm.tags = ct();
+    s.add(rm);
+    (left_pts, right_pts)
+}
+
+fn pulley_playback(id: &str, left_pts: Vec<Vec2>, right_pts: Vec<Vec2>) -> Vec<PlaybackTrack> {
+    vec![
+        PlaybackTrack { id: format!("{id}.ropeL"), prop: Prop::To, points: left_pts.clone() },
+        PlaybackTrack { id: format!("{id}.ropeR"), prop: Prop::To, points: right_pts.clone() },
+        PlaybackTrack { id: format!("{id}.mass1"), prop: Prop::Pos, points: left_pts },
+        PlaybackTrack { id: format!("{id}.mass2"), prop: Prop::Pos, points: right_pts },
+    ]
+}
+
+/// `pulley(id, [center], [m1], [m2], [unit])` — a vertical **Atwood machine**:
+/// two masses over one pulley. `center` is the pulley (default `(640, 170)`);
+/// `m1`/`m2` the left/right masses in kg (default 3, 2); `unit` px-per-metre
+/// (default 80). The heavier mass accelerates down at ((m₁−m₂)g)/(m₁+m₂). Lays
+/// out `{id}.wheel`, `{id}.hub`, `{id}.ropeL/.ropeR`, `{id}.mass1/.mass2`.
+/// Animate with `run(id)`; `energygraph` shows the KE↔PE trade.
+fn c_pulley(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 170.0) };
+    let m1 = a.opt_num(2)?.unwrap_or(3.0).max(0.1);
+    let m2 = a.opt_num(3)?.unwrap_or(2.0).max(0.1);
+    let unit = a.opt_num(4)?.unwrap_or(80.0);
+    let p = Pulley { m1, m2, g: 9.81, damping: 0.0 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let mut states = simulate(&p, sim_dt, substeps, SAMPLES);
+    freeze_range(&mut states, 0, 1, -1.7, 1.7); // masses reach the floor / rise to the wheel
+    let energy = states.iter().map(|st| { let e = p.energy(st); (e.kinetic, e.potential) }).collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let r_wheel = 34.0;
+    let mut wheel = Entity::new(format!("{id}.wheel"), Shape::Circle { r: r_wheel }, center, style::DIM);
+    wheel.stroke.fill = false;
+    wheel.stroke.outline = true;
+    wheel.stroke.width = 3.0;
+    wheel.tags = ct();
+    s.add(wheel);
+    let (left_top, right_top) = (Vec2::new(center.x - r_wheel, center.y), Vec2::new(center.x + r_wheel, center.y));
+    let (left_pts, right_pts) = pulley_masses(s, &id, &ct, &states, left_top, right_top, 130.0, unit, m1, m2);
+    let mut hub = Entity::new(format!("{id}.hub"), Shape::Circle { r: 6.0 }, center, style::GOLD);
+    hub.stroke.fill = true;
+    hub.stroke.outline = false;
+    hub.tags = ct();
+    s.add(hub);
+
+    let playback = pulley_playback(&id, left_pts, right_pts);
+    s.sims.insert(id, SimData {
+        playback, labels: p.labels(), phase_xy: p.phase_xy(), pos_var: p.pos_var(),
+        well: p.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `pulleyscale(id, [center], [m1], [m2], [unit])` — an Atwood machine over **two**
+/// pulleys with an in-line spring scale on the rope between them. The scale reads
+/// the rope tension 2·m₁·m₂·g/(m₁+m₂) — *not* the sum of the two weights, the
+/// classic surprise. `center` is the mid-top (default `(640, 170)`). Lays out
+/// `{id}.pulleyL/.pulleyR`, `{id}.ropeL/.ropeR`, `{id}.mass1/.mass2`, the top rope,
+/// `{id}.scale`, and the reading `{id}.reading`. Animate with `run(id)`.
+fn c_pulleyscale(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 170.0) };
+    let m1 = a.opt_num(2)?.unwrap_or(4.0).max(0.1);
+    let m2 = a.opt_num(3)?.unwrap_or(3.0).max(0.1);
+    let unit = a.opt_num(4)?.unwrap_or(80.0);
+    let p = Pulley { m1, m2, g: 9.81, damping: 0.0 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let mut states = simulate(&p, sim_dt, substeps, SAMPLES);
+    freeze_range(&mut states, 0, 1, -1.6, 1.6);
+    let energy = states.iter().map(|st| { let e = p.energy(st); (e.kinetic, e.potential) }).collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let w = 150.0;
+    let (left_top, right_top) = (Vec2::new(center.x - w, center.y), Vec2::new(center.x + w, center.y));
+    let r_wheel = 22.0;
+    // top rope run through the scale + the two pulley wheels
+    let mut top_rope = Entity::new(
+        format!("{id}.toprope"),
+        Shape::Polyline { pts: vec![left_top, Vec2::new(center.x - 34.0, center.y), Vec2::new(center.x + 34.0, center.y), right_top] },
+        Vec2::ZERO,
+        style::DIM,
+    );
+    top_rope.stroke.width = 2.0;
+    top_rope.tags = ct();
+    s.add(top_rope);
+    for (sid, c) in [(format!("{id}.pulleyL"), left_top), (format!("{id}.pulleyR"), right_top)] {
+        let mut wheel = Entity::new(sid, Shape::Circle { r: r_wheel }, c, style::DIM);
+        wheel.stroke.fill = false;
+        wheel.stroke.outline = true;
+        wheel.stroke.width = 3.0;
+        wheel.tags = ct();
+        s.add(wheel);
+    }
+    let (left_pts, right_pts) = pulley_masses(s, &id, &ct, &states, left_top, right_top, 120.0, unit, m1, m2);
+    // the spring scale sitting in the horizontal rope
+    let mut scale = Entity::new(format!("{id}.scale"), Shape::Rect { w: 64.0, h: 30.0 }, center, style::GOLD);
+    scale.stroke.fill = false;
+    scale.stroke.outline = true;
+    scale.stroke.width = 2.5;
+    scale.tags = ct();
+    s.add(scale);
+    let mut reading = Entity::new(
+        format!("{id}.reading"),
+        Shape::Text { content: format!("T = {:.0} N", p.tension()), size: 15.0 },
+        Vec2::new(center.x, center.y - 26.0),
+        style::GOLD,
+    );
+    reading.tags = ct();
+    s.add(reading);
+
+    let playback = pulley_playback(&id, left_pts, right_pts);
+    s.sims.insert(id, SimData {
+        playback, labels: p.labels(), phase_xy: p.phase_xy(), pos_var: p.pos_var(),
+        well: p.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `blocktackle(id, [center], [load], [effort], [strands], [unit])` — a compound
+/// pulley (block & tackle). `center` is the top support (default `(cx, 130)`);
+/// `load` kg on the movable block (default 8); `effort` kg on the pulled end
+/// (default 3); `strands` N = the mechanical advantage, clamped 1–4 (default 3);
+/// `unit` px-per-metre (default 70). With N strands an effort of only load/N
+/// balances the load. Lays out `{id}.beam`, `{id}.fixed`, `{id}.movable`,
+/// `{id}.load`, `{id}.strand0…`, `{id}.effortrope`, `{id}.effort`, `{id}.malabel`.
+/// Animate with `run(id)`; `energygraph` shows the KE↔PE trade.
+fn c_blocktackle(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 130.0) };
+    let load = a.opt_num(2)?.unwrap_or(8.0).max(0.1);
+    let effort = a.opt_num(3)?.unwrap_or(3.0).max(0.1);
+    let n = (a.opt_num(4)?.unwrap_or(3.0) as usize).clamp(1, 4);
+    let unit = a.opt_num(5)?.unwrap_or(70.0);
+    let bt = BlockTackle { load, effort, strands: n as f32, g: 9.81 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let mut states = simulate(&bt, sim_dt, substeps, SAMPLES);
+    freeze_range(&mut states, 0, 1, -1.2, 1.2); // block reaches the top / bottom stop
+    let energy = states.iter().map(|st| { let e = bt.energy(st); (e.kinetic, e.potential) }).collect();
+
+    // fixed geometry (px)
+    let fixed_bottom = center.y + 34.0;
+    let base_gap = 200.0;
+    let movable_top0 = fixed_bottom + base_gap;
+    let movable_c0 = movable_top0 + 16.0;
+    let load_c0 = movable_c0 + 46.0;
+    let (effort_x, effort_y0) = (center.x + 210.0, center.y + 150.0);
+    let sy = |k: usize| states[k][0] * unit; // load rise, px (screen y decreases)
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+
+    // ceiling beam + fixed block (static)
+    let mut beam = Entity::new(format!("{id}.beam"), Shape::Line { to: Vec2::new(center.x + 150.0, center.y) }, Vec2::new(center.x - 150.0, center.y), style::DIM);
+    beam.stroke.width = 5.0;
+    beam.tags = ct();
+    s.add(beam);
+    let mut fixed = Entity::new(format!("{id}.fixed"), Shape::Rect { w: 96.0, h: 20.0 }, Vec2::new(center.x, center.y + 22.0), style::DIM);
+    fixed.stroke.outline = true;
+    fixed.stroke.fill = false;
+    fixed.stroke.width = 2.5;
+    fixed.tags = ct();
+    s.add(fixed);
+
+    // N supporting strands (fixed top anchor → movable block top; shorten as it rises)
+    let strand_x = |i: usize| if n == 1 { center.x } else { center.x - 30.0 + 60.0 * i as f32 / (n - 1) as f32 };
+    let mut playback = Vec::new();
+    for i in 0..n {
+        let sx = strand_x(i);
+        let sid = format!("{id}.strand{i}");
+        let mut st = Entity::new(sid.clone(), Shape::Line { to: Vec2::new(sx, movable_top0) }, Vec2::new(sx, fixed_bottom), style::LIME);
+        st.stroke.width = 2.0;
+        st.tags = ct();
+        s.add(st);
+        let pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(sx, movable_top0 - sy(k))).collect();
+        playback.push(PlaybackTrack { id: sid, prop: Prop::To, points: pts });
+    }
+
+    // movable block + the load hanging from it (both rise by x)
+    let movable_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(center.x, movable_c0 - sy(k))).collect();
+    let load_w = 34.0 + 4.0 * load.sqrt();
+    let load_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(center.x, load_c0 + load_w * 0.5 - sy(k))).collect();
+    let mut movable = Entity::new(format!("{id}.movable"), Shape::Rect { w: 82.0, h: 22.0 }, movable_pts[0], style::CYAN);
+    movable.stroke.fill = true;
+    movable.stroke.outline = false;
+    movable.tags = ct();
+    s.add(movable);
+    let mut load_e = Entity::new(format!("{id}.load"), Shape::Rect { w: load_w, h: load_w }, load_pts[0], style::GOLD);
+    load_e.stroke.fill = true;
+    load_e.stroke.outline = false;
+    load_e.tags = ct();
+    s.add(load_e);
+
+    // effort end: a rope from the fixed block over to a hanging effort mass that
+    // descends N× as far as the load rises
+    let effort_w = 28.0 + 4.0 * effort.sqrt();
+    let effort_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(effort_x, effort_y0 + n as f32 * sy(k))).collect();
+    let effort_top: Vec<Vec2> = effort_pts.iter().map(|p| Vec2::new(p.x, p.y - effort_w * 0.5)).collect();
+    let mut erope = Entity::new(format!("{id}.effortrope"), Shape::Line { to: effort_top[0] }, Vec2::new(center.x + 48.0, center.y + 22.0), style::MAGENTA);
+    erope.stroke.width = 2.0;
+    erope.tags = ct();
+    s.add(erope);
+    let mut effort_e = Entity::new(format!("{id}.effort"), Shape::Rect { w: effort_w, h: effort_w }, effort_pts[0], style::MAGENTA);
+    effort_e.stroke.fill = true;
+    effort_e.stroke.outline = false;
+    effort_e.tags = ct();
+    s.add(effort_e);
+
+    let mut malabel = Entity::new(
+        format!("{id}.malabel"),
+        Shape::Text { content: format!("MA = {n}   (effort {effort:.0} kg ⇄ load {load:.0} kg)"), size: 17.0 },
+        Vec2::new(center.x, center.y - 24.0),
+        style::GOLD,
+    );
+    malabel.tags = ct();
+    s.add(malabel);
+
+    playback.push(PlaybackTrack { id: format!("{id}.movable"), prop: Prop::Pos, points: movable_pts });
+    playback.push(PlaybackTrack { id: format!("{id}.load"), prop: Prop::Pos, points: load_pts });
+    playback.push(PlaybackTrack { id: format!("{id}.effort"), prop: Prop::Pos, points: effort_pts });
+    playback.push(PlaybackTrack { id: format!("{id}.effortrope"), prop: Prop::To, points: effort_top });
+    s.sims.insert(id, SimData {
+        playback, labels: bt.labels(), phase_xy: bt.phase_xy(), pos_var: bt.pos_var(),
+        well: bt.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `compoundpulley(id, [center], [mA], [mB], [mC], [unit])` — a compound pulley:
+/// a fixed top pulley (mass A on the left, a movable lower pulley on the right)
+/// whose movable pulley carries masses B and C. `center` is the ceiling attach
+/// point (default `(520, 120)`); `mA`/`mB`/`mC` kg (default 5, 2, 2); `unit`
+/// px-per-metre (default 70). Static when mA = mB + mC. Lays out `{id}.top`,
+/// `{id}.mov` (movable pulley), `{id}.massA/.massB/.massC`, ropes `{id}.rope*`.
+/// Animate with `run(id)`; `energygraph` shows the KE↔PE trade.
+fn c_compoundpulley(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(520.0, 120.0) };
+    let ma = a.opt_num(2)?.unwrap_or(5.0).max(0.1);
+    let mb = a.opt_num(3)?.unwrap_or(2.0).max(0.1);
+    let mc = a.opt_num(4)?.unwrap_or(2.0).max(0.1);
+    let unit = a.opt_num(5)?.unwrap_or(70.0);
+    let cp = CompoundPulley { ma, mb, mc, g: 9.81 };
+    let (sim_dt, substeps) = (0.0016f32, 4usize);
+    let mut states = simulate(&cp, sim_dt, substeps, SAMPLES);
+    freeze_range(&mut states, 0, 1, -1.4, 1.4); // stop before things run off-stage
+    let energy = states.iter().map(|st| { let e = cp.energy(st); (e.kinetic, e.potential) }).collect();
+
+    // geometry (px)
+    let r = 52.0f32;
+    let tp = Vec2::new(center.x, center.y + 90.0); // fixed top pulley centre
+    let (a_x, p_x) = (center.x - r, center.x + r); // A at TP's left tangent; P hangs at the right tangent
+    let (b_x, c_x) = (p_x - r, p_x + r);
+    let (a0, p0, b0, c0) = (tp.y + 130.0, tp.y + 180.0, tp.y + 320.0, tp.y + 420.0);
+    let half = 26.0f32;
+    let (xa, xb, xc) = (
+        |k: usize| states[k][0] * unit,
+        |k: usize| states[k][2] * unit,
+        |k: usize| states[k][4] * unit,
+    );
+    // movable pulley rises as A descends (xP = −xA)
+    let p_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(p_x, p0 - xa(k))).collect();
+    let a_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(a_x, a0 + xa(k))).collect();
+    let b_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(b_x, b0 + xb(k))).collect();
+    let c_pts: Vec<Vec2> = (0..states.len()).map(|k| Vec2::new(c_x, c0 + xc(k))).collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+
+    // ceiling rope → top-pulley hub; the fixed top pulley
+    let mut rope0 = Entity::new(format!("{id}.rope0"), Shape::Line { to: tp }, Vec2::new(center.x, center.y), style::DIM);
+    rope0.stroke.width = 2.0;
+    rope0.tags = ct();
+    s.add(rope0);
+    for (sid, cpos, col, fill) in [
+        (format!("{id}.top"), tp, style::DIM, false),
+        (format!("{id}.tophub"), tp, style::GOLD, true),
+        (format!("{id}.mov"), p_pts[0], style::LIME, false),
+        (format!("{id}.movhub"), p_pts[0], style::GOLD, true),
+    ] {
+        let rr = if fill { 5.0 } else { r };
+        let mut w = Entity::new(sid, Shape::Circle { r: rr }, cpos, col);
+        w.stroke.fill = fill;
+        w.stroke.outline = !fill;
+        w.stroke.width = 3.0;
+        w.tags = ct();
+        s.add(w);
+    }
+
+    // ropes: TP-left→A, TP-right→movable hub, P-left→B, P-right→C
+    let mut ra = Entity::new(format!("{id}.ropeA"), Shape::Line { to: Vec2::new(a_x, a_pts[0].y - half) }, Vec2::new(a_x, tp.y), style::DIM);
+    ra.stroke.width = 2.0;
+    ra.tags = ct();
+    s.add(ra);
+    let mut rp = Entity::new(format!("{id}.ropeP"), Shape::Line { to: p_pts[0] }, Vec2::new(p_x, tp.y), style::DIM);
+    rp.stroke.width = 2.0;
+    rp.tags = ct();
+    s.add(rp);
+    let mut rb = Entity::new(format!("{id}.ropeB"), Shape::Line { to: Vec2::new(b_x, b_pts[0].y - half) }, Vec2::new(b_x, p_pts[0].y), style::DIM);
+    rb.stroke.width = 2.0;
+    rb.tags = ct();
+    s.add(rb);
+    let mut rc = Entity::new(format!("{id}.ropeC"), Shape::Line { to: Vec2::new(c_x, c_pts[0].y - half) }, Vec2::new(c_x, p_pts[0].y), style::DIM);
+    rc.stroke.width = 2.0;
+    rc.tags = ct();
+    s.add(rc);
+
+    // the three masses + labels
+    for (mid, lid, p0v, col, txt, m) in [
+        (format!("{id}.massA"), format!("{id}.lblA"), a_pts[0], style::CYAN, "A", ma),
+        (format!("{id}.massB"), format!("{id}.lblB"), b_pts[0], style::MAGENTA, "B", mb),
+        (format!("{id}.massC"), format!("{id}.lblC"), c_pts[0], style::GOLD, "C", mc),
+    ] {
+        let w = 40.0 + 4.0 * m.sqrt();
+        let mut e = Entity::new(mid, Shape::Rect { w, h: 2.0 * half }, p0v, col);
+        e.stroke.fill = true;
+        e.stroke.outline = false;
+        e.tags = ct();
+        s.add(e);
+        let mut l = Entity::new(lid, Shape::Text { content: txt.into(), size: 22.0 }, p0v, style::VOID);
+        l.font = crate::primitives::FontKind::MonoBold;
+        l.tags = ct();
+        s.add(l);
+    }
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.ropeA"), prop: Prop::To, points: a_pts.iter().map(|p| Vec2::new(a_x, p.y - half)).collect() },
+        PlaybackTrack { id: format!("{id}.ropeP"), prop: Prop::To, points: p_pts.clone() },
+        PlaybackTrack { id: format!("{id}.ropeB"), prop: Prop::Pos, points: (0..states.len()).map(|k| Vec2::new(b_x, p0 - xa(k))).collect() },
+        PlaybackTrack { id: format!("{id}.ropeB"), prop: Prop::To, points: b_pts.iter().map(|p| Vec2::new(b_x, p.y - half)).collect() },
+        PlaybackTrack { id: format!("{id}.ropeC"), prop: Prop::Pos, points: (0..states.len()).map(|k| Vec2::new(c_x, p0 - xa(k))).collect() },
+        PlaybackTrack { id: format!("{id}.ropeC"), prop: Prop::To, points: c_pts.iter().map(|p| Vec2::new(c_x, p.y - half)).collect() },
+        PlaybackTrack { id: format!("{id}.mov"), prop: Prop::Pos, points: p_pts.clone() },
+        PlaybackTrack { id: format!("{id}.movhub"), prop: Prop::Pos, points: p_pts },
+        PlaybackTrack { id: format!("{id}.massA"), prop: Prop::Pos, points: a_pts.clone() },
+        PlaybackTrack { id: format!("{id}.lblA"), prop: Prop::Pos, points: a_pts },
+        PlaybackTrack { id: format!("{id}.massB"), prop: Prop::Pos, points: b_pts.clone() },
+        PlaybackTrack { id: format!("{id}.lblB"), prop: Prop::Pos, points: b_pts },
+        PlaybackTrack { id: format!("{id}.massC"), prop: Prop::Pos, points: c_pts.clone() },
+        PlaybackTrack { id: format!("{id}.lblC"), prop: Prop::Pos, points: c_pts },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: cp.labels(), phase_xy: cp.phase_xy(), pos_var: cp.pos_var(),
+        well: cp.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `ramp(id, [center], [angle], [mass], [applied], [unit])` — a block sliding on
+/// an inclined plane with friction. `center` is the incline foot (default
+/// `(360, 480)`); `angle` in DEGREES (default 30); `mass` kg (default 5);
+/// `applied` a horizontal push in N (default 0); `unit` px-per-metre (default 70).
+/// Lays out `{id}.incline`, `{id}.surface`, `{id}.block`, `{id}.anglelabel`.
+/// Friction bleeds mechanical energy, so `energygraph`'s total decays. Animate
+/// with `run(id)`.
+fn c_ramp(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(360.0, 480.0) };
+    let angle_deg = a.opt_num(2)?.unwrap_or(30.0).clamp(1.0, 80.0);
+    let mass = a.opt_num(3)?.unwrap_or(5.0).max(0.1);
+    let applied = a.opt_num(4)?.unwrap_or(0.0);
+    let unit = a.opt_num(5)?.unwrap_or(70.0);
+    let ang = angle_deg.to_radians();
+    let ramp_len = 5.0f32;
+    let block_w = 0.55f32; // metres
+    let r = Ramp { g: 9.81, angle: ang, mass, mu_s: 0.5, mu_k: 0.3, applied, s0: ramp_len * 0.82 };
+    let (sim_dt, substeps) = (0.004f32, 6usize);
+    let mut states = simulate(&r, sim_dt, substeps, SAMPLES);
+    freeze_range(&mut states, 0, 1, block_w * 0.5, ramp_len); // stops at the foot / top wall
+    let energy = states.iter().map(|st| { let e = r.energy(st); (e.kinetic, e.potential) }).collect();
+
+    let to_screen = |(wx, wy): (f32, f32)| Vec2::new(center.x + wx * unit, center.y - wy * unit);
+    let foot = center;
+    let top = to_screen((ramp_len * ang.cos(), ramp_len * ang.sin()));
+    let corner = Vec2::new(top.x, foot.y);
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    // the incline triangle (filled, faint)
+    let mut tri = Entity::new(format!("{id}.incline"), Shape::Polygon { pts: vec![foot, top, corner] }, Vec2::ZERO, style::DIM);
+    tri.stroke.fill = true;
+    tri.stroke.outline = true;
+    tri.stroke.width = 2.0;
+    tri.opacity = 0.35;
+    tri.tags = ct();
+    s.add(tri);
+    // the sliding surface, drawn brighter
+    let mut surf = Entity::new(format!("{id}.surface"), Shape::Line { to: top }, foot, style::FG);
+    surf.stroke.width = 3.0;
+    surf.tags = ct();
+    s.add(surf);
+    let mut alabel = Entity::new(
+        format!("{id}.anglelabel"),
+        Shape::Text { content: format!("{angle_deg:.0}°"), size: 16.0 },
+        Vec2::new(foot.x + 46.0, foot.y - 14.0),
+        style::DIM,
+    );
+    alabel.tags = ct();
+    s.add(alabel);
+
+    // block: a square aligned to the slope, riding the surface
+    let u = (top - foot).normalize_or_zero();
+    let nrm = Vec2::new(-u.y, u.x); // screen perpendicular, pointing off the surface
+    let hl = block_w * 0.5 * unit;
+    let local = vec![-u * hl - nrm * hl, u * hl - nrm * hl, u * hl + nrm * hl, -u * hl + nrm * hl];
+    let block_center = |sarc: f32| {
+        let (c, sn) = (ang.cos(), ang.sin());
+        // sit block_w/2 off the surface along the world normal (−sinθ, cosθ)
+        to_screen((sarc * c - block_w * 0.5 * sn, sarc * sn + block_w * 0.5 * c))
+    };
+    let block_pts: Vec<Vec2> = states.iter().map(|st| block_center(st[0])).collect();
+    let mut block = Entity::new(format!("{id}.block"), Shape::Polygon { pts: local }, block_pts[0], style::CYAN);
+    block.stroke.fill = true;
+    block.stroke.outline = false;
+    block.tags = ct();
+    s.add(block);
+
+    let playback = vec![PlaybackTrack { id: format!("{id}.block"), prop: Prop::Pos, points: block_pts }];
+    s.sims.insert(id, SimData {
+        playback, labels: r.labels(), phase_xy: r.phase_xy(), pos_var: r.pos_var(),
+        well: r.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `dropmass(id, [center], [dropheight], [unit])` — a mass dropped onto a block
+/// resting on a spring: it free-falls, sticks in a perfectly **inelastic
+/// collision** (energy is lost — the energy total steps down), then the heavier
+/// combined mass oscillates about a lower equilibrium. `center` is the ceiling
+/// anchor (default `(640, 150)`); `dropheight` metres above the block (default
+/// 1.2); `unit` px-per-metre (default 80). Lays out `{id}.ceiling`, `{id}.spring`,
+/// `{id}.block`, `{id}.drop`, and the two equilibrium markers `{id}.eq1/.eq2`.
+/// Animate with `run(id)`; `energygraph` shows the collision energy loss.
+fn c_dropmass(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 150.0) };
+    let h = a.opt_num(2)?.unwrap_or(1.2).max(0.2);
+    let unit = a.opt_num(3)?.unwrap_or(80.0);
+    let (m1, m2, k, l0, g) = (1.0f32, 0.5f32, 20.0f32, 1.0f32, 9.81f32);
+    let big_m = m1 + m2;
+    let eq1 = l0 + m1 * g / k; // block equilibrium depth as m1 alone
+    let eq2 = l0 + big_m * g / k; // deeper equilibrium once m2 sticks
+    let shelf = eq1 - h; // drop starts h above the block
+    let t_fall = (2.0 * h / g).sqrt();
+    let v_imp = (2.0 * g * h).sqrt();
+    let v_after = m2 * v_imp / big_m;
+    let omega = (k / big_m).sqrt();
+    let u0 = eq1 - eq2; // block starts above the new equilibrium (< 0)
+    let spring_c = 0.5 * k * (eq1 - l0).powi(2); // constant spring PE while block sits at eq1
+    let t_total = t_fall + 3.5;
+    let dt = t_total / SAMPLES as f32;
+
+    let mut block_d = Vec::with_capacity(SAMPLES + 1);
+    let mut drop_d = Vec::with_capacity(SAMPLES + 1);
+    let mut energy = Vec::with_capacity(SAMPLES + 1);
+    let mut states = Vec::with_capacity(SAMPLES + 1);
+    for kf in 0..=SAMPLES {
+        let t = kf as f32 * dt;
+        if t < t_fall {
+            let dd = shelf + 0.5 * g * t * t;
+            let vdrop = g * t;
+            block_d.push(eq1);
+            drop_d.push(dd);
+            // datum at eq1: block PE ≡ spring_c; falling-mass energy is conserved
+            energy.push((0.5 * m2 * vdrop * vdrop, spring_c - m2 * g * (dd - eq1)));
+            states.push(vec![eq1, 0.0, t]);
+        } else {
+            let tp = t - t_fall;
+            let bd = eq2 + u0 * (omega * tp).cos() + (v_after / omega) * (omega * tp).sin();
+            let bv = -u0 * omega * (omega * tp).sin() + v_after * (omega * tp).cos();
+            block_d.push(bd);
+            drop_d.push(bd);
+            energy.push((0.5 * big_m * bv * bv, 0.5 * k * (bd - l0).powi(2) - big_m * g * (bd - eq1)));
+            states.push(vec![bd, bv, t]);
+        }
+    }
+    let sy = |d: f32| center.y + d * unit;
+    let block_pts: Vec<Vec2> = block_d.iter().map(|&d| Vec2::new(center.x, sy(d))).collect();
+    let drop_pts: Vec<Vec2> = drop_d
+        .iter()
+        .enumerate()
+        .map(|(i, &d)| {
+            let y = if states[i][2] < t_fall { sy(d) } else { sy(d) - 38.0 };
+            Vec2::new(center.x, y)
+        })
+        .collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut ceil = Entity::new(
+        format!("{id}.ceiling"),
+        Shape::Line { to: Vec2::new(center.x + 110.0, center.y) },
+        Vec2::new(center.x - 110.0, center.y),
+        style::DIM,
+    );
+    ceil.stroke.width = 5.0;
+    ceil.tags = ct();
+    s.add(ceil);
+    for (base, d, col, txt) in [
+        (format!("{id}.eq1"), eq1, style::LIME, "eq (m₁)"),
+        (format!("{id}.eq2"), eq2, style::GOLD, "eq (m₁+m₂)"),
+    ] {
+        let mut m = Entity::new(base.clone(), Shape::Line { to: Vec2::new(center.x + 90.0, sy(d)) }, Vec2::new(center.x - 90.0, sy(d)), col);
+        m.stroke.width = 1.5;
+        m.opacity = 0.5;
+        m.tags = ct();
+        s.add(m);
+        let mut lbl = Entity::new(format!("{base}.label"), Shape::Text { content: txt.into(), size: 13.0 }, Vec2::new(center.x + 150.0, sy(d)), col);
+        lbl.opacity = 0.7;
+        lbl.tags = ct();
+        s.add(lbl);
+    }
+    let mut spring = Entity::new(format!("{id}.spring"), Shape::Coil { to: block_pts[0], turns: 10 }, center, style::LIME);
+    spring.stroke.width = 3.0;
+    spring.tags = ct();
+    s.add(spring);
+    let mut block = Entity::new(format!("{id}.block"), Shape::Rect { w: 46.0, h: 30.0 }, block_pts[0], style::CYAN);
+    block.stroke.fill = true;
+    block.stroke.outline = false;
+    block.tags = ct();
+    s.add(block);
+    let mut drop = Entity::new(format!("{id}.drop"), Shape::Rect { w: 32.0, h: 26.0 }, drop_pts[0], style::MAGENTA);
+    drop.stroke.fill = true;
+    drop.stroke.outline = false;
+    drop.tags = ct();
+    s.add(drop);
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.spring"), prop: Prop::To, points: block_pts.clone() },
+        PlaybackTrack { id: format!("{id}.block"), prop: Prop::Pos, points: block_pts },
+        PlaybackTrack { id: format!("{id}.drop"), prop: Prop::Pos, points: drop_pts },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["d".into(), "v".into(), "t".into()],
+        phase_xy: None, pos_var: None, well: Vec::new(), energy,
+        dt, states,
+    });
+    Ok(())
+}
+
+/// `raft(id, [center], [personmass], [raftmass], [unit])` — a person walking back
+/// and forth on a floating raft. Momentum is conserved, so the centre of mass
+/// stays fixed: the raft slides the opposite way, by −m_person/(m_person+m_raft)
+/// of the person's step. `center` is the rest centre on the waterline (default
+/// `(640, 380)`); masses in kg (default 70, 200); `unit` px-per-metre (default
+/// 46). Lays out `{id}.water`, `{id}.cm`, `{id}.raft`, `{id}.body`, `{id}.head`.
+/// Animate with `run(id)`. A kinematic constraint demo — no energy/phase views.
+fn c_raft(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 380.0) };
+    let mp = a.opt_num(2)?.unwrap_or(70.0).max(1.0);
+    let mr = a.opt_num(3)?.unwrap_or(200.0).max(1.0);
+    let unit = a.opt_num(4)?.unwrap_or(46.0);
+    let raft_len = 6.0f32;
+    let walk = 1.0f32;
+    let edge = raft_len / 2.0 - 0.3;
+    let period = 4.0 * edge / walk;
+    let dt = period / SAMPLES as f32;
+
+    let mut states = Vec::with_capacity(SAMPLES + 1);
+    let mut raftx = Vec::with_capacity(SAMPLES + 1);
+    let mut personx = Vec::with_capacity(SAMPLES + 1);
+    for kf in 0..=SAMPLES {
+        let t = kf as f32 * dt;
+        let ph = (t / period).fract() * 4.0; // 0..4 quarters
+        let d = if ph < 1.0 {
+            edge * ph
+        } else if ph < 3.0 {
+            edge * (2.0 - ph)
+        } else {
+            edge * (ph - 4.0)
+        };
+        let rx = -mp * d / (mp + mr);
+        raftx.push(rx);
+        personx.push(rx + d);
+        states.push(vec![d, t]);
+    }
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let raft_h = 16.0;
+    let person_h = 50.0;
+    let mut water = Entity::new(
+        format!("{id}.water"),
+        Shape::Line { to: Vec2::new(center.x + 360.0, center.y) },
+        Vec2::new(center.x - 360.0, center.y),
+        style::CYAN,
+    );
+    water.stroke.width = 2.0;
+    water.opacity = 0.5;
+    water.tags = ct();
+    s.add(water);
+    let mut cm = Entity::new(
+        format!("{id}.cm"),
+        Shape::Line { to: Vec2::new(center.x, center.y + 24.0) },
+        Vec2::new(center.x, center.y - 150.0),
+        style::DIM,
+    );
+    cm.stroke.width = 1.5;
+    cm.opacity = 0.6;
+    cm.tags = ct();
+    s.add(cm);
+    let mut cmlbl = Entity::new(format!("{id}.cmlabel"), Shape::Text { content: "CM (fixed)".into(), size: 14.0 }, Vec2::new(center.x, center.y - 160.0), style::DIM);
+    cmlbl.tags = ct();
+    s.add(cmlbl);
+
+    let raft_pts: Vec<Vec2> = raftx.iter().map(|&x| Vec2::new(center.x + x * unit, center.y)).collect();
+    let feet_pts: Vec<Vec2> = personx.iter().map(|&x| Vec2::new(center.x + x * unit, center.y - raft_h * 0.5)).collect();
+    let head_pts: Vec<Vec2> = personx.iter().map(|&x| Vec2::new(center.x + x * unit, center.y - raft_h * 0.5 - person_h)).collect();
+    let mut raft = Entity::new(format!("{id}.raft"), Shape::Rect { w: raft_len * unit, h: raft_h }, raft_pts[0], style::GOLD);
+    raft.stroke.fill = true;
+    raft.stroke.outline = false;
+    raft.tags = ct();
+    s.add(raft);
+    let mut body = Entity::new(format!("{id}.body"), Shape::Line { to: head_pts[0] }, feet_pts[0], style::MAGENTA);
+    body.stroke.width = 5.0;
+    body.tags = ct();
+    s.add(body);
+    let mut head = Entity::new(format!("{id}.head"), Shape::Circle { r: 11.0 }, head_pts[0], style::MAGENTA);
+    head.stroke.fill = true;
+    head.stroke.outline = false;
+    head.tags = ct();
+    s.add(head);
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.raft"), prop: Prop::Pos, points: raft_pts },
+        PlaybackTrack { id: format!("{id}.body"), prop: Prop::Pos, points: feet_pts },
+        PlaybackTrack { id: format!("{id}.body"), prop: Prop::To, points: head_pts.clone() },
+        PlaybackTrack { id: format!("{id}.head"), prop: Prop::Pos, points: head_pts },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["d".into(), "t".into()],
+        phase_xy: None, pos_var: None, well: Vec::new(),
+        energy: states.iter().map(|_| (0.0, 0.0)).collect(),
+        dt, states,
+    });
+    Ok(())
+}
+
+/// `brachistochrone(id, [center], [unit])` — four beads race under gravity from
+/// A=(0,0) down to B=(3,2) along four curves (straight, circular arc, parabola,
+/// **cycloid**); the cycloid — the curve of fastest descent — wins. `center` is
+/// the start point A (default `(360, 130)`); `unit` px-per-metre (default 130).
+/// Lays out each curve `{id}.straight/.circle/.parabola/.cycloid`, a bead
+/// `{id}.bead_*` on each, and the `{id}.markA/.markB` endpoints. Every bead is a
+/// full RK4 bead-on-wire integration. Animate with `run(id)`.
+fn c_brachistochrone(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(360.0, 130.0) };
+    let unit = a.opt_num(2)?.unwrap_or(130.0);
+    let (dd, hh, g) = (3.0f32, 2.0f32, 9.81f32);
+    let curves = [
+        ("straight", Curve::Straight { m: hh / dd }, style::DIM),
+        ("circle", Curve::Circle { r: (dd * dd + hh * hh) / (2.0 * hh) }, style::CYAN),
+        ("parabola", Curve::Parabola { h: hh, d: dd }, style::GOLD),
+        ("cycloid", build_cycloid(dd, hh), style::MAGENTA),
+    ];
+    let (sim_dt, substeps) = (0.002f32, 4usize);
+    let to_screen = |(wx, wy): (f32, f32)| Vec2::new(center.x + wx * unit, center.y - wy * unit);
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+
+    let mut playback = Vec::new();
+    let mut cyc_states: Vec<Vec<f32>> = Vec::new();
+    let mut cyc_energy: Vec<(f32, f32)> = Vec::new();
+    for (name, curve, col) in curves.into_iter() {
+        let bead = Bead { g, b: 0.0, d: dd, h: hh, curve: curve.clone() };
+        let states = simulate(&bead, sim_dt, substeps, SAMPLES);
+        let npc = 90;
+        let cpts: Vec<Vec2> = (0..=npc).map(|i| { let x = dd * i as f32 / npc as f32; to_screen((x, -curve.y(x))) }).collect();
+        let mut cl = Entity::new(format!("{id}.{name}"), Shape::Polyline { pts: cpts }, Vec2::ZERO, col);
+        cl.stroke.width = if name == "cycloid" { 3.0 } else { 2.0 };
+        cl.opacity = 0.7;
+        cl.tags = ct();
+        s.add(cl);
+        let bpts: Vec<Vec2> = states.iter().map(|st| to_screen(bead.body(st))).collect();
+        let mut be = Entity::new(format!("{id}.bead_{name}"), Shape::Circle { r: 8.0 }, bpts[0], col);
+        be.stroke.fill = true;
+        be.stroke.outline = false;
+        be.tags = ct();
+        s.add(be);
+        playback.push(PlaybackTrack { id: format!("{id}.bead_{name}"), prop: Prop::Pos, points: bpts });
+        if name == "cycloid" {
+            cyc_energy = states.iter().map(|st| { let e = bead.energy(st); (e.kinetic, e.potential) }).collect();
+            cyc_states = states;
+        }
+    }
+    for (sid, pt, txt) in [
+        (format!("{id}.markA"), to_screen((0.0, 0.0)), "A"),
+        (format!("{id}.markB"), to_screen((dd, -hh)), "B"),
+    ] {
+        let mut m = Entity::new(sid, Shape::Circle { r: 6.0 }, pt, style::FG);
+        m.stroke.fill = true;
+        m.stroke.outline = false;
+        m.tags = ct();
+        s.add(m);
+        let mut lbl = Entity::new(format!("{id}.label{txt}"), Shape::Text { content: txt.into(), size: 18.0 }, Vec2::new(pt.x - 16.0, pt.y), style::FG);
+        lbl.tags = ct();
+        s.add(lbl);
+    }
+
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["x".into(), "v".into(), "t".into()],
+        phase_xy: None, pos_var: None, well: Vec::new(),
+        energy: cyc_energy, dt: sim_dt * substeps as f32, states: cyc_states,
+    });
+    Ok(())
+}
+
 // ── generic sim views (opt-in; work for any sim that stored the data) ────────
 
 /// Map data-space points into a `2·half`-px square panel centred at `center`
@@ -2244,6 +3728,17 @@ pub fn register(r: &mut Registry) {
     r.ctor("doublespring", c_doublespring);
     r.ctor("seriesparallel", c_seriesparallel);
     r.ctor("carsuspension", c_carsuspension);
+    r.ctor("piston", c_piston);
+    r.ctor("molecule", c_molecule);
+    r.ctor("robotarm", c_robotarm);
+    r.ctor("pulley", c_pulley);
+    r.ctor("pulleyscale", c_pulleyscale);
+    r.ctor("blocktackle", c_blocktackle);
+    r.ctor("compoundpulley", c_compoundpulley);
+    r.ctor("ramp", c_ramp);
+    r.ctor("dropmass", c_dropmass);
+    r.ctor("raft", c_raft);
+    r.ctor("brachistochrone", c_brachistochrone);
     // playback (`run` is the generic name; `swing` is a pendulum-friendly alias)
     r.verb("run", v_play);
     r.verb("swing", v_play);
@@ -2499,6 +3994,234 @@ mod tests {
             for sub in subs { assert!(m.base().contains(sub), "missing `{sub}`"); }
             assert!(m.validate().is_ok(), "{src} should validate");
         }
+    }
+
+    /// Piston: height stays within the slider-crank bounds [L−a, L+a]; the
+    /// mechanism builds; and it correctly has no phase view (kinematic).
+    #[test]
+    fn piston_bounds_and_builds() {
+        let p = Piston { a: 50.0, l: 150.0, rpm: 60.0 };
+        for i in 0..200 {
+            let h = p.height(i as f32 * 0.05);
+            assert!(h >= p.l - p.a - 1.0 && h <= p.l + p.a + 1.0, "height {h} out of range");
+        }
+        let m = crate::parse("canvas(\"16:9\");\npiston(eng,(640,470),60);\nrun(eng,8);\n").unwrap();
+        for sub in ["eng.crank", "eng.arm", "eng.rod", "eng.piston"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+        // kinematic mechanism → no phase view
+        assert!(crate::parse("canvas(\"16:9\");\npiston(e);\nphase(e,(0,0),100);\n").is_err());
+    }
+
+    /// Molecule: the undamped bond network conserves energy; atoms + bonds build.
+    #[test]
+    fn molecule_conserves_energy_and_builds() {
+        let mol = Molecule { n: 3, k: 12.0, rest: 2.0, mass: 0.5, damping: 0.0 };
+        let traj = ode::integrate(&mol.state0(), 0.001, 6_000, |s, d| mol.deriv(s, d));
+        let e0 = mol.energy(&traj[0]).total();
+        for s in &traj {
+            assert!((mol.energy(s).total() - e0).abs() / e0.abs().max(1e-3) < 0.02, "molecule energy drift");
+        }
+        let m = crate::parse("canvas(\"16:9\");\nmolecule(mo,(560,300),3);\nenergygraph(mo,(1000,300),110);\nrun(mo,8);\n").unwrap();
+        for sub in ["mo.atom0", "mo.atom1", "mo.bond01", "mo.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Robot arm: mode 0 (fixed target) drives the end-effector onto the target
+    /// and settles; mode 1 (circle) TRACKS a moving target, so the gripper keeps
+    /// moving across the whole window (not a one-off snap). The ctor builds the
+    /// links + joints.
+    #[test]
+    fn robotarm_reaches_and_tracks() {
+        // mode 0 — reach a fixed point
+        let fixed = RobotArm { l1: 1.0, l2: 0.5, gain: 5.0, mode: 0, tx: 1.0, ty: 0.8 };
+        let traj = ode::integrate(&fixed.state0(), 0.002, 4000, |s, d| fixed.deriv(s, d));
+        let end = fixed.body(traj.last().unwrap());
+        let err = ((end.0 - 1.0).powi(2) + (end.1 - 0.8).powi(2)).sqrt();
+        assert!(err < 0.05, "end-effector should reach target, err {err}");
+
+        // mode 1 — the gripper tracks the moving circle, so it keeps moving in
+        // the SECOND half of the run (this is what fixes "no animation")
+        let arm = RobotArm { l1: 1.0, l2: 0.5, gain: 5.0, mode: 1, tx: 1.0, ty: 0.8 };
+        let states = simulate(&arm, 0.004, 6, SAMPLES);
+        let ee: Vec<(f32, f32)> = states.iter().map(|st| arm.body(st)).collect();
+        let mid = ee.len() / 2;
+        let late_travel: f32 = ee[mid..].windows(2).map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt()).sum();
+        assert!(late_travel > 0.5, "arm should keep tracking (late travel {late_travel})");
+
+        let m = crate::parse("canvas(\"16:9\");\nrobotarm(rb,(500,440),1);\nrun(rb,8);\n").unwrap();
+        for sub in ["rb.base", "rb.link1", "rb.elbow", "rb.link2", "rb.ee", "rb.target"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Atwood machine: undamped, the KE gained equals the PE lost (energy is
+    /// conserved); the scale variant reads the rope tension 2·m₁·m₂·g/(m₁+m₂).
+    #[test]
+    fn pulley_conserves_energy_and_reads_tension() {
+        let p = Pulley { m1: 3.0, m2: 2.0, g: 9.81, damping: 0.0 };
+        let traj = ode::integrate(&p.state0(), 0.001, 3000, |s, d| p.deriv(s, d));
+        for s in &traj {
+            assert!(p.energy(s).total().abs() < 0.5, "Atwood energy should stay ≈0 (KE cancels PE)");
+        }
+        let equal = Pulley { m1: 10.0, m2: 10.0, g: 9.81, damping: 0.0 };
+        assert!((equal.tension() - 98.1).abs() < 0.1, "equal masses ⇒ scale reads m·g");
+        let m = crate::parse("canvas(\"16:9\");\npulley(pl);\nenergygraph(pl,(1000,300),110);\nrun(pl,4);\n").unwrap();
+        for sub in ["pl.wheel", "pl.mass1", "pl.mass2", "pl.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+        let m2 = crate::parse("canvas(\"16:9\");\npulleyscale(ps);\nrun(ps,4);\n").unwrap();
+        for sub in ["ps.pulleyL", "ps.scale", "ps.reading", "ps.mass1"] {
+            assert!(m2.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m2.validate().is_ok());
+    }
+
+    /// Block & tackle: N strands give a mechanical advantage of N (an effort of
+    /// load/N balances the load), the dynamics reduce to the Atwood at N=1, the
+    /// undamped system conserves energy, and the ctor builds its parts.
+    #[test]
+    fn blocktackle_mechanical_advantage() {
+        // N strands ⇒ effort = load/N is the balance point (zero acceleration)
+        for n in 1..=4 {
+            let balanced = BlockTackle { load: 12.0, effort: 12.0 / n as f32, strands: n as f32, g: 9.81 };
+            assert!(balanced.accel().abs() < 1e-4, "effort load/N should balance at N={n}");
+        }
+        // extra effort lifts the load (positive rise); N=1 matches the Atwood formula
+        let bt = BlockTackle { load: 8.0, effort: 3.0, strands: 3.0, g: 9.81 };
+        assert!(bt.accel() > 0.0, "9 > 8 ⇒ load rises");
+        let atwood = BlockTackle { load: 2.0, effort: 3.0, strands: 1.0, g: 9.81 };
+        let expected = (3.0 - 2.0) * 9.81 / (2.0 + 3.0); // (m−M)g/(M+m)
+        assert!((atwood.accel() - expected).abs() < 1e-4, "N=1 must equal the Atwood");
+        // undamped ⇒ energy conserved (KE cancels PE, like the Atwood)
+        let traj = ode::integrate(&bt.state0(), 0.001, 2500, |s, d| bt.deriv(s, d));
+        for s in &traj {
+            assert!(bt.energy(s).total().abs() < 0.5, "block-tackle energy should stay ≈0");
+        }
+        let m = crate::parse("canvas(\"16:9\");\nblocktackle(bt,(cx,140),8,3,3);\nenergygraph(bt,(1010,320),120);\nrun(bt,5);\n").unwrap();
+        for sub in ["bt.fixed", "bt.movable", "bt.load", "bt.effort", "bt.strand0", "bt.strand2", "bt.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Compound pulley (fixed + movable, masses A/B/C): the string constraints
+    /// hold (a_A = −a_P, a_B + a_C = 2·a_P), it's static exactly when mA = mB+mC,
+    /// energy is conserved, and the ctor builds all the parts.
+    #[test]
+    fn compoundpulley_constraints_and_balance() {
+        // static balance when mA = mB + mC
+        let bal = CompoundPulley { ma: 4.0, mb: 2.0, mc: 2.0, g: 9.81 };
+        let (aa, ab, ac) = bal.accels();
+        assert!(aa.abs() < 1e-4 && ab.abs() < 1e-4 && ac.abs() < 1e-4, "mA=mB+mC ⇒ static, got {aa},{ab},{ac}");
+        // heavier A ⇒ A descends, B & C hauled up; the constraint a_B+a_C = 2·a_P = −2·a_A holds
+        let cp = CompoundPulley { ma: 5.0, mb: 2.0, mc: 2.0, g: 9.81 };
+        let (aa, ab, ac) = cp.accels();
+        assert!(aa > 0.0 && ab < 0.0 && ac < 0.0, "A sinks, B/C rise");
+        assert!((ab + ac - (-2.0 * aa)).abs() < 1e-3, "a_B + a_C must equal 2·a_P = −2·a_A");
+        // undamped, conservative ⇒ total mechanical energy stays put (starts at 0)
+        let traj = ode::integrate(&cp.state0(), 0.001, 2000, |s, d| cp.deriv(s, d));
+        for s in &traj {
+            assert!(cp.energy(s).total().abs() < 0.5, "compound-pulley energy should stay ≈0");
+        }
+        let m = crate::parse("canvas(\"16:9\");\ncompoundpulley(cp,(520,120),5,2,2);\nenergygraph(cp,(1010,320),120);\nrun(cp,4);\n").unwrap();
+        for sub in ["cp.top", "cp.mov", "cp.massA", "cp.massB", "cp.massC", "cp.ropeP", "cp.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Ramp: kinetic friction dissipates mechanical energy as the block slides
+    /// down, so the total falls; the ctor builds the incline + block.
+    #[test]
+    fn ramp_dissipates_energy() {
+        let r = Ramp { g: 9.81, angle: 30f32.to_radians(), mass: 5.0, mu_s: 0.5, mu_k: 0.3, applied: 0.0, s0: 4.0 };
+        let traj = ode::integrate(&r.state0(), 0.001, 2000, |s, d| r.deriv(s, d));
+        let e0 = r.energy(&traj[0]).total();
+        let e_end = r.energy(traj.last().unwrap()).total();
+        assert!(e_end < e0 - 5.0, "friction should bleed energy: {e0} → {e_end}");
+        let m = crate::parse("canvas(\"16:9\");\nramp(rp,(360,480),30);\nenergygraph(rp,(1000,300),110);\nrun(rp,6);\n").unwrap();
+        for sub in ["rp.incline", "rp.surface", "rp.block", "rp.energy.c2"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Drop-mass: a perfectly inelastic collision loses kinetic energy
+    /// (½·M·v_after² < ½·m₂·v_impact²); the ctor builds the block + drop + springs.
+    #[test]
+    fn dropmass_collision_loses_energy() {
+        let (m1, m2, g, h) = (1.0f32, 0.5f32, 9.81f32, 1.2f32);
+        let big_m = m1 + m2;
+        let v_imp = (2.0 * g * h).sqrt();
+        let v_after = m2 * v_imp / big_m;
+        let ke_before = 0.5 * m2 * v_imp * v_imp;
+        let ke_after = 0.5 * big_m * v_after * v_after;
+        assert!(ke_after < ke_before, "inelastic collision must lose KE: {ke_before} → {ke_after}");
+        let m = crate::parse("canvas(\"16:9\");\ndropmass(dm);\nenergygraph(dm,(1000,300),110);\nrun(dm,6);\n").unwrap();
+        for sub in ["dm.spring", "dm.block", "dm.drop", "dm.eq1", "dm.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+        // a two-phase event system → no phase portrait
+        assert!(crate::parse("canvas(\"16:9\");\ndropmass(d);\nphase(d,(0,0),100);\n").is_err());
+    }
+
+    /// Raft: momentum conservation keeps the centre of mass exactly fixed as the
+    /// person walks; the ctor builds the raft + person + waterline.
+    #[test]
+    fn raft_keeps_center_of_mass_fixed() {
+        let (mp, mr) = (70.0f32, 200.0f32);
+        for &d in &[0.5f32, 1.5, -2.0, 2.7] {
+            let raftx = -mp * d / (mp + mr);
+            let cm = (mp * (raftx + d) + mr * raftx) / (mp + mr);
+            assert!(cm.abs() < 1e-4, "CM should stay at 0, got {cm} at d={d}");
+        }
+        let m = crate::parse("canvas(\"16:9\");\nraft(rf);\nrun(rf,8);\n").unwrap();
+        for sub in ["rf.water", "rf.cm", "rf.raft", "rf.body", "rf.head"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Brachistochrone: the cycloid bead reaches B before the straight-line bead
+    /// (the curve of fastest descent); the cycloid conserves energy; ctor builds.
+    #[test]
+    fn brachistochrone_cycloid_wins() {
+        let (dd, hh, g) = (3.0f32, 2.0f32, 9.81f32);
+        let finish = |curve: Curve| -> f32 {
+            let bead = Bead { g, b: 0.0, d: dd, h: hh, curve };
+            let traj = ode::integrate(&bead.state0(), 0.001, 4000, |s, d| bead.deriv(s, d));
+            for (i, st) in traj.iter().enumerate() {
+                if st[0] >= dd - 0.02 {
+                    return i as f32 * 0.001;
+                }
+            }
+            f32::INFINITY
+        };
+        let t_cyc = finish(build_cycloid(dd, hh));
+        let t_line = finish(Curve::Straight { m: hh / dd });
+        assert!(t_cyc.is_finite() && t_line.is_finite(), "both beads should finish");
+        assert!(t_cyc < t_line, "cycloid should win: cyc {t_cyc} vs line {t_line}");
+        // the bead-on-wire EOM conserves energy — checked on the circular arc,
+        // whose derivatives are closed-form (the cycloid's come from a lookup
+        // table, so it carries interpolation noise unsuitable for a tight check)
+        let bead = Bead { g, b: 0.0, d: dd, h: hh, curve: Curve::Circle { r: (dd * dd + hh * hh) / (2.0 * hh) } };
+        let traj = ode::integrate(&bead.state0(), 0.0005, 1600, |s, d| bead.deriv(s, d));
+        let e0 = bead.energy(&traj[0]).total();
+        for st in traj.iter().take_while(|st| st[0] < dd - 0.05) {
+            assert!((bead.energy(st).total() - e0).abs() / e0.abs().max(1e-3) < 0.03, "bead energy drift");
+        }
+        let m = crate::parse("canvas(\"16:9\");\nbrachistochrone(br,(360,130));\nrun(br,5);\n").unwrap();
+        for sub in ["br.straight", "br.cycloid", "br.bead_cycloid", "br.markA", "br.markB"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
     }
 
     /// Damping bleeds energy: the swing loses mechanical energy over time.

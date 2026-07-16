@@ -9,6 +9,7 @@
 - [Colour & style](colour.md)
 - [The language layer](language-layer.md)
 - [Kits — math, geometry, algorithms](kits.md)
+- [Elevating a scene](elevating.md)
 - [Going 3D](3d.md)
 - [Examples gallery](examples.md)
     - [Algorithms & data structures](ex-algorithms.md)

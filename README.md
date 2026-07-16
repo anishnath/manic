@@ -8,10 +8,12 @@ window or an mp4. Deterministic, code-driven, built on
 manic is not a Rust API you program against; it's a small language a
 non-programmer can read and write (ASY-inspired: function calls, `(x,y)`
 points, `;` terminators, `//` comments). It ships with **math** (axes, function
-plots, vectors, number lines), **geometry** (olympiad constructions), and a
-broad **algorithms** kit (graphs, arrays + sorting, linked lists, stacks/queues,
-BFS/DFS, hash maps, Dijkstra); the architecture is domain-agnostic so new
-domains plug in without touching the core.
+plots, vectors, number lines, calculus, linear algebra), **statistics** (histograms,
+bell curves, the CLT, inference), **physics** (RK4 simulations — pendulums, springs,
+pulleys, and more), **geometry** (olympiad constructions), and a broad
+**algorithms** kit (graphs, arrays + sorting, linked lists, stacks/queues, BFS/DFS,
+hash maps, Dijkstra); the architecture is domain-agnostic so new domains plug in
+without touching the core.
 
 ```
 title("The Sine Wave");

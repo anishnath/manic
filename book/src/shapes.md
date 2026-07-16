@@ -16,6 +16,11 @@ Each line below is the whole call — copy it and tweak the numbers.
 | **dot** | `dot(p, (cx, cy), 8);` | a small filled dot, radius 8 |
 | **text** | `text(cap, (cx, 640), "hello");` | a text label anchored at a point |
 
+Plus a few composite helpers built from those: `polygon`, `arc`/`sector`, `brace`/
+`bracelabel`, `caption` (a row of words), and `support(id, (cx,cy), [len], ["dir"])`
+— the hatched wall / ceiling / floor for mechanics & textbook diagrams (`"dir"` is
+the open side: `"down"` ceiling, `"up"` floor, `"left"`/`"right"` walls).
+
 Points are `(x, y)` in pixels, **origin top-left, y increasing downward**. Use
 `cx`, `cy`, `w`, `h` to stay canvas-independent.
 
@@ -42,6 +47,7 @@ begins. They take the entity name first, then a value:
 | `filled(id)` / `outlined(id)` | turn fill / outline on | `filled(box);` |
 | `hue(id, deg)` | colour by an angle (0–360) — for gradients & loops | `hue(seg, 200);` |
 | `z(id, n)` | draw order (higher = on top) | `z(box, 5);` |
+| `sticky(id)` | pin to the screen so it stays put through a `cam`/`zoom` (a HUD) | `sticky(caption);` |
 
 And two that decide *how a shape first appears*:
 
