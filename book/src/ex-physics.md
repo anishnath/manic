@@ -223,6 +223,18 @@ pothole — its spring+damper soaking up the ride (`carsuspension`).
 
 <div class="manic-video" data-video="ex-car-suspension"></div>
 
+## car-suspension-annotated
+
+A marketing hero: the quarter-car suspension on a `template("paper")` brochure page,
+elevated with generic base-manic — a live `counter` (sprung mass), leader-`arrow`
+callouts, and an `energygraph` of the shock being absorbed — riding a scrolling road.
+
+```manic
+{{#include ../../examples/car-suspension-annotated.manic}}
+```
+
+<div class="manic-video" data-video="ex-car-suspension-annotated"></div>
+
 ## piston
 
 An engine piston: a spinning crank + connecting rod turn rotation into the piston's
@@ -342,6 +354,90 @@ conserved (`inclinebumper`).
 
 <div class="manic-video" data-video="ex-incline-bumper"></div>
 
+## collide-blocks
+
+The classic momentum demo: block 1 hangs on a spring to the wall, block 2 slides in and
+they collide. A live Σp readout shows momentum conserved at every collision; elastic
+(e=1) keeps total energy flat while it sloshs between KE and the spring (`collideblocks`).
+
+```manic
+{{#include ../../examples/collide-blocks.manic}}
+```
+
+<div class="manic-video" data-video="ex-collide-blocks"></div>
+
+## collide-blocks-annotated
+
+Conservation of momentum, the MANIC way — not a 1:1 port of the lab sim but a guided
+lesson: the live Σp readout as the star, the KE↔spring-PE energy view, staged callouts,
+and honest narration (with a wall-spring, Σp is conserved AT each collision, not constant).
+
+```manic
+{{#include ../../examples/collide-blocks-annotated.manic}}
+```
+
+<div class="manic-video" data-video="ex-collide-blocks-annotated"></div>
+
+## bullet-block
+
+A bullet fired into a block EMBEDS (perfectly inelastic). The flight is slow-mo so you can
+watch it cross, then a live speed readout collapses from 40 m/s to ~1 — momentum survives,
+energy does not. Uses `collide_1d(e=0)` (`bulletblock`).
+
+```manic
+{{#include ../../examples/bullet-block.manic}}
+```
+
+<div class="manic-video" data-video="ex-bullet-block"></div>
+
+## bullet-impact
+
+BEST OF BOTH: the cinematic gun-shot (gun · muzzle flash · a flying `cam`/`zoom` · BOOM)
+wrapped around the REAL `bulletblock` physics — the collision is genuinely inelastic, the
+live speed readout actually collapses 40 → ~1, and the BOOM is synced to the true impact.
+
+```manic
+{{#include ../../examples/bullet-impact.manic}}
+```
+
+<div class="manic-video" data-video="ex-bullet-impact"></div>
+
+## bullet-block-annotated
+
+The bullet's JOURNEY, the manic way: a gun fires, a muzzle flash, a glowing bullet crosses
+the gap in slow-motion and embeds — the speed readout crashing 40 → ~1. A scene, not the
+bare lab sim (base-manic staging over `bulletblock`).
+
+```manic
+{{#include ../../examples/bullet-block-annotated.manic}}
+```
+
+<div class="manic-video" data-video="ex-bullet-block-annotated"></div>
+
+## newtons-cradle
+
+Newton's cradle: pull one ball, one swings out the far side — momentum and energy pass
+straight through the chain. An EVENT-DRIVEN sim (free-flight pendulums between elastic
+collisions resolved by a shared 1-D impulse), the crowd-pleaser (`newtonscradle`).
+
+```manic
+{{#include ../../examples/newtons-cradle.manic}}
+```
+
+<div class="manic-video" data-video="ex-newtons-cradle"></div>
+
+## string-wave
+
+A wave on a plucked string: 36 masses on springs, both ends fixed (the discretised wave
+equation). Pluck it off-centre and the pulse splits, travels, and reflects off the ends —
+a rainbow chain that wiggles, pre-simulated with RK4 (`stringwave`).
+
+```manic
+{{#include ../../examples/string-wave.manic}}
+```
+
+<div class="manic-video" data-video="ex-string-wave"></div>
+
 ## loop-track
 
 A ball rolls down a ramp and around a vertical LOOP-THE-LOOP — the curved-track case.
@@ -353,6 +449,18 @@ release above 2·radius to clear it. `energygraph` tracks KE↔PE (`looptrack`).
 ```
 
 <div class="manic-video" data-video="ex-loop-track"></div>
+
+## loop-cinematic
+
+The loop-the-loop as a MOVIE with real physics inside: the camera pushes in as the ball
+climbs, and the tension is genuine — a modest release height means it truly crawls over
+the top before rocketing out. `cam`/`zoom` beats synced to the `looptrack` sim.
+
+```manic
+{{#include ../../examples/loop-cinematic.manic}}
+```
+
+<div class="manic-video" data-video="ex-loop-cinematic"></div>
 
 ## spring-chain
 

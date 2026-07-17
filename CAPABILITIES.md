@@ -607,7 +607,7 @@ physics videos).
 - **Sim spec in-engine vs authored** — likely a declarative sim registry in the kit
   (mirroring the JS specs), with the author choosing which to stage + how to pace it.
 
-**SHIPPED so far (30 sims):**
+**SHIPPED so far (35 sims):**
 - **Pendulum family ✅ COMPLETE:** pendulum, double-pendulum⭐, spring-pendulum,
   kapitza, cart-pendulum, compare-pendulum.
 - **Spring family ✅ COMPLETE:** spring, vertical-spring, spring-incline, bungee,
@@ -621,12 +621,21 @@ physics videos).
   **loop-track** (ramp → vertical loop-the-loop — the curved-track solver).
 - **Other mechanics:** piston, molecule, robot-arm, drop-mass, raft-cm,
   brachistochrone.
+- **Collisions ✅ (started):** a shared 1-D impulse resolver `collide_1d` (elastic/inelastic, restitution e), event-driven; **newtons-cradle**, **collide-blocks** (elastic/inelastic + walls), **bullet-block** (embed) all ship on it. Remaining: billiards (needs a 2-D impulse extension).
+- **Waves ✅:** string-wave (the discretised wave equation — N masses on springs,
+  fixed ends; a plucked pulse travels and reflects).
 All on the one `Sim` trait + n-dim RK4 + the four generic views (plus the
 build-time energy/kinematic solvers for the event/curved-track cases). Textbook
 rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
-**Still open:** cart-pole (needs a balancing controller — LQR/PD gains to tune),
-quadrotor (13-var control); collisions (newtons-cradle, collide-blocks, billiards,
-bullet-block — need an impulse/contact mechanic); E&M and waves.
+
+**⬜ TODO — physics sims not yet built (deferred, pick up later):**
+- ⬜ **cart-pole** — needs a balancing controller (LQR/PD gains to tune).
+- ⬜ **quadrotor** — 13-var control system.
+- ⬜ **billiards** — 2-D collision; needs a 2-D impulse extension of `collide_1d`.
+- ⬜ **E&M family** — generator, oscillating-charge, current-coil-magnetic-field,
+  generator-3d (a new electromagnetism domain).
+- ⬜ **Stretch / separate domains** — pile (rigid body), states-of-matter
+  (thermodynamics), navier-stokes (fluids), circuit MNA, pycharge relativistic-EM.
 
 **Tiered inventory (✅ = shipped; ⭐ = flagship):**
 - **T1 · trivial (≈3-var):** spring ✅, vertical-spring ✅, spring-incline ✅,
@@ -639,7 +648,7 @@ bullet-block — need an impulse/contact mechanic); E&M and waves.
   molecule ✅.
 - **Pulleys / inclines ✅:** pulley/Atwood, block-tackle, compound-pulley,
   incline-pulley, ramp (+forces), incline-bumper, double-incline, loop-track.
-- **T4 · collisions (open):** newtons-cradle, collide-blocks, billiards, bullet-block.
+- **T4 · collisions:** newtons-cradle ✅ (event-driven, via `collide_1d`); collide-blocks ✅, bullet-block ✅; billiards (open — 2-D impulse).
 - **T5 · electromagnetism:** generator, oscillating-charge,
   current-coil-magnetic-field, generator-3d.
 - **Stretch / separate domains:** string-wave (waves, 203 vars), pile (rigid body,
@@ -801,6 +810,111 @@ examples in the gallery. **Remaining Layer-1 polish:** a shared world→screen m
 with `plot` (so a sim + a graph share coordinates). A dedicated time-indexed
 playback `Prop` stays a future optimization if the per-frame track chain proves
 heavy.
+
+### Optics — a new kit (planned) 🚧
+
+**The theme is manic, not lens design.** The goldmine
+(`crypto-tool/src/main/webapp/physics/js/optical-designer-{model,trace,render}.js`)
+is a *serious* sequential lens-design ray-tracer — Sellmeier dispersion over a real
+glass catalog, vector Snell's law with total-internal-reflection, closed-form
+ray–conic intersection, ABCD paraxial matrices, spot diagrams and aberration plots.
+Per **goldmine-reimagine-not-port**, we keep the **physics faithful** but **throw
+away the engineering GUI** (surface tables, RMS sliders, f/# read-outs). What ships
+is a handful of **dead-simple builtins a non-programmer can drop into a scene** —
+`refract`, `lens`, `prism`, `achromat` — each showing light *doing something*, with
+the true `n(λ)` underneath so the color effects are real, not painted.
+
+**Substrate — geometric, not RK4.** Optics has **no time dimension**: it is a static
+closed-form ray trace (like the collision sims' build-time trajectories), producing
+ray **polylines** + **glass polygons** + a **focal dot** + light entities — all
+ordinary manic entities, so tag-broadcast, `cam`/`zoom`, `draw`/`show`, and
+`template("paper")` compose for free. **Animation = a parameter sweep** (build
+`sweep` from day one): each builtin precomputes frames as one parameter
+(**wavelength · incidence angle · lens radius/focal · object distance**) varies,
+stored as a playback track and replayed with **`run(id,[dur])`** — the focus slides,
+TIR switches on, the rainbow fans out. Same deterministic build-time-precompute
+precedent as the physics `run`.
+
+**Modular kit layout (keep files small).** Not one giant `optics.rs`. A module dir:
+- `src/kits/optics/mod.rs` — kit registration + shared types (`Ray`, `Surface`, `Medium`).
+- `src/kits/optics/dispersion.rs` — the glass catalog + `sellmeier_n(λ)` (faithful port).
+- `src/kits/optics/trace.rs` — the physics engine: 2-D vector Snell + TIR, ray–surface
+  (spherical/conic) intersection, `trace_sequential`, and the ABCD paraxial helper
+  (reuses the linalg 2×2 mental model) for the focal point.
+- `src/kits/optics/builtins.rs` — the author-facing ctors (`refract`/`lens`/`prism`/
+  `achromat`), each emitting entities + a sweep playback track.
+
+**Builtins — first milestone (through dispersion):**
+| builtin | non-programmer's mental model | physics underneath |
+|---|---|---|
+| `refract(id,[n1],[n2],[angle])` | "a light ray bends crossing into glass/water" | 2-D Snell + TIR cutoff; sweep `angle` → watch TIR switch on |
+| `lens(id,[center],[focal],[kind])` | "parallel rays focus to a point" | ray fan → real focal length; sweep `focal`/radius → focus slides |
+| `prism(id,[center],[glass])` | "white light splits into a rainbow" | Sellmeier `n(λ)` per color → the spectrum fan (the iconic visual) |
+| `achromat(id,…)` | "red and blue focus apart — then a doublet fixes it" | true axial chromatic Δf, then a BK7+SF2 doublet pulls them together (the capstone) |
+
+`prism` is the **optics** builtin; the existing 3-D solid stays `prism3` (no clash).
+A small named **glass catalog** (`bk7`, `sf11`, `f2`, `water`, `diamond`, …) selects
+Sellmeier coefficients by name, so authors never touch numbers.
+
+**Tiers (build one at a time):**
+- **T1 · foundations:** ✅ **`refract`** (Snell + TIR sweep — the modular kit
+  `src/kits/optics/{mod,trace,builtins}.rs`; sweeps the incidence angle via a
+  `SimData` playback replayed by `run`; `examples/refraction.manic`), ✅ **`lens`**
+  (converging lens — a parallel beam focuses to F; sweeps the focal length so the
+  focus slides; ideal thin lens; `examples/lens.manic`).
+- **T2 · dispersion:** ✅ **`prism`** (Sellmeier rainbow — the new
+  `src/kits/optics/dispersion.rs`: 3-term Sellmeier + a named glass catalog
+  (`bk7`/`sf11`/`f2`/`diamond`/`water`/`sapphire`/`silica`) + wavelength→RGB; each
+  colour traced through both prism faces with `refract_vec`+`ray_segment`; sweeps
+  the incidence angle; `examples/prism.manic`), ✅ **`achromat`** (chromatic
+  aberration → the doublet fix — real crown dispersion splits the red/blue foci,
+  `run` sweeps in the correction and they merge to one sharp point;
+  `examples/achromat.manic`). **T2 · dispersion COMPLETE — the through-dispersion
+  first milestone is shipped.**
+  - **Annotated/elevated examples (hybrid backdrop):** the *geometric* builtins get
+    `template("paper")` textbook figures (`refraction-paper`, `lens-paper`); the
+    *colour* builtins stay on a dark bench where light glows (`prism-cinematic`,
+    `achromat-cinematic`) — a rainbow washes out on cream, so light is a
+    dark-background subject. Each varies its elevation lens (camera / typewriter /
+    wordpop / brace) per [[demo-elevation-controls]].
+- **T3 · systems:** ✅ **`lenssystem`** (a REAL multi-element lens ray-traced
+  through its actual spherical surfaces — presets singlet/doublet/triplet; the
+  new `trace::trace_spherical` 2-D ray–sphere intersection; rays are drawable
+  polylines and `run` sweeps a sensor plane + live spot-size read-out showing
+  **spherical aberration**; f-number read-out; `examples/lens-system.manic`).
+  "Best of both": faithful physics + manic animation. Now also **NA read-out +
+  autofocus** (a magenta best-focus marker at the minimum-spot plane). **Lens
+  prescriptions both ways:** pick a real design by NAME (singlet/biconvex,
+  plano-convex, meniscus, doublet/achromat, triplet/cooke) OR write a CUSTOM
+  prescription string `"radius thickness glass [conic] [aperture] | …"`
+  (`resolve_prescription`/`parse_prescription` in `builtins.rs`;
+  `examples/lens-prescription.manic`). **Full prescription surface fields shipped:**
+  `trace::trace_conic` (2-D ray–conic intersection) gives **aspherics** — the
+  `"aspheric"` preset's conic (K≈−0.55, an ellipsoid) nulls spherical aberration
+  (RMS 1.5 px → 0.1 px, a real blur→point; `examples/aspheric-lens.manic`) —
+  plus **per-surface aperture** (clips rays + sets element height) and an optional
+  **finite object distance** (diverging point source; f/#/NA hidden off-axis of
+  the collimated case).
+- **Off-axis field aberrations ✅:** a **3-D conic tracer** (`trace::trace_conic_3d`
+  + `refract_vec3`) powers **`fieldspot`** — a full 2-D pupil traced in 3-D at a
+  field angle: symmetric on-axis, a **coma** comet + **astigmatic** stretch
+  off-axis (singlet RMS ~7 px vs doublet ~1.4 px at 8°), with an **Airy-disk**
+  diffraction-limit overlay that scales with f/# (small = geometry-limited, ~spot
+  = diffraction-limited). `examples/off-axis.manic`. **Optics kit T1–T4 + full
+  prescription + field aberrations COMPLETE.**
+- **T4 · analysis ✅:** **`rayfan`** (the ray-fan aberration plot — the singlet's
+  cubic spherical-aberration S-curve, flattened by the doublet; `examples/ray-fan.manic`)
+  and **`spotdiagram`** (the spot at best focus — a blur disc for the singlet,
+  a point for the doublet, RMS read-out + ideal-point marker; `examples/spot-diagram.manic`).
+  Both share `optics::builtins::analyze_preset` (rotationally-symmetric on-axis
+  transverse-aberration trace) and scale to the singlet so the correction reads.
+  ⬜ off-axis field points (coma/astigmatism) + Airy-disk overlay still open.
+
+**Why it fits:** a beautiful, genuinely-physical domain (the rainbow is *earned* by
+`n(λ)`, the focus is *earned* by Snell), tiny author surface, and it reuses every
+existing manic primitive — the same "the diagram is true, not drawn" thesis, now for
+light. Follows the manic-builtin-checklist for each ctor (catalog + LANGUAGE +
+SYSTEM_PROMPT + CAPABILITIES + test + example + WASM/system-prompt snapshots).
 
 ### 3D — status (roadmap #1–#6 all shipped)
 The foundation and the full 3D roadmap below have shipped. Coverage against the

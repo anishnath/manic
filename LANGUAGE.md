@@ -624,6 +624,10 @@ first named sim; more follow the same shape.
 | `inclinebumper(id, [center], [angle], [mass], [stiffness], [unit])` | a block **slides down an incline into a spring bumper** at the base (one-sided contact), compresses it, and launches back — free-slide then spring. `{id}.incline/.spring/.plate/.block`. |
 | `springchain(id, [center], [angle], [unit])` | **three blocks joined by two springs** on an incline — coupled oscillators / normal modes (shown in the incline's frame; uniform gravity doesn't affect the internal motion). `{id}.block1..3/.spring1/.spring2`. |
 | `looptrack(id, [center], [radius], [height], [unit])` | a ball rolls down a ramp and around a vertical **loop-the-loop** (a curved track). Energy solver v=√(2g(H−y)) along the arc — it slows at the top; `height` must exceed 2·`radius`. `{id}.ramp/.loop/.ball`. |
+| `collideblocks(id, [center], [m1], [m2], [restitution], [unit])` | the classic momentum demo: **block 1 on a spring** to the wall, block 2 slides in and they collide with restitution `e` (1 = elastic → total energy conserved; <1 → lost). A live **Σp readout** shows momentum conserved at each collision. `{id}.spring/.block1/.block2/.mom` + walls/floor. |
+| `bulletblock(id, [center], [bulletmass], [speed], [blockmass], [unit])` | a bullet fired into a block **embeds** (perfectly inelastic). The combined mass crawls off at m_b·v_b/(m_b+M) — most kinetic energy is lost (`energygraph`'s total STEPS DOWN). `{id}.floor/.block/.bullet`. |
+| `newtonscradle(id, [center], [balls], [pulled])` | **Newton's cradle** — a row of equal pendulum balls; pull `pulled` back and the same number swing out the far side. An **event-driven** sim: free-flight between elastic collisions resolved by the shared 1-D impulse. `{id}.bar/.string{i}/.ball{i}`. |
+| `stringwave(id, [center], [width], [amp], [pluck])` | a **wave on a plucked string** — N masses on springs, both ends fixed (the discretised wave equation). The pulse splits, travels, and reflects. Drawn as a rainbow chain of segments `{id}.seg{i}`. `pluck` (0..1) sets the initial peak. |
 | `dropmass(id, [center], [dropheight], [unit])` | a mass dropped onto a spring-block that **sticks** (inelastic collision) — `energygraph`'s total **steps down** at impact, then the heavier mass oscillates about a lower equilibrium (`{id}.spring/.block/.drop/.eq1/.eq2`). |
 | `raft(id, [center], [personmass], [raftmass], [unit])` | a person walking on a **floating raft** — momentum conservation keeps the **centre of mass fixed**, so the raft slides the opposite way (`{id}.water/.cm/.raft/.body/.head`). Kinematic — no energy/phase views. |
 | `brachistochrone(id, [center], [unit])` | four beads **race under gravity** from A to B down four curves (straight/arc/parabola/**cycloid**); the cycloid wins. Each is a full RK4 bead-on-wire integration (`{id}.straight/.circle/.parabola/.cycloid`, beads `{id}.bead_*`). |
@@ -643,6 +647,35 @@ pendulum(p, (cx, 190), 2, 50);   // length 2 m, released from 50°
 untraced(p.path);
 draw(p.path, 1.0);               // trace the arc it will follow
 swing(p, 8);                     // then play the motion over 8 s
+```
+
+## The optics kit
+
+Light as geometry — easy builtins with the **real physics underneath** (Snell's
+law, and, coming next, Sellmeier dispersion). Like the physics sims, an optics
+builtin is **static geometry that animates by sweeping a parameter**: `run(id)`
+replays the sweep (incidence angle today; focal length / wavelength next).
+
+| builtin | what it does |
+|---|---|
+| `refract(id, [center], [n1], [n2], [angle])` | a light ray meeting the boundary between two media and **bending** (Snell's law). Top medium index `n1` (default 1.0 = air), bottom `n2` (default 1.5 = glass). With no `angle`, `run(id)` **sweeps the incidence angle** — the refracted ray swings, the live `in`/`out` read-outs are the true Snell angles, and when light starts in the denser medium (`n1 > n2`) it shows **total internal reflection** past the critical angle. Give `angle` (degrees) to freeze one incidence. Parts `{id}.interface/.normal/.incident/.refracted/.reflected/.thetai/.thetat/.tir`. |
+| `lens(id, [center], [focal], [aperture])` | a **converging lens** focusing a parallel beam to the **focal point** F (ideal thin lens — every parallel ray passes through F). `focal` in px (default 240), `aperture` the beam half-height (default 150). With no `focal`, `run(id)` **sweeps the focal length** so the focus slides in toward the lens (shorter `focal` = stronger lens). Parts `{id}.axis/.lens/.focus/.flabel/.in{i}/.out{i}`. |
+| `prism(id, [center], [glass])` | white light entering a triangular prism and splitting into a **spectrum** — each colour traced through both faces with its true `n(λ)` (real **Sellmeier dispersion**), so blue bends more than red because it genuinely does. `glass` names the material (`"bk7"` crown default; `"sf11"`, `"f2"`, `"diamond"`, `"water"`, `"sapphire"`, `"silica"`). `run(id)` **sweeps the incidence angle** — the fan swings and its spread widens away from minimum deviation. Parts `{id}.prism/.beam/.in{c}/.out{c}` (c = 0 red … 8 violet). |
+| `achromat(id, [center], [aperture])` | **chromatic aberration and its fix.** A single lens focuses blue nearer than red (real dispersion — its index is higher for blue), so white light never comes to one focus. `run(id)` **sweeps in the achromatic doublet** (crown + flint) and the red & blue foci slide back together to a single sharp point. Parts `{id}.axis/.lens/.in{i}/.r{i}/.b{i}/.fred/.fblue`. (CA direction/relative size are real; the axial gap is exaggerated for visibility.) |
+| `lenssystem(id, [center], [preset], [object])` | a **real multi-element lens**, ray-traced through its actual **spherical/aspheric surfaces** (not the ideal thin lens of `lens`). `preset` is a lens **by name** — `"singlet"`/`"biconvex"`, `"plano-convex"`, `"aspheric"` (a conic that nulls spherical aberration), `"meniscus"`, `"doublet"`/`"achromat"`, `"triplet"`/`"cooke"` — **or a full custom prescription** (any string with `\|`): a surface table `"radius thickness glass [conic] [aperture] \| …"` — radius px (`+`/`-`/`flat`), glass name or `air`, optional **conic** constant (asphere) and **semi-diameter**, e.g. `"200 30 bk7 \| -200 0 air"` or an asphere `"190 28 bk7 -0.55 \| flat 0 air"`. Optional `object` = a finite object distance (px) for a diverging point source (omit ⇒ collimated). Sketch the rays with `draw(id.rays)`; `run(id)` sweeps a **sensor** plane while a live **spot-size** read-out dips to its minimum at best focus. **f-number** + **NA** read-outs (collimated only) and a magenta **best-focus** marker. Parts `{id}.elem{k}/.axis/.ray{i}` (tagged `{id}.rays`) `/.sensor/.spot/.fnum/.na/.bestfocus/.label`. |
+| `rayfan(id, [center], [preset])` | the **ray-fan aberration plot** of a preset: transverse ray error at best focus (y) vs pupil height (x). A flat line is a perfect lens; the singlet's cubic **S-curve** is textbook spherical aberration; the doublet/triplet flatten it (all drawn to the singlet's scale). Sketch it on with `draw(id.curve)`. Parts `{id}.box/.zerox/.zeroy/.curve/.title/…`. |
+| `spotdiagram(id, [center], [preset])` | the **spot diagram** at best focus: where a bundle of rays actually lands. A perfect lens makes a point; the singlet smears into a disc (**circle of least confusion**), the doublet/triplet stay tight — all to one scale. A green dot marks the ideal point focus; an **RMS** read-out gives the blur radius. Reveal the dots with `draw(id.dots)`. Parts `{id}.ideal/.rms/.dot{k}` (tagged `{id}.dots`) `/.crossx/.crossy/.label`. |
+| `fieldspot(id, [center], [preset], [field])` | the **off-axis spot diagram** — a full 2-D pupil traced in **3-D** at a field angle `field` (degrees, default 5). On-axis the spot is symmetric; off-axis it flares into a **coma** comet and stretches with **astigmatism**. A dashed **Airy-disk** circle marks the diffraction limit (1 px ≈ 1 µm at the image) — when the geometric blur shrinks to it, the lens is diffraction-limited. Reveal with `draw(id.dots)`. Parts `{id}.dot{k}` (tagged `{id}.dots`) `/.airy/.rms/.crossx/.crossy/.label`. |
+
+```manic
+refract(r, (640, 380), 1.0, 1.52);   // air → crown glass
+run(r, 7);                           // sweep the incidence angle
+
+lens(l, (620, 360));                 // a converging lens
+run(l, 7);                           // sweep the focal length — the focus slides
+
+prism(p, (560, 400), "sf11");        // white light → a rainbow (real dispersion)
+run(p, 7);                           // sweep the incidence angle — the fan swings
 ```
 
 ## The 3D kit

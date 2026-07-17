@@ -236,6 +236,10 @@ SECTIONS = [
    ("car-suspension",
     "A quarter-car riding a scrolling road — a speed bump, a washboard stretch, and a\n"
     "pothole — its spring+damper soaking up the ride (`carsuspension`)."),
+   ("car-suspension-annotated",
+    "A marketing hero: the quarter-car suspension on a `template(\"paper\")` brochure page,\n"
+    "elevated with generic base-manic — a live `counter` (sprung mass), leader-`arrow`\n"
+    "callouts, and an `energygraph` of the shock being absorbed — riding a scrolling road."),
    ("piston",
     "An engine piston: a spinning crank + connecting rod turn rotation into the piston's\n"
     "up-and-down stroke — the slider-crank mechanism (`piston`)."),
@@ -275,10 +279,42 @@ SECTIONS = [
     "A block slides down an incline into a spring bumper at the base, compresses it, and\n"
     "launches back up — one-sided contact, gravity PE ↔ kinetic ↔ spring PE, energy\n"
     "conserved (`inclinebumper`)."),
+   ("collide-blocks",
+    "The classic momentum demo: block 1 hangs on a spring to the wall, block 2 slides in and\n"
+    "they collide. A live Σp readout shows momentum conserved at every collision; elastic\n"
+    "(e=1) keeps total energy flat while it sloshs between KE and the spring (`collideblocks`)."),
+   ("collide-blocks-annotated",
+    "Conservation of momentum, the MANIC way — not a 1:1 port of the lab sim but a guided\n"
+    "lesson: the live Σp readout as the star, the KE↔spring-PE energy view, staged callouts,\n"
+    "and honest narration (with a wall-spring, Σp is conserved AT each collision, not constant)."),
+   ("bullet-block",
+    "A bullet fired into a block EMBEDS (perfectly inelastic). The flight is slow-mo so you can\n"
+    "watch it cross, then a live speed readout collapses from 40 m/s to ~1 — momentum survives,\n"
+    "energy does not. Uses `collide_1d(e=0)` (`bulletblock`)."),
+   ("bullet-impact",
+    "BEST OF BOTH: the cinematic gun-shot (gun · muzzle flash · a flying `cam`/`zoom` · BOOM)\n"
+    "wrapped around the REAL `bulletblock` physics — the collision is genuinely inelastic, the\n"
+    "live speed readout actually collapses 40 → ~1, and the BOOM is synced to the true impact."),
+   ("bullet-block-annotated",
+    "The bullet's JOURNEY, the manic way: a gun fires, a muzzle flash, a glowing bullet crosses\n"
+    "the gap in slow-motion and embeds — the speed readout crashing 40 → ~1. A scene, not the\n"
+    "bare lab sim (base-manic staging over `bulletblock`)."),
+   ("newtons-cradle",
+    "Newton's cradle: pull one ball, one swings out the far side — momentum and energy pass\n"
+    "straight through the chain. An EVENT-DRIVEN sim (free-flight pendulums between elastic\n"
+    "collisions resolved by a shared 1-D impulse), the crowd-pleaser (`newtonscradle`)."),
+   ("string-wave",
+    "A wave on a plucked string: 36 masses on springs, both ends fixed (the discretised wave\n"
+    "equation). Pluck it off-centre and the pulse splits, travels, and reflects off the ends —\n"
+    "a rainbow chain that wiggles, pre-simulated with RK4 (`stringwave`)."),
    ("loop-track",
     "A ball rolls down a ramp and around a vertical LOOP-THE-LOOP — the curved-track case.\n"
     "A bead energy solver (v = √(2g(H−y)) along the arc) so it visibly slows at the top;\n"
     "release above 2·radius to clear it. `energygraph` tracks KE↔PE (`looptrack`)."),
+   ("loop-cinematic",
+    "The loop-the-loop as a MOVIE with real physics inside: the camera pushes in as the ball\n"
+    "climbs, and the tension is genuine — a modest release height means it truly crawls over\n"
+    "the top before rocketing out. `cam`/`zoom` beats synced to the `looptrack` sim."),
    ("spring-chain",
     "Three blocks joined by two springs on an incline — coupled oscillators. Pull one and the\n"
     "whole chain rings (normal modes / beating); shown in the incline's frame since uniform\n"
@@ -329,6 +365,71 @@ SECTIONS = [
     "hanging pulley carrying 10 kg with the other end anchored to a hatched floor — `support`\n"
     "+ `template(\"paper\")` for the flat exam-paper look."),
  ]),
+ dict(slug="optics", title="Optics — light as geometry",
+   intro="Easy builtins with the **real physics underneath** — Snell's law and Sellmeier "
+         "dispersion — so the bending and the colours are earned, not painted. Each is static "
+         "geometry that animates by a parameter sweep: call `run(id)`.",
+   sub=SUB, items=[
+   ("refraction",
+    "Snell's law you can watch: a ray crossing from air into glass bends toward the normal,\n"
+    "and `run` sweeps the incidence angle so the refracted ray swings — the live in/out\n"
+    "read-outs are the true angles. Start in the denser medium and it shows total internal\n"
+    "reflection past the critical angle (`refract`)."),
+   ("lens",
+    "A converging lens: a parallel beam bends to meet at the focal point F (ideal thin lens —\n"
+    "every ray passes through F). `run` sweeps the focal length, so the focus slides in as the\n"
+    "lens gets stronger (`lens`)."),
+   ("prism",
+    "White light into a prism, out as a RAINBOW — each colour traced through both faces with\n"
+    "its own refractive index (real Sellmeier dispersion), so blue bends more than red because\n"
+    "glass genuinely slows blue more. `run` sweeps the incidence angle and the fan widens (`prism`)."),
+   ("achromat",
+    "The optics capstone — chromatic aberration and its fix: a single lens focuses blue nearer\n"
+    "than red, so white light never comes to one point; `run` sweeps in the achromatic doublet\n"
+    "and the colours snap back to a single sharp focus (`achromat`)."),
+   ("refraction-paper",
+    "Snell's law as a `template(\"paper\")` TEXTBOOK figure: inked media labels, the normal, and\n"
+    "the law itself, with a camera easing in on the bending point as `run` sweeps the angle —\n"
+    "the geometric builtins suit paper (`refract` + annotation + camera)."),
+   ("lens-paper",
+    "The converging lens inked on paper and narrated by a TYPEWRITER caption (a different\n"
+    "elevation lens): labelled parallel rays and focal point F while `run` slides the focus\n"
+    "(`lens` + `type`)."),
+   ("prism-cinematic",
+    "The prism on a dark optics bench where the spectrum GLOWS (a rainbow washes out on paper):\n"
+    "the colour names pop in word-by-word (`wordpop`) as the fan spreads and the camera flies\n"
+    "toward it — KINETIC-TYPE elevation (`prism`)."),
+   ("achromat-cinematic",
+    "The achromat with the CAMERA magnifying the focal region so the red/blue split is dramatic,\n"
+    "a `bracelabel` marking the aberration gap that closes as `run` sweeps in the doublet and\n"
+    "the colours merge (`achromat` + camera + brace)."),
+   ("lens-system",
+    "A REAL multi-element lens, ray-traced through its actual spherical surfaces (not the ideal\n"
+    "thin lens): the fast singlet reveals SPHERICAL ABERRATION — `draw` sketches the rays, then\n"
+    "`run` sweeps a sensor plane and the live spot read-out dips but never reaches a point,\n"
+    "because the outer rays focus short (`lenssystem`, presets singlet/doublet/triplet)."),
+   ("ray-fan",
+    "Reading an aberration: `rayfan` plots each ray's error at focus against where it entered the\n"
+    "lens. A flat line is a perfect lens — the singlet's cubic S-CURVE is textbook spherical\n"
+    "aberration (the edges bend too much), which a doublet flattens (`rayfan`)."),
+   ("spot-diagram",
+    "Lens quality as a picture: `spotdiagram` plots where a ray bundle actually lands at focus.\n"
+    "A fast single lens smears into a blur disc (the circle of least confusion), while a cemented\n"
+    "doublet collapses to a point — both to the same scale, RMS 4 px → under 1 px (`spotdiagram`)."),
+   ("lens-prescription",
+    "Type your OWN lens: `lenssystem` takes a design by name (`\"plano-convex\"`, `\"doublet\"`, …)\n"
+    "OR a custom PRESCRIPTION — the designer's surface table `\"radius thickness glass [conic]\n"
+    "[aperture] | …\"` — traced through the true surfaces with real Sellmeier glass (`lenssystem`)."),
+   ("aspheric-lens",
+    "How an ASPHERE kills spherical aberration: a spherical surface can't focus a wide beam to a\n"
+    "point (a blur, RMS 1.5 px), but reshaping it to the right conic — one constant in the\n"
+    "prescription — collapses every ray to a point (RMS 0.1 px). Two real ray-traced lenses,\n"
+    "spherical vs aspheric, side by side (`lenssystem` conic + `spotdiagram`)."),
+   ("off-axis",
+    "The hard test — light 8° OFF the axis. `fieldspot` traces a full 2-D pupil in 3-D: a single\n"
+    "lens flares into a COMA comet, while a doublet holds the spot near the Airy disk (the\n"
+    "diffraction limit). Real field aberration only a 3-D trace shows (`fieldspot`)."),
+ ]),
  dict(slug="vectors", title="Vectors, fields & coordinates", intro="", sub=SUB, items=[
    ("vector_field", "A magnitude-coloured vector field."),
    ("coordinates", "Axes, planes, number lines, polar & complex planes."),
@@ -359,9 +460,19 @@ SECTIONS = [
    ("banner", "The manic logo / banner reveal."),
  ]),
  dict(slug="generative", title="Generative & recursive", intro="", sub=SUB, items=[
+   ("gun-shot",
+    "A pure-imagination SCENE — no physics kit, just storytelling: a gun fires, the camera\n"
+    "flies along with the bullet (`cam`/`zoom`), a block drops in out of nowhere, and BOOM —\n"
+    "`flash`/`shake`/`pulse` + a `for`-loop spark burst. manic as a movie language."),
    ("fractal_tree", "One recursive `def`, drawn to depth 12."),
    ("hue_wave", "An animated hue wave across a grid."),
    ("hill_run", "A little scene animated with the language layer."),
+   ("walk",
+    "An articulated stick figure walking down a road — legs swing, arms counter-swing, the body\n"
+    "bobs — built purely from the language layer (`let` + `for` + trig), no character rig."),
+   ("two_person_walk",
+    "Two figures walk toward each other, MEET in the middle, shake hands, then continue past —\n"
+    "a little choreographed scene from loops and arithmetic alone (the language layer as animation)."),
    ("equal_cuts", "A circle halved again and again (pizza cuts)."),
    ("archimedes_pi", "Bounding pi with inscribed / circumscribed polygons."),
    ("pieday",

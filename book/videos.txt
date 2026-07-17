@@ -7,6 +7,27 @@
 # 11-char video id in place of PLACEHOLDER, then run scripts/embed-videos.sh to
 # embed real players. Rows left as PLACEHOLDER stay as the "coming soon" card.
 # Titles are click-through oriented + manic-branded — reuse them on upload.
+#
+# ============================================================================
+#  YOUTUBE DESCRIPTION TEMPLATE  —  paste under every video (drives traffic to
+#  manic). Keep the title's hook as line 1, then the blurb + CTA + link + tags.
+#  Link is 8gwifi.org/manic (the home of manic) — never github.
+# ----------------------------------------------------------------------------
+#  {TITLE}
+#
+#  Made with manic — the animation LANGUAGE that turns plain text into precise,
+#  correct animations. No coding, no timeline scrubbing: you describe what you
+#  want and manic animates it — math, physics, optics, algorithms, geometry —
+#  with the diagram actually TRUE, not hand-drawn. One tiny script → this video.
+#
+#  ▶ Try it free in your browser: https://8gwifi.org/manic
+#  ▶ Docs + full example gallery: https://8gwifi.org/manic/docs
+#
+#  See the exact script for this scene in the gallery — copy it, change a
+#  number, run it. That's the power of manic: real animation, in a few lines.
+#
+#  #manic #animation #dataviz #math #physics #optics #creativecoding #STEM #edutech
+# ============================================================================
 
 # ---- guide samples (book/samples/) ----
 hello|cMkxQ5HGqM8|manic in 60 Seconds — Your First Text-to-Animation
@@ -160,9 +181,37 @@ ex-textbook-doubly-list|YucCrtOvZjg|Doubly Linked List — Textbook Style (Agnos
 ex-pulley-paper|0a5GcifKF7Q|Atwood Machine — Textbook Style, Animated — manic
 ex-spring-paper|UT_UEGJv6Oc|Mass on a Spring — Textbook Style, Animated — manic
 ex-textbook-incline-fbd|2ZZx0jcpqIE|Free-Body Diagram of an Incline — Textbook Style — manic
-ex-incline-pulley|xH9Rdqzanjo|incline pulley — manic
-ex-double-incline|HaRR568TD9A|double incline — manic
-ex-incline-bumper|o_p5K5zDV0Y|incline bumper — manic
+ex-incline-pulley|xH9Rdqzanjo|The Incline-Atwood — a Block, a Pulley & a Hanging Mass — manic
+ex-double-incline|HaRR568TD9A|Two Slopes, One Pulley — Which Block Wins? — manic
+ex-incline-bumper|o_p5K5zDV0Y|Down the Ramp, Into a Spring — and Back — manic
 ex-incline-showcase|toiBa--5AwA|Four Incline Problems, One Paper Page — manic
-ex-loop-track|QX3OjnwYxm0|loop track — manic
-ex-spring-chain|seuNwQdBCEY|spring chain — manic
+ex-loop-track|QX3OjnwYxm0|Loop-the-Loop — Will It Clear the Top? — manic
+ex-spring-chain|seuNwQdBCEY|Coupled Oscillators — Three Blocks, Two Springs, One Beat — manic
+ex-car-suspension-annotated|bUsMlIXFVZ0|Car Suspension — How It Soaks Up the Road — manic
+ex-string-wave|PLACEHOLDER|Wave on a String — Pluck, Travel, Reflect — manic
+ex-newtons-cradle|PLACEHOLDER|Newton's Cradle — Momentum Passes Through — manic
+ex-collide-blocks|PLACEHOLDER|Colliding Blocks — Momentum Conserved, Live — manic
+ex-bullet-block|PLACEHOLDER|A Bullet Embeds in a Block — Where Did the Energy Go? — manic
+ex-collide-blocks-annotated|PLACEHOLDER|Conservation of Momentum — Colliding Blocks, Explained — manic
+ex-bullet-block-annotated|PLACEHOLDER|A Bullet's Journey — Inelastic Collision, Slow-Mo — manic
+ex-gun-shot|PLACEHOLDER|Gun Shot — a Cinematic Scene in manic (No Physics, Just Imagination)
+ex-bullet-impact|PLACEHOLDER|Impact — Cinematic Scene + Real Physics, Fused — manic
+ex-loop-cinematic|PLACEHOLDER|Loop the Loop — Cinematic Scene + Real Physics — manic
+ex-refraction|PLACEHOLDER|Refraction — Snell's Law You Can Watch — manic
+ex-lens|PLACEHOLDER|Converging Lens — Where Light Focuses — manic
+ex-prism|PLACEHOLDER|Prism — White Light Splits into a Rainbow (Real Dispersion) — manic
+ex-achromat|PLACEHOLDER|Chromatic Aberration & the Achromatic Doublet — manic
+ex-refraction-paper|PLACEHOLDER|Snell's Law — a Physics Textbook Figure, Animated — manic
+ex-lens-paper|PLACEHOLDER|Converging Lens — Textbook Ray Diagram — manic
+ex-prism-cinematic|PLACEHOLDER|Prism — White Light into a Rainbow (Cinematic) — manic
+ex-achromat-cinematic|PLACEHOLDER|Chromatic Aberration, Magnified — the Achromat Fix — manic
+ex-lens-system|PLACEHOLDER|Spherical Aberration — a Real Lens, Ray-Traced — manic
+ex-ray-fan|PLACEHOLDER|Reading a Lens Aberration — the Ray-Fan Plot — manic
+ex-spot-diagram|PLACEHOLDER|Spot Diagram — a Lens Blur vs a Point — manic
+ex-lens-prescription|PLACEHOLDER|Type Your Own Lens — a Prescription, Ray-Traced — manic
+ex-aspheric-lens|PLACEHOLDER|Aspheric Lens — How a Conic Surface Kills Spherical Aberration — manic
+ex-off-axis|PLACEHOLDER|Coma & Astigmatism — Why Off-Axis Is the Hard Test — manic
+
+# ---- examples: figures & scenes ----
+ex-walk|PLACEHOLDER|A Figure Walking Down the Road — manic
+ex-two_person_walk|PLACEHOLDER|Two Figures Meet, Shake Hands & Walk On — manic

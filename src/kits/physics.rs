@@ -1537,6 +1537,63 @@ impl Sim for SpringChain {
     // coupled oscillators — energygraph shows the KE↔PE exchange (beating)
 }
 
+/// A **wave on a string**: N interior masses joined by springs to their
+/// neighbours, both ends fixed — the discretised wave equation. State =
+/// `[y₁,v₁,…,y_N,v_N,t]` (transverse displacements). A pluck (triangular initial
+/// shape) splits into two pulses that travel out, reflect (inverting) off the
+/// fixed ends, and recombine. RK4-clean — just a big state vector.
+pub struct StringWave {
+    pub n: usize,
+    pub k: f32,
+    pub m: f32,
+    pub damping: f32,
+    pub pluck: f32, // 0..1, where along the string the initial peak sits
+}
+impl StringWave {
+    fn y0(&self, i: usize) -> f32 {
+        // triangular pluck rising to `pluck`, then falling to the far end
+        let x = i as f32 / (self.n as f32 + 1.0);
+        if x <= self.pluck { x / self.pluck } else { (1.0 - x) / (1.0 - self.pluck) }
+    }
+}
+impl Sim for StringWave {
+    fn state0(&self) -> Vec<f32> {
+        let mut st = vec![0.0; 2 * self.n + 1];
+        for i in 1..=self.n {
+            st[(i - 1) * 2] = self.y0(i);
+        }
+        st
+    }
+    fn deriv(&self, s: &[f32], d: &mut [f32]) {
+        for i in 1..=self.n {
+            let (yi, vi) = (s[(i - 1) * 2], s[(i - 1) * 2 + 1]);
+            let yl = if i == 1 { 0.0 } else { s[(i - 2) * 2] };
+            let yr = if i == self.n { 0.0 } else { s[i * 2] };
+            d[(i - 1) * 2] = vi;
+            d[(i - 1) * 2 + 1] = (self.k * (yl - 2.0 * yi + yr) - self.damping * vi) / self.m;
+        }
+        d[2 * self.n] = 1.0;
+    }
+    fn energy(&self, s: &[f32]) -> Energy {
+        let (mut ke, mut pe, mut prev) = (0.0, 0.0, 0.0);
+        for i in 1..=self.n {
+            let (yi, vi) = (s[(i - 1) * 2], s[(i - 1) * 2 + 1]);
+            ke += 0.5 * self.m * vi * vi;
+            pe += 0.5 * self.k * (yi - prev).powi(2);
+            prev = yi;
+        }
+        pe += 0.5 * self.k * prev.powi(2); // segment to the fixed right end
+        Energy { kinetic: ke, potential: pe }
+    }
+    fn body(&self, s: &[f32]) -> (f32, f32) {
+        (0.0, s[(self.n / 2).max(1).saturating_sub(1) * 2])
+    }
+    fn labels(&self) -> Vec<String> {
+        vec!["y".into(), "v".into(), "t".into()]
+    }
+    // a standing/travelling wave — energygraph shows KE↔PE; no phase/well
+}
+
 /// One of the racing descent curves for the brachistochrone. Each provides
 /// `y(x)`, `y'(x)`, `y''(x)` on `x ∈ [0, D]`, with **y measured downward** (so
 /// gravity acts in +y). The cycloid — the true brachistochrone — is built by a
@@ -1913,10 +1970,18 @@ fn v_play(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let mut tracks = Vec::new();
     for pt in &sim.playback {
         for k in 1..pt.points.len() {
+            // scalar props (a counter value, opacity, …) ride the point's x channel;
+            // Vec2 props (position, endpoint) use the whole point
+            let target = match pt.prop {
+                Prop::Value | Prop::Opacity | Prop::Scale | Prop::Rot | Prop::Trace | Prop::Hue => {
+                    TargetValue::Abs(Value::F(pt.points[k].x))
+                }
+                _ => TargetValue::Abs(Value::V(pt.points[k])),
+            };
             tracks.push(TrackSpec {
                 id: pt.id.clone(),
                 prop: pt.prop,
-                target: TargetValue::Abs(Value::V(pt.points[k])),
+                target,
                 start: (k - 1) as f32 * frame,
                 dur: frame,
                 easing: Easing::Linear,
@@ -2831,6 +2896,19 @@ fn c_molecule(s: &mut Scene, a: &Args) -> Result<(), Error> {
         well: mol.well_curve(), energy, dt: sim_dt * substeps as f32, states,
     });
     Ok(())
+}
+
+/// The shared **1-D collision resolver**: the post-collision velocities of two
+/// masses, with restitution `e` (1 = perfectly elastic → the relative velocity
+/// reverses; 0 = perfectly inelastic → they move together). Momentum is always
+/// conserved. For equal masses and `e = 1` this reduces to a velocity swap.
+pub fn collide_1d(m1: f32, v1: f32, m2: f32, v2: f32, e: f32) -> (f32, f32) {
+    let p = m1 * v1 + m2 * v2; // conserved momentum
+    let msum = m1 + m2;
+    (
+        (p - m2 * e * (v1 - v2)) / msum,
+        (p + m1 * e * (v1 - v2)) / msum,
+    )
 }
 
 /// Once `state[pi]` first leaves `[lo, hi]`, hold every later frame clamped to
@@ -3827,6 +3905,381 @@ fn c_looptrack(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `stringwave(id, [center], [width], [amp], [pluck])` — a wave on a plucked
+/// string: N masses on springs, fixed at both ends. `center` is the string's
+/// midpoint (default `(cx, 360)`); `width` px (default 760); `amp` the vertical
+/// scale px (default 90); `pluck` where the initial peak sits, 0..1 (default 0.3).
+/// The string is drawn as a rainbow chain of segments `{id}.seg{i}` that wiggle
+/// as the pulse travels and reflects. Animate with `run(id)`; `energygraph` too.
+fn c_stringwave(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
+    let width = a.opt_num(2)?.unwrap_or(760.0).max(100.0);
+    let amp = a.opt_num(3)?.unwrap_or(90.0);
+    let pluck = a.opt_num(4)?.unwrap_or(0.3).clamp(0.1, 0.9);
+    let n = 36usize;
+    let sw = StringWave { n, k: 220.0, m: 0.3, damping: 0.03, pluck };
+    let (sim_dt, substeps) = (0.002f32, 8usize);
+    let states = simulate(&sw, sim_dt, substeps, SAMPLES);
+    let energy = states.iter().map(|st| { let e = sw.energy(st); (e.kinetic, e.potential) }).collect();
+
+    // point j (0 = left fixed end … n+1 = right fixed end) per frame
+    let x_of = |j: usize| center.x - width / 2.0 + width * j as f32 / (n as f32 + 1.0);
+    let pts: Vec<Vec<Vec2>> = (0..=n + 1)
+        .map(|j| {
+            states
+                .iter()
+                .map(|st| {
+                    let y = if j == 0 || j == n + 1 { 0.0 } else { st[(j - 1) * 2] };
+                    Vec2::new(x_of(j), center.y - y * amp)
+                })
+                .collect()
+        })
+        .collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut playback = Vec::new();
+    for j in 0..=n {
+        let sid = format!("{id}.seg{j}");
+        let mut e = Entity::new(sid.clone(), Shape::Line { to: pts[j + 1][0] }, pts[j][0], style::CYAN);
+        e.stroke.width = 3.5;
+        e.hue = Some(200.0 + 200.0 * j as f32 / n as f32); // a cyan→magenta gradient along the string
+        e.tags = ct();
+        s.add(e);
+        playback.push(PlaybackTrack { id: sid.clone(), prop: Prop::Pos, points: pts[j].clone() });
+        playback.push(PlaybackTrack { id: sid, prop: Prop::To, points: pts[j + 1].clone() });
+    }
+    // fixed-end posts
+    for (sid, x) in [(format!("{id}.postL"), x_of(0)), (format!("{id}.postR"), x_of(n + 1))] {
+        let mut p = Entity::new(sid, Shape::Line { to: Vec2::new(x, center.y + 22.0) }, Vec2::new(x, center.y - 22.0), style::DIM);
+        p.stroke.width = 4.0;
+        p.tags = ct();
+        s.add(p);
+    }
+    s.sims.insert(id, SimData {
+        playback, labels: sw.labels(), phase_xy: sw.phase_xy(), pos_var: sw.pos_var(),
+        well: sw.well_curve(), energy, dt: sim_dt * substeps as f32, states,
+    });
+    Ok(())
+}
+
+/// `newtonscradle(id, [center], [balls], [pulled])` — Newton's cradle: a row of
+/// equal pendulum balls, touching at rest. Pull `pulled` balls back on the left
+/// and release — the momentum passes through the chain and the same number swing
+/// out the far side. `center` is the top bar's midpoint (default `(cx, 150)`);
+/// `balls` default 5; `pulled` default 1. An EVENT-DRIVEN sim: free-flight
+/// pendulums between elastic collisions resolved by `collide_1d`. Lays out
+/// `{id}.bar/.string{i}/.ball{i}`. Animate with `run(id)`; `energygraph` too.
+fn c_newtonscradle(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 150.0) };
+    let n = (a.opt_num(2)?.unwrap_or(5.0) as usize).clamp(2, 8);
+    let pulled = (a.opt_num(3)?.unwrap_or(1.0) as usize).clamp(1, n - 1);
+    let (g, l_m) = (9.81f32, 1.5f32); // pendulum physics (angle is scale-free)
+    let (l_px, r_px) = (230.0f32, 22.0f32); // display: string length, ball radius
+    let amp = 0.55f32; // pull-back angle (rad)
+    let g_over_l = g / l_m;
+
+    // event-driven integration: free flight + elastic (e=1) collisions on contact
+    let mut th = vec![0.0f32; n];
+    let mut om = vec![0.0f32; n];
+    for i in 0..pulled {
+        th[i] = -amp; // the leftmost `pulled` balls start pulled to the left
+    }
+    let fdt = 0.0004f32;
+    let t_total = 6.0f32;
+    let frame_dt = t_total / SAMPLES as f32;
+    let sub = (frame_dt / fdt).max(1.0) as usize;
+    let mut th_frames: Vec<Vec<f32>> = Vec::with_capacity(SAMPLES + 1);
+    let mut energy = Vec::with_capacity(SAMPLES + 1);
+    let e_of = |th: &[f32], om: &[f32]| -> (f32, f32) {
+        let (mut ke, mut pe) = (0.0, 0.0);
+        for i in 0..th.len() {
+            ke += 0.5 * (l_m * om[i]).powi(2); // unit mass
+            pe += g * l_m * (1.0 - th[i].cos());
+        }
+        (ke, pe)
+    };
+    for _ in 0..=SAMPLES {
+        th_frames.push(th.clone());
+        energy.push(e_of(&th, &om));
+        for _ in 0..sub {
+            // free flight (semi-implicit Euler — stable)
+            for i in 0..n {
+                om[i] += -g_over_l * th[i].sin() * fdt;
+                th[i] += om[i] * fdt;
+            }
+            // resolve contacts: adjacent balls touch when θ_i ≥ θ_{i+1}, closing
+            // when ω_i > ω_{i+1}; equal mass + e=1 via the shared resolver
+            loop {
+                let mut hit = false;
+                for i in 0..n - 1 {
+                    if th[i] >= th[i + 1] - 1e-4 && om[i] > om[i + 1] + 1e-4 {
+                        let (a2, b2) = collide_1d(1.0, om[i], 1.0, om[i + 1], 1.0);
+                        om[i] = a2;
+                        om[i + 1] = b2;
+                        let mid = 0.5 * (th[i] + th[i + 1]);
+                        th[i] = mid;
+                        th[i + 1] = mid; // separate to avoid re-triggering
+                        hit = true;
+                    }
+                }
+                if !hit {
+                    break;
+                }
+            }
+        }
+    }
+
+    // geometry: pivots spaced 2·r on the bar; ball hangs at angle θ
+    let x0 = |i: usize| center.x + (i as f32 - (n as f32 - 1.0) / 2.0) * 2.0 * r_px;
+    let ball_pts = |i: usize| -> Vec<Vec2> {
+        th_frames.iter().map(|th| Vec2::new(x0(i) + l_px * th[i].sin(), center.y + l_px * th[i].cos())).collect()
+    };
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut bar = Entity::new(format!("{id}.bar"), Shape::Line { to: Vec2::new(x0(n - 1) + 30.0, center.y) }, Vec2::new(x0(0) - 30.0, center.y), style::DIM);
+    bar.stroke.width = 5.0;
+    bar.tags = ct();
+    s.add(bar);
+    let mut playback = Vec::new();
+    for i in 0..n {
+        let bp = ball_pts(i);
+        let (sid, bid) = (format!("{id}.string{i}"), format!("{id}.ball{i}"));
+        let mut st = Entity::new(sid.clone(), Shape::Line { to: bp[0] }, Vec2::new(x0(i), center.y), style::DIM);
+        st.stroke.width = 1.5;
+        st.tags = ct();
+        s.add(st);
+        let mut ball = Entity::new(bid.clone(), Shape::Circle { r: r_px }, bp[0], style::GOLD);
+        ball.stroke.fill = true;
+        ball.stroke.outline = false;
+        ball.tags = ct();
+        s.add(ball);
+        playback.push(PlaybackTrack { id: sid, prop: Prop::To, points: bp.clone() });
+        playback.push(PlaybackTrack { id: bid, prop: Prop::Pos, points: bp });
+    }
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["θ".into(), "t".into()],
+        phase_xy: None, pos_var: None, well: Vec::new(), energy,
+        dt: frame_dt, states: Vec::new(),
+    });
+    Ok(())
+}
+
+/// Block 1's spring rest position (metres from the left wall).
+const CB_X1_EQ: f32 = 1.7;
+
+/// Event-driven trajectory of the colliding-blocks demo: `[x₁,v₁,x₂,v₂]` per frame.
+/// Block 1 (left) is attached to the wall by a **spring** (stiffness `k`) — it
+/// oscillates; block 2 (right) slides in freely. Block–block contacts use
+/// `collide_1d(e)`; block 2 bounces off the right wall. Returned so the physics
+/// (total mechanical energy, momentum) can be checked directly.
+fn sim_collideblocks(m1: f32, m2: f32, e: f32, track: f32, w1: f32, w2: f32, k: f32) -> Vec<[f32; 4]> {
+    let (xl, xr) = (0.0f32, track);
+    let (mut x1, mut v1) = (CB_X1_EQ, 0.0f32);
+    let (mut x2, mut v2) = (xr - w2 * 0.5 - 0.5, -2.6f32); // block 2 slides in from the right
+    let fdt = 0.0005f32;
+    let frame_dt = 7.0 / SAMPLES as f32;
+    let sub = (frame_dt / fdt).max(1.0) as usize;
+    let mut frames = Vec::with_capacity(SAMPLES + 1);
+    for _ in 0..=SAMPLES {
+        frames.push([x1, v1, x2, v2]);
+        for _ in 0..sub {
+            v1 += -(k / m1) * (x1 - CB_X1_EQ) * fdt; // the spring pulls block 1 to rest
+            x1 += v1 * fdt;
+            x2 += v2 * fdt;
+            if x1 + w1 * 0.5 >= x2 - w2 * 0.5 && v1 > v2 {
+                let (a, b) = collide_1d(m1, v1, m2, v2, e);
+                v1 = a;
+                v2 = b;
+                let ov = (x1 + w1 * 0.5) - (x2 - w2 * 0.5);
+                x1 -= ov * 0.5;
+                x2 += ov * 0.5;
+            }
+            if x2 + w2 * 0.5 >= xr && v2 > 0.0 {
+                v2 = -v2;
+                x2 = xr - w2 * 0.5;
+            }
+            if x1 - w1 * 0.5 <= xl && v1 < 0.0 {
+                v1 = -v1;
+                x1 = xl + w1 * 0.5;
+            }
+        }
+    }
+    frames
+}
+
+/// Trajectory of a bullet fired into a block (perfectly inelastic — it embeds):
+/// `[x_b,v_b,x_block,v_block]` per frame. Both phases are constant-velocity, so it
+/// is exact in closed form; on contact `collide_1d(e=0)` gives the common velocity
+/// m_b·v_b/(m_b+M). The frames are **time-warped** — 55% of them slow-mo the (very
+/// short) flight so the bullet's journey is watchable, the rest cover the crawl.
+fn sim_bulletblock(mb: f32, vb: f32, mbig: f32, track: f32, w_block: f32) -> Vec<[f32; 4]> {
+    let xr = track;
+    let x_start = 0.35f32; // muzzle
+    let xk0 = track * 0.60; // block sits right-of-centre — plenty of runway
+    let v_after = mb * vb / (mb + mbig); // collide_1d(e=0) common velocity
+    let t_embed = (xk0 - w_block * 0.5 - x_start) / vb;
+    let t_stop = t_embed + (xr - w_block * 0.5 - xk0) / v_after.max(0.05);
+    let nf = (SAMPLES as f32 * 0.55) as usize; // frames spent on the flight (slow-mo)
+    let nc = (SAMPLES - nf).max(1);
+    let mut frames = Vec::with_capacity(SAMPLES + 1);
+    for i in 0..=SAMPLES {
+        let t = if i <= nf {
+            t_embed * i as f32 / nf as f32
+        } else {
+            t_embed + (t_stop - t_embed) * (i - nf) as f32 / nc as f32
+        };
+        if t < t_embed {
+            frames.push([x_start + vb * t, vb, xk0, 0.0]); // bullet flies, block at rest
+        } else {
+            let xk = (xk0 + v_after * (t - t_embed)).min(xr - w_block * 0.5);
+            let vk = if xk >= xr - w_block * 0.5 - 1e-3 { 0.0 } else { v_after };
+            frames.push([xk - w_block * 0.5 + 0.04, vk, xk, vk]); // embedded, crawling
+        }
+    }
+    frames
+}
+
+/// `collideblocks(id, [center], [m1], [m2], [restitution], [unit])` — the classic
+/// momentum demo. Block 1 (left) is **attached to the wall by a spring**; block 2
+/// (right) slides in freely and they collide with restitution `e` (default 1 =
+/// elastic → total mechanical energy conserved; <1 → energy lost), block 2 also
+/// bouncing off the right wall. A live **Σp readout** (`{id}.mom`) shows momentum
+/// is conserved at each collision. `center` is the track midpoint (default
+/// `(cx, 430)`). Lays out `{id}.floor/.wallL/.wallR/.spring/.block1/.block2/.mom`.
+/// Animate with `run(id)`; `energygraph` shows KE ↔ spring PE.
+fn c_collideblocks(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 430.0) };
+    let m1 = a.opt_num(2)?.unwrap_or(3.0).max(0.1);
+    let m2 = a.opt_num(3)?.unwrap_or(1.0).max(0.1);
+    let e = a.opt_num(4)?.unwrap_or(1.0).clamp(0.0, 1.0);
+    let unit = a.opt_num(5)?.unwrap_or(100.0);
+    let (track, k) = (6.0f32, 60.0f32);
+    let (w1, w2) = (0.4 + 0.16 * m1.sqrt(), 0.4 + 0.16 * m2.sqrt());
+    let frames = sim_collideblocks(m1, m2, e, track, w1, w2, k);
+    let sx = |wx: f32| center.x - track * 0.5 * unit + wx * unit;
+    let floor_y = center.y;
+    let (hw1, hw2) = (w1 * 0.5 * unit, w2 * 0.5 * unit);
+    let b1_pts: Vec<Vec2> = frames.iter().map(|f| Vec2::new(sx(f[0]), floor_y - hw1)).collect();
+    let b2_pts: Vec<Vec2> = frames.iter().map(|f| Vec2::new(sx(f[2]), floor_y - hw2)).collect();
+    let coil_end: Vec<Vec2> = frames.iter().map(|f| Vec2::new(sx(f[0]) - hw1, floor_y - hw1)).collect();
+    // KE of both blocks + the spring's potential energy — conserved when elastic
+    let energy = frames.iter().map(|f| (0.5 * m1 * f[1] * f[1] + 0.5 * m2 * f[3] * f[3], 0.5 * k * (f[0] - CB_X1_EQ).powi(2))).collect();
+    let momentum: Vec<Vec2> = frames.iter().map(|f| Vec2::new(m1 * f[1] + m2 * f[3], 0.0)).collect();
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut floor = Entity::new(format!("{id}.floor"), Shape::Line { to: Vec2::new(sx(track), floor_y) }, Vec2::new(sx(0.0), floor_y), style::FG);
+    floor.stroke.width = 3.0;
+    floor.tags = ct();
+    s.add(floor);
+    for (wid, x) in [(format!("{id}.wallL"), sx(0.0)), (format!("{id}.wallR"), sx(track))] {
+        let mut w = Entity::new(wid, Shape::Line { to: Vec2::new(x, floor_y - 150.0) }, Vec2::new(x, floor_y), style::DIM);
+        w.stroke.width = 5.0;
+        w.tags = ct();
+        s.add(w);
+    }
+    // the spring: left wall → block 1's left edge (stretches/compresses as it moves)
+    let mut spring = Entity::new(format!("{id}.spring"), Shape::Coil { to: coil_end[0], turns: 8 }, Vec2::new(sx(0.0), floor_y - hw1), style::LIME);
+    spring.stroke.width = 3.0;
+    spring.tags = ct();
+    s.add(spring);
+    for (bid, p0, wpx, col) in [(format!("{id}.block1"), b1_pts[0], w1 * unit, style::CYAN), (format!("{id}.block2"), b2_pts[0], w2 * unit, style::MAGENTA)] {
+        let mut e2 = Entity::new(bid, Shape::Rect { w: wpx, h: wpx }, p0, col);
+        e2.stroke.fill = true;
+        e2.stroke.outline = false;
+        e2.tags = ct();
+        s.add(e2);
+    }
+    let mut lbl = Entity::new(format!("{id}.elabel"), Shape::Text { content: format!("e = {e:.1}"), size: 16.0 }, Vec2::new(center.x, floor_y - 168.0), style::DIM);
+    lbl.tags = ct();
+    s.add(lbl);
+    // the live momentum readout — conserved at each collision
+    let mcounter = crate::primitives::Counter { value: momentum[0].x, decimals: 1, prefix: "Σp = ".into(), suffix: " kg·m/s".into() };
+    let mut mom = Entity::new(format!("{id}.mom"), Shape::Text { content: mcounter.render(), size: 22.0 }, Vec2::new(center.x, 46.0), style::GOLD);
+    mom.counter = Some(mcounter);
+    mom.tags = ct();
+    s.add(mom);
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.block1"), prop: Prop::Pos, points: b1_pts },
+        PlaybackTrack { id: format!("{id}.block2"), prop: Prop::Pos, points: b2_pts },
+        PlaybackTrack { id: format!("{id}.spring"), prop: Prop::To, points: coil_end },
+        PlaybackTrack { id: format!("{id}.mom"), prop: Prop::Value, points: momentum },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["x".into(), "v".into()], phase_xy: None, pos_var: None,
+        well: Vec::new(), energy, dt: 7.0 / SAMPLES as f32, states: Vec::new(),
+    });
+    Ok(())
+}
+
+/// `bulletblock(id, [center], [bulletmass], [speed], [blockmass], [unit])` — a
+/// bullet fired into a block **embeds** (perfectly inelastic). The combined mass
+/// crawls off at m_b·v_b/(m_b+M) — a dramatic speed drop, most of the kinetic
+/// energy lost to the collision (`energygraph`'s total STEPS DOWN at impact).
+/// `center` is the track midpoint (default `(cx, 430)`). Lays out `{id}.floor/
+/// .block/.bullet`. Animate with `run(id)`.
+fn c_bulletblock(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 430.0) };
+    let mb = a.opt_num(2)?.unwrap_or(0.05).max(0.001);
+    let vb = a.opt_num(3)?.unwrap_or(40.0).max(1.0);
+    let mbig = a.opt_num(4)?.unwrap_or(1.95).max(0.1);
+    let unit = a.opt_num(5)?.unwrap_or(150.0);
+    let track = 6.0f32;
+    let w_block = 0.5 + 0.12 * mbig.sqrt();
+    let frames = sim_bulletblock(mb, vb, mbig, track, w_block);
+    let sx = |wx: f32| center.x - track * 0.5 * unit + wx * unit;
+    let floor_y = center.y;
+    let bullet_y = floor_y - w_block * 0.5 * unit;
+    let block_pts: Vec<Vec2> = frames.iter().map(|f| Vec2::new(sx(f[2]), bullet_y)).collect();
+    let bullet_pts: Vec<Vec2> = frames.iter().map(|f| Vec2::new(sx(f[0]), bullet_y)).collect();
+    // KE of the whole system (bullet + block); steps down at the inelastic impact
+    let energy = frames.iter().map(|f| (0.5 * mb * f[1] * f[1] + 0.5 * mbig * f[3] * f[3], 0.0)).collect();
+    let speed: Vec<Vec2> = frames.iter().map(|f| Vec2::new(f[1], 0.0)).collect(); // the projectile's speed
+
+    let parts = format!("{id}.parts");
+    let ct = || vec![id.clone(), parts.clone()];
+    let mut floor = Entity::new(format!("{id}.floor"), Shape::Line { to: Vec2::new(sx(track), floor_y) }, Vec2::new(sx(0.0), floor_y), style::FG);
+    floor.stroke.width = 3.0;
+    floor.tags = ct();
+    s.add(floor);
+    let bw = w_block * unit;
+    let mut block = Entity::new(format!("{id}.block"), Shape::Rect { w: bw, h: bw }, block_pts[0], style::CYAN);
+    block.stroke.fill = true;
+    block.stroke.outline = false;
+    block.tags = ct();
+    s.add(block);
+    let mut bullet = Entity::new(format!("{id}.bullet"), Shape::Circle { r: 11.0 }, bullet_pts[0], style::RED);
+    bullet.stroke.fill = true;
+    bullet.stroke.outline = false;
+    bullet.glow = 1.6;
+    bullet.tags = ct();
+    s.add(bullet);
+    // live speed readout: the projectile's speed crashes at impact
+    let vcounter = crate::primitives::Counter { value: speed[0].x, decimals: 0, prefix: "v = ".into(), suffix: " m/s".into() };
+    let mut vel = Entity::new(format!("{id}.vel"), Shape::Text { content: vcounter.render(), size: 24.0 }, Vec2::new(center.x, floor_y - 150.0), style::RED);
+    vel.counter = Some(vcounter);
+    vel.tags = ct();
+    s.add(vel);
+
+    let playback = vec![
+        PlaybackTrack { id: format!("{id}.block"), prop: Prop::Pos, points: block_pts },
+        PlaybackTrack { id: format!("{id}.bullet"), prop: Prop::Pos, points: bullet_pts },
+        PlaybackTrack { id: format!("{id}.vel"), prop: Prop::Value, points: speed },
+    ];
+    s.sims.insert(id, SimData {
+        playback, labels: vec!["x".into(), "v".into()], phase_xy: None, pos_var: None,
+        well: Vec::new(), energy, dt: 4.0 / SAMPLES as f32, states: Vec::new(),
+    });
+    Ok(())
+}
+
 /// `dropmass(id, [center], [dropheight], [unit])` — a mass dropped onto a block
 /// resting on a spring: it free-falls, sticks in a perfectly **inelastic
 /// collision** (energy is lost — the energy total steps down), then the heavier
@@ -4419,6 +4872,10 @@ pub fn register(r: &mut Registry) {
     r.ctor("inclinebumper", c_inclinebumper);
     r.ctor("springchain", c_springchain);
     r.ctor("looptrack", c_looptrack);
+    r.ctor("stringwave", c_stringwave);
+    r.ctor("newtonscradle", c_newtonscradle);
+    r.ctor("collideblocks", c_collideblocks);
+    r.ctor("bulletblock", c_bulletblock);
     r.ctor("dropmass", c_dropmass);
     r.ctor("raft", c_raft);
     r.ctor("brachistochrone", c_brachistochrone);
@@ -4909,6 +5366,88 @@ mod tests {
         )
         .unwrap();
         for sub in ["sc.block1", "sc.block2", "sc.block3", "sc.spring1", "sc.spring2", "lt.ramp", "lt.loop", "lt.ball", "lt.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// String wave: the undamped discretised wave equation conserves energy, the
+    /// pulse redistributes off its starting shape (it travels), and the ctor builds
+    /// its rainbow chain of segments.
+    #[test]
+    fn string_wave_propagates() {
+        let sw = StringWave { n: 24, k: 220.0, m: 0.3, damping: 0.0, pluck: 0.3 };
+        let traj = ode::integrate(&sw.state0(), 0.001, 3000, |s, d| sw.deriv(s, d));
+        let e0 = sw.energy(&traj[0]).total();
+        for s in &traj {
+            assert!((sw.energy(s).total() - e0).abs() / e0.abs().max(1e-3) < 0.03, "string energy drift");
+        }
+        // the shape changes: the far-right mass's displacement swings away from its
+        // small initial value as the pulse reaches it (a travelling wave)
+        let far = (0.85 * 25.0) as usize; // a mass near the right end
+        let y_start = traj[0][(far - 1) * 2];
+        let moved = traj.iter().any(|s| (s[(far - 1) * 2] - y_start).abs() > 0.15);
+        assert!(moved, "the pulse should reach and move the far end");
+        let m = crate::parse("canvas(\"16:9\");\nstringwave(sw,(640,360));\nenergygraph(sw,(1050,180),90);\nrun(sw,8);\n").unwrap();
+        for sub in ["sw.seg0", "sw.seg18", "sw.postL", "sw.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// The 1-D collision resolver: elastic swaps equal masses & conserves KE,
+    /// inelastic merges to the common velocity, momentum is always conserved; and
+    /// Newton's cradle (built on it) conserves its energy and lays out its balls.
+    #[test]
+    fn collisions_resolver_and_cradle() {
+        // equal-mass elastic ⇒ velocity swap
+        assert_eq!(collide_1d(1.0, 5.0, 1.0, 0.0, 1.0), (0.0, 5.0));
+        // perfectly inelastic ⇒ common velocity (momentum / total mass)
+        let (a, b) = collide_1d(1.0, 5.0, 1.0, 0.0, 0.0);
+        assert!((a - 2.5).abs() < 1e-5 && (b - 2.5).abs() < 1e-5);
+        // unequal elastic: momentum AND kinetic energy conserved
+        let (v1, v2) = collide_1d(2.0, 3.0, 1.0, 0.0, 1.0);
+        assert!((2.0 * v1 + 1.0 * v2 - 6.0).abs() < 1e-4, "momentum conserved");
+        assert!((v1 * v1 + 0.5 * v2 * v2 - 9.0).abs() < 1e-3, "elastic ⇒ KE conserved");
+
+        let m = crate::parse("canvas(\"16:9\");\nnewtonscradle(nc,(640,150),5,1);\nenergygraph(nc,(1000,300),100);\nrun(nc,6);\n").unwrap();
+        for sub in ["nc.bar", "nc.ball0", "nc.ball4", "nc.string0", "nc.energy.c0"] {
+            assert!(m.base().contains(sub), "missing `{sub}`");
+        }
+        assert!(m.validate().is_ok());
+    }
+
+    /// Verify the collision sims' physics: elastic blocks conserve total kinetic
+    /// energy over the whole run (collisions + elastic walls); inelastic blocks
+    /// lose it; and the embedded bullet leaves at exactly m_b·v_b/(m_b+M) with
+    /// most of the kinetic energy gone. Both ctors build.
+    #[test]
+    fn collide_blocks_and_bullet_physics() {
+        let (m1, m2, k) = (3.0f32, 1.0f32, 60.0f32);
+        // total mechanical energy = both blocks' KE + block 1's spring PE
+        let total = |f: &[f32; 4]| 0.5 * m1 * f[1] * f[1] + 0.5 * m2 * f[3] * f[3] + 0.5 * k * (f[0] - CB_X1_EQ).powi(2);
+        // elastic (e = 1): total mechanical energy conserved across the whole run
+        let fr = sim_collideblocks(m1, m2, 1.0, 6.0, 0.68, 0.56, k);
+        let e0 = total(&fr[0]);
+        for f in &fr {
+            assert!((total(f) - e0).abs() < 0.03 * e0, "elastic ⇒ total mechanical energy conserved");
+        }
+        assert!(fr.iter().any(|f| f[1].abs() > 0.5), "a collision actually happens (block 1 gets moving)");
+        // inelastic (e = 0.6): energy is lost — the run ends below where it started
+        let fi = sim_collideblocks(m1, m2, 0.6, 6.0, 0.68, 0.56, k);
+        assert!(total(fi.last().unwrap()) < 0.9 * e0, "inelastic ⇒ energy lost");
+
+        // bullet embeds: combined velocity = m_b·v_b/(m_b+M); most KE lost
+        let (mb, vb, mbig) = (0.05f32, 40.0f32, 1.95f32);
+        let fb = sim_bulletblock(mb, vb, mbig, 6.0, 0.67);
+        let v_expected = mb * vb / (mb + mbig);
+        let v_after = fb.iter().map(|f| f[3]).fold(0.0f32, f32::max);
+        assert!((v_after - v_expected).abs() < 0.05, "combined v = m_b·v_b/(m_b+M): {v_after} vs {v_expected}");
+        let (ke_before, ke_after) = (0.5 * mb * vb * vb, 0.5 * (mb + mbig) * v_after * v_after);
+        assert!(ke_after < 0.1 * ke_before, "the inelastic embed loses most of the KE ({ke_after} vs {ke_before})");
+
+        let m = crate::parse("canvas(\"16:9\");\ncollideblocks(cb,(640,430),3,1);\nbulletblock(bb,(640,430));\nenergygraph(cb,(1000,250),90);\nrun(cb,6);\n").unwrap();
+        for sub in ["cb.block1", "cb.block2", "cb.wallL", "cb.spring", "cb.mom", "cb.energy.c0", "bb.bullet", "bb.block"] {
             assert!(m.base().contains(sub), "missing `{sub}`");
         }
         assert!(m.validate().is_ok());

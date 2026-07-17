@@ -90,7 +90,7 @@ Pendulum family: `pendulum` · `doublependulum` · `springpendulum` · `kapitza`
 `springincline` · `bungee` · `resonance` · `doublespring` · `seriesparallel` ·
 `carsuspension`. Mechanics: `robotarm` · `piston` · `molecule` · `ramp` (with a `forces(id)`
 free-body diagram) · `inclinepulley` · `doubleincline` · `inclinebumper` ·
-`springchain` · `looptrack` (a curved-track loop-the-loop) · `dropmass` · `raft` ·
+`springchain` · `looptrack` (a curved-track loop-the-loop) · `stringwave` (a wave on a string) · `newtonscradle` · `collideblocks` · `bulletblock` (event-driven collisions) · `dropmass` · `raft` ·
 `brachistochrone`. Pulleys: `pulley` (Atwood) ·
 `pulleyscale` (reads the tension) · `blocktackle` (N-strand block & tackle) ·
 `compoundpulley` (fixed + movable, masses A/B/C).
@@ -98,6 +98,33 @@ free-body diagram) · `inclinepulley` · `doubleincline` · `inclinebumper` ·
 Because a sim's parts are ordinary entities, any base look composes over them —
 e.g. `template("paper")` + a hatched `support` turns a pulley or spring into a
 textbook figure (see [Elevating a scene](elevating.md) and the `*-paper` examples).
+
+## optics
+
+Light as geometry, with the **real physics underneath** — Snell's law, Sellmeier
+dispersion, and full spherical/aspheric ray tracing — so the bending, the colours
+and the focus are earned, not painted. Each builtin is static geometry that
+animates by a **parameter sweep** (`run(id)`) or by sketching its rays on
+(`draw(id.rays)`).
+
+```manic
+refract(r, (640, 380), 1.0, 1.52);   run(r, 7);   // Snell's law; run sweeps the angle (→ TIR)
+lens(l, (620, 360));                 run(l, 7);   // parallel rays → a focal point
+prism(p, (560, 400), "sf11");        run(p, 7);   // white light → a real rainbow (dispersion)
+```
+
+Foundations: `refract` (Snell + total internal reflection) · `lens` (a converging
+thin lens). Dispersion: `prism` (white → spectrum) · `achromat` (chromatic
+aberration → the doublet fix). Real lenses: `lenssystem(id, [center], [preset],
+[object])` traces a **prescription** through its actual spherical/aspheric
+surfaces — pick a design by name (`"singlet"`, `"plano-convex"`, `"aspheric"`,
+`"doublet"`, `"triplet"`) **or** write your own surface table
+`"radius thickness glass [conic] [aperture] | …"`; an optional finite `object`
+distance images a nearby point. Analysis: `rayfan` (the ray-fan aberration plot) ·
+`spotdiagram` (the on-axis spot at focus) · `fieldspot(id, [center], [preset],
+[field])` (the **off-axis** spot — a coma comet / astigmatic blur, with an
+Airy-disk diffraction-limit overlay). A rainbow glows on the dark bench; the
+geometric ray diagrams also take `template("paper")` for a textbook look.
 
 ---
 
