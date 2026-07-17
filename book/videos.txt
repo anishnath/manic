@@ -199,19 +199,19 @@ ex-bullet-impact|WdfMyqJdwK8|Impact — Cinematic Scene + Real Physics, Fused �
 ex-loop-cinematic|knRtBYXHaYc|Loop the Loop — Cinematic Scene + Real Physics — manic
 ex-refraction|kcokHJq6plQ|Refraction — Snell's Law You Can Watch — manic
 ex-lens|kpgwBBQ-occ|Converging Lens — Where Light Focuses — manic
-ex-prism|PLACEHOLDER|Prism — White Light Splits into a Rainbow (Real Dispersion) — manic
-ex-achromat|PLACEHOLDER|Chromatic Aberration & the Achromatic Doublet — manic
-ex-refraction-paper|PLACEHOLDER|Snell's Law — a Physics Textbook Figure, Animated — manic
-ex-lens-paper|PLACEHOLDER|Converging Lens — Textbook Ray Diagram — manic
-ex-prism-cinematic|PLACEHOLDER|Prism — White Light into a Rainbow (Cinematic) — manic
-ex-achromat-cinematic|PLACEHOLDER|Chromatic Aberration, Magnified — the Achromat Fix — manic
-ex-lens-system|PLACEHOLDER|Spherical Aberration — a Real Lens, Ray-Traced — manic
-ex-ray-fan|PLACEHOLDER|Reading a Lens Aberration — the Ray-Fan Plot — manic
-ex-spot-diagram|PLACEHOLDER|Spot Diagram — a Lens Blur vs a Point — manic
-ex-lens-prescription|PLACEHOLDER|Type Your Own Lens — a Prescription, Ray-Traced — manic
-ex-aspheric-lens|PLACEHOLDER|Aspheric Lens — How a Conic Surface Kills Spherical Aberration — manic
-ex-off-axis|PLACEHOLDER|Coma & Astigmatism — Why Off-Axis Is the Hard Test — manic
+ex-prism|NO1Iuf12wC4|Prism — White Light Splits into a Rainbow (Real Dispersion) — manic
+ex-achromat|TVSbwocwH-k|Chromatic Aberration & the Achromatic Doublet — manic
+ex-refraction-paper|SLUkDhyC02U|Snell's Law — a Physics Textbook Figure, Animated — manic
+ex-lens-paper|1F1D5NyF3hM|Converging Lens — Textbook Ray Diagram — manic
+ex-prism-cinematic|9TZyP0BBU3E|Prism — White Light into a Rainbow (Cinematic) — manic
+ex-achromat-cinematic|TWBpf4pyyuw|Chromatic Aberration, Magnified — the Achromat Fix — manic
+ex-lens-system|cmy2wGOPzpo|Spherical Aberration — a Real Lens, Ray-Traced — manic
+ex-ray-fan|ShMMOCC6ZyM|Reading a Lens Aberration — the Ray-Fan Plot — manic
+ex-spot-diagram|TVT1YqfN8xg|Spot Diagram — a Lens Blur vs a Point — manic
+ex-lens-prescription|PLU_nUEZq4w|Type Your Own Lens — a Prescription, Ray-Traced — manic
+ex-aspheric-lens|pYk9v2B9S7g|Aspheric Lens — How a Conic Surface Kills Spherical Aberration — manic
+ex-off-axis|LKyW73JMIWU|Coma & Astigmatism — Why Off-Axis Is the Hard Test — manic
 
 # ---- examples: figures & scenes ----
-ex-walk|PLACEHOLDER|A Figure Walking Down the Road — manic
-ex-two_person_walk|PLACEHOLDER|Two Figures Meet, Shake Hands & Walk On — manic
+ex-walk|WCtQngDtvEM|A Figure Walking Down the Road — manic
+ex-two_person_walk|VE7PPnPAufE|Two Figures Meet, Shake Hands & Walk On — manic
