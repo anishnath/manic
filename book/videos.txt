@@ -188,17 +188,17 @@ ex-incline-showcase|toiBa--5AwA|Four Incline Problems, One Paper Page — manic
 ex-loop-track|QX3OjnwYxm0|Loop-the-Loop — Will It Clear the Top? — manic
 ex-spring-chain|seuNwQdBCEY|Coupled Oscillators — Three Blocks, Two Springs, One Beat — manic
 ex-car-suspension-annotated|bUsMlIXFVZ0|Car Suspension — How It Soaks Up the Road — manic
-ex-string-wave|PLACEHOLDER|Wave on a String — Pluck, Travel, Reflect — manic
-ex-newtons-cradle|PLACEHOLDER|Newton's Cradle — Momentum Passes Through — manic
-ex-collide-blocks|PLACEHOLDER|Colliding Blocks — Momentum Conserved, Live — manic
-ex-bullet-block|PLACEHOLDER|A Bullet Embeds in a Block — Where Did the Energy Go? — manic
-ex-collide-blocks-annotated|PLACEHOLDER|Conservation of Momentum — Colliding Blocks, Explained — manic
-ex-bullet-block-annotated|PLACEHOLDER|A Bullet's Journey — Inelastic Collision, Slow-Mo — manic
-ex-gun-shot|PLACEHOLDER|Gun Shot — a Cinematic Scene in manic (No Physics, Just Imagination)
-ex-bullet-impact|PLACEHOLDER|Impact — Cinematic Scene + Real Physics, Fused — manic
-ex-loop-cinematic|PLACEHOLDER|Loop the Loop — Cinematic Scene + Real Physics — manic
-ex-refraction|PLACEHOLDER|Refraction — Snell's Law You Can Watch — manic
-ex-lens|PLACEHOLDER|Converging Lens — Where Light Focuses — manic
+ex-string-wave|a3mbO2WfQZE|Wave on a String — Pluck, Travel, Reflect — manic
+ex-newtons-cradle|RfYmUfnoDPs|Newton's Cradle — Momentum Passes Through — manic
+ex-collide-blocks|cGTI3tfxs5I|Colliding Blocks — Momentum Conserved, Live — manic
+ex-bullet-block|3oL4qYkvSD0|A Bullet Embeds in a Block — Where Did the Energy Go? — manic
+ex-collide-blocks-annotated|2nmDlVDJxUU|Conservation of Momentum — Colliding Blocks, Explained — manic
+ex-bullet-block-annotated|4HCc7iRtZr8|A Bullet's Journey — Inelastic Collision, Slow-Mo — manic
+ex-gun-shot|ffHtyPvtCos|Gun Shot — a Cinematic Scene in manic (No Physics, Just Imagination)
+ex-bullet-impact|WdfMyqJdwK8|Impact — Cinematic Scene + Real Physics, Fused — manic
+ex-loop-cinematic|knRtBYXHaYc|Loop the Loop — Cinematic Scene + Real Physics — manic
+ex-refraction|kcokHJq6plQ|Refraction — Snell's Law You Can Watch — manic
+ex-lens|kpgwBBQ-occ|Converging Lens — Where Light Focuses — manic
 ex-prism|PLACEHOLDER|Prism — White Light Splits into a Rainbow (Real Dispersion) — manic
 ex-achromat|PLACEHOLDER|Chromatic Aberration & the Achromatic Doublet — manic
 ex-refraction-paper|PLACEHOLDER|Snell's Law — a Physics Textbook Figure, Animated — manic
