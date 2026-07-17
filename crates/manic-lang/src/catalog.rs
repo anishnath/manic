@@ -246,6 +246,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             &[("id", Ident, R), ("size", Num, R)],
         ),
         spec(
+            "wrap",
+            Ctor,
+            "std",
+            "wrap a text/caption/$…$ label to a width (px), breaking at word boundaries; inline math stays atomic",
+            &[("id", Ident, R), ("width", Num, R)],
+        ),
+        spec(
             "stroke",
             Ctor,
             "std",

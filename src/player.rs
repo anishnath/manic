@@ -270,8 +270,16 @@ pub async fn run_loop(mut movie: Movie) {
         let mut paths: Vec<String> = Vec::new();
         let mut collect = |sc: &crate::scene::Scene| {
             for e in &sc.entities {
-                if let crate::primitives::Shape::Image { path, .. } = &e.shape {
-                    paths.push(path.clone());
+                match &e.shape {
+                    crate::primitives::Shape::Image { path, .. } => paths.push(path.clone()),
+                    crate::primitives::Shape::RichText { runs, .. } => {
+                        for r in runs {
+                            if let crate::primitives::TextRun::Math { path, .. } = r {
+                                paths.push(path.clone());
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
         };

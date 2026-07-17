@@ -16,8 +16,10 @@ use ratex_types::color::Color;
 use ratex_types::display_item::DisplayItem;
 
 /// Render `latex` to a white-on-transparent PNG at `em_px` em-size and `dpr`
-/// pixel density. Returns the PNG bytes plus its pixel width/height.
-pub fn render_png(latex: &str, em_px: f32, dpr: f32) -> Result<(Vec<u8>, u32, u32), String> {
+/// pixel density. Returns the PNG bytes, its pixel width/height, and the baseline
+/// offset (pixels from the top of the image down to the math baseline — for
+/// inline alignment with surrounding text).
+pub fn render_png(latex: &str, em_px: f32, dpr: f32) -> Result<(Vec<u8>, u32, u32, f32), String> {
     let nodes = ratex_parser::parse(latex).map_err(|e| format!("{e:?}"))?;
     let lbox = ratex_layout::layout(&nodes, &ratex_layout::LayoutOptions::default());
     let mut dl = ratex_layout::to_display_list(&lbox);
@@ -47,7 +49,8 @@ pub fn render_png(latex: &str, em_px: f32, dpr: f32) -> Result<(Vec<u8>, u32, u3
     let pad_px = pad * dpr;
     let w = ((dl.width as f32) * em + 2.0 * pad_px).ceil().max(1.0) as u32;
     let h = ((dl.height + dl.depth) as f32 * em + 2.0 * pad_px).ceil().max(1.0) as u32;
-    Ok((png, w, h))
+    let baseline = (dl.height as f32) * em + pad_px; // top → baseline, in pixels
+    Ok((png, w, h, baseline))
 }
 
 /// Write `png` to a stable per-content cache file and return its path. Keyed by

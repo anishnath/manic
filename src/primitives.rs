@@ -4,6 +4,15 @@
 use macroquad::prelude::{Color, Vec2};
 
 /// What an [`Entity`] looks like. Positions inside a shape (e.g. `to`,
+/// One run of a [`Shape::RichText`] line: either a plain-text span (drawn with
+/// the entity's font/colour) or a pre-rendered math image (a cached RaTeX PNG
+/// with its logical width/height and the baseline offset from its top).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextRun {
+    Text(String),
+    Math { path: String, w: f32, h: f32, baseline: f32 },
+}
+
 /// polygon points) are in absolute scene coordinates; `Entity::pos` is added
 /// as an offset for polygons and is the anchor/centre for everything else.
 #[derive(Debug, Clone, PartialEq)]
@@ -56,6 +65,11 @@ pub enum Shape {
     /// glyph image like a rendered equation, so it takes the template colour);
     /// when false it draws at full colour (photos/logos).
     Image { path: String, w: f32, h: f32, tint: bool },
+    /// **Mixed text + inline math** on one line: a sequence of plain-text and
+    /// pre-rendered math runs, laid out left-to-right and baseline-aligned at
+    /// render time. Built by the inline-`$…$` pass from a `Shape::Text` whose
+    /// content has embedded math. `size` is the em height.
+    RichText { runs: Vec<TextRun>, size: f32 },
 }
 
 /// Horizontal anchoring for [`Shape::Text`].

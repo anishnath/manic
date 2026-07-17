@@ -9,7 +9,7 @@ use macroquad::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::primitives::{Align, Entity, FontKind, Shape};
+use crate::primitives::{Align, Entity, FontKind, Shape, TextRun};
 use crate::scene::Scene;
 use crate::style::{self, Fonts};
 
@@ -762,6 +762,148 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 draw_rectangle_lines(x, y, dw, dh, 2.0 * lw, outline);
                 draw_line(x, y, x + dw, y + dh, lw, outline);
                 draw_line(x + dw, y, x, y + dh, lw, outline);
+            }
+        }
+        Shape::RichText { runs, size } => {
+            // Mixed text + inline math, baseline-aligned, with word-WRAP: text
+            // breaks at spaces, math runs are atomic. Text draws with the entity
+            // font/colour; math runs are pre-rendered PNGs tinted by the colour.
+            let scale = e.scale * k;
+            let phys = size * scale;
+            let raster = (size * view.ss).max(1.0);
+            let font_size = raster.round() as u16;
+            let font_scale = phys.max(0.01) / font_size as f32;
+            let font = font_of(fonts, e.font);
+            let measure = |t: &str| measure_text(t, font, font_size, font_scale).width;
+            let space_w = measure(" ");
+            let wrap_w = e.wrap.map(|w| w * k).unwrap_or(f32::INFINITY);
+
+            // 1) tokenise the runs into words / spaces / math atoms
+            enum Tok {
+                Word(String),
+                Space,
+                Math(usize), // index into `runs`
+            }
+            let mut toks: Vec<Tok> = Vec::new();
+            for (ri, r) in runs.iter().enumerate() {
+                match r {
+                    TextRun::Text(s) => {
+                        let mut word = String::new();
+                        for ch in s.chars() {
+                            if ch.is_whitespace() {
+                                if !word.is_empty() {
+                                    toks.push(Tok::Word(std::mem::take(&mut word)));
+                                }
+                                if !matches!(toks.last(), Some(Tok::Space)) {
+                                    toks.push(Tok::Space);
+                                }
+                            } else {
+                                word.push(ch);
+                            }
+                        }
+                        if !word.is_empty() {
+                            toks.push(Tok::Word(word));
+                        }
+                    }
+                    TextRun::Math { .. } => toks.push(Tok::Math(ri)),
+                }
+            }
+            let width_of = |t: &Tok| match t {
+                Tok::Word(w) => measure(w),
+                Tok::Space => space_w,
+                Tok::Math(i) => match &runs[*i] {
+                    TextRun::Math { w, .. } => w * scale,
+                    _ => 0.0,
+                },
+            };
+
+            // 2) greedy line-break (break before a word/math that overflows; a
+            //    trailing space at the break is dropped)
+            let mut lines: Vec<Vec<usize>> = vec![vec![]];
+            let mut cur_w = 0.0;
+            for (ti, t) in toks.iter().enumerate() {
+                let tw = width_of(t);
+                let line = lines.last_mut().unwrap();
+                if matches!(t, Tok::Space) {
+                    if !line.is_empty() {
+                        line.push(ti);
+                        cur_w += tw;
+                    }
+                } else {
+                    if !line.is_empty() && cur_w + tw > wrap_w {
+                        if matches!(lines.last().unwrap().last().map(|&j| &toks[j]), Some(Tok::Space)) {
+                            lines.last_mut().unwrap().pop();
+                        }
+                        lines.push(vec![ti]);
+                        cur_w = tw;
+                    } else {
+                        lines.last_mut().unwrap().push(ti);
+                        cur_w += tw;
+                    }
+                }
+            }
+
+            // 3) PER-LINE metrics: each line is only as tall as its own content
+            //    (text ascent/descent, or a tall fraction/integral where present),
+            //    so text-only lines stay tight and math lines get just enough room.
+            let ascent = measure_text("Xg", font, font_size, font_scale).offset_y;
+            let descent = phys * 0.22;
+            let gap = phys * 0.16;
+            let metrics: Vec<(f32, f32)> = lines
+                .iter()
+                .map(|line| {
+                    let (mut above, mut below) = (ascent, descent);
+                    for &j in line {
+                        if let Tok::Math(i) = &toks[j] {
+                            if let TextRun::Math { h, baseline, .. } = &runs[*i] {
+                                above = above.max(baseline * scale);
+                                below = below.max((h - baseline) * scale);
+                            }
+                        }
+                    }
+                    (above, below)
+                })
+                .collect();
+            let total_h: f32 = metrics.iter().map(|(a, b)| a + b + gap).sum();
+            let mut y = p.y - total_h / 2.0;
+            for (li, line) in lines.iter().enumerate() {
+                let (above, below) = metrics[li];
+                let line_w: f32 = line.iter().map(|&j| width_of(&toks[j])).sum();
+                let mut x = match e.align {
+                    Align::Center => p.x - line_w / 2.0,
+                    Align::Left => p.x,
+                };
+                let baseline_y = y + above;
+                y += above + below + gap;
+                for &j in line {
+                    match &toks[j] {
+                        Tok::Space => x += space_w,
+                        Tok::Word(w) => {
+                            draw_text_ex(
+                                w,
+                                x,
+                                baseline_y,
+                                TextParams { font, font_size, font_scale, font_scale_aspect: 1.0, rotation: 0.0, color: stroke_c },
+                            );
+                            x += measure(w);
+                        }
+                        Tok::Math(i) => {
+                            if let TextRun::Math { path, w, h, baseline } = &runs[*i] {
+                                let (dw, dh) = (w * scale, h * scale);
+                                if let Some(tex) = get_texture(path) {
+                                    draw_texture_ex(
+                                        &tex,
+                                        x,
+                                        baseline_y - baseline * scale,
+                                        stroke_c,
+                                        DrawTextureParams { dest_size: Some(vec2(dw, dh)), ..Default::default() },
+                                    );
+                                }
+                                x += dw;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

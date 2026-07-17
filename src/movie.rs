@@ -19,6 +19,55 @@ pub const CAMERA_ID: &str = "__cam";
 /// Reserved id of the optional animatable 3D orbit camera.
 pub const CAMERA3_ID: &str = "__cam3";
 
+/// If `s` (trimmed) is exactly one `$…$` span with no interior `$`, return the
+/// inner LaTeX. Phase 2a handles WHOLE-label math only (a caption that *is* a
+/// formula); mixed runs (`"KE = $\frac12 mv^2$"`) come in 2b. Returns `None` for
+/// plain text — so it's never touched.
+pub(crate) fn whole_math_span(s: &str) -> Option<&str> {
+    let inner = s.trim().strip_prefix('$')?.strip_suffix('$')?;
+    (!inner.is_empty() && !inner.contains('$')).then_some(inner)
+}
+
+/// A build-time run before math is rendered: plain text or a LaTeX span.
+enum RawRun {
+    Text(String),
+    Math(String),
+}
+
+/// Split a string into alternating text / `$…$` math runs. `\$` is a literal
+/// dollar; every other backslash is kept (for LaTeX). An unmatched `$` and its
+/// tail fall back to literal text (never drops characters).
+fn split_math_runs(s: &str) -> Vec<RawRun> {
+    let mut runs = Vec::new();
+    let mut buf = String::new();
+    let mut in_math = false;
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if chars.peek() == Some(&'$') => {
+                buf.push('$'); // escaped literal dollar
+                chars.next();
+            }
+            '\\' => buf.push('\\'), // keep the backslash for LaTeX
+            '$' => {
+                if in_math {
+                    runs.push(RawRun::Math(std::mem::take(&mut buf)));
+                } else if !buf.is_empty() {
+                    runs.push(RawRun::Text(std::mem::take(&mut buf)));
+                }
+                in_math = !in_math;
+            }
+            _ => buf.push(c),
+        }
+    }
+    if in_math {
+        runs.push(RawRun::Text(format!("${buf}"))); // unmatched → literal
+    } else if !buf.is_empty() {
+        runs.push(RawRun::Text(buf));
+    }
+    runs
+}
+
 /// A complete animation: base scene + placed clips + metadata.
 pub struct Movie {
     /// Shown in the header of every frame and as the window title.
@@ -74,6 +123,63 @@ impl Movie {
     /// to look up existing entities, e.g. resolving an id to a position).
     pub fn base(&self) -> &Scene {
         &self.scene
+    }
+
+    /// Build post-pass — **inline LaTeX in ANY text**. Every base-scene
+    /// `Shape::Text` whose content is a single `$…$` math span (a label/caption
+    /// that *is* a formula) is typeset via RaTeX and becomes a colour-tinted
+    /// equation image. This is what makes LaTeX holistic: `text`/`caption`/`say`
+    /// and every kit label (geo points, quiz options, …) get it for free, with
+    /// **zero per-kit code**. Plain text (no `$`) is byte-identically untouched;
+    /// bad LaTeX is left as literal text (never panics or aborts the build).
+    pub(crate) fn typeset_inline_math(&mut self) {
+        use crate::primitives::{Align, TextRun};
+        let dpr = 2.0;
+        // Render one `$…$` math span to a cached PNG → (path, w, h, baseline) in
+        // LOGICAL px. Returns None on bad LaTeX (caller leaves it as text).
+        let render = |latex: &str, size: f32| -> Option<(String, f32, f32, f32)> {
+            let (png, pw, ph, base) = crate::latex::render_png(latex, size, dpr).ok()?;
+            let path = crate::latex::cache_png(latex, size, &png).ok()?;
+            Some((path, pw as f32 / dpr, ph as f32 / dpr, base / dpr))
+        };
+        for e in self.scene.entities.iter_mut() {
+            let (content, size) = match &e.shape {
+                Shape::Text { content, size } => (content.clone(), *size),
+                _ => continue,
+            };
+            // 2a — a WHOLE-`$…$` label becomes a single centred equation image.
+            if let Some(inner) = whole_math_span(&content) {
+                if let Some((path, w, h, _)) = render(inner, size) {
+                    if matches!(e.align, Align::Left) {
+                        e.pos.x += w / 2.0; // Image centres on pos; keep left edge put
+                    }
+                    e.shape = Shape::Image { path, w, h, tint: true };
+                }
+                continue;
+            }
+            // 2b — MIXED text + `$…$` on one line becomes RichText (inline runs).
+            let raw = split_math_runs(&content);
+            if !raw.iter().any(|r| matches!(r, RawRun::Math(_))) {
+                continue; // no math → plain text, untouched
+            }
+            let mut runs = Vec::with_capacity(raw.len());
+            let mut ok = true;
+            for r in raw {
+                match r {
+                    RawRun::Text(t) => runs.push(TextRun::Text(t)),
+                    RawRun::Math(m) => match render(&m, size) {
+                        Some((path, w, h, baseline)) => runs.push(TextRun::Math { path, w, h, baseline }),
+                        None => {
+                            ok = false; // bad LaTeX in a run → leave the whole line as text
+                            break;
+                        }
+                    },
+                }
+            }
+            if ok {
+                e.shape = Shape::RichText { runs, size };
+            }
+        }
     }
 
     /// Start describing an animation act (same as the free [`act()`]).

@@ -88,10 +88,22 @@ Constructors and timeline may be written in any order.
    and takes the template colour. **Put the LaTeX in BACKTICKS** so backslashes
    survive: `` equation(f,(cx,320),`V = \pi r^2 h`,60) ``,
    `` equation(q,(cx,300),`x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`,64) ``. Prefer this
-   over ASCII math on screen. Plain `text(...)` is still mono with NO typesetting —
-   don't put `$...$`/`\frac` in a `text` string; either write it literally
-   (`"x squared"`) or use `equation`. (`equation` is an image: `show`/`fade`/`move`/
-   `scale` animate it; `draw`/trace does not.)
+   over ASCII math on screen. (`equation` is an image: `show`/`fade`/`move`/`scale`
+   animate it; `draw`/trace does not.)
+   **Inline `$…$` in ANY text is auto-typeset — whole OR mixed.** Use a backtick
+   raw string and wrap math in `$…$`; it works in `text`/`caption`/`say` and every
+   kit label (geo points, quiz options, …), takes the entity colour, no `equation`
+   call:
+   - whole label: `` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`,correct) ``,
+     `` point(A,(x,y),`$\alpha$`) ``.
+   - **MIXED text + math on one line** (this is the common case for questions/
+     captions): `` text(t,(x,y),`The area is $\pi r^2$ square units`) ``,
+     `` quiz(q,`What is $\int_0^1 2x\,dx$?`) `` — plain words + inline formula,
+     baseline-aligned.
+   Plain strings (no `$`) are byte-identically unchanged. Mixed lines **wrap** at
+   word boundaries (math stays inline), so long questions/captions with formulas
+   just work. A literal `$` is `\$`. (Inline math is an image → `show`/`fade`/`move`
+   animate it, but not typewriter/`trace`.)
 6. **matrix/table cells are single tokens** separated by whitespace **or commas**
    — so a cell must NOT contain a comma (no coords/tuples like `(0,0)`), no
    multi-word cells, and **every row must have the same number of cells**.

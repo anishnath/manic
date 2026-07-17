@@ -145,7 +145,15 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
         style::FG
     };
     let advance = size * 0.6; // IBM Plex Mono ~0.6 em per glyph
-    let words: Vec<&str> = text.split_whitespace().collect();
+    // Any `$…$` math keeps the caption as ONE unit so the inline-math pass can
+    // typeset it (whole-span → equation image; mixed → RichText). A formula can't
+    // be karaoke'd word-by-word anyway, so this only forgoes word-split on
+    // math-bearing captions.
+    let words: Vec<&str> = if text.contains('$') {
+        vec![text.trim()]
+    } else {
+        text.split_whitespace().collect()
+    };
     let total_chars: usize =
         words.iter().map(|w| w.chars().count()).sum::<usize>() + words.len().saturating_sub(1); // + single spaces
     let x_left = center.x - total_chars as f32 * advance / 2.0;
@@ -460,7 +468,7 @@ fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let latex = a.text(2)?;
     let size = a.opt_num(3)?.unwrap_or(48.0).clamp(6.0, 400.0);
     let dpr = 2.0;
-    let (png, pw, ph) = crate::latex::render_png(&latex, size, dpr)
+    let (png, pw, ph, _baseline) = crate::latex::render_png(&latex, size, dpr)
         .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
     let path = crate::latex::cache_png(&latex, size, &png)
         .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
@@ -683,6 +691,14 @@ fn m_size(s: &mut Scene, a: &Args) -> Result<(), Error> {
     if let Shape::Text { size, .. } = &mut ent_mut(s, a)?.shape {
         *size = n;
     }
+    Ok(())
+}
+
+/// `wrap(id, width)` — wrap a text/caption/`$…$` label to `width` px (breaks at
+/// word boundaries; inline math stays atomic). Without it, text is a single line.
+fn m_wrap(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let w = a.num(1)?.max(1.0);
+    ent_mut(s, a)?.wrap = Some(w);
     Ok(())
 }
 
@@ -1272,6 +1288,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("filled", m_filled);
     r.ctor("outline", m_outline);
     r.ctor("size", m_size);
+    r.ctor("wrap", m_wrap);
     r.ctor("stroke", m_stroke);
     r.ctor("glow", m_glow);
     r.ctor("z", m_z);
@@ -1343,6 +1360,50 @@ mod tests {
         // defaults: w=300 square, and it validates in a scene
         let m2 = crate::parse("canvas(\"16:9\");\nimage(l, (100, 100), \"x.png\");\nshow(l, 0.5);\n").unwrap();
         assert!(m2.validate().is_ok(), "image + show should validate: {:?}", m2.validate().err());
+    }
+
+    /// Holistic inline LaTeX: a whole-`$…$` string in ANY text (plain `text`, a
+    /// geo point label, a `caption`) is typeset to a tinted equation image by the
+    /// build post-pass — with zero per-kit code — while plain text is untouched.
+    #[test]
+    fn inline_dollar_math_typeset_everywhere() {
+        use crate::primitives::Shape;
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             text(plain, (cx, 80), \"just x^2 text\");\n\
+             text(cap, (cx, 200), `$E = mc^2$`);\n\
+             point(A, (cx, 300), `$\\alpha$`);\n\
+             caption(c2, `$\\int_0^1 x\\,dx$`, (cx, 400));\n",
+        )
+        .unwrap();
+        let base = m.base();
+        // plain text (no `$`) is byte-identically untouched → still Text
+        assert!(matches!(base.get("plain").unwrap().shape, Shape::Text { .. }), "plain text must not change");
+        // every whole-`$…$` label became a tinted equation image
+        for id in ["cap", "A.label", "c2.w0"] {
+            match &base.get(id).unwrap_or_else(|| panic!("missing {id}")).shape {
+                Shape::Image { tint, .. } => assert!(*tint, "{id} should be a tinted equation image"),
+                o => panic!("{id}: expected typeset image, got {o:?}"),
+            }
+        }
+    }
+
+    /// Mixed text + inline `$…$` on one line → `RichText` with text·math·text runs
+    /// (Phase 2b). Plain strings (no `$`) stay `Shape::Text` — no regression.
+    #[test]
+    fn mixed_inline_math_becomes_richtext() {
+        use crate::primitives::{Shape, TextRun};
+        let m = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), `The area is $\\pi r^2$ units`);\n").unwrap();
+        match &m.base().get("t").unwrap().shape {
+            Shape::RichText { runs, .. } => {
+                assert!(matches!(runs.first(), Some(TextRun::Text(_))), "starts with text");
+                assert!(runs.iter().any(|r| matches!(r, TextRun::Math { .. })), "has a math run");
+                assert!(matches!(runs.last(), Some(TextRun::Text(_))), "ends with text");
+            }
+            o => panic!("expected RichText, got {o:?}"),
+        }
+        let p = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), \"plain only\");\n").unwrap();
+        assert!(matches!(p.base().get("t").unwrap().shape, Shape::Text { .. }), "no-$ stays Text");
     }
 
     /// `sticky(id)` sets the screen-pin flag on an entity, and broadcasts over a tag.
