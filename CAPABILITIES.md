@@ -143,7 +143,10 @@ stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
 ### Geometry (olympiad) — largely covered now
 Done (all **dynamic** unless noted): `meet` (line∩line), **`linecircle`**
 (line∩circle), **`circlecircle`** (circle∩circle) — the last two output two
-points `{id}0/1`; **`tangent`** (two touch-points from an external point);
+points `{id}0/1`; **`tangent`** (two touch-points from an external point); **`commontangent`**
+(a common tangent to TWO circles — external/direct or internal/transverse — as the
+segment between the touch points, so its length is the tangent length `√(d²−(r₁∓r₂)²)`;
+static);
 **`reflect`** (point across a line); **`bisector`** (point on the internal angle
 bisector); **`circle2`** (circle by centre + a point on it); **`rotpoint`**
 (point rotated about another by θ — gives equilateral apexes, regular figures);
@@ -533,10 +536,47 @@ evaluator can reach the scene.
     bindable (`let`) and flow into `counter`/downstream builtins like the numeric
     layer.
   - *Hard dependency:* the payoff lands only if the math **renders as math**
-    (`x² + 2x + 1`, stacked fractions), so CAS effectively pulls the (still
-    undecided) **LaTeX / typesetting** track forward with it — or at least a
-    `mathtext-lite` super/subscript + `\frac` subset. ASCII (`x^2 + 2*x + 1`)
-    undercuts the teaching benefit for the non-programmer audience.
+    (`x² + 2x + 1`, stacked fractions). ASCII (`x^2 + 2*x + 1`) undercuts the
+    teaching benefit for the non-programmer audience.
+
+**LaTeX / math typesetting — Phase 1 SHIPPED ✅ (2026-07), on [RaTeX](https://github.com/erweixin/RaTeX), a CORE capability for ALL kits.**
+`equation(id,(x,y),`latex`,[size])` typesets KaTeX-grade LaTeX (fractions, roots,
+exponents, Greek, big operators) as a white-on-transparent PNG (RaTeX `embed-fonts`
+→ self-contained binary, no font install), drawn via `Shape::Image { tint: true }`
+so it takes the template colour and `color`/`recolor` work. LaTeX goes in **backtick
+raw strings** (new lexer literal `` `...` ``) so `\frac`/`\theta`/`\neq` survive.
+Verified by render (`examples/equation.manic`); 177 tests. Remaining: Phase 2
+(DisplayList → native manic glyph/rule entities for draw-on animation + vector
+scaling), then migrate kit ASCII labels and drop the old "No LaTeX" gotcha (done in
+SYSTEM_PROMPT). Original decision + survey below.
+
+**Decision detail — adopt RaTeX, a CORE capability for ALL kits (not just creator):**
+Every kit currently emits ASCII math (`x^2`, `pi*r^2*h`, `3600/47`, geo labels) — it
+reads messy across the whole system, so this is engine-wide, not a creator add-on.
+Chosen after surveying the field: browser-only MathML crates (katex-rs/pulldown-latex/
+latex2mathml) can't render in native mp4; ReX is "not production"; embedding all of
+Typst is overkill. **RaTeX** is pure-Rust, MIT, KaTeX-grade (>99.5% coverage), and
+decomposed into `ratex-parser → ratex-layout → DisplayList → ratex-render`.
+**Spike-validated** (2026-07, in-repo throwaway): the pipeline fetches, builds, and
+renders textbook-quality output here (quadratic formula, Σ with limits, √ vinculum,
+π/∠/°). Fonts = 20 KaTeX TTFs, 540 KB, MIT — bundle via `include_bytes!`. Plan:
+- **Phase 1 (fast):** `ratex-render` PNG → an `equation(id,(x,y),"latex",[size])`
+  builtin using manic's existing `Shape::Image`. Full coverage immediately; bitmaps
+  (fade/scale/move). Includes (both REQUIRED for Phase 1 to render at all):
+  - **Bundle the fonts INTO the binary** — `include_bytes!` the 20 KaTeX TTFs
+    (540 KB, MIT/OFL, ship their licence), like manic already embeds IBM Plex. NO
+    system install, NO shipped font dir. `render_to_png` only accepts a `font_dir`,
+    so extract the embedded bytes to an OS cache/temp dir once at startup and point
+    `font_dir` there (the loader's global cache keys on the dir → one-time cost).
+    Self-contained across EC2 headless, both Linux cross-builds, and WASM.
+  - Render transparent-bg + template-fg colour (recolour DisplayList items; default
+    is black-on-white).
+- **Phase 2 (native, the manic way):** consume the `DisplayList` → emit manic glyph +
+  rule entities (bundled KaTeX fonts) → equations become first-class, theme-coloured,
+  **drawn-on stroke by stroke**. Same layout, native rendering.
+- **Bonus:** `ratex-wasm` gives the SAME engine in the playground editor → preview
+  matches the render exactly.
+Once shipped, retire the "No LaTeX" gotcha and migrate kit equation labels off ASCII.
 - **Probability and statistics** — ✅ *shipped* — deterministic (seeded) sampling,
   distributions, regression, histograms, and confidence intervals broadened the
   engine into data and algorithm explainers while retaining reproducible recordings.
@@ -1088,6 +1128,195 @@ live preview + stills stay clean and fast):
 
 Disable with `--no-brand`. (Also fixed: the `--png`/`--alpha` sequence now writes
 frames upright — `export_png`'s internal flip is cancelled in `record.rs`.)
+
+## Creator format templates — manic for social creators (planned) 🚧
+
+**A new audience: content creators, not just domain educators.** Every kit so far
+adds a *domain* (math, physics, optics). This is **orthogonal** — a *format* layer:
+opinionated, slot-filled, branded, pre-timed scene generators for social formats
+(YouTube **Shorts** / Reels / TikTok). A creator picks a template, drops in content
+(a question, four options, an answer) and their branding (handles, accent colour),
+and manic produces a polished vertical clip — no timeline authoring, no design
+skill. This turns manic from a *tool* into a *product creators return to*.
+
+**Worked example — the quiz Short** (the format the request describes): a question
+appears → an animated figure/illustration → four option cards (A–D) → a countdown
+timer → time-out → the correct answer is revealed (right card glows, the rest dim)
+→ a socials footer (handles + icons). Roughly:
+
+```manic
+canvas("9:16");                 // portrait 1080×1920 (already supported)
+creator(me, handle: "@myhandle", x: "myhandle", yt: "@mychannel", accent: gold);
+
+// FREEDOM path — builder verbs: any number of options, per-option media later
+quiz(q, "Which glass bends BLUE light more?");
+option(q, "Crown glass");
+option(q, "Flint glass", correct);      // mark the right one
+option(q, "Both equal");
+option(q, "Neither");
+figure(q, prism);               // optional illustration slot — ANY manic entity / kit sim
+run(q, 12);                     // plays the whole beat: ask · countdown · reveal
+socials(me);                    // the creator's footer, pinned in the safe zone
+
+// EASY path — one-liner shorthand for the canonical 4-option quiz:
+//   quiz(q, "Which glass bends BLUE light more?", "Crown", "Flint", "Both", "Neither", answer: 2);
+```
+
+**Mostly reuse — the foundation already ships.** Portrait canvas ✅
+(`canvas("9:16")` → 1080×1920), the **`reel`** branded preset ✅, engine branding
+for 1080×1920 ✅, `par`/`seq`/`wait`/`stagger` timing, `Counter` (a live 5→0
+countdown digit), `Arc` (a shrinking timer ring), colour/theme, `banner`/
+`watermark`. A countdown = a Counter `Value` track + an `Arc` sweep; a reveal =
+`show`/`flash`/`color` on the right card — all existing verbs. **The template only
+bakes the layout + the timeline.**
+
+**The `figure` slot takes ANY manic entity** — it references an id, and everything
+in manic is an entity, so a shape, a group, a kit sim (`prism`/`triangle`/
+`pendulum`), a `def`, or even a **live-animating** sim can be the illustration
+(the prism disperses / the geometry constructs *while* the question shows). Bare-id
+tag-broadcast moves/scales a multi-part builtin into the slot as one. The only new
+bit is **auto-fit**: compute the entity/group's 2-D bounding box (no general helper
+today — reuse the footprint-bbox pattern in `three.rs`) and scale+translate it into
+the figure region; `figure(q, fig)` auto-fits, or the creator places it and it's
+just marked as the slot content.
+
+**⬜ Tracked polish (do after the `creator` kit build):** the figure's small dot
+markers (e.g. a circumcentre) are a touch small for a phone screen — bump their
+size / add a thin ring so they pop in the `figure` slot.
+
+**Prototype-first — SHIPPED:** the first quiz Short is hand-authored from shipped
+primitives in **`examples/quiz-geometry.manic`** (9:16): typewriter `type`
+question, an **animated geometry figure** (the geo kit constructs the Euler line —
+which *is* the answer), four `rect` option cards, a countdown ring + `say`-driven
+digit, a time-out reveal (correct card `recolor`→lime + `flash`/`pulse`, the rest
+`fade`), over a `text` socials footer. ~20 s, renders under the `reel` preset. That
+proven file is the reference the `quiz`/`countdown`/`socials` builtins will later
+collapse to a few lines — the same "build by hand, then extract the builtin" path
+the physics sims followed.
+
+**What's genuinely new:**
+1. **Reusable UI components** (a small `creator`/`ui` kit): `choices`/`card` (the
+   A–D option cards), `countdown` (ring + digit), `reveal` (highlight-correct /
+   dim-others beat), `socials` (a handle+icon footer). Useful well beyond quizzes.
+   The `figure` slot auto-fits any entity (bounds→scale). **The POC is
+   template-agnostic** — it uses only palette-semantic colours (`fg`/`cyan`/
+   `magenta`/`lime`/`dim`/`panel`, which the template remaps) and outline-only
+   chrome, so it renders with correct contrast on `paper` (light) AND `terminal`
+   (dark); the fixed consts (`gold`/`red`/…) are avoided for contrast-critical bits.
+2. **✅ Raster image embedding SHIPPED** — `image(id, (x,y), "path", [w], [h])`
+   (`Shape::Image` + a thread-local macroquad texture cache preloaded in
+   `player::run_loop`, drawn in `render::draw_entity`; missing file → a crossed
+   placeholder box). Loads real **logos / avatars / photo backdrops**, animates
+   like any entity, `examples/image.manic` + bundled `assets/manic-logo.png`.
+   Engine-only (no browser preview — the WASM front-end has no macroquad). The
+   quiz POC keeps its *drawn* vector social icons (no trademark PNGs bundled),
+   but a creator can now drop their own real logo/avatar in via `image(...)`.
+2. **Format templates** — `quiz` first; then a family: `countdown` (N→0 hype),
+   `factcard` (hook → fact → source), `listicle` (top-N reveal), `thisorthat`
+   (A-vs-B poll), `hotseat` (rapid Q&A). One builtin per format.
+3. **Shorts safe-zones** — a portrait layout that keeps content clear of the
+   platform UI (bottom action bar, right rail, top clock): a `safezone` helper or
+   an automatic inset the templates respect.
+4. **A creator profile** — `creator(id, handle, x, yt, ig, tiktok, accent, logo)`
+   set once (or in a small reusable file) and reused across every video; drives
+   the `socials` footer + accent colour. Extends the brand kit.
+5. **A `shorts` theme/preset** — punchy caption sizing, bold outlines, high
+   contrast for tiny phone screens, safe-zone insets on by default.
+
+**SHIPPED so far (`src/kits/creator.rs`):** ✅ **`creator(id, "spec")`** — a reusable
+profile parsed from a space-separated spec (`@handle`, `yt=`/`x=`/`ig=`/`tt=`/`gh=`/
+`web=` pairs, `accent=colour`), stored in `Scene::creators`. ✅ **`socials(id, [at])`**
+— draws the footer (rule + a row of **drawn vector platform icons**, only the
+configured ones, + the handle; `at` defaults to the 9:16 bottom). No downloads / no
+trademark PNGs — a creator wanting exact logos uses `image(...)`. ✅ **`quiz(id,
+"question")`** + **`option(id, "text", [correct])`** — the question (typewriter,
+wrapped) + auto **2×2** option grid + countdown widget; the correct option gets a
+lime highlight. ✅ **`run(id, [dur])`** drives the whole **ask → countdown →
+reveal** beat (the shared `run` verb dispatches to `build_quiz_clip` when the id is
+a quiz — `Scene::quizzes`). `option`/`socials` opt out of tag-broadcast
+(`consumes_structure_id`). Figure is author-supplied. **`examples/quiz-euler.manic`
+= the ~60-line POC collapsed to `quiz` + 4 `option`s + `run`. FIRST KIT VERSION
+COMPLETE.** **Production polish done:** cards **slide up + fade** in (Pos+Opacity),
+long answers **wrap** within cards, the reveal **pops** the correct card (lime
+highlight Scale-bump + a **drawn ✓**) and **dims** the wrong ones (0.28) instead of
+vanishing, and the geo figure **dots are bigger** (`r` 5→7 — the tracked nit).
+**Auto-layout done:** `run` lays the answers out by count — a centred column for
+≤3, a 2×2 grid for 4+ (2/3/4 all verified) — by computing each slot from the final
+count and sliding the cards in via Pos tracks (options are created at a neutral
+spot; `run` knows the total). **All the structural features shipped too:**
+✅ a **draining ring** (the countdown ring is a full-circle `Arc` whose `trace`
+animates 1→0 — the Arc line already honours `trace`, no new prop needed);
+✅ **`countdown(id, [at], [secs])`** standalone (draining ring + digit as a
+`SimData` playback, `run`-driven); ✅ **`safezone(id, [inset])`** (a faint 9:16
+content-safe guide); ✅ **`figure(target, [center], [size])`** (auto-fit: a 2-D
+bbox over the group, then a uniform scale+translate of each entity's shape into the
+zone — a kit sim / tagged group drops in without hand-placing); ✅ a **`shorts`
+template** (neon-on-black, extra glow, no chrome — for phone screens). The
+`reveal` beat stays folded into `quiz`'s `run` (no separate builtin needed).
+**Creator kit: first production version + all planned features COMPLETE.**
+
+**Production redesign — card SKINS (verified by still-render):** the quiz was
+rebuilt from wireframe-grade to broadcast-grade with **4 selectable card skins**,
+chosen via the `quiz` style spec (order-free with the reveal, e.g. `"glass fade"`):
+`badge` (default — framed question panel + a "QUESTION" kicker pill + coloured
+letter-badge answer cards), `minimal` (kicker + accent rule, outline rows), `glass`
+(glowing borders, Reels look), and `plain` (flat). One `SkinSpec` table drives the
+question header, cards, and reveal, so a new skin is one entry — and every skin
+still works under any global `template()`. The reveal now tints + glows the correct
+card, draws a check, and turns the correct **badge green**; a persistent faint
+track ring means the countdown never decays to a lone digit. All skins verified by
+headless `--still` PNG export.
+
+> ⚠️ **Testing status — creative kits need more field testing (pre/post-deploy).**
+> The creator kit + the **Shorts system-prompt guidance** are shipping, but they've
+> only been exercised on a handful of prompts. The failure modes we've already
+> caught-and-fixed are all layout/authoring judgement, not engine bugs: figures
+> hand-plotted instead of kit-constructed, `figure()` misused on live geo,
+> pre-solved coordinates, the worked-solution act shown unprompted, figure labels
+> colliding with the answer cards, and geo point labels left at the 22px default.
+> Each fix went into the system prompt, not the engine — which means **the quality
+> bar here lives in the prompt and must be validated by generating real Shorts**
+> (across models, topics, and question types) and rendering them, not by unit
+> tests. **Action items:** (1) build a small regression set of representative
+> Short prompts and eyeball the renders after each prompt change; (2) keep the
+> `--still` visual-check loop in the deploy workflow; (3) apply the same
+> generate-render-critique discipline to **every future creative kit** (new formats
+> like countdown/factcard/listicle/this-or-that) before calling them production —
+> expect the first cut to need prompt tuning, and budget for it.
+
+**Two layers (mirrors the physics kit's Layer 1 / Layer 2):**
+- **Layer 1 — named templates**, for creators: pick `quiz`/`countdown`/…, fill the
+  slots, `run`. Zero design skill.
+- **Layer 2 — author-your-own template**, for designers: define a reusable format
+  (named slots + layout + a default timeline) with `def` + parameters, so a studio
+  ships its own branded template and reuses it across a channel.
+
+**Decided (locked):**
+- **Content input — freedom + easy:** primarily **builder verbs** (`quiz(q,"?")`
+  then `option(q,"text"[,correct])`) so a creator gets full freedom — any number of
+  options, per-option media later — AND an **easy one-liner shorthand**
+  (`quiz(q,"?","A","B","C","D",answer:2)`) for the common 4-option case. Both map
+  to the same quiz structure.
+- **Branding — a reusable creator profile:** `creator(id, handle, x, yt, ig,
+  tiktok, accent, logo)` set once, ideally in a small file a channel reuses across
+  every video; `socials(id)` drops the safe-zone footer. One place to edit brand.
+- **A new `creator` kit** (`src/kits/creator.rs`), separate from `brand` (which
+  stays about manic's own watermark/intro). Holds `creator`/`socials`/`quiz` +
+  the shared UI components + `safezone`.
+- **First deliverable — the full `quiz` Short end-to-end** (9:16 layout · question
+  · option cards · countdown ring+digit · time-out reveal · socials footer), as
+  the proof of the whole format; the reusable components (`countdown`/`choices`/
+  `reveal`/`socials`) fall out of it and get exposed standalone.
+
+**First-build sequence (when we start):** `creator` kit skeleton + `creator`
+profile + `socials` footer → `safezone` insets for 9:16 → `countdown` (Counter
+`Value` + `Arc` sweep) → `choices`/`card` (A–D option cards) → `reveal`
+(highlight-correct/dim-others) → the `quiz` template (both input paths) + `run`
+beat → a `shorts` theme → one example + book gallery + the builtin checklist.
+
+**Why it fits:** the same "fill it in, get a correct animation" promise aimed at a
+huge new audience; ~80% composition of shipped primitives; and the quiz Short
+alone is a proven, repeatable viral format — a creator can make one a day.
 
 ## Templates / themes
 

@@ -264,6 +264,24 @@ pub async fn run_loop(mut movie: Movie) {
     } else {
         None
     };
+    // preload any image textures referenced by the scene (+ the intro) once,
+    // before the frame loop — `image(...)` entities draw from this cache
+    {
+        let mut paths: Vec<String> = Vec::new();
+        let mut collect = |sc: &crate::scene::Scene| {
+            for e in &sc.entities {
+                if let crate::primitives::Shape::Image { path, .. } = &e.shape {
+                    paths.push(path.clone());
+                }
+            }
+        };
+        collect(&base);
+        if let Some((ib, _)) = &intro {
+            collect(ib);
+        }
+        render::preload_textures(paths).await;
+    }
+
     let (w, h) = (movie.width as f32, movie.height as f32);
     let s = opts.scale;
     let (pw, ph) = ((w * s).round(), (h * s).round());

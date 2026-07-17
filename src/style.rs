@@ -192,6 +192,20 @@ impl Template {
         }
     }
 
+    /// A punchy vertical-video look for Shorts/Reels: neon palette on black with
+    /// a stronger glow (halos pop on a phone), no window chrome.
+    pub fn shorts() -> Template {
+        Template {
+            name: "shorts".into(),
+            chrome: Chrome::None,
+            palette: Palette::neon(),
+            glow: 1.6,
+            crt: false,
+            masthead_left: String::new(),
+            masthead_right: String::new(),
+        }
+    }
+
     /// Resolve a template by name (`None` if unknown).
     pub fn by_name(name: &str) -> Option<Template> {
         match name.trim().to_ascii_lowercase().as_str() {
@@ -199,6 +213,7 @@ impl Template {
             "terminal" | "neon" | "shell" => Some(Self::terminal()),
             "paper" | "print" | "light" => Some(Self::paper()),
             "blueprint" | "blue" => Some(Self::blueprint()),
+            "shorts" | "short" | "punch" => Some(Self::shorts()),
             _ => None,
         }
     }

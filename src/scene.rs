@@ -101,6 +101,80 @@ pub struct Scene {
     /// energy bars, …). The ctor (`pendulum`) pre-integrates and fills this; the
     /// playback verb (`swing`) reads it to emit the keyframed replay. Build-time only.
     pub sims: HashMap<String, SimData>,
+    /// Creator social profiles (`creator` builtin): id → handle + platforms +
+    /// accent. `socials` reads it to draw the footer. Build-time only.
+    pub creators: HashMap<String, CreatorProfile>,
+    /// Quiz-Short state (`quiz`/`option`): id → question/options/countdown.
+    /// `run(id)` reads it to emit the ask → countdown → reveal beat. Build-time.
+    pub quizzes: HashMap<String, QuizData>,
+}
+
+/// A creator's social profile — a display handle, the platforms they're on
+/// (`(key, user_or_url)`, e.g. `("yt", "@mychannel")`), and an optional accent
+/// colour. Set once by `creator(id, "spec")`, drawn by `socials(id)`.
+#[derive(Debug, Clone, Default)]
+pub struct CreatorProfile {
+    pub handle: String,
+    pub platforms: Vec<(String, String)>,
+    pub accent: Option<macroquad::prelude::Color>,
+}
+
+/// A quiz-Short's state (`quiz`/`option` builtins): the question + its option
+/// cards + the correct-answer highlight + countdown widget ids. `run(id)` reads
+/// this to emit the whole ask → countdown → reveal beat. Build-time only.
+#[derive(Debug, Clone, Default)]
+pub struct QuizData {
+    pub options: Vec<QuizOpt>,
+    /// id of the lime highlight rect over the correct card (empty until set).
+    pub highlight: String,
+    /// how the question text reveals in (typewriter by default).
+    pub reveal: QuizReveal,
+    /// the card/question design skin (Badge by default).
+    pub skin: QuizSkin,
+}
+
+/// The visual design of a quiz's question header + answer cards. Orthogonal to
+/// the global `template()` (which retints the palette) — a skin picks the layout
+/// and chrome. Default = `Badge`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizSkin {
+    /// Framed question panel + a filled letter-badge on each answer card. The
+    /// bold, modern quiz-app look. Default.
+    #[default]
+    Badge,
+    /// Editorial: a kicker over a thin accent rule, outline-only answer rows.
+    Minimal,
+    /// Dark glass panels with glowing accent borders (high-energy Reels look).
+    Glass,
+    /// The original flat cards with an inline letter (kept for back-compat).
+    Plain,
+}
+
+/// How a quiz question's text is revealed. Default = `Type` (typewriter).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizReveal {
+    /// Character-by-character draw-on (typewriter). The default.
+    #[default]
+    Type,
+    /// Whole line fades up from transparent.
+    Fade,
+    /// Whole line slides up into place while fading in.
+    Rise,
+    /// Whole line pops in with a scale overshoot.
+    Pop,
+    /// Appears instantly on the first frame (no reveal).
+    Cut,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuizOpt {
+    pub card: String,
+    pub text: String,
+    pub correct: bool,
+    /// Every slide-in part of this card (card, badge, letter, text) paired with
+    /// its offset from the card centre, so `run` can move + fade the whole card
+    /// as a unit regardless of skin.
+    pub parts: Vec<(String, macroquad::prelude::Vec2)>,
 }
 
 impl Scene {

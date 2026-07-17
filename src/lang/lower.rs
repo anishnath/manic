@@ -194,6 +194,24 @@ impl<'a> Args<'a> {
         }
     }
 
+    /// An optional string-literal argument (returns `None` if absent).
+    pub fn opt_text(&self, i: usize) -> Result<Option<String>, Error> {
+        match self.exprs.get(i) {
+            None => Ok(None),
+            Some(e) => match &e.kind {
+                ExprKind::Str(s) => Ok(Some(s.clone())),
+                _ => Err(Error::new(
+                    format!(
+                        "argument {} of `{}` should be a \"string\"",
+                        i + 1,
+                        self.name
+                    ),
+                    e.span,
+                )),
+            },
+        }
+    }
+
     /// A `(x, y)` coordinate pair.
     pub fn pair(&self, i: usize) -> Result<Vec2, Error> {
         let e = self.get(i)?;
@@ -553,7 +571,7 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn consumes_structure_id(name: &str) -> bool {
     matches!(
         name,
-        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph"
+        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "socials" | "figure"
     )
 }
 

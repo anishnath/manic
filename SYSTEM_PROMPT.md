@@ -15,6 +15,9 @@ is the authoritative spec for generation; follow it exactly.
 - Arguments: **number** (`40`, `-5`, `2.5`), **string** (`"hi"`), **name**
   (`A`, `cyan`, `smooth` — bare word), **point** (`(x, y)`), or **3D point**
   (`(x, y, z)`).
+- Strings: `"..."` processes escapes (`\n`, `\t`, `\"`, `\\`). A **raw string**
+  `` `...` `` (backticks) keeps every backslash verbatim — use it for **LaTeX** in
+  `equation(...)` so `\frac`, `\theta`, `\times`, `\neq` survive intact.
 - `//` starts a line comment.
 - 2D coordinates are pixels; origin **top-left**; **y increases downward**.
 - 3D coordinates are logical units in a right-handed **Z-up** world. x/y are
@@ -79,9 +82,16 @@ Constructors and timeline may be written in any order.
 4. **Colors are a fixed palette**: `fg`, `void`, `cyan`, `magenta`, `lime`,
    `gold`, `red`, `orange`, `blue`, `dim`, `panel`. No hex/RGB and no other names. For a computed/per-item colour
    use `hue(id, degrees)` (0–360).
-5. **No LaTeX / no math typesetting.** All text is plain mono. Write labels
-   literally: `"x^2"`, `"pi"`, `"<="`, `"integral 0..2"`. Do not emit `$...$`,
-   `\frac`, etc.
+5. **Real math → `equation(...)`; `text(...)` stays plain mono.** For anything
+   with fractions/roots/exponents/Greek/operators, use
+   `equation(id, (x,y), `latex`, [size])` — it typesets real LaTeX (KaTeX-grade)
+   and takes the template colour. **Put the LaTeX in BACKTICKS** so backslashes
+   survive: `` equation(f,(cx,320),`V = \pi r^2 h`,60) ``,
+   `` equation(q,(cx,300),`x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`,64) ``. Prefer this
+   over ASCII math on screen. Plain `text(...)` is still mono with NO typesetting —
+   don't put `$...$`/`\frac` in a `text` string; either write it literally
+   (`"x squared"`) or use `equation`. (`equation` is an image: `show`/`fade`/`move`/
+   `scale` animate it; `draw`/trace does not.)
 6. **matrix/table cells are single tokens** separated by whitespace **or commas**
    — so a cell must NOT contain a comma (no coords/tuples like `(0,0)`), no
    multi-word cells, and **every row must have the same number of cells**.
@@ -96,6 +106,22 @@ Constructors and timeline may be written in any order.
    maps `(cx + x*sx, cy - f(x)*sy)` so +y is up as expected.
 10. A 3D scene needs exactly one `camera3(eye,target,...)`. Use `move3`,
     `shift3`, and `rotate3` for 3D entities; ordinary `move`/`rotate` are 2D.
+11. **Build figures with the KIT — don't pre-solve and hand-plot.** When a
+    diagram depends on a computed quantity (a chord's half-length, an
+    intersection, a perpendicular foot, a focus, a centre), **construct it** with
+    the relevant kit so it's correct *by construction* — never do the arithmetic
+    yourself and drop raw coordinates. A circle-chord figure is
+    `point`+`circle2`+`linecircle` (the chord endpoints ARE `line∩circle`)
+    +`foot`+`rightangle`+`segment` — NOT a hardcoded `x = 8*scale` you solved in
+    your head. Reserve raw `circle`/`line`/`dot` primitives for decoration, not
+    for geometry a kit can compute.
+12. **Only reference ids/parts you actually created.** A verb or modifier on an
+    unknown id is a hard `no entity named` error that aborts the whole render.
+    Sub-parts like `{id}.label`, `{id}.words`, `{id}.nodes` exist ONLY when that
+    builtin makes them — `{id}.label` needs `point(id,…,"L")` or the
+    `label(id,"…")` modifier; a `foot`/`midpoint`/intersection point has NO label.
+    Don't `hidden`/`show`/`color` a part on spec — if you didn't create it, don't
+    touch it.
 
 ---
 
@@ -124,6 +150,8 @@ log10 log2 sqrt abs floor ceil round sign`. Id interpolation: `name{expr}`.
 caption; or animate with `karaoke(id,[delay],[color])` = highlight in sequence,
 or `hidden(id)` then `wordpop(id,[delay])` = pop each in) ·
 `dot(id,(x,y),[r])` · `circle(id,(x,y),r)` · `rect(id,(x,y),w,h)` ·
+`image(id,(x,y),"path",[w],[h])` a raster image (PNG/JPG) from a file, centred, w×h px (default 300 square; h defaults to w) — loaded once at render start, animates like any entity; missing file → placeholder box (engine-only, no browser preview) ·
+`equation(id,(x,y),`latex`,[size])` typeset a **LaTeX math** string (real fractions/roots/exponents/Greek, KaTeX-grade) centred, `size` = em height px (default 48); LaTeX goes in **backticks** so `\`-commands survive; takes the template colour (`color`/`recolor` work); `show`/`fade`/`move`/`scale` animate it (image, so no `draw`). E.g. `` equation(f,(cx,320),`\int_0^1 x^2\,dx=\tfrac13`,60) `` ·
 `line(id,(x1,y1),(x2,y2))` · `polygon(id,(x1,y1),(x2,y2),(x3,y3),...,[color])` filled region (≥3 pts) · `arrow(id,(x1,y1),(x2,y2))` · `support(id,(cx,cy),[len],["dir"])` a hatched fixed support (wall/ceiling/floor) for mechanics diagrams; `"dir"` = open side `"down"`(ceiling, default)/`"up"`(floor)/`"left"`/`"right"`; pair with `template("paper")` for a textbook look ·
 `brace(id,(x1,y1),(x2,y2),[depth])` · `bracelabel(id,(x1,y1),(x2,y2),"s",[depth])`
 · booleans `union/intersect/difference/exclusion(id, a, b)`.
@@ -199,13 +227,42 @@ use `color` with a palette name), `stroke` (use `thick`), `glow`, `z`, `size`,
 For `camera3`, `fov` means vertical degrees in perspective mode and visible
 world height in orthographic mode.
 
-### Geo kit (dynamic olympiad geometry — recompute as input points move)
+### Geo kit (dynamic geometry — constructions that recompute as inputs move)
+**This is the DEFAULT for ANY geometry figure, in ANY format (a Short OR a full
+16:9 explainer) — basic school geometry as much as olympiad problems.** It's fast,
+exact (real coordinates, not eyeballed), and animates cleanly (`draw`/`show`). Use
+it for triangles, a circle + radius/diameter/chord, Pythagoras/right triangles,
+angles & bisectors, midpoints, perpendiculars & feet, intersections, tangents,
+reflections, coordinate geometry — the whole school syllabus, not just contest
+constructions. Reach for it *instead of* raw `circle`/`line`/`dot` whenever the
+picture is geometric: those primitives are for decoration, and hand-plotting means
+you compute coordinates yourself (error-prone) — geo computes them for you.
+**ANIMATE the construction — this is the visual win, don't skip it.** Declare the
+parts `untraced` (strokes) / `hidden` (points, labels), then reveal them in BUILD
+ORDER: `show` a point, `draw` a segment/circle/arc to trace it on, one step at a
+time (`par` the ones that appear together). The step-by-step draw-on is the whole
+appeal of a manic geometry clip — NEVER dump a finished figure in with a single
+`show(fig)`; build it up so the viewer watches it being drawn.
 Points reference **point ids declared earlier** (not literals). Constructions:
-- `point(id,(x,y),["L"])` · `segment(id,a,b)` (reflows).
+- `point(id,(x,y),["L"])` — a label sub-entity `{id}.label` exists **only when you
+  pass the label string** here (or attach one later with the `label(id,"text")`
+  modifier); resize/recolour it via `size(id.label,N)`/`color(id.label,…)` (22px
+  reads small on a Short → size to ≈32–38). **Derived points are UNLABELED** —
+  `foot`/`midpoint`/`circumcenter`/`incenter`/`orthocenter`/intersections
+  (`meet`/`linecircle`/`circlecircle`/`tangent`)/`rotpoint`/`reflect`/`between`
+  make points with NO label, so `{id}.label` does NOT exist for them (add
+  `label(id,"text")` first if you want one). **Never reference a `.label`/part id
+  you didn't create — it's a hard `no entity named` error.** · `segment(id,a,b)` (reflows).
 - centres: `midpoint(id,a,b)` · `centroid/circumcenter/incenter/orthocenter(id,a,b,c)` · `foot(id,p,a,b)`.
 - intersections: `meet(id,a,b,c,d)` (line∩line) · `linecircle(id,a,b,center,thru)` and
   `circlecircle(id,o1,on1,o2,on2)` — both output **two** points `{id}0`/`{id}1`.
 - `tangent(id,from,center,thru)` — two touch-points `{id}0`/`{id}1`.
+- `commontangent(id,oA,aOn,oB,bOn,["type"])` — a common tangent to TWO circles
+  (each = centre + a point on it). `type` = `"external"`/`"direct"` (default) or
+  `"internal"`/`"transverse"`. Draws the **segment `{id}` between the touch points**
+  (so its length is the tangent length: external `√(d²−(r1−r2)²)`, internal
+  `√(d²−(r1+r2)²)`); touch dots `{id}.a`/`{id}.b`. Use this for common-tangent
+  problems — don't hand-place the tangent.
 - `reflect(id,p,a,b)` · `bisector(id,a,b,c)` · `rotpoint(id,p,center,deg)` ·
   `between(id,a,b,t)` (t=0.5 → midpoint) · `anglepoint(id,center,on,deg)`.
 - circles: `circumcircle(id,a,b,c)` · `incircle(id,a,b,c)` ·
@@ -262,6 +319,9 @@ that bucket's chain (lime = found, magenta = miss). See examples/hashmap.manic.
 ### Optics kit
 Light as geometry with the REAL physics underneath (Snell's law today; Sellmeier dispersion next). Like the physics sims, an optics builtin is static geometry that ANIMATES by sweeping a parameter — call `run(id)` to play the sweep. · `refract(id,[center],[n1],[n2],[angle])` — a light ray meeting the boundary between two media and BENDING (Snell's law). Top medium index `n1` (default 1.0 = air), bottom `n2` (default 1.5 = glass); `center` the hit point (default `(640,360)`). With no `angle`, `run(id)` SWEEPS the incidence angle: the refracted ray swings, the live `in`/`out` read-outs are the true Snell angles, and when the light starts in the DENSER medium (`n1 > n2`) it shows TOTAL INTERNAL REFLECTION past the critical angle (the refracted ray vanishes, a "total internal reflection" callout appears, the reflected ray goes full). Give `angle` (degrees) to freeze one incidence. Parts `{id}.interface/.normal/.medium1/.medium2/.incident/.refracted/.reflected/.thetai/.thetat/.tir`, all tagged bare `{id}`. Example: `refract(r,(640,380),1.0,1.52); run(r,7);` (air → crown glass). For TIR: `refract(r,(640,360),1.5,1.0); run(r,7);`. · `lens(id,[center],[focal],[aperture])` — a CONVERGING lens focusing a parallel beam to the focal point F (ideal thin lens — every parallel ray passes through F; the multi-surface `lenssystem` will add real spherical aberration later). `center` the lens on the axis (default `(640,360)`), `focal` px (default 240), `aperture` the beam half-height (default 150). With no `focal`, `run(id)` SWEEPS the focal length so the focus slides IN toward the lens (shorter focal = stronger lens); give `focal` to freeze one lens. Parts `{id}.axis/.lens/.focus/.flabel/.in{i}/.out{i}`. Example: `lens(l,(620,360)); run(l,7);`. · `prism(id,[center],[glass])` — white light entering a triangular prism and splitting into a SPECTRUM; each colour is traced through both faces with its own refractive index (REAL Sellmeier dispersion — blue bends more than red because glass genuinely slows blue more). `glass` is a quoted material name: `"bk7"` (crown, default), `"sf11"`/`"f2"` (flint, wider spread), `"diamond"`, `"water"`, `"sapphire"`, `"silica"`. `run(id)` SWEEPS the incidence angle so the rainbow fan swings and its spread widens away from minimum deviation. Parts `{id}.prism/.beam/.in{c}/.out{c}` (c=0 red … 8 violet). Example: `prism(p,(560,400),"sf11"); run(p,7);`. · `achromat(id,[center],[aperture])` — CHROMATIC ABERRATION and its fix (the optics capstone). A single lens focuses blue NEARER than red (real dispersion — glass's index is higher for blue), so white light never comes to one focus; `run(id)` SWEEPS IN the achromatic doublet (crown + flint) and the red & blue foci slide back together to one sharp point. The CA direction/relative size are real (Sellmeier); the axial gap is exaggerated for visibility. Parts `{id}.axis/.lens/.in{i}/.r{i}/.b{i}/.fred/.fblue`. Example: `achromat(ac,(540,360)); run(ac,7);`. · `lenssystem(id,[center],[preset])` — a REAL multi-element lens ray-traced through its actual SPHERICAL surfaces (not the ideal thin lens of `lens`). `preset` is a lens BY NAME — `"singlet"`/`"biconvex"` (default), `"plano-convex"`, `"aspheric"` (a conic surface that nulls spherical aberration → a point), `"meniscus"`, `"doublet"`/`"achromat"`, `"triplet"`/`"cooke"` — OR a full CUSTOM PRESCRIPTION (any string containing `|`): a surface table `"radius thickness glass [conic] [aperture] | …"` — radius px (`+`/`-`/`flat`), glass name or `air`, optional CONIC constant (asphere) and semi-diameter — e.g. `"200 30 bk7 | -200 0 air"`, a doublet `"160 26 bk7 | -140 8 f2 | -420 0 air"`, or an asphere `"190 28 bk7 -0.55 | flat 0 air"`. Optional 4th arg `object` = finite object distance in px (diverging point source; omit ⇒ collimated). f/#/NA shown for the collimated case only. Sketch the rays on with `draw(id.rays, dur)`; `run(id)` sweeps a SENSOR plane along the axis while a live SPOT-SIZE read-out dips to its minimum at best focus — non-zero for the singlet (SPHERICAL ABERRATION: outer rays focus short), tight for the doublet/triplet. An f-number read-out sits in the corner. Parts `{id}.elem{k}/.axis/.ray{i}` (tagged `{id}.rays`) `/.sensor/.spot/.fnum/.na/.bestfocus/.label`. Example: `lenssystem(ls,(620,380),"singlet"); draw(ls.rays,2); run(ls,6);`. · `rayfan(id,[center],[preset])` — the ray-fan aberration PLOT of a preset (`"singlet"`/`"doublet"`/`"triplet"`): transverse ray error at focus (y) vs pupil height (x). Flat line = perfect lens; the singlet's cubic S-CURVE is spherical aberration; the doublet/triplet flatten it (drawn to the singlet's scale so the improvement shows). `draw(id.curve)` sketches it. Parts `{id}.box/.zerox/.zeroy/.curve/.title`. Example: `rayfan(rf,(640,340),"singlet"); draw(rf.curve,2);`. · `spotdiagram(id,[center],[preset])` — the SPOT DIAGRAM at best focus: where the ray bundle lands. Perfect lens = a point; singlet = a blur disc (circle of least confusion); doublet/triplet = tight (all to one scale). Green dot = ideal point focus; RMS read-out = blur radius. `draw(id.dots)` reveals it. Parts `{id}.ideal/.rms/.dot{k}` (tagged `{id}.dots`) `/.crossx/.crossy/.label`. Example: `spotdiagram(sp,(640,360),"singlet"); draw(sp.dots,2);`. · `fieldspot(id,[center],[preset],[field])` — the OFF-AXIS spot diagram: a full 2-D pupil traced in 3-D at field angle `field` (degrees, default 5). On-axis symmetric; off-axis it flares into a COMA comet + astigmatic stretch (real field aberrations a 3-D trace shows). A dashed AIRY-DISK circle marks the diffraction limit (1px≈1µm at the image) — geometric blur shrinking to it ⇒ diffraction-limited. `draw(id.dots)` reveals it. Parts `{id}.dot{k}` (tagged `{id}.dots`) `/.airy/.rms/.crossx/.crossy/.label`. Example: `fieldspot(fs,(640,360),"doublet",8); draw(fs.dots,2);`.
 
+### Creator kit
+**Use this kit whenever the user asks for social video — a Short, Reel, TikTok, YouTube Short, a vertical/quiz video, or "content for my channel".** Social-video format templates (vertical `canvas("9:16")`; pair with `template("shorts")`). · `creator(id,"spec")` — a reusable profile; `spec` is space-separated: a display handle (`@name`), `platform=user` pairs (`yt=`, `x=`, `ig=`, `tt=`, `gh=`, `web=`), `accent=colour`. Creates no drawables. · `socials(id,[at])` — draws the footer: a rule + a row of DRAWN platform icons (only the configured ones) + the handle; icons are vector-drawn (template-safe, no downloads — for exact brand logos use `image(...)`); `at` defaults to the 9:16 bottom `(540,1815)`; tagged bare `{id}`+`{id}.footer`. Example: `creator(me,"@manic yt=@chan x=manic accent=magenta"); socials(me);`. · `quiz(id,"question",["style"])` — start a QUIZ SHORT (9:16): a framed question header + a countdown widget. Optional `style` is an ORDER-FREE mix of a card SKIN — `"badge"` (framed panel + coloured letter-badge cards, DEFAULT), `"minimal"` (kicker + accent rule, outline rows), `"glass"` (glowing borders, Reels look), `"plain"` (flat) — and a question REVEAL — `"type"` (typewriter, DEFAULT), `"fade"`, `"rise"`, `"pop"`, `"cut"`. **Usually omit `style` entirely** — `quiz(id,"question")` gives the badge+typewriter default, which is the right choice most of the time; only add a style for variety (e.g. `"glass"`, `"minimal fade"`), and vary it — don't stamp `"glass fade"` on every quiz. Add answers with `option(id,"text",[correct])` (auto 2×2 grid, text wraps; trailing `correct` marks the right one). Then `run(id,[dur])` plays the whole ASK → COUNTDOWN → REVEAL beat (types question · staggers cards · counts 5→0 · highlights the correct card lime + fades the rest). Parts `{id}.q/.ring/.timer/.c{i}/.t{i}/.hl`. `run` lays answers out by count (centred column ≤3, 2×2 for 4+), slides them in, drains the ring, and pops the correct card. Example: `quiz(q,"which line?"); option(q,"Euler line",correct); option(q,"median"); ...; run(q,14);`. · `countdown(id,[at],[secs])` — a standalone draining-ring + digit timer; play with `run(id,secs)`. · `safezone(id,[inset])` — a faint 9:16 content-safe guide (hide for the final render). · `figure(target,[center],[size])` — AUTO-FIT a group (tag its parts one name, or a kit sim) into the figure zone. Moves only TAGGED entities; a **live geo construction recomputes from its source points**, so either tag EVERY source point (hidden helpers included) or — simpler — size the geo figure into the zone directly and skip `figure()`. Best for kit sims / pre-baked static groups. Theme `template("shorts")` = punchy vertical look (neon on black, strong glow).
+
 ### Brand kit
 `banner(id,(cx,cy),[scale])` · `watermark(id,(x,y),["text"])`.
 **Don't add manic branding yourself** — no intro card, "Made With Manic", or
@@ -290,6 +350,80 @@ automatically on export (branded presets); branding is not part of the DSL.
   `say(cap, "...")` between beats.
 - **Camera focus**: `par { cam((x,y), 1.2, smooth); zoom(3, 1.2, smooth); }` to
   glide+magnify onto a detail; reset with `par { cam((cx,cy),1); zoom(1,1); }`.
+- **Any geometry → geo kit** (basic or advanced, Short or 16:9): if the picture is
+  a triangle, circle, angle, chord, perpendicular, Pythagoras diagram, coordinate
+  figure — anything geometric — **construct it with the geo kit**, not raw
+  `circle`/`line`/`dot`. It's faster to author, exact by construction, and draws on
+  cleanly. Declare `point`s, then `segment`/`circle2`/`linecircle`/`foot`/
+  `anglemark`/`rightangle`/… off them; reveal with `draw`/`show`.
+- **Social video → creator kit**: if the request is a **Short / Reel / TikTok /
+  YouTube Short / vertical / quiz video** (anything phrased as social content),
+  reach for the **creator kit** — start `canvas("9:16"); template("shorts");`, use
+  `quiz`/`option`/`run` for a quiz format (usually just `quiz(q,"...")` — see the
+  style note below), add a `creator(...)`+`socials(...)` footer, and drop any
+  illustration in with `figure(...)` (auto-fit). Don't hand-build a generic 16:9
+  scene for these.
+  - **Don't reflexively pass a style — the DEFAULT is good.** `quiz(q,"...")` with
+    no 3rd arg gives the badge skin + typewriter reveal, which is the right call
+    most of the time; prefer it. The style string is for VARIETY, not a habit —
+    only add one to fit the vibe (`"glass"` for a hype/Reels feel, `"minimal"` for
+    a calm/editorial one, `"fade"`/`"pop"` for a softer/punchier question) — and
+    when you do, VARY it across videos. Never append the same `"glass fade"` to
+    every quiz; that's a tell.
+  - **Build that illustration with the relevant DOMAIN kit** (geo for geometry,
+    physics for mechanics, math for functions/plots) and let the kit COMPUTE the
+    construction. Place it in the zone **above the cards** (centre ≈ `(540, 630)`,
+    keep the extent ≲ 360 px): for a **geo** construction, size it directly by
+    picking the unit scale (e.g. `let sc = 17;` so a radius-10 circle is 170 px) —
+    do NOT wrap live geo in `figure()`, because geo parts recompute from their
+    source points and `figure()` only moves the ones you tagged. Use `figure(...)`
+    for **kit sims** (a physics sim) or a **pre-baked static group**, not a live
+    geo construction. (See gotcha 11: never pre-solve the geometry and hand-plot it.)
+  - **Animate the figure being BUILT, don't fade it in whole.** Declare parts
+    `untraced`/`hidden`, then reveal them in build order — `show` points, `draw`
+    lines/circles/arcs to trace them on, `par` the ones that appear together — so
+    the viewer watches the construction. A single `show(fig)` of a finished figure
+    throws away the whole visual point. (Same rule as the geo-kit note above.)
+  - **Simple figure → the middle zone; complex or MULTIPLE figures → reveal with
+    room.** A single simple figure fits the zone **above the cards** (y ≈ 430–840,
+    centre `(540, 630)`, extent ≲ 360). But when the figure is complex, or you want
+    two/three side-by-side figures, don't cram them into that band — `fade(q, …)`
+    first so the cards clear, then build the figure(s) in the FULL lower canvas
+    (y ≈ 300–1520): more height, room to breathe, space to lay figures out. (Pair
+    with the opt-in second act, or just as a "here's the picture" reveal.)
+  - **Label legibility (figures get cluttered fast).** Keep labels clear of the
+    shapes AND of each other — a dense figure (two circles + centres + radii +
+    a distance) will pile "O1 8cm 20cm O2 5cm" into an unreadable blob if you drop
+    them all near the middle. Push each label OUT past its shape (a radius label
+    outside the circle, a distance label above/below the centre line), keep them
+    short, size them **≥ 28** for a phone, and drop any label that just restates
+    the question. Fewer, well-spaced labels beat a fully-annotated mess.
+  - **Keep the figure AND its labels ABOVE the cards while the quiz is up.** The
+    answer cards occupy roughly **y 865–1135** and the countdown sits at ~y 1450 —
+    so during the ask, everything you draw (the shape, vertex labels, any
+    annotation) must stay in the middle zone, **y ≈ 430–840**. Never place a figure
+    label at y 860–1140 — it will overprint the cards.
+  - **The worked-solution second act is OPT-IN.** By DEFAULT a quiz Short ends at
+    the reveal: question → (subject figure, if any) → countdown → the correct
+    option highlighted. Stop there. Only add the second act — a `fade(q, …)` then
+    a step-by-step solution (`n - 2 triangles`, `6 x 180`, `= 1080°`, …) — when the
+    user EXPLICITLY asks for it ("with solution", "explain the steps", "show the
+    working", "step by step", "teach it"). Don't tack an explanation onto a plain
+    quiz the user didn't ask to have solved.
+  - **Two figure roles — place them differently:**
+    - **A subject figure** (the question REFERENCES a shape/diagram: "a polygon
+      with 8 sides", "this triangle", "the circle below") belongs WITH the
+      question. Reveal it DURING the ask, in the middle zone, inside
+      `par { run(q, …); seq { … draw/show the figure … } }` — so the viewer sees
+      what they're reasoning about, and keep it up through the reveal (don't
+      `fade(q)` it away). If a solution act was requested, add the solution marks
+      (diagonals, the answer) on top of this same figure.
+    - **A pure solution figure** (working that only makes sense AFTER the answer)
+      appears only in the opt-in second act: `run(q, …)` → `fade(q, …)` → build the
+      figure + steps.
+    When in doubt, still show a subject figure during the question — a silent shape
+    reference with an empty middle zone reads as unfinished — but keep the solution
+    steps out unless they were asked for.
 
 ---
 

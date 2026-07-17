@@ -126,6 +126,36 @@ distance images a nearby point. Analysis: `rayfan` (the ray-fan aberration plot)
 Airy-disk diffraction-limit overlay). A rainbow glows on the dark bench; the
 geometric ray diagrams also take `template("paper")` for a textbook look.
 
+## creator
+
+A **format** layer (not a subject): opinionated, pre-timed vertical-video templates
+a content creator fills in — question, answers, a social profile — into a branded
+9:16 Short with no timeline authoring. Set a reusable profile once with `creator`
+and draw it with `socials`; the rest is a quiz beat.
+
+```manic
+canvas("9:16"); template("shorts");
+creator(me, "@mathwithme yt=mathwithme x=mathwithme accent=magenta");
+quiz(q, "What is 7 x 8?", "glass fade");   // skin + reveal, one order-free string
+option(q, "54"); option(q, "56", correct); option(q, "48"); option(q, "63");
+run(q, 8);                                  // ask → countdown → reveal, the whole beat
+socials(me);
+```
+
+`quiz(id, "question", ["style"])` starts the Short; `style` mixes a card **skin** —
+`badge` (framed panel + coloured letter badges, default) · `minimal` (kicker + accent
+rule, outline rows) · `glass` (glowing borders) · `plain` (flat) — and a question
+**reveal** — `type` (typewriter, default) · `fade` · `rise` · `pop` · `cut`.
+`option(id, "text", [correct])` adds an answer; `run` **auto-lays-out** the cards by
+count (a centred column for ≤3, a 2×2 grid for 4), slides them in, drains the timer
+ring, and lights up the correct card (green badge + check). Also standalone:
+`countdown(id, [at], [secs])` (a draining-ring timer), `safezone(id, [inset])` (a
+content-safe guide, hide it for the final render), and `figure(target, [center],
+[size])` — **auto-fit** any tagged group or kit sim into the illustration zone
+between the header and the cards, so a figure survives layout changes without
+coordinate tuning. Social icons are vector-drawn (no bundled logos); a creator who
+wants exact brand art uses `image(...)`.
+
 ---
 
 Each kit has a full reference at <https://8gwifi.org/manic>, and you can see them

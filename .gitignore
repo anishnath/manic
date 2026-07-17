@@ -1,6 +1,7 @@
 /target
 /renders
 /out
+/dist
 Cargo.lock
 .DS_Store
 *.png

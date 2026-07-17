@@ -144,6 +144,8 @@ ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
 ex-linear-map3|McLljqiPcFI|A 3×3 Matrix Deforms a Cube — Determinant as Volume, in 3D — manic
 ex-eigen3|eZpNxcOa_cs|Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axes — manic
 ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic
+
+# ---- examples: physics — simulations ----
 ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
 ex-pendulum-damped|KhANpUmTPtc|Damped Pendulum — Watch Energy Bleed Away — manic
 ex-pendulum-annotated|IcW5DCpAGaw|Anatomy of a Pendulum — Physics + Base manic — manic
@@ -197,6 +199,8 @@ ex-bullet-block-annotated|4HCc7iRtZr8|A Bullet's Journey — Inelastic Collision
 ex-gun-shot|ffHtyPvtCos|Gun Shot — a Cinematic Scene in manic (No Physics, Just Imagination)
 ex-bullet-impact|WdfMyqJdwK8|Impact — Cinematic Scene + Real Physics, Fused — manic
 ex-loop-cinematic|knRtBYXHaYc|Loop the Loop — Cinematic Scene + Real Physics — manic
+
+# ---- examples: optics — light as geometry ----
 ex-refraction|kcokHJq6plQ|Refraction — Snell's Law You Can Watch — manic
 ex-lens|kpgwBBQ-occ|Converging Lens — Where Light Focuses — manic
 ex-prism|NO1Iuf12wC4|Prism — White Light Splits into a Rainbow (Real Dispersion) — manic
@@ -215,3 +219,8 @@ ex-off-axis|LKyW73JMIWU|Coma & Astigmatism — Why Off-Axis Is the Hard Test —
 # ---- examples: figures & scenes ----
 ex-walk|WCtQngDtvEM|A Figure Walking Down the Road — manic
 ex-two_person_walk|VE7PPnPAufE|Two Figures Meet, Shake Hands & Walk On — manic
+ex-quiz-geometry|PLACEHOLDER|Only 1% Get This Geometry Quiz Right — manic
+ex-quiz-geometry-2|PLACEHOLDER|Geometry Quiz: When Is the Circumcentre OUTSIDE? — manic
+ex-image|PLACEHOLDER|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
+ex-quiz-euler|PLACEHOLDER|I Built This Geometry Quiz Short in 12 Lines — manic
+ex-quiz-skins|PLACEHOLDER|4 Quiz-Short Designs From ONE Line of Code — manic

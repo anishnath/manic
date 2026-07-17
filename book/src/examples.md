@@ -12,7 +12,8 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Vectors, fields & coordinates](ex-vectors.md) — 3 examples
 - [Geometry (olympiad)](ex-geometry.md) — 8 examples
 - [Transforms & morphing](ex-transforms.md) — 3 examples
-- [Text & UI](ex-text.md) — 5 examples
+- [Text & UI](ex-text.md) — 6 examples
 - [Generative & recursive](ex-generative.md) — 9 examples
+- [Creator formats — Shorts](ex-creator.md) — 4 examples
 - [Boolean shapes](ex-boolean.md) — 1 example
 - [3D scenes](ex-3d.md) — 10 examples

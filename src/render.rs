@@ -6,10 +6,41 @@
 //! soft glow (halo) pass drawn behind fully-traced strokes and text.
 
 use macroquad::prelude::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 use crate::primitives::{Align, Entity, FontKind, Shape};
 use crate::scene::Scene;
 use crate::style::{self, Fonts};
+
+thread_local! {
+    /// Loaded image textures, keyed by their `path`. macroquad runs
+    /// single-threaded (the render loop), so a thread-local cache is safe.
+    static TEXTURES: RefCell<HashMap<String, Texture2D>> = RefCell::new(HashMap::new());
+}
+
+/// Load every referenced image path into the texture cache once, before the
+/// frame loop. Call from the async render loop. A path that fails to load is
+/// simply skipped (its entity draws a placeholder box).
+pub async fn preload_textures<I: IntoIterator<Item = String>>(paths: I) {
+    for path in paths {
+        let cached = TEXTURES.with(|t| t.borrow().contains_key(&path));
+        if cached {
+            continue;
+        }
+        match load_texture(&path).await {
+            Ok(tex) => {
+                tex.set_filter(FilterMode::Linear);
+                TEXTURES.with(|t| t.borrow_mut().insert(path.clone(), tex));
+            }
+            Err(_) => eprintln!("image: could not load `{path}` (drawing a placeholder)"),
+        }
+    }
+}
+
+fn get_texture(path: &str) -> Option<Texture2D> {
+    TEXTURES.with(|t| t.borrow().get(path).cloned())
+}
 
 /// World (logical) → output (physical) transform: supersampling factor `ss`
 /// plus the animatable 2D camera (`cam` centre, `zoom` factor).
@@ -708,6 +739,30 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 trace,
                 e.type_cursor,
             );
+        }
+        Shape::Image { path, w, h, tint } => {
+            let (dw, dh) = (w * e.scale * k, h * e.scale * k);
+            let (x, y) = (p.x - dw / 2.0, p.y - dh / 2.0);
+            if let Some(tex) = get_texture(path) {
+                let base = if *tint { e.color } else { WHITE };
+                draw_texture_ex(
+                    &tex,
+                    x,
+                    y,
+                    style::with_opacity(base, e.opacity),
+                    DrawTextureParams {
+                        dest_size: Some(vec2(dw, dh)),
+                        rotation: rad,
+                        ..Default::default()
+                    },
+                );
+            } else {
+                // missing/unloaded → a crossed placeholder box (reads as a slot)
+                let lw = k.max(1.0);
+                draw_rectangle_lines(x, y, dw, dh, 2.0 * lw, outline);
+                draw_line(x, y, x + dw, y + dh, lw, outline);
+                draw_line(x + dw, y, x, y + dh, lw, outline);
+            }
         }
     }
 }

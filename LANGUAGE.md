@@ -15,7 +15,7 @@ Arguments are:
 | kind | example |
 |---|---|
 | number | `40`, `-5`, `2.5` |
-| string | `"hello"` (escapes: `\n \t \" \\`) |
+| string | `"hello"` (escapes: `\n \t \" \\`), or a **raw string** `` `...` `` (backticks) that keeps every backslash — for LaTeX in `equation(...)` |
 | name | `A`, `cyan`, `smooth` (an entity id, color, easing, or function) |
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
 | 3D point | `(2, -1, 3)` — an `(x, y, z)` coordinate triple |
@@ -48,7 +48,7 @@ a beat written above its declaration.
 | `title("...")` | window title + the masthead shown on every frame |
 | `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
 | `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
-| `template("name")` | the overall look. `"plain"` (default) is a blank screen — background + your content only. `"terminal"` neon window chrome (border, dots, title, rule); `"paper"` ink on cream; `"blueprint"` white/cyan on navy. Each **retints** the palette (`cyan`/`fg`/`bg`…). Override at render with `--template <name>`. |
+| `template("name")` | the overall look. `"plain"` (default) is a blank screen — background + your content only. `"terminal"` neon window chrome (border, dots, title, rule); `"paper"` ink on cream; `"blueprint"` white/cyan on navy; `"shorts"` a punchy vertical-video look (neon on black, extra-strong glow, no chrome). Each **retints** the palette (`cyan`/`fg`/`bg`…). Override at render with `--template <name>`. |
 | `masthead("left", ["right"])` | your own header text in the top corners (shown by `terminal`). Empty by default — no engine branding is ever baked in. |
 
 Put these first. (It's `canvas`, not `size` — `size` sets text size.)
@@ -172,6 +172,8 @@ address.
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
+| `image(id, (x,y), "path", [w], [h])` | a **raster image** (PNG/JPG) from a file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing file draws a crossed placeholder box. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
+| `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Rendered white-on-transparent and drawn **tinted by the entity colour**, so it follows `template()` and `color`/`recolor` work. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace). Fonts are baked in (self-contained). |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
 | `support(id, (cx,cy), [len], ["dir"])` | a **hatched fixed support** (wall / ceiling / floor) for mechanics diagrams — a baseline `{id}.line` + diagonal hatch ticks `{id}.tick{i}`. `"dir"` is the OPEN side: `"down"` (ceiling, default), `"up"` (floor), `"left"`/`"right"` (walls). Tagged bare `{id}` + `{id}.parts`. Pairs with `template("paper")` for a textbook look |
 | `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
@@ -543,6 +545,7 @@ incircle, centroid, foot, angle mark, and all sides update live.
 | `linecircle(id, a, b, center, through)` | the **two** points where line `ab` meets circle `(center, through)` → `{id}0`, `{id}1` |
 | `circlecircle(id, o1, on1, o2, on2)` | the two intersection points of circles `(o1,on1)` and `(o2,on2)` → `{id}0`, `{id}1` |
 | `tangent(id, from, center, through)` | the **two** tangent touch-points from external point `from` to circle `(center, through)` → `{id}0`, `{id}1` |
+| `commontangent(id, oA, aOn, oB, bOn, ["type"])` | a **common tangent to two circles** (each = centre + a point on it). `type` = `"external"`/`"direct"` (default) or `"internal"`/`"transverse"`. Draws the segment `{id}` **between the touch points** (its length = the tangent length: external `√(d²−(r₁−r₂)²)`, internal `√(d²−(r₁+r₂)²)`); touch dots `{id}.a`/`{id}.b`. Errors if the circles are too close for that tangent. |
 | `circumcircle(id, a, b, c)` | circle through the three points |
 | `incircle(id, a, b, c)` | circle inscribed in the triangle |
 | `anglemark(id, a, b, c)` | an arc marking the angle at vertex `b` |
@@ -676,6 +679,34 @@ run(l, 7);                           // sweep the focal length — the focus sli
 
 prism(p, (560, 400), "sf11");        // white light → a rainbow (real dispersion)
 run(p, 7);                           // sweep the incidence angle — the fan swings
+```
+
+## The creator kit
+
+**Social-video format templates** — set a reusable profile once, then drop it into
+a vertical (`canvas("9:16")`) scene. (More builtins — `quiz`/`countdown`/… — land
+here next; today it's the profile + footer.)
+
+| builtin | what it does |
+|---|---|
+| `creator(id, "spec")` | a reusable **profile** (set once). `spec` is space-separated: a display handle (`@name`), `platform=user` pairs (`yt=`, `x=`, `ig=`, `tt=`, `gh=`, `web=`), and `accent=colour`. Creates no drawables — `socials` reads it. |
+| `socials(id, [at])` | draw the **footer**: a rule + a row of **drawn** platform icons (only the configured ones) + the handle. Icons are vector-drawn (template-safe, no downloads); for exact brand logos use `image(...)`. `at` centres the row (default the 9:16 bottom). Tagged bare `{id}` + `{id}.footer`. |
+| `quiz(id, "question", ["style"])` | start a **quiz Short**: a framed question header + answer cards + a countdown widget. Add answers with `option`, then `run(id, [dur])` plays the whole **ask → countdown → reveal** beat. Parts `{id}.q/.ring/.timer/.c{i}/.t{i}/.hl`. Optional `style` is an order-free mix of a card **skin** — `"badge"` (framed panel + letter badges, **default**), `"minimal"` (kicker + accent rule, outline rows), `"glass"` (glowing borders), `"plain"` (flat) — and a question **reveal** — `"type"` (typewriter, **default**), `"fade"`, `"rise"`, `"pop"`, `"cut"`. Omit `style` for the badge+typewriter default; add one only for variety (`"glass"`, `"minimal fade"`, …). |
+| `option(id, "text", [correct])` | add an answer to quiz `id`. `run` lays them out by count — a **centred column for ≤3, a 2×2 grid for 4+** — and slides them in; text wraps to fit. A trailing `correct` marks the right one — it gets a lime highlight + a drawn check on the reveal while the others dim. |
+| `countdown(id, [at], [secs])` | a standalone countdown widget — a **draining ring** + a digit, counting from `secs` (default 5). Play it with `run(id, secs)`. |
+| `safezone(id, [inset])` | a faint 9:16 **content-safe** guide rectangle (clear of the platform clock / action bar) — a composing aid; `hidden(id)` it for the final render. |
+| `figure(target, [center], [size])` | **auto-fit** a group into the figure zone: scales + moves `target` (any entity / kit sim — tag its parts with one name) to fill the zone, so an illustration drops in without hand-placing. |
+
+```manic
+canvas("9:16");
+creator(me, "@manic yt=@mychannel x=manic accent=magenta");
+quiz(q, "3 centres are always collinear — on WHICH line?");
+option(q, "the Euler line", correct);
+option(q, "a perpendicular bisector");
+option(q, "an angle bisector");
+option(q, "a median");
+run(q, 14);        // types the question, staggers the cards, counts down, reveals
+socials(me);       // footer, bottom-safe
 ```
 
 ## The 3D kit

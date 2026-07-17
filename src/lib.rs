@@ -44,6 +44,7 @@ pub mod easing;
 pub mod geom;
 pub mod kits;
 pub mod lang;
+pub mod latex;
 pub mod layout;
 pub mod movie;
 pub mod namehint;

@@ -51,3 +51,15 @@ The manic logo / banner reveal.
 ```
 
 <div class="manic-video" data-video="ex-banner"></div>
+
+## image
+
+Embed a raster image (PNG/JPG) with `image(id, (x,y), "path", w, h)` — a real file drawn
+into the scene and animated like any entity (shown, spun, pulsed, moved). Unlocks logos,
+avatars and photo backdrops (e.g. a creator's brand in a template).
+
+```manic
+{{#include ../../examples/image.manic}}
+```
+
+<div class="manic-video" data-video="ex-image"></div>

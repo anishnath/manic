@@ -435,6 +435,40 @@ fn c_line(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `image(id, (x,y), "path", [w], [h])` — a raster image (PNG/JPG) centred on
+/// `(x,y)`, drawn `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded
+/// once at render start; animate it like any entity (`show`/`move`/`fade`/…). A
+/// missing file draws a crossed placeholder box.
+fn c_image(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let path = a.text(2)?;
+    let w = a.opt_num(3)?.unwrap_or(300.0).max(1.0);
+    let h = a.opt_num(4)?.unwrap_or(w).max(1.0);
+    s.add(Entity::new(id, Shape::Image { path, w, h, tint: false }, pos, style::FG));
+    Ok(())
+}
+
+/// `equation(id, (x,y), "latex", [size])` — typeset a LaTeX math string (real
+/// fractions/roots/exponents/Greek via RaTeX) centred at `(x,y)`. `size` is the
+/// em height in px (default 48). Rendered white-on-transparent and drawn tinted
+/// by the entity colour, so it takes the template palette and `color`/`recolor`
+/// work; animate with `show`/`fade`/`move`/`scale` (it's an image, so no `draw`).
+fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let latex = a.text(2)?;
+    let size = a.opt_num(3)?.unwrap_or(48.0).clamp(6.0, 400.0);
+    let dpr = 2.0;
+    let (png, pw, ph) = crate::latex::render_png(&latex, size, dpr)
+        .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
+    let path = crate::latex::cache_png(&latex, size, &png)
+        .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
+    let (w, h) = (pw as f32 / dpr, ph as f32 / dpr);
+    s.add(Entity::new(id, Shape::Image { path, w, h, tint: true }, pos, style::FG));
+    Ok(())
+}
+
 /// `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` — a filled polygon through
 /// the given points (screen coordinates; ≥ 3). A trailing colour word is optional.
 /// Filled with a matching outline; drop the opacity (`opacity(id, 0.3)`) for a
@@ -1217,6 +1251,8 @@ pub fn register(r: &mut Registry) {
     r.ctor("dot", c_dot);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
+    r.ctor("image", c_image);
+    r.ctor("equation", c_equation);
     r.ctor("line", c_line);
     r.ctor("polygon", c_polygon);
     r.ctor("arrow", c_arrow);
@@ -1280,6 +1316,35 @@ pub fn register(r: &mut Registry) {
 
 #[cfg(test)]
 mod tests {
+    /// `image(id, at, "path", [w], [h])` builds a `Shape::Image` entity carrying
+    /// the path + size; validates with default and explicit sizes.
+    #[test]
+    fn image_builds_shape() {
+        use crate::primitives::Shape;
+        let m = crate::parse("canvas(\"16:9\");\nimage(logo, (640, 360), \"foo.png\", 400, 200);\n").unwrap();
+        let e = m.base().get("logo").expect("image entity");
+        match &e.shape {
+            Shape::Image { path, w, h, .. } => {
+                assert_eq!(path, "foo.png");
+                assert_eq!((*w, *h), (400.0, 200.0));
+            }
+            other => panic!("expected Shape::Image, got {other:?}"),
+        }
+        // an equation renders (via RaTeX) to a tinted Shape::Image with real px dims
+        let e = crate::parse("canvas(\"16:9\");\nequation(q, (640, 360), `\\frac{1}{2}+\\sqrt{x}`, 48);\n").unwrap();
+        match &e.base().get("q").expect("equation entity").shape {
+            Shape::Image { tint, w, h, path } => {
+                assert!(*tint, "equation image must be tinted by entity colour");
+                assert!(*w > 0.0 && *h > 0.0, "equation should have real pixel dims");
+                assert!(path.ends_with(".png"), "equation caches a PNG: {path}");
+            }
+            other => panic!("expected equation Shape::Image, got {other:?}"),
+        }
+        // defaults: w=300 square, and it validates in a scene
+        let m2 = crate::parse("canvas(\"16:9\");\nimage(l, (100, 100), \"x.png\");\nshow(l, 0.5);\n").unwrap();
+        assert!(m2.validate().is_ok(), "image + show should validate: {:?}", m2.validate().err());
+    }
+
     /// `sticky(id)` sets the screen-pin flag on an entity, and broadcasts over a tag.
     #[test]
     fn sticky_pins_entity_and_broadcasts() {

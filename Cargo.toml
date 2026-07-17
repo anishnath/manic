@@ -26,6 +26,12 @@ manic-lang = { path = "crates/manic-lang" }  # macroquad-free DSL front-end (lex
 macroquad = "0.4"
 geo = "0.29"        # robust 2D polygon boolean ops (union/intersection/…)
 earcutr = "0.4"     # triangulate holed/multi-piece boolean results for fill
+# LaTeX math typesetting (pure-Rust KaTeX renderer). `embed-fonts` bakes the
+# KaTeX TTFs in → self-contained binary, no system fonts / no font dir.
+ratex-parser = "0.1"
+ratex-layout = "0.1"
+ratex-render = { version = "0.1", features = ["embed-fonts"] }
+ratex-types = "0.1"   # DisplayList / DisplayItem / Color (recolour before render)
 
 [profile.dev]
 opt-level = 1

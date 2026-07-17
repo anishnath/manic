@@ -295,6 +295,26 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 });
                 continue;
             }
+            '`' => {
+                // Raw string: NO escape processing (backslashes kept verbatim), for
+                // LaTeX in `equation(...)` — `\frac{1}{2}`, `\times`, `\theta` all
+                // survive intact. Same `Str` token as `"..."`.
+                lx.bump(); // opening backtick
+                let mut s = String::new();
+                loop {
+                    match lx.bump() {
+                        Some('`') => break,
+                        Some(ch) => s.push(ch),
+                        None => return Err(Error::new("unterminated raw string literal", start)),
+                    }
+                }
+                let len = (lx.col.saturating_sub(start.col)).max(1);
+                out.push(Token {
+                    tok: Tok::Str(s),
+                    span: Span::new(start.line, start.col, len),
+                });
+                continue;
+            }
             c if is_ident_start(c) => {
                 let mut s = String::new();
                 while let Some(ch) = lx.peek() {
@@ -385,6 +405,18 @@ mod tests {
         assert!(toks.contains(&Tok::Minus));
         assert!(toks.contains(&Tok::Num(5.0)));
         assert_eq!(*toks.last().unwrap(), Tok::Eof);
+    }
+
+    #[test]
+    fn raw_backtick_strings_keep_backslashes() {
+        // `"..."` processes escapes (\t → tab); `` `...` `` keeps them raw for LaTeX.
+        let quoted = kinds(r#"f("\theta")"#);
+        assert!(quoted.contains(&Tok::Str("\theta".into())), "quotes eat \\t: {quoted:?}");
+        let raw = kinds("f(`\\theta = \\frac{\\pi}{4} \\neq \\tan x`)");
+        assert!(
+            raw.contains(&Tok::Str(r"\theta = \frac{\pi}{4} \neq \tan x".into())),
+            "raw string should keep backslashes verbatim: {raw:?}"
+        );
     }
 
     #[test]

@@ -7,6 +7,7 @@
 
 pub mod algo;
 pub mod brand;
+pub mod creator;
 pub mod geo;
 pub mod math;
 pub mod optics;
@@ -29,6 +30,7 @@ pub fn default_registry() -> Registry {
     stats::register(&mut r);
     physics::register(&mut r);
     optics::register(&mut r);
+    creator::register(&mut r);
     r
 }
 

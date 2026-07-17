@@ -133,6 +133,7 @@ pub fn entity_to_multipolygon(e: &Entity) -> Result<MultiPolygon<f64>, String> {
         }
         Shape::Polyline { .. } => Err("can't boolean a polyline — it has no area".into()),
         Shape::Text { .. } => Err("can't boolean text".into()),
+        Shape::Image { .. } => Err("can't boolean an image".into()),
     }
 }
 

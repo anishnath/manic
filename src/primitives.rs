@@ -49,6 +49,13 @@ pub enum Shape {
     },
     /// Text anchored on `pos`.
     Text { content: String, size: f32 },
+    /// A raster image (PNG/JPG) centred on `pos`, drawn at `w`×`h` px (scaled by
+    /// `Entity::scale`). `path` is loaded once into a texture cache at render
+    /// start; a missing/unloaded image draws a placeholder box. `tint`: when true
+    /// the texture is multiplied by `Entity::color` (for a white-on-transparent
+    /// glyph image like a rendered equation, so it takes the template colour);
+    /// when false it draws at full colour (photos/logos).
+    Image { path: String, w: f32, h: f32, tint: bool },
 }
 
 /// Horizontal anchoring for [`Shape::Text`].

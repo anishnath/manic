@@ -458,6 +458,10 @@ SECTIONS = [
    ("terminal_boot", "The neon terminal template booting up."),
    ("brace", "The curly-brace family."),
    ("banner", "The manic logo / banner reveal."),
+   ("image",
+    "Embed a raster image (PNG/JPG) with `image(id, (x,y), \"path\", w, h)` — a real file drawn\n"
+    "into the scene and animated like any entity (shown, spun, pulsed, moved). Unlocks logos,\n"
+    "avatars and photo backdrops (e.g. a creator's brand in a template)."),
  ]),
  dict(slug="generative", title="Generative & recursive", intro="", sub=SUB, items=[
    ("gun-shot",
@@ -478,6 +482,35 @@ SECTIONS = [
    ("pieday",
     "A Pi Day card: a rainbow petal-flower built from a loop of circles, radial rays,\n"
     "the digits of π, and the definition `circumference / diameter = pi`."),
+ ]),
+ dict(slug="creator", title="Creator formats — Shorts",
+   intro="Vertical (9:16) social-video formats a creator fills in. The `creator` kit turns a "
+         "question, a few answers and a social profile into a branded, timed Short — no timeline "
+         "authoring. `quiz` picks a card **skin** (`badge` default · `minimal` · `glass` · `plain`) "
+         "and a question **reveal** (`type` default · `fade` · `rise` · `pop` · `cut`) from one "
+         "order-free style string, e.g. `\"glass fade\"`; `option` cards auto-lay-out by count "
+         "(centred column ≤3, 2×2 for 4); `run` plays the whole ask→countdown→reveal beat; "
+         "`figure` auto-fits an illustration between the header and the cards.",
+   sub=SUB, items=[
+   ("quiz-skins",
+    "The quiz Short in a dozen lines: `quiz`/`option`/`run` + a `creator`/`socials` footer.\n"
+    "Change the one style word on `quiz(...)` to switch card SKIN — `badge` (framed panel +\n"
+    "coloured letter badges), `minimal`, `glass` (glowing borders) or `plain` — and add a\n"
+    "question REVEAL in the same string (e.g. `\"glass fade\"`). The correct card lights up with a\n"
+    "green badge + check on reveal; a draining ring counts the timer down."),
+   ("quiz-euler",
+    "A quiz Short with an ANIMATED figure: the geo kit constructs the Euler line (the answer),\n"
+    "and `figure(...)` AUTO-FITS the whole triangle+circumcircle into the zone between the\n"
+    "question header and the answer cards — no coordinate tuning. The question, four cards, the\n"
+    "countdown and the whole ask→countdown→reveal beat are just `quiz`/`option`/`run`."),
+   ("quiz-geometry",
+    "The hand-authored proof behind the kit (≈60 lines from shipped primitives): a question, an\n"
+    "animated geometry figure, four option cards, a countdown and a time-out reveal. Useful to\n"
+    "see what `quiz`/`option`/`run` automate under the hood."),
+   ("quiz-geometry-2",
+    "A layout stress-test: a different olympiad question with TWO figures side by side (an acute\n"
+    "triangle with its circumcentre INSIDE vs an obtuse one with it OUTSIDE), proving the 2×2\n"
+    "options, countdown and footer keep their spacing for richer figure content."),
  ]),
  dict(slug="boolean", title="Boolean shapes", intro="", sub=SUB, items=[
    ("boolean", "Union / intersection / difference of shapes."),
