@@ -276,16 +276,44 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 loop {
                     match lx.bump() {
                         Some('"') => break,
-                        Some('\\') => match lx.bump() {
-                            Some('n') => s.push('\n'),
-                            Some('t') => s.push('\t'),
-                            Some('"') => s.push('"'),
-                            Some('\\') => s.push('\\'),
-                            Some(other) => s.push(other),
-                            None => return Err(Error::new("unterminated string literal", start)),
+                        // LaTeX-safe strings: keep backslashes verbatim so
+                        // `"\frac{1}{2}"`, `"\theta"`, `"\int"` all survive. Only
+                        // `\"` (a literal quote) and `\\` (a literal backslash)
+                        // are special; every other backslash is preserved for
+                        // LaTeX. (Backticks are still fully raw, incl. quotes.)
+                        Some('\\') => match lx.peek() {
+                            Some('"') => {
+                                lx.bump();
+                                s.push('"');
+                            }
+                            Some('\\') => {
+                                lx.bump();
+                                s.push('\\');
+                            }
+                            _ => s.push('\\'), // keep it; the next char lexes normally
                         },
                         Some(ch) => s.push(ch),
                         None => return Err(Error::new("unterminated string literal", start)),
+                    }
+                }
+                let len = (lx.col.saturating_sub(start.col)).max(1);
+                out.push(Token {
+                    tok: Tok::Str(s),
+                    span: Span::new(start.line, start.col, len),
+                });
+                continue;
+            }
+            '`' => {
+                // Raw string: NO escape processing (backslashes kept verbatim), for
+                // LaTeX in `equation(...)` — `\frac{1}{2}`, `\times`, `\theta` all
+                // survive intact. Same `Str` token as `"..."`.
+                lx.bump(); // opening backtick
+                let mut s = String::new();
+                loop {
+                    match lx.bump() {
+                        Some('`') => break,
+                        Some(ch) => s.push(ch),
+                        None => return Err(Error::new("unterminated raw string literal", start)),
                     }
                 }
                 let len = (lx.col.saturating_sub(start.col)).max(1);
@@ -338,6 +366,12 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                 });
                 continue;
             }
+            '\\' => {
+                return Err(Error::new(
+                    "unexpected `\\` — LaTeX must be inside a STRING. Wrap it in double quotes (or backticks): equation(q,(x,y),\"\\frac{1}{2}\")",
+                    start,
+                ))
+            }
             other => return Err(Error::new(format!("unexpected character `{other}`"), start)),
         };
 
@@ -380,11 +414,31 @@ mod tests {
         let toks = kinds("// hi\npar {\n  say(cap, \"hi\\n\"); move(a,(-5,0));\n}");
         assert_eq!(toks[0], Tok::Ident("par".into()));
         assert_eq!(toks[1], Tok::LBrace);
-        assert!(toks.contains(&Tok::Str("hi\n".into())));
+        // LaTeX-safe strings keep the backslash: `"hi\n"` is `hi` + `\` + `n`.
+        assert!(toks.contains(&Tok::Str("hi\\n".into())));
         // `-5` now lexes as a Minus operator + Num(5) (unary minus in the parser)
         assert!(toks.contains(&Tok::Minus));
         assert!(toks.contains(&Tok::Num(5.0)));
         assert_eq!(*toks.last().unwrap(), Tok::Eof);
+    }
+
+    #[test]
+    fn strings_keep_latex_backslashes() {
+        // BOTH `"..."` and `` `...` `` keep backslashes verbatim (LaTeX-safe), so
+        // `\theta`/`\frac`/`\neq` survive. `"..."` only treats `\"` and `\\`.
+        let quoted = kinds(r#"f("\theta = \frac{\pi}{4} \neq \tan x")"#);
+        assert!(
+            quoted.contains(&Tok::Str(r"\theta = \frac{\pi}{4} \neq \tan x".into())),
+            "double quotes should keep LaTeX backslashes: {quoted:?}"
+        );
+        let raw = kinds("f(`\\theta = \\frac{\\pi}{4} \\neq \\tan x`)");
+        assert!(
+            raw.contains(&Tok::Str(r"\theta = \frac{\pi}{4} \neq \tan x".into())),
+            "raw string should keep backslashes verbatim: {raw:?}"
+        );
+        // `\"` still escapes a quote inside a double-quoted string
+        let esc = kinds(r#"f("a\"b")"#);
+        assert!(esc.contains(&Tok::Str("a\"b".into())), "\\\" should escape a quote: {esc:?}");
     }
 
     #[test]

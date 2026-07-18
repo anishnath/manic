@@ -20,6 +20,11 @@ rows whose id is still `PLACEHOLDER` and that have a rendered mp4 in
     python manic_youtube.py --all --privacy public   # render + upload + embed
     python manic_youtube.py --only bubble_sort
     python manic_youtube.py --playlists       # ALSO file each into manic — <Section>
+
+    # refresh metadata on ALREADY-published videos (rows with a real id):
+    python manic_youtube.py --update --dry-run              # preview, change nothing
+    python manic_youtube.py --update --descriptions-only    # descriptions + tags only (SEO-safe)
+    python manic_youtube.py --update                        # title + description + tags
     python manic_youtube.py --no-playlist     # skip the master playlist
 
 Every upload is added to a single master playlist ("manic" by default; change with
@@ -76,8 +81,16 @@ def save_state(state: dict) -> None:
 
 # ---- metadata templates --------------------------------------------------
 BOILERPLATE = (
-    "Made with manic — write animations as plain text, render to video.\n"
-    f"▶ {SITE}"
+    "Made with manic — the animation LANGUAGE that turns plain text into precise,\n"
+    "correct animations. No coding, no timeline scrubbing: you describe what you\n"
+    "want and manic animates it — math, physics, optics, algorithms, geometry —\n"
+    "with the diagram actually TRUE, not hand-drawn. One tiny script → this video.\n"
+    "\n"
+    f"▶ Try it free in your browser: {SITE}\n"
+    f"▶ Docs + full example gallery: {SITE}/docs\n"
+    "\n"
+    "Copy the exact script for this scene in the gallery, change a number, run it —\n"
+    "that's the power of manic: real animation, in a few lines."
 )
 
 BASE_TAGS = [
@@ -94,18 +107,24 @@ TOPIC = {
     "calculus":             (["calculus", "integral", "riemann sum", "math visualization"], "#calculus #math #manim"),
     "linear algebra":       (["linear algebra", "matrix", "matrices"], "#linearalgebra #math #coding"),
     "vectors":              (["vector field", "coordinates", "math visualization"], "#math #vectors #coding"),
+    "statistics":           (["statistics", "probability", "data science", "math visualization"], "#statistics #math #datascience"),
     "geometry":             (["geometry", "euclidean geometry", "olympiad geometry"], "#geometry #math #manim"),
     "transforms":           (["linear transformation", "matrix transformation"], "#linearalgebra #math #coding"),
     "text":                 (["motion graphics", "typography", "creative coding"], "#motiongraphics #creativecoding #manic"),
     "generative":           (["creative coding", "generative art", "recursion", "fractal"], "#creativecoding #generative #manic"),
     "boolean":              (["boolean operations", "geometry", "creative coding"], "#geometry #creativecoding #manic"),
     "3d":                   (["3d animation", "3d math", "math visualization"], "#3d #math #manim"),
+    "physics":              (["physics", "physics simulation", "physics animation", "mechanics", "science"], "#physics #science #manim"),
+    "optics":               (["optics", "light", "lenses", "ray tracing", "physics"], "#optics #physics #science"),
+    "figures":              (["character animation", "stick figure", "creative coding"], "#animation #creativecoding #manic"),
 }
 DEFAULT_TOPIC = (["creative coding", "coding"], "#coding #manim #manic")
 
 
 def topic_for(section: str) -> tuple[list[str], str]:
-    s = section.lower()
+    # match on the primary label (before any "— subtitle"), so e.g.
+    # "optics — light as geometry" maps to optics, not geometry
+    s = section.lower().split("—")[0]
     for key, val in TOPIC.items():
         if key in s:
             return val
@@ -282,7 +301,13 @@ def main():
     ap.add_argument("--playlists", action="store_true",
                     help="ALSO add each video to a per-topic playlist (manic — <Section>)")
     ap.add_argument("--force", action="store_true", help="re-upload even if the source is unchanged")
-    ap.add_argument("--dry-run", action="store_true", help="print metadata, upload nothing")
+    ap.add_argument("--update", action="store_true",
+                    help="UPDATE title/description/tags of ALREADY-published videos (rows with a real id) "
+                         "in place — no upload. Refreshes metadata from videos.txt + the description template.")
+    ap.add_argument("--descriptions-only", action="store_true",
+                    help="with --update: refresh descriptions + tags but LEAVE titles unchanged (safer for SEO)")
+    ap.add_argument("--yes", action="store_true", help="with --update: skip the confirmation prompt")
+    ap.add_argument("--dry-run", action="store_true", help="print metadata, change nothing")
     ap.add_argument("--client-secret", type=Path, help="OAuth client_secret*.json (default: newest in ./)")
     ap.add_argument("--creds", type=Path, default=HERE / "youtube_credentials.json",
                     help="saved OAuth token path")
@@ -296,6 +321,54 @@ def main():
             return True
         o = args.only
         return name == o or name == f"ex-{o}" or name.removeprefix("ex-") == o
+
+    # ---- --update: refresh metadata on already-published videos, no upload ----
+    if args.update:
+        pub = [r for r in parse_videos(VIDEOS_TXT)
+               if wanted(r["name"]) and r["id"] not in ("", "PLACEHOLDER")]
+        if not pub:
+            sys.exit("no published rows to update (all PLACEHOLDER, or --only filtered them out).")
+        mode = "descriptions + tags (titles untouched)" if args.descriptions_only else "title + description + tags"
+        print(f"update: {len(pub)} published video(s) · {mode}\n")
+        if args.dry_run:
+            for r in pub:
+                head = f"── {r['name']}  [{r['id']}]"
+                print(head if args.descriptions_only else f"{head}\n   title: {r['title']}")
+                print("   desc : " + make_description(r["title"], r["section"]).splitlines()[0])
+            print(f"\n(dry run — nothing sent. {len(pub)} video(s) would be updated.)")
+            return
+        if not args.yes:
+            resp = input(f"Update {len(pub)} LIVE YouTube video(s) — proceed? [y/N] ").strip().lower()
+            if resp not in ("y", "yes"):
+                sys.exit("aborted.")
+        build, HttpError, MediaFileUpload, *_ = _yt_imports()
+        cs = args.client_secret or next(iter(sorted(HERE.glob("client_secret*.json"))), None)
+        if not cs or not cs.exists():
+            sys.exit("No OAuth client_secret*.json found in ./youtube/ (see README).")
+        yt = build("youtube", "v3", credentials=load_credentials(cs, args.creds))
+        ok = failed = 0
+        for r in pub:
+            try:
+                resp = yt.videos().list(part="snippet", id=r["id"]).execute()
+                items = resp.get("items", [])
+                if not items:
+                    print(f"!! {r['name']} [{r['id']}]: not found / not owned — skipped")
+                    failed += 1
+                    continue
+                snip = items[0]["snippet"]
+                if not args.descriptions_only:
+                    snip["title"] = r["title"][:100]
+                snip["description"] = make_description(r["title"], r["section"])
+                snip["tags"] = make_tags(r["title"], r["section"])[:60]
+                snip["categoryId"] = snip.get("categoryId") or "28"
+                yt.videos().update(part="snippet", body={"id": r["id"], "snippet": snip}).execute()
+                print(f"✓ {r['name']} [{r['id']}]")
+                ok += 1
+            except HttpError as e:
+                print(f"!! {r['name']} [{r['id']}]: {e}")
+                failed += 1
+        print(f"\ndone — {ok} updated, {failed} failed.")
+        return
 
     state = load_state()
     rows = [r for r in parse_videos(VIDEOS_TXT) if wanted(r["name"])]

@@ -65,6 +65,24 @@ SECTIONS = [
    ("trajectory",
     "A phase portrait: three paths flowing under a differential system, each\n"
     "spiralling into the sink at the origin."),
+   ("band",
+    "The area trapped between two curves, filled directly with `band(top,bottom)` while both\n"
+    "boundary plots remain visible."),
+   ("curve-features",
+    "Read a cubic by its geometry: maxima/minima where the slope is zero and an inflection\n"
+    "where the curve changes its bend (`extrema`, `inflections`)."),
+   ("ftc",
+    "The Fundamental Theorem of Calculus: accumulate the area under a curve, differentiate\n"
+    "that area function, and watch the original function return."),
+   ("limit",
+    "A removable discontinuity visualized as an approaching point, open circle and live\n"
+    "finite limit at x→0."),
+   ("limit-infinity",
+    "A rational function settling onto its horizontal asymptote, with `limit(...,inf)`\n"
+    "detecting and marking the value at infinity."),
+   ("taylor",
+    "Taylor polynomials of increasing degree closing in on sin(x), one additional\n"
+    "approximation at a time."),
  ]),
  dict(slug="linalg", title="Linear algebra & tables", intro="", sub=SUB, items=[
    ("linear-algebra",
@@ -174,6 +192,9 @@ SECTIONS = [
     "velocity arrow + KE/PE bars), the phase portrait (θ vs ω), a time series, the\n"
     "potential-energy well, and energy over time (`pendulum` + `phase`/`timegraph`/\n"
     "`well`/`energygraph` + `swing`)."),
+   ("timing-v2-scene",
+    "Generic Timing v2 controlling an ordinary physics scene: one named-phase clock schedules\n"
+    "the intro, pendulum motion and finish independently from its native timer look."),
    ("pendulum-damped",
     "The same four views with friction on (`damping`): the swing decays, the phase loop\n"
     "spirals inward, the well ball settles, and the total-energy line drops — dissipation\n"
@@ -458,6 +479,16 @@ SECTIONS = [
    ("terminal_boot", "The neon terminal template booting up."),
    ("brace", "The curly-brace family."),
    ("banner", "The manic logo / banner reveal."),
+   ("equation",
+    "Display-quality LaTeX for fractions, roots, sums, powers and integrals, with semantic\n"
+    "colour and template tinting."),
+   ("inline-math",
+    "Inline LaTeX mixed with ordinary prose, including wrapped explanatory text and a\n"
+    "standalone display equation."),
+   ("image",
+    "Embed a raster image (PNG/JPG) with `image(id, (x,y), \"path\", w, h)` — a real file drawn\n"
+    "into the scene and animated like any entity (shown, spun, pulsed, moved). Unlocks logos,\n"
+    "avatars and photo backdrops (e.g. a creator's brand in a template)."),
  ]),
  dict(slug="generative", title="Generative & recursive", intro="", sub=SUB, items=[
    ("gun-shot",
@@ -478,6 +509,65 @@ SECTIONS = [
    ("pieday",
     "A Pi Day card: a rainbow petal-flower built from a loop of circles, radial rays,\n"
     "the digits of π, and the definition `circumference / diameter = pi`."),
+ ]),
+ dict(slug="creator", title="Creator formats — responsive social video",
+   intro="Creator Kit v2 turns a question, answers, media and a reusable creator profile into a "
+         "polished timed social clip. The same source adapts to 9:16, 4:5, 1:1 and 16:9 with "
+         "platform-safe regions. `studio` plus a balanced ring is the restrained default; `timing` "
+         "controls the beat independently from `timerstyle`, whose native ring, bar, number, "
+         "segments, ticks and pulse looks remain crisp at every size. Explicit `layout`, `density`, "
+         "`labels`, `motion`, `safe` and `accent` controls customise the rest. Responsive native "
+         "social icons, optional explanations and final end cards share the same brand profile.",
+   sub=SUB, items=[
+   ("perfect-reel",
+    "The gold-path production starter: phone-safe composition, real LaTeX, exact pacing,\n"
+    "professional mono styling, creator identity, timeline markers and a focused end card."),
+   ("creator-v2-options-socials",
+    "The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D\n"
+    "cards, uniform correct-state spacing, and native YouTube/X/web identity lockups."),
+   ("creator-v2",
+    "The complete v2 core: responsive studio quiz, optics media, width-aware answer cards, a\n"
+    "signature creator footer, optional explanation and a branded final end card."),
+   ("creator-v2-timing",
+    "Timing v2 in a portrait quiz: exact ask/options/think/reveal/hold phases, LaTeX media, and a\n"
+    "segmented timer whose presentation can change without changing the choreography."),
+   ("creator-v2-timers",
+    "All six native Timing v2 looks—ring, bar, number, segments, ticks and pulse—running side by\n"
+    "side. Native shapes keep every look scalable, theme-aware and progress-animatable."),
+   ("creator-v2-timing-square",
+    "A square feed-card variant with a scaled dramatic preset and a filling tick timer, showing\n"
+    "that timing and timer placement reflow independently across formats."),
+   ("creator-v2-olympiad-geometry",
+    "An olympiad-level geometry Reel built as pause → predict → prove, with a responsive\n"
+    "construction, authored explanation and reusable creator identity."),
+   ("creator-v2-latex-calculus",
+    "Portrait Creator v2 with inline and display LaTeX: a calculus question, fitted formula\n"
+    "answers and crisp typesetting throughout the timed reveal."),
+   ("creator-v2-latex-algebra",
+    "Square Creator v2 on a paper surface, checking that algebraic LaTeX and answer cards\n"
+    "remain balanced and readable outside the vertical format."),
+   ("creator-v2-latex-physics",
+    "Landscape Creator v2 with a physics equation, proving the same LaTeX quiz system\n"
+    "reflows cleanly for widescreen explainers."),
+   ("quiz-skins",
+    "The quiz Short in a dozen lines: `quiz`/`option`/`run` + a `creator`/`socials` footer.\n"
+    "Change the one style word on `quiz(...)` to switch card SKIN — `badge` (framed panel +\n"
+    "coloured letter badges), `minimal`, `glass` (glowing borders) or `plain` — and add a\n"
+    "question REVEAL in the same string (e.g. `\"glass fade\"`). The correct card lights up with a\n"
+    "green badge + check on reveal; a draining ring counts the timer down."),
+   ("quiz-euler",
+    "A quiz Short with an ANIMATED figure: the geo kit constructs the Euler line (the answer),\n"
+    "and `figure(...)` AUTO-FITS the whole triangle+circumcircle into the zone between the\n"
+    "question header and the answer cards — no coordinate tuning. The question, four cards, the\n"
+    "countdown and the whole ask→countdown→reveal beat are just `quiz`/`option`/`run`."),
+   ("quiz-geometry",
+    "The hand-authored proof behind the kit (≈60 lines from shipped primitives): a question, an\n"
+    "animated geometry figure, four option cards, a countdown and a time-out reveal. Useful to\n"
+    "see what `quiz`/`option`/`run` automate under the hood."),
+   ("quiz-geometry-2",
+    "A layout stress-test: a different olympiad question with TWO figures side by side (an acute\n"
+    "triangle with its circumcentre INSIDE vs an obtuse one with it OUTSIDE), proving the 2×2\n"
+    "options, countdown and footer keep their spacing for richer figure content."),
  ]),
  dict(slug="boolean", title="Boolean shapes", intro="", sub=SUB, items=[
    ("boolean", "Union / intersection / difference of shapes."),
@@ -509,15 +599,23 @@ SECTIONS = [
     "Multivariable calculus: the volume under a surface as a limit of finer and\n"
     "finer columns — a double integral, made solid. The coarse blocks refine until\n"
     "they hug the surface."),
+   ("multivariable3",
+    "Calculus on a surface: a smooth hill, its tangent plane and the gradient arrow at a\n"
+    "chosen point, inspected with an orbiting camera."),
+   ("volume3",
+    "The volume under a surface represented as solid 3D Riemann-sum columns, turning a\n"
+    "double integral into visible geometry."),
  ]),
 ]
 
 # Non-gallery nav entries, above and below the nested Examples-gallery list.
 SUMMARY_PRE = [
  "- [Getting started](getting-started.md)",
+ "- [Create a polished Reel](creator-reels.md)",
  "- [Shapes — the cast](shapes.md)",
  "- [Verbs — bringing it to life](verbs.md)",
- "- [Timing — par, seq & stagger](timing.md)",
+ "- [Timing — flow, named phases & clocks](timing.md)",
+ "- [Templates — choose the whole visual system](templates.md)",
  "- [Colour & style](colour.md)",
  "- [The language layer](language-layer.md)",
  "- [Kits — math, geometry, algorithms](kits.md)",

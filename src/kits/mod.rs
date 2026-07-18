@@ -7,6 +7,7 @@
 
 pub mod algo;
 pub mod brand;
+pub mod creator;
 pub mod geo;
 pub mod math;
 pub mod optics;
@@ -29,6 +30,7 @@ pub fn default_registry() -> Registry {
     stats::register(&mut r);
     physics::register(&mut r);
     optics::register(&mut r);
+    creator::register(&mut r);
     r
 }
 
@@ -118,6 +120,11 @@ mod catalog_tests {
             for e in entries.flatten() {
                 let p = e.path();
                 if p.extension().and_then(|x| x.to_str()) != Some("manic") {
+                    continue;
+                }
+                // `test.manic` is a scratch/throwaway (often a raw model generation
+                // under test) — don't let it gate the suite.
+                if p.file_name().and_then(|x| x.to_str()) == Some("test.manic") {
                     continue;
                 }
                 let src = fs::read_to_string(&p).unwrap_or_default();

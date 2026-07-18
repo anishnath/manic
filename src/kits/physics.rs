@@ -1958,6 +1958,18 @@ fn v_forces(s: &Scene, a: &Args) -> Result<Clip, Error> {
 /// keyframed replay (one segment per frame) of every stored [`PlaybackTrack`].
 fn v_play(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let id = a.ident(0)?;
+    // `run` is shared: a creator-kit quiz emits its own ask→countdown→reveal beat
+    if s.quizzes.contains_key(&id) {
+        return crate::kits::creator::build_quiz_clip(s, &id, a.opt_num(1)?, a.span_of(1));
+    }
+    if s.timings.contains_key(&id) {
+        return crate::kits::creator::build_generic_timing_clip(
+            s,
+            &id,
+            a.opt_num(1)?,
+            a.span_of(1),
+        );
+    }
     let sim = s.sims.get(&id).ok_or_else(|| {
         Error::new(format!("no sim `{id}` — call `pendulum(...)` (or another sim) first"), a.span_of(0))
     })?;

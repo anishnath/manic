@@ -85,6 +85,10 @@ enum EntitySlot {
 /// world at t = 0; the timeline produces per-frame copies of it.
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
+    /// Logical canvas size. Kits use this for responsive layout; render scale is
+    /// deliberately separate, so a 1080x1920 Short and its supersampled export
+    /// share identical layout coordinates.
+    pub canvas_size: macroquad::prelude::Vec2,
     pub entities: Vec<Entity>,
     pub entities_3d: Vec<Entity3D>,
     index: HashMap<String, EntitySlot>,
@@ -101,11 +105,390 @@ pub struct Scene {
     /// energy bars, …). The ctor (`pendulum`) pre-integrates and fills this; the
     /// playback verb (`swing`) reads it to emit the keyframed replay. Build-time only.
     pub sims: HashMap<String, SimData>,
+    /// Creator social profiles (`creator` builtin): id → handle + platforms +
+    /// accent. `socials` reads it to draw the footer. Build-time only.
+    pub creators: HashMap<String, CreatorProfile>,
+    /// Quiz-Short state (`quiz`/`option`): id → question/options/countdown.
+    /// `run(id)` reads it to emit the ask → countdown → reveal beat. Build-time.
+    pub quizzes: HashMap<String, QuizData>,
+    /// Generic named-phase timing controllers. Unlike `QuizTiming`, these are
+    /// format-neutral: `timed(id) { during("phase") { ... } }` can coordinate
+    /// any ordinary scene while the same native timer widget runs alongside it.
+    pub timings: HashMap<String, TimingData>,
+    /// LaTeX equations to rasterise at the RENDER scale (so they're pixel-sharp,
+    /// not up/down-scaled). Layout/size are fixed at build; the player renders the
+    /// PNG at `dpr = render scale` before the frame loop. `(cache path, latex, em size)`.
+    pub pending_eqs: Vec<(String, String, f32)>,
+}
+
+/// How a creator identity is presented at the bottom of a format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorFooter {
+    /// Platform icons + handle: the v1 treatment and backwards-compatible default.
+    #[default]
+    Social,
+    /// Small logo/name/handle lockup with no platform-icon row.
+    Compact,
+    /// Larger logo, display name and tagline lockup.
+    Signature,
+    /// Suppress the footer entirely.
+    None,
+}
+
+/// Platform-safe content inset profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorSafe {
+    #[default]
+    Shorts,
+    Reels,
+    Tiktok,
+    Clean,
+}
+
+/// A creator's reusable brand profile. Existing handle/platform/accent fields
+/// remain; v2 adds identity and presentation fields for responsive footers and
+/// end cards.
+#[derive(Debug, Clone, Default)]
+pub struct CreatorProfile {
+    pub handle: String,
+    pub display_name: String,
+    pub tagline: String,
+    pub logo: String,
+    pub website: String,
+    pub cta: String,
+    pub platforms: Vec<(String, String)>,
+    pub accent: Option<macroquad::prelude::Color>,
+    pub secondary: Option<macroquad::prelude::Color>,
+    pub footer: CreatorFooter,
+    pub safe: CreatorSafe,
+}
+
+/// A centre/size rectangle used by the responsive creator layout.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CreatorRect {
+    pub center: macroquad::prelude::Vec2,
+    pub size: macroquad::prelude::Vec2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizLayout {
+    #[default]
+    Auto,
+    Stack,
+    Grid,
+    MediaFirst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizDensity {
+    Compact,
+    #[default]
+    Comfortable,
+    Spacious,
+}
+
+/// Visible option-index treatment. Letters remain the compatibility/default
+/// choice; numbers and no labels are useful for polls and statement lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizLabels {
+    #[default]
+    Letters,
+    Numbers,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizTimer {
+    #[default]
+    Ring,
+    Bar,
+    Number,
+    Segments,
+    Ticks,
+    Pulse,
+    None,
+}
+
+/// Named timing rhythms for a creator quiz. A preset is a convenient starting
+/// point; `timing(...)` may override any individual phase afterward.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorPace {
+    Quick,
+    #[default]
+    Balanced,
+    Calm,
+    Dramatic,
+}
+
+/// Absolute phase durations (seconds) for the ask → options → think → reveal
+/// → hold beat. `custom` records whether the author supplied numeric phases;
+/// explicit phases intentionally reject a second total duration in `run`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct QuizTiming {
+    pub pace: CreatorPace,
+    pub ask: f32,
+    pub options: f32,
+    pub think: f32,
+    pub reveal: f32,
+    pub hold: f32,
+    pub stagger: f32,
+    pub custom: bool,
+}
+
+impl QuizTiming {
+    pub fn preset(pace: CreatorPace) -> Self {
+        let (ask, options, think, reveal, hold, stagger) = match pace {
+            CreatorPace::Quick => (0.70, 0.70, 3.0, 0.50, 2.10, 0.045),
+            CreatorPace::Balanced => (1.40, 1.20, 5.0, 0.80, 3.60, 0.065),
+            CreatorPace::Calm => (1.80, 1.60, 7.0, 1.00, 3.60, 0.090),
+            CreatorPace::Dramatic => (1.10, 1.40, 5.0, 0.90, 3.60, 0.075),
+        };
+        Self {
+            pace,
+            ask,
+            options,
+            think,
+            reveal,
+            hold,
+            stagger,
+            custom: false,
+        }
+    }
+
+    pub fn total(self) -> f32 {
+        self.ask + self.options + self.think + self.reveal + self.hold
+    }
+}
+
+impl Default for QuizTiming {
+    fn default() -> Self {
+        Self::preset(CreatorPace::Balanced)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerPosition {
+    #[default]
+    Auto,
+    Header,
+    Media,
+    Below,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerNumber {
+    #[default]
+    Inside,
+    Outside,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerDirection {
+    #[default]
+    Drain,
+    Fill,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerFinish {
+    #[default]
+    Fade,
+    Hold,
+    Flash,
+    Pulse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerFont {
+    #[default]
+    Mono,
+    Display,
+}
+
+/// Visual tokens for quiz and standalone countdown widgets. Colours are
+/// optional semantic overrides; the quiz accent and DIM track remain defaults.
+#[derive(Debug, Clone)]
+pub struct CreatorTimerSpec {
+    pub look: QuizTimer,
+    pub position: TimerPosition,
+    pub number: TimerNumber,
+    pub direction: TimerDirection,
+    pub finish: TimerFinish,
+    pub font: TimerFont,
+    pub size: f32,
+    pub thickness: f32,
+    pub color: Option<macroquad::prelude::Color>,
+    pub track: Option<macroquad::prelude::Color>,
+    pub label: String,
+}
+
+impl Default for CreatorTimerSpec {
+    fn default() -> Self {
+        Self {
+            look: QuizTimer::Ring,
+            position: TimerPosition::Auto,
+            number: TimerNumber::Inside,
+            direction: TimerDirection::Drain,
+            finish: TimerFinish::Fade,
+            font: TimerFont::Mono,
+            size: 1.0,
+            thickness: 1.0,
+            color: None,
+            track: None,
+            label: String::new(),
+        }
+    }
+}
+
+/// One named, absolute-duration phase in a generic timing controller.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimingPhase {
+    pub name: String,
+    pub duration: f32,
+}
+
+/// Format-neutral Timing v2 data. `timing(id, ...)` creates this, `timerstyle`
+/// controls its optional native clock, and the lowerer schedules `during`
+/// blocks at the exact offsets derived from `phases`.
+#[derive(Debug, Clone)]
+pub struct TimingData {
+    pub phases: Vec<TimingPhase>,
+    pub timer_style: CreatorTimerSpec,
+    pub timer_rect: CreatorRect,
+    pub ui_scale: f32,
+}
+
+impl TimingData {
+    pub fn total(&self) -> f32 {
+        self.phases.iter().map(|phase| phase.duration).sum()
+    }
+
+    pub fn phase(&self, name: &str) -> Option<(f32, f32)> {
+        let mut offset = 0.0;
+        for phase in &self.phases {
+            if phase.name == name {
+                return Some((offset, phase.duration));
+            }
+            offset += phase.duration;
+        }
+        None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorMotion {
+    Calm,
+    #[default]
+    Studio,
+    Punch,
+    Cut,
+}
+
+/// A quiz-Short's state (`quiz`/`option` builtins): the question + its option
+/// cards + the correct-answer highlight + countdown widget ids. `run(id)` reads
+/// this to emit the whole ask → countdown → reveal beat. Build-time only.
+#[derive(Debug, Clone, Default)]
+pub struct QuizData {
+    pub options: Vec<QuizOpt>,
+    /// id of the lime highlight rect over the correct card (empty until set).
+    pub highlight: String,
+    /// how the question text reveals in (typewriter by default).
+    pub reveal: QuizReveal,
+    /// The card/question design skin (Studio by default in v2).
+    pub skin: QuizSkin,
+    pub layout: QuizLayout,
+    pub density: QuizDensity,
+    pub labels: QuizLabels,
+    pub timer_style: CreatorTimerSpec,
+    pub timing: QuizTiming,
+    pub motion: CreatorMotion,
+    pub safe: CreatorSafe,
+    pub accent: Option<macroquad::prelude::Color>,
+    /// Responsive layout snapshot computed when `quiz` is constructed.
+    pub header: CreatorRect,
+    pub media: CreatorRect,
+    pub choices: CreatorRect,
+    pub timer: CreatorRect,
+    pub footer: CreatorRect,
+    pub card_size: macroquad::prelude::Vec2,
+    pub question_pos: macroquad::prelude::Vec2,
+    pub ui_scale: f32,
+    /// Optional author-supplied explanation/source entity ids.
+    pub explanation: String,
+    pub source: String,
+}
+
+/// The visual design of a quiz's question header + answer cards. Orthogonal to
+/// the global `template()` (which retints the palette) — a skin picks the layout
+/// and chrome. Default = `Studio`; all v1 skin names remain explicit options.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizSkin {
+    /// Restrained editorial cards: rounded, crisp, one accent and clear type.
+    #[default]
+    Studio,
+    /// Framed question panel + a filled letter-badge on each answer card. The
+    /// bold, modern quiz-app v1 look.
+    Badge,
+    /// Editorial: a kicker over a thin accent rule, outline-only answer rows.
+    Minimal,
+    /// Dark glass panels with glowing accent borders (high-energy Reels look).
+    Glass,
+    /// The original flat cards with an inline letter (kept for back-compat).
+    Plain,
+}
+
+/// How a quiz question's text is revealed. Default = `Type` (typewriter).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizReveal {
+    /// Character-by-character draw-on (typewriter). The default.
+    #[default]
+    Type,
+    /// Whole line fades up from transparent.
+    Fade,
+    /// Whole line slides up into place while fading in.
+    Rise,
+    /// Whole line pops in with a scale overshoot.
+    Pop,
+    /// Appears instantly on the first frame (no reveal).
+    Cut,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuizOpt {
+    pub card: String,
+    pub text: String,
+    pub correct: bool,
+    /// Whether this option has a filled badge behind its A/B/C/D (or numeric)
+    /// label. The runner uses this for the correct-state badge overlay.
+    pub badge: bool,
+    /// Every slide-in part of this card (card, badge, letter, text) paired with
+    /// its offset from the card centre, so `run` can move + fade the whole card
+    /// as a unit regardless of skin.
+    pub parts: Vec<(String, macroquad::prelude::Vec2)>,
 }
 
 impl Scene {
     pub fn new() -> Self {
-        Scene::default()
+        Scene {
+            canvas_size: macroquad::prelude::Vec2::new(1280.0, 720.0),
+            ..Scene::default()
+        }
+    }
+
+    /// Set the logical viewport before constructors run.
+    pub fn set_canvas_size(&mut self, width: f32, height: f32) {
+        self.canvas_size = macroquad::prelude::Vec2::new(width.max(1.0), height.max(1.0));
+    }
+
+    /// Logical viewport used by responsive kits.
+    pub fn canvas(&self) -> macroquad::prelude::Vec2 {
+        let v = self.canvas_size;
+        if v.x > 0.0 && v.y > 0.0 {
+            v
+        } else {
+            macroquad::prelude::Vec2::new(1280.0, 720.0)
+        }
     }
 
     /// Add an entity. Panics on duplicate id.

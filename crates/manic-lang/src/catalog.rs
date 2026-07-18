@@ -106,6 +106,26 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "image",
+            Ctor,
+            "std",
+            "a raster image (PNG/JPG) from a file path, centred at a point (w×h px)",
+            &[
+                ("id", Name, R),
+                ("center", Point, R),
+                ("path", Str, R),
+                ("w", Num, O),
+                ("h", Num, O),
+            ],
+        ),
+        spec(
+            "equation",
+            Ctor,
+            "std",
+            "typeset a LaTeX math string (real fractions/roots/exponents/Greek) centred at a point; size = em height px (default 48). Put the LaTeX in BACKTICKS so backslashes survive: equation(q,(cx,cy),`\\frac{1}{2}+\\sqrt{x}`). Takes the template colour (color/recolor work); animate with show/fade/move/scale (it's an image, not draw-on)",
+            &[("id", Name, R), ("center", Point, R), ("latex", Str, R), ("size", Num, O)],
+        ),
+        spec(
             "line",
             Ctor,
             "std",
@@ -224,6 +244,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "set text size",
             &[("id", Ident, R), ("size", Num, R)],
+        ),
+        spec(
+            "wrap",
+            Ctor,
+            "std",
+            "wrap a text/caption/$…$ label to a width (px), breaking at word boundaries; inline math stays atomic",
+            &[("id", Ident, R), ("width", Num, R)],
         ),
         spec(
             "stroke",
@@ -997,6 +1024,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "math",
             "tangent line to a curve at x (or tangent points to a circle)",
             &[],
+        ),
+        spec(
+            "commontangent",
+            Ctor,
+            "geo",
+            "a common tangent to two circles (each = centre + a point on it): segment {id} between the touch points {id}.a/{id}.b; type external/direct (default) or internal/transverse",
+            &[("id", Name, R), ("oA", Ident, R), ("aOn", Ident, R), ("oB", Ident, R), ("bOn", Ident, R), ("type", Str, O)],
         ),
         spec("reflect", Ctor, "geo", "reflect a point over a line", &[]),
         spec("bisector", Ctor, "geo", "angle bisector", &[]),
@@ -2186,11 +2220,92 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "the off-axis spot diagram (3-D pupil trace at a field angle) — a coma comet / astigmatic blur off-axis, with an Airy-disk diffraction-limit overlay",
             &[("id", Name, R), ("center", Point, O), ("preset", Str, O), ("field", Num, O)],
         ),
+        // ---- creator: social-video format templates ----
+        spec(
+            "creator",
+            Ctor,
+            "creator",
+            "a reusable v2 creator profile: handle/platforms plus name, tagline, logo, palette, footer, CTA and safe-area keys",
+            &[("id", Name, R), ("spec", Str, R)],
+        ),
+        spec(
+            "socials",
+            Ctor,
+            "creator",
+            "draw the creator profile's responsive footer; social mode uses normalized native YouTube/X/Instagram/TikTok/Facebook/LinkedIn/GitHub/web/email icons",
+            &[("id", Ident, R), ("at", Point, O)],
+        ),
+        spec(
+            "quiz",
+            Ctor,
+            "creator",
+            "start a responsive quiz: studio default; optional skin/reveal/layout/density/labels/timer/pace/seconds/motion/safe/accent controls",
+            &[("id", Name, R), ("question", Str, R), ("style", Str, O)],
+        ),
+        spec(
+            "option",
+            Ctor,
+            "creator",
+            "add one of up to six fitted answer cards with stable A–F semantic tags; a trailing `correct` marks the right one",
+            &[("id", Ident, R), ("text", Str, R), ("correct", Ident, O)],
+        ),
+        spec(
+            "timing",
+            Ctor,
+            "creator",
+            "generic named-phase timing controller (optional position) or quiz-specific pace/phase configuration; use generic controllers with timed/during",
+            &[],
+        ),
+        spec(
+            "timerstyle",
+            Ctor,
+            "creator",
+            "style a quiz or generic timing controller: optional generic position plus native look, number, direction, size, colours, label and finish",
+            &[],
+        ),
+        spec(
+            "safezone",
+            Ctor,
+            "creator",
+            "a responsive safe-area guide; optional numeric inset or shorts/reels/tiktok/clean profile",
+            &[("id", Name, R), ("inset", Num, O)],
+        ),
+        spec(
+            "countdown",
+            Ctor,
+            "creator",
+            "a standalone Timing v2 widget sharing the quiz timer looks and style controls; play with run(id, secs)",
+            &[("id", Name, R), ("at", Point, O), ("secs", Num, O), ("style", Str, O)],
+        ),
+        spec(
+            "figure",
+            Ctor,
+            "creator",
+            "fit a complete tagged group into the responsive media region, including text/images/equations and live-dependency checks",
+            &[("target", Ident, R), ("center", Point, O), ("size", Point, O)],
+        ),
+        spec(
+            "explain",
+            Ctor,
+            "creator",
+            "attach optional author-supplied answer context and source to a quiz reveal",
+            &[("quiz", Ident, R), ("text", Str, R), ("source", Str, O)],
+        ),
+        spec(
+            "endcard",
+            Ctor,
+            "creator",
+            "build a hidden responsive creator end card; reveal profile.endcard at the final beat",
+            &[("profile", Ident, R), ("spec", Str, O)],
+        ),
     ]
 }
 
 /// Palette colour names (the only colours the DSL accepts).
-pub const COLORS: &[&str] = &["fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel", "rainbow"];
+pub const COLORS: &[&str] = &[
+    "fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel",
+    "rainbow",
+];
 
 /// Easing names accepted where a `[ease]` argument is allowed.
 pub const EASINGS: &[&str] = &[
@@ -2211,10 +2326,38 @@ pub const EASINGS: &[&str] = &[
 /// sync with the engine's `named_formula` table; guarded by the engine test
 /// `catalog_named_fns_match_engine`.
 pub const NAMED_FNS: &[&str] = &[
-    "sin", "cos", "tan", "asin", "arcsin", "acos", "arccos", "atan", "arctan",
-    "parabola", "sq", "square", "cubic", "cube", "line", "id", "identity", "abs",
-    "exp", "sqrt", "log", "ln", "recip", "inv", "gauss", "bell", "sinc",
-    "sigmoid", "logistic", "relu", "step", "heaviside",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "arcsin",
+    "acos",
+    "arccos",
+    "atan",
+    "arctan",
+    "parabola",
+    "sq",
+    "square",
+    "cubic",
+    "cube",
+    "line",
+    "id",
+    "identity",
+    "abs",
+    "exp",
+    "sqrt",
+    "log",
+    "ln",
+    "recip",
+    "inv",
+    "gauss",
+    "bell",
+    "sinc",
+    "sigmoid",
+    "logistic",
+    "relu",
+    "step",
+    "heaviside",
 ];
 
 /// Build-time control keywords (handled by the parser, not the registry).
@@ -2247,10 +2390,16 @@ pub const CANVAS_PRESETS: &[&str] = &[
 
 /// `template(...)` / `--template` names (primary + aliases).
 pub const TEMPLATES: &[&str] = &[
+    "mono",
     "plain",
     "terminal",
     "paper",
     "blueprint",
+    "shorts",
+    "monochrome",
+    "blackwhite",
+    "black-white",
+    "bw",
     "blank",
     "clean",
     "neon",
@@ -2258,6 +2407,8 @@ pub const TEMPLATES: &[&str] = &[
     "print",
     "light",
     "blue",
+    "short",
+    "punch",
 ];
 
 #[cfg(test)]

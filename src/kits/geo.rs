@@ -149,7 +149,7 @@ fn cc_intersect(c0: Vec2, r0: f32, c1: Vec2, r1: f32) -> Option<(Vec2, Vec2)> {
 fn c_point(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let pos = a.pair(1)?;
-    add_dot(s, &id, pos, 5.0, style::CYAN);
+    add_dot(s, &id, pos, 7.0, style::CYAN);
     if a.len() > 2 {
         let text = a.text(2)?;
         let mut lbl = Entity::new(
@@ -262,8 +262,13 @@ fn d_rightangle(e: &mut Entity, p: &[Vec2]) {
         let u = (a - b).normalize_or_zero();
         let v = (c - b).normalize_or_zero();
         let sz = 16.0;
+        // Polyline points are local to the entity position. Keeping the mark
+        // local lets responsive `figure()` transforms move and scale it just
+        // like every other geometric construction; absolute points here made
+        // right-angle glyphs drift away from their vertices after auto-fit.
+        e.pos = b;
         if let Shape::Polyline { pts } = &mut e.shape {
-            *pts = vec![b + u * sz, b + u * sz + v * sz, b + v * sz];
+            *pts = vec![u * sz, u * sz + v * sz, v * sz];
         }
     }
 }
@@ -414,7 +419,7 @@ macro_rules! derived_point {
                 deps.push(a.ident(i + 1)?);
                 ps.push(pt(s, a, i + 1)?);
             }
-            let mut e = dot(Vec2::ZERO, 5.0, style::LIME);
+            let mut e = dot(Vec2::ZERO, 7.0, style::LIME);
             e.id = id;
             e.deps = deps;
             e.derive = Some($dfn);
@@ -481,6 +486,76 @@ fn c_tangent(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 }
 
+/// The two touch points of a common tangent to circle(`c1`,`r1`) and
+/// circle(`c2`,`r2`). `internal` = the transverse tangent (crosses the line of
+/// centres between the circles); otherwise the direct/external tangent. Returns
+/// the "upper" of the pair, or `None` if that tangent doesn't exist for the given
+/// separation. Lengths: external `√(d²−(r1−r2)²)`, internal `√(d²−(r1+r2)²)`.
+fn common_tangent_pts(c1: Vec2, r1: f32, c2: Vec2, r2: f32, internal: bool) -> Option<(Vec2, Vec2)> {
+    let d = (c2 - c1).length();
+    if d < 1e-4 {
+        return None;
+    }
+    let u = (c2 - c1) / d; // along the line of centres
+    let v = Vec2::new(-u.y, u.x); // perpendicular
+    // cos of the angle the touch-normal makes with the line of centres
+    let cos = if internal { (r1 + r2) / d } else { (r1 - r2) / d };
+    if cos.abs() > 1.0 {
+        return None; // no such tangent at this separation
+    }
+    let sin = (1.0 - cos * cos).sqrt();
+    let n = u * cos + v * sin; // unit normal on circle 1's touch side
+    let p1 = c1 + n * r1;
+    let p2 = if internal { c2 - n * r2 } else { c2 + n * r2 };
+    Some((p1, p2))
+}
+
+/// `commontangent(id, oA, aOn, oB, bOn, ["type"])` — a common tangent to two
+/// circles, each given as **centre + a point on it** (radius = the distance
+/// between them, same convention as `circle2`/`linecircle`). `type` is
+/// `"external"`/`"direct"` (default) or `"internal"`/`"transverse"`. Draws the
+/// tangent as the segment `{id}` **between the two touch points** (so its length
+/// is the tangent length), plus touch-point dots `{id}.a` (on A) / `{id}.b` (on B).
+fn c_commontangent(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let c1 = pt(s, a, 1)?;
+    let a_on = pt(s, a, 2)?;
+    let c2 = pt(s, a, 3)?;
+    let b_on = pt(s, a, 4)?;
+    let internal = match a.opt_text(5)? {
+        Some(t) => matches!(
+            t.trim().to_lowercase().as_str(),
+            "internal" | "transverse" | "inner" | "cross"
+        ),
+        None => false, // default: external / direct
+    };
+    let r1 = (a_on - c1).length();
+    let r2 = (b_on - c2).length();
+    let (p1, p2) = common_tangent_pts(c1, r1, c2, r2, internal).ok_or_else(|| {
+        Error::new(
+            format!(
+                "commontangent: no {} tangent exists — the circles are too close (an {} tangent needs the centres {} apart)",
+                if internal { "internal" } else { "external" },
+                if internal { "internal" } else { "external" },
+                if internal { "more than r1+r2" } else { "at least |r1−r2|" },
+            ),
+            a.span_of(0),
+        )
+    })?;
+    // the tangent segment (draw-on ready: `untraced(id); draw(id, …)`)
+    let mut seg = Entity::new(id.clone(), Shape::Line { to: p2 }, p1, style::GOLD);
+    seg.stroke.width = 4.0;
+    seg.z = 4;
+    s.add(seg);
+    // the two touch points, as addressable dots
+    for (sfx, p) in [("a", p1), ("b", p2)] {
+        let mut d = dot(p, 5.0, style::GOLD);
+        d.id = format!("{id}.{sfx}");
+        s.add(d);
+    }
+    Ok(())
+}
+
 /// A derived point with `$n` point inputs plus a trailing **scalar** (angle or
 /// fraction), stashed in `e.rot` for the hook to read.
 macro_rules! derived_scalar_point {
@@ -494,7 +569,7 @@ macro_rules! derived_scalar_point {
                 ps.push(pt(s, a, i + 1)?);
             }
             let scalar = a.num($n + 1)?;
-            let mut e = dot(Vec2::ZERO, 5.0, style::LIME);
+            let mut e = dot(Vec2::ZERO, 7.0, style::LIME);
             e.id = id;
             e.rot = scalar; // stashed param (unused for a dot's rendering)
             e.deps = deps;
@@ -748,6 +823,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("linecircle", c_linecircle);
     r.ctor("circlecircle", c_circlecircle);
     r.ctor("tangent", c_tangent);
+    r.ctor("commontangent", c_commontangent);
     r.ctor("circle2", c_circle2);
     r.ctor("ellipse", c_ellipse);
     r.ctor("parabola", c_parabola);
@@ -760,4 +836,53 @@ pub fn register(r: &mut Registry) {
     r.ctor("incircle", c_incircle);
     r.ctor("anglemark", c_anglemark);
     r.ctor("rightangle", c_rightangle);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::common_tangent_pts;
+    use macroquad::prelude::Vec2;
+
+    // A line P1→P2 is tangent to circle(c,r) at P1 iff |P1−c| = r and (P2−P1)⊥(P1−c).
+    fn is_tangent(p1: Vec2, p2: Vec2, c: Vec2, r: f32) -> bool {
+        let on = ((p1 - c).length() - r).abs() < 1e-2;
+        let perp = (p2 - p1).normalize().dot((p1 - c).normalize()).abs() < 1e-3;
+        on && perp
+    }
+
+    #[test]
+    fn common_tangent_lengths_and_tangency() {
+        let (c1, r1) = (Vec2::new(0.0, 0.0), 8.0);
+        let (c2, r2) = (Vec2::new(20.0, 0.0), 5.0);
+        let d = (c2 - c1).length();
+
+        // internal (transverse): length = sqrt(d^2 - (r1+r2)^2) = sqrt(231)
+        let (p1, p2) = common_tangent_pts(c1, r1, c2, r2, true).unwrap();
+        assert!(((p2 - p1).length() - (d * d - (r1 + r2).powi(2)).sqrt()).abs() < 1e-2);
+        assert!(is_tangent(p1, p2, c1, r1) && is_tangent(p2, p1, c2, r2), "internal not tangent to both");
+
+        // external (direct): length = sqrt(d^2 - (r1-r2)^2)
+        let (q1, q2) = common_tangent_pts(c1, r1, c2, r2, false).unwrap();
+        assert!(((q2 - q1).length() - (d * d - (r1 - r2).powi(2)).sqrt()).abs() < 1e-2);
+        assert!(is_tangent(q1, q2, c1, r1) && is_tangent(q2, q1, c2, r2), "external not tangent to both");
+    }
+
+    #[test]
+    fn internal_tangent_absent_when_circles_overlap() {
+        // centres 6 apart, radii 8 & 5 → r1+r2=13 > 6, no internal tangent
+        assert!(common_tangent_pts(Vec2::new(0.0, 0.0), 8.0, Vec2::new(6.0, 0.0), 5.0, true).is_none());
+    }
+
+    #[test]
+    fn commontangent_builds_segment_and_touch_points() {
+        let m = crate::parse(
+            "point(a,(200,400)); point(ao,(200,300)); circle2(ca,a,ao);\n\
+             point(b,(600,400)); point(bo,(600,340)); circle2(cb,b,bo);\n\
+             commontangent(t,a,ao,b,bo,\"transverse\");",
+        )
+        .unwrap();
+        let base = m.base();
+        assert!(base.contains("t") && base.contains("t.a") && base.contains("t.b"), "missing tangent parts");
+        assert!(m.validate().is_ok());
+    }
 }

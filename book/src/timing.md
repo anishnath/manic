@@ -1,4 +1,4 @@
-# Timing — par, seq & stagger
+# Timing — flow, named phases & clocks
 
 By default, verbs play **one after another**. Three wrappers change that — they
 turn "then, then, then" into "together" or "cascading".
@@ -45,5 +45,163 @@ mark("beat-3");         // a named timestamp for your editor
 
 `wait` is your friend for pacing — a beat of stillness after something lands
 reads far better than rushing to the next move.
+
+## Generic Timing v2 — one clock for any scene
+
+Use a generic timing controller when several parts of a scene must share one
+exact schedule. It is format-neutral: the same controller can coordinate a
+physics simulation, geometry proof, chart, caption sequence, or ordinary
+shapes.
+
+Think of it as four small pieces:
+
+| piece | responsibility |
+|---|---|
+| `timing` | declares the phase names, durations, exact total, and optional clock position |
+| `timerstyle` | changes only the visible clock; it never changes scene timing |
+| `timed` | runs the clock and schedules the complete phase contract |
+| `during` | contains the ordinary animation actions for one named phase |
+
+The phase declaration is the source of truth. The clock is only one visual view
+of that choreography.
+
+### Quick reference
+
+| form | use |
+|---|---|
+| `timing(clock,"intro=1 demo=6 result=2")` | declare named phases |
+| `timing(clock,(1160,80),"...")` | declare phases and set the initial clock position |
+| `timing(clock,"duration=6")` | shorthand for one phase named `main` |
+| `timerstyle(clock,"...")` | change appearance without changing timing |
+| `timerstyle(clock,(1160,80),"...")` | restyle and reposition the clock |
+| `timed(clock) { ... }` | play the complete phase schedule and clock |
+| `during("phase") { ... }` | author one phase inside `timed` |
+| `run(clock)` | play the clock alone |
+| `countdown(id,[at],[seconds],["style"])` | independent countdown without named phases |
+
+Core pattern, after defining the referenced entities and simulation:
+
+```manic
+timing(clock, (1160,80), "intro=1 demo=6 result=2");
+timerstyle(clock, "look=ring number=inside color=cyan");
+
+timed(clock) {
+  during("intro")  { show(title, 0.6); }
+  during("demo")   { par { run(sim, 6); draw(sim.path, 6); } }
+  during("result") { show(answer, 0.6); }
+}
+```
+
+Use `countdown` when you only need an independent visual countdown. Use
+`timing` when named phases must govern other animation.
+
+### Compose inside phases
+
+Each `during` block accepts the usual timeline language. In particular, use
+`par` for actions that must occupy the same phase together:
+
+```manic
+timing(clock, "setup=1 experiment=6 result=2");
+
+timed(clock) {
+  during("setup") { show(title, 0.6); }
+
+  during("experiment") {
+    par {
+      run(pendulum, 6);
+      draw(pendulum.path, 6);
+      karaoke(caption, 0.35);
+    }
+  }
+
+  during("result") {
+    par {
+      show(formula, 0.6);
+      show(explanation, 0.6);
+    }
+    wait(1.4);
+  }
+}
+```
+
+### Rules that prevent drift
+
+- Give a generic controller a fresh id. Do not reuse an entity, quiz,
+  simulation, or group id.
+- Put constructors and style modifiers outside `timed`/`during`; put timeline
+  actions such as `show`, `draw`, `run`, `wait`, `par`, and `seq` inside.
+- A short phase block is padded automatically. A block that exceeds its phase
+  is an error.
+- A phase may have at most one `during` block. Combine related work inside it
+  with `par` or `seq`.
+- An omitted phase is valid and becomes a blank hold.
+- Phase blocks may appear in any source order: they are placed at the absolute
+  offsets declared by `timing`.
+- `timed(clock)` already runs the clock. Do not also call `run(clock)` inside it.
+- `run(clock)` is timer-only playback. `run(clock, dur)` is rejected because
+  the phase declaration already owns the duration.
+
+### Choose the clock's look
+
+The clock uses native manic shapes, so it stays sharp at any output size and
+can be targeted like the rest of the scene. No SVG workflow is required.
+
+| look | best fit |
+|---|---|
+| `ring` | neutral default; compact and familiar |
+| `bar` | long processes or wide layouts |
+| `segments` | energetic stages and presentations |
+| `ticks` | precise, technical, or measurement-led scenes |
+| `number` | minimal layouts where the value is enough |
+| `pulse` | short, urgent moments; use sparingly |
+| `none` | keep exact phase choreography without showing a clock |
+
+The main controls are:
+
+- `number=inside|outside|none` and `direction=fill|drain`
+- `size=small|medium|large|0.5..2.0` and `thickness=0.4..3.0`
+- `color`, `track`, `label`, and `font=mono|display`
+- `finish=fade|hold|flash|pulse` for the completion cue
+
+Start with the default ring, then change the look only when it supports the
+scene's meaning. For legibility, keep strong contrast between `color` and
+`track`, and avoid combining a busy clock with dense content in the same corner.
+
+Advanced styling can target the stable tags `clock.timer`,
+`clock.timer.track`, `clock.timer.progress`, `clock.timer.value`,
+`clock.timer.label`, and `clock.timer.effects` (replace `clock` with the
+controller id).
+
+### Generic controller or Creator quiz?
+
+The same visual clock system serves two different timing contracts:
+
+- `timing(fresh_id, "phase=seconds ...")` creates a generic controller used by
+  `timed` and `during`.
+- `timing(quiz_id, "calm ask=... think=... reveal=...")` configures a Creator
+  quiz and is played with `run(quiz_id)`.
+
+Do not wrap a quiz in `timed`; the quiz runner already owns its ask, options,
+think, reveal, hold, and stagger phases.
+
+### Common fixes
+
+| message or symptom | fix |
+|---|---|
+| controller id is already in use | choose a fresh id for generic timing |
+| a phase overruns | shorten its sequence, compose simultaneous work with `par`, or increase the declared phase |
+| unknown phase | match the name in `during` to the `timing` declaration |
+| duplicate phase block | combine the work into one `during` block |
+| competing duration | remove the duration argument from `run(clock, dur)` |
+| timer appears twice | remove `run(clock)` from inside `timed(clock)` |
+
+Complete non-quiz example using a pendulum, caption, formula, and segmented
+clock:
+
+```manic
+{{#include ../../examples/timing-v2-scene.manic}}
+```
+
+<div class="manic-video" data-video="ex-timing-v2-scene"></div>
 
 Next: the palette, glow, and easings → [Colour & style](colour.md).

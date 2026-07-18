@@ -1,371 +1,104 @@
-title("A Meeting on the Road");
-canvas("16:9");
+title("Parallelogram Side");
+canvas("9:16");
+template("neon");
 
-let groundY = cy + 160;
-let horizonY = groundY - 260;
-let startX1 = cx - 460;
-let startX2 = cx + 460;
-let stepDist = 15;
-let swingAmp = 26;
-let bobAmp = 10;
-let meetX = cx;
+creator(me, "@mathquick yt=@mathquick accent=cyan");
+socials(me);
 
-// ================= sky and sun =================
+quiz(q, "A parallelogram has base 12 cm and perimeter 60 cm. Find the other side.", "glass fade");
+option(q, "12 cm");
+option(q, "18 cm", correct);
+option(q, "24 cm");
+option(q, "30 cm");
 
-rect(sky, (0, 0), w, horizonY + 40);
-color(sky, panel);
-filled(sky);
-untraced(sky);
+point(A, (265, 760), "A");
+point(B, (815, 760), "B");
+point(D, (395, 565), "D");
+point(C, (945, 565), "C");
 
-circle(sun, (cx + 260, horizonY - 90), 46);
-color(sun, gold);
-filled(sun);
-opacity(sun, 0.5);
-untraced(sun);
+segment(AB, A, B);
+segment(BC, B, C);
+segment(CD, C, D);
+segment(DA, D, A);
 
-// ================= distant hills =================
+text(baseLab, (540, 815), "12 cm");
+display(baseLab);
+size(baseLab, 36);
+color(baseLab, gold);
+hidden(baseLab);
 
-rect(hillFar, (0, horizonY - 20), w, 30);
-color(hillFar, dim);
-filled(hillFar);
-opacity(hillFar, 0.4);
-untraced(hillFar);
+text(sideLab1, (310, 650), "x cm");
+display(sideLab1);
+size(sideLab1, 36);
+color(sideLab1, magenta);
+hidden(sideLab1);
 
-for i in 0..5 {
-  rect(bldg{i}, (i*230 - 60, horizonY - 20 - (30 + 18*sin(i*97))), 40, 30 + 18*sin(i*97));
-  color(bldg{i}, dim);
-  filled(bldg{i});
-  opacity(bldg{i}, 0.5);
-  untraced(bldg{i});
-}
+text(sideLab2, (880, 650), "x cm");
+display(sideLab2);
+size(sideLab2, 36);
+color(sideLab2, magenta);
+hidden(sideLab2);
 
-// ================= road with perspective =================
+text(periLab, (540, 500), "perimeter = 60 cm");
+display(periLab);
+size(periLab, 34);
+color(periLab, lime);
+hidden(periLab);
 
-line(edgeL, (meetX - 900, groundY + 220), (meetX - 40, horizonY));
-line(edgeR, (meetX + 900, groundY + 220), (meetX + 40, horizonY));
-color(edgeL, dim);
-color(edgeR, dim);
-stroke(edgeL, 2);
-stroke(edgeR, 2);
-untraced(edgeL);
-untraced(edgeR);
+color(A, fg);
+color(B, fg);
+color(C, fg);
+color(D, fg);
+size(A.label, 32);
+size(B.label, 32);
+size(C.label, 32);
+size(D.label, 32);
 
-line(roadLine, (meetX - 900, groundY + 40), (meetX + 900, groundY + 40));
-color(roadLine, panel);
-stroke(roadLine, 1);
-untraced(roadLine);
+color(AB, gold);
+color(CD, gold);
+color(BC, magenta);
+color(DA, magenta);
+stroke(AB, 6);
+stroke(BC, 6);
+stroke(CD, 6);
+stroke(DA, 6);
 
-for i in 0..16 {
-  let dashX = meetX - 900 + i*120;
-  rect(dash{i}, (dashX, groundY + 36), 50, 8);
-  color(dash{i}, fg);
-  filled(dash{i});
-  opacity(dash{i}, 0.6);
-  untraced(dash{i});
-}
-
-// ================= figure 1 (walks left -> right, lead figure) =================
-
-point(neck1, (startX1, groundY - 118));
-point(hip1, (startX1, groundY - 10));
-point(handL1, (startX1 - 30, groundY - 40));
-point(handR1, (startX1 + 30, groundY - 40));
-point(footL1, (startX1 - 30, groundY + 100));
-point(footR1, (startX1 + 30, groundY + 100));
-
-hidden(neck1); hidden(hip1);
-hidden(handL1); hidden(handR1);
-hidden(footL1); hidden(footR1);
-
-circle(head1, (startX1, groundY - 140), 22);
-color(head1, fg);
-outlined(head1);
-stroke(head1, 3);
-untraced(head1);
-
-segment(spine1, neck1, hip1);
-segment(armL1, neck1, handL1);
-segment(armR1, neck1, handR1);
-segment(legL1, hip1, footL1);
-segment(legR1, hip1, footR1);
-
-color(spine1, fg);
-color(armL1, cyan);
-color(armR1, cyan);
-color(legL1, gold);
-color(legR1, gold);
-stroke(spine1, 4); stroke(armL1, 4); stroke(armR1, 4);
-stroke(legL1, 4); stroke(legR1, 4);
-untraced(spine1); untraced(armL1); untraced(armR1);
-untraced(legL1); untraced(legR1);
-
-// ================= figure 2 (walks right -> left, enters a beat later) =================
-
-point(neck2, (startX2, groundY - 118));
-point(hip2, (startX2, groundY - 10));
-point(handL2, (startX2 - 30, groundY - 40));
-point(handR2, (startX2 + 30, groundY - 40));
-point(footL2, (startX2 - 30, groundY + 100));
-point(footR2, (startX2 + 30, groundY + 100));
-
-hidden(neck2); hidden(hip2);
-hidden(handL2); hidden(handR2);
-hidden(footL2); hidden(footR2);
-
-circle(head2, (startX2, groundY - 140), 22);
-color(head2, fg);
-outlined(head2);
-stroke(head2, 3);
-untraced(head2);
-
-segment(spine2, neck2, hip2);
-segment(armL2, neck2, handL2);
-segment(armR2, neck2, handR2);
-segment(legL2, hip2, footL2);
-segment(legR2, hip2, footR2);
-
-color(spine2, fg);
-color(armL2, magenta);
-color(armR2, magenta);
-color(legL2, lime);
-color(legR2, lime);
-stroke(spine2, 4); stroke(armL2, 4); stroke(armR2, 4);
-stroke(legL2, 4); stroke(legR2, 4);
-untraced(spine2); untraced(armL2); untraced(armR2);
-untraced(legL2); untraced(legR2);
-
-// ================= text =================
-
-text(head_label, (cx, 45), "A Meeting on the Road");
-color(head_label, cyan);
-hidden(head_label);
-
-text(caption, (cx, h - 25), "");
-color(caption, dim);
-hidden(caption);
-
-// ================= script =================
-
-// -- cold open: wide establishing shot --
-par {
-  show(sky, 0.8);
-  show(sun, 1.0);
-  show(hillFar, 0.6);
-}
-stagger(0.06) {
-  for i in 0..5 {
-    show(bldg{i}, 0.4);
-  }
-}
-draw(edgeL, 0.8);
-draw(edgeR, 0.8);
-draw(roadLine, 0.6);
-stagger(0.03) {
-  for i in 0..16 {
-    show(dash{i}, 0.1);
-  }
-}
-
-zoom(1.3, 0.1, linear);
-show(head_label, 0.7);
-wait(0.6);
+hidden(A);
+hidden(B);
+hidden(C);
+hidden(D);
+untraced(AB);
+untraced(BC);
+untraced(CD);
+untraced(DA);
 
 par {
-  cam((cx, cy), 1.4, smooth);
-  zoom(0.8, 1.4, smooth);
-}
-wait(0.3);
-
-// -- figure 1 enters and starts walking --
+run(q, 14);
+seq {
+wait(1.0);
 par {
-  show(neck1, 0.01); show(hip1, 0.01);
-  show(handL1, 0.01); show(handR1, 0.01);
-  show(footL1, 0.01); show(footR1, 0.01);
-  draw(head1, 0.4);
-  draw(spine1, 0.3);
-  draw(armL1, 0.3);
-  draw(armR1, 0.3);
-  draw(legL1, 0.3);
-  draw(legR1, 0.3);
+show(A, 0.25);
+show(B, 0.25);
+draw(AB, 0.7);
 }
-wait(0.4);
-
-// tracking camera follows figure1 as figure2 hasn't appeared yet
-for i in 0..8 {
-  let baseX1 = startX1 + i*stepDist;
-  let phase = i*90;
-  let swing = swingAmp*sin(phase*pi/180);
-  let legLift = bobAmp*abs(sin(phase*pi/180));
-
-  par {
-    move(neck1, (baseX1, groundY - 118 - legLift*0.4), 0.16, smooth);
-    move(hip1, (baseX1, groundY - 10), 0.16, smooth);
-    move(handL1, (baseX1 - swing, groundY - 40), 0.16, smooth);
-    move(handR1, (baseX1 + swing, groundY - 40), 0.16, smooth);
-    move(footL1, (baseX1 + swing, groundY + 100 - legLift), 0.16, smooth);
-    move(footR1, (baseX1 - swing, groundY + 100 - legLift), 0.16, smooth);
-    move(head1, (baseX1, groundY - 140 - legLift*0.4), 0.16, smooth);
-    cam((baseX1 + 100, groundY - 60), 0.16, linear);
-  }
-}
-
-// -- figure 2 enters a beat later, asymmetric pacing --
-par {
-  show(neck2, 0.01); show(hip2, 0.01);
-  show(handL2, 0.01); show(handR2, 0.01);
-  show(footL2, 0.01); show(footR2, 0.01);
-  draw(head2, 0.4);
-  draw(spine2, 0.3);
-  draw(armL2, 0.3);
-  draw(armR2, 0.3);
-  draw(legL2, 0.3);
-  draw(legR2, 0.3);
-}
-wait(0.2);
-
-par {
-  cam((cx, groundY - 60), 1.0, smooth);
-  zoom(1, 1.0, smooth);
-}
-
-// both walk toward each other, camera widens to hold both
-for i in 0..16 {
-  let baseX1 = (startX1 + 8*stepDist) + i*stepDist;
-  let baseX2 = startX2 - i*stepDist;
-  let phase = i*90;
-  let swing = swingAmp*sin(phase*pi/180);
-  let legLift = bobAmp*abs(sin(phase*pi/180));
-
-  par {
-    move(neck1, (baseX1, groundY - 118 - legLift*0.4), 0.15, smooth);
-    move(hip1, (baseX1, groundY - 10), 0.15, smooth);
-    move(handL1, (baseX1 - swing, groundY - 40), 0.15, smooth);
-    move(handR1, (baseX1 + swing, groundY - 40), 0.15, smooth);
-    move(footL1, (baseX1 + swing, groundY + 100 - legLift), 0.15, smooth);
-    move(footR1, (baseX1 - swing, groundY + 100 - legLift), 0.15, smooth);
-    move(head1, (baseX1, groundY - 140 - legLift*0.4), 0.15, smooth);
-
-    move(neck2, (baseX2, groundY - 118 - legLift*0.4), 0.15, smooth);
-    move(hip2, (baseX2, groundY - 10), 0.15, smooth);
-    move(handL2, (baseX2 - swing, groundY - 40), 0.15, smooth);
-    move(handR2, (baseX2 + swing, groundY - 40), 0.15, smooth);
-    move(footL2, (baseX2 + swing, groundY + 100 - legLift), 0.15, smooth);
-    move(footR2, (baseX2 - swing, groundY + 100 - legLift), 0.15, smooth);
-    move(head2, (baseX2, groundY - 140 - legLift*0.4), 0.15, smooth);
-  }
-}
-
-// -- anticipation beat: both hesitate just before contact --
-par {
-  cam((meetX, groundY - 80), 0.5, smooth);
-  zoom(1.6, 0.5, overshoot);
-}
+show(baseLab, 0.35);
 wait(0.15);
-
 par {
-  move(neck1, (meetX - 55, groundY - 118), 0.2, smooth);
-  move(hip1, (meetX - 55, groundY - 10), 0.2, smooth);
-  move(neck2, (meetX + 55, groundY - 118), 0.2, smooth);
-  move(hip2, (meetX + 55, groundY - 10), 0.2, smooth);
-}
-wait(0.35);
-
-// -- committed approach into standing pose --
-par {
-  move(neck1, (meetX - 40, groundY - 118), 0.35, smooth);
-  move(hip1, (meetX - 40, groundY - 10), 0.35, smooth);
-  move(footL1, (meetX - 60, groundY + 100), 0.35, smooth);
-  move(footR1, (meetX - 20, groundY + 100), 0.35, smooth);
-  move(head1, (meetX - 40, groundY - 140), 0.35, smooth);
-  move(handL1, (meetX - 70, groundY - 40), 0.35, smooth);
-
-  move(neck2, (meetX + 40, groundY - 118), 0.35, smooth);
-  move(hip2, (meetX + 40, groundY - 10), 0.35, smooth);
-  move(footL2, (meetX + 60, groundY + 100), 0.35, smooth);
-  move(footR2, (meetX + 20, groundY + 100), 0.35, smooth);
-  move(head2, (meetX + 40, groundY - 140), 0.35, smooth);
-  move(handR2, (meetX + 70, groundY - 40), 0.35, smooth);
-}
-wait(0.3);
-
-// -- hard cut-in on the handshake --
-par {
-  cam((meetX, groundY - 55), 0.35, overshoot);
-  zoom(2.6, 0.35, overshoot);
-}
-wait(0.15);
-
-par {
-  move(handR1, (meetX - 3, groundY - 55), 0.3, smooth);
-  move(handL2, (meetX + 3, groundY - 55), 0.3, smooth);
-}
-wait(0.15);
-
-par {
-  move(handR1, (meetX, groundY - 55), 0.2, smooth);
-  move(handL2, (meetX, groundY - 55), 0.2, smooth);
-}
-flash(handR1, gold);
-flash(handL2, gold);
-wait(0.15);
-
-for i in 0..3 {
-  par {
-    move(handR1, (meetX, groundY - 66), 0.11, smooth);
-    move(handL2, (meetX, groundY - 66), 0.11, smooth);
-  }
-  par {
-    move(handR1, (meetX, groundY - 47), 0.11, smooth);
-    move(handL2, (meetX, groundY - 47), 0.11, smooth);
-  }
+show(D, 0.25);
+show(C, 0.25);
+draw(DA, 0.7);
+draw(BC, 0.7);
+draw(CD, 0.7);
 }
 par {
-  move(handR1, (meetX, groundY - 55), 0.15, smooth);
-  move(handL2, (meetX, groundY - 55), 0.15, smooth);
+show(sideLab1, 0.35);
+show(sideLab2, 0.35);
+show(periLab, 0.35);
 }
-wait(0.3);
-
-show(caption, 0.5);
-say(caption, "A moment held, then let go");
-
+wait(8.0);
 par {
-  move(handR1, (meetX - 40 + 30, groundY - 40), 0.3, elastic);
-  move(handL2, (meetX + 40 - 30, groundY - 40), 0.3, elastic);
+pulse(sideLab1, 0.8);
+pulse(sideLab2, 0.8);
 }
-wait(0.3);
-
-// -- slow dramatic pull-out as they resume walking apart --
-par {
-  cam((cx, cy), 2.0, smooth);
-  zoom(0.75, 2.0, smooth);
 }
-
-for i in 0..20 {
-  let baseX1 = (meetX - 40) + i*stepDist;
-  let baseX2 = (meetX + 40) - i*stepDist;
-  let phase = i*90;
-  let swing = swingAmp*sin(phase*pi/180);
-  let legLift = bobAmp*abs(sin(phase*pi/180));
-
-  par {
-    move(neck1, (baseX1, groundY - 118 - legLift*0.4), 0.18, smooth);
-    move(hip1, (baseX1, groundY - 10), 0.18, smooth);
-    move(handL1, (baseX1 - swing, groundY - 40), 0.18, smooth);
-    move(handR1, (baseX1 + swing, groundY - 40), 0.18, smooth);
-    move(footL1, (baseX1 + swing, groundY + 100 - legLift), 0.18, smooth);
-    move(footR1, (baseX1 - swing, groundY + 100 - legLift), 0.18, smooth);
-    move(head1, (baseX1, groundY - 140 - legLift*0.4), 0.18, smooth);
-
-    move(neck2, (baseX2, groundY - 118 - legLift*0.4), 0.18, smooth);
-    move(hip2, (baseX2, groundY - 10), 0.18, smooth);
-    move(handL2, (baseX2 - swing, groundY - 40), 0.18, smooth);
-    move(handR2, (baseX2 + swing, groundY - 40), 0.18, smooth);
-    move(footL2, (baseX2 + swing, groundY + 100 - legLift), 0.18, smooth);
-    move(footR2, (baseX2 - swing, groundY + 100 - legLift), 0.18, smooth);
-    move(head2, (baseX2, groundY - 140 - legLift*0.4), 0.18, smooth);
-  }
 }
-
-wait(0.5);
-say(caption, "Two generic stick figures -- no specific persons depicted");
-wait(0.5);

@@ -44,6 +44,7 @@ pub mod easing;
 pub mod geom;
 pub mod kits;
 pub mod lang;
+pub mod latex;
 pub mod layout;
 pub mod movie;
 pub mod namehint;
@@ -70,7 +71,9 @@ pub fn v(x: f32, y: f32) -> Vec2 {
 /// default kit registry (std + math + …). This is the language's front door;
 /// the `manic` CLI is a thin wrapper over it.
 pub fn parse(src: &str) -> Result<movie::Movie, lang::diag::Error> {
-    lang::lower::lower(src, &kits::default_registry())
+    let mut movie = lang::lower::lower(src, &kits::default_registry())?;
+    movie.typeset_inline_math(); // `$…$` labels → typeset equations (holistic LaTeX)
+    Ok(movie)
 }
 
 /// Open a window and run the movie (live preview, or `--record` offline).

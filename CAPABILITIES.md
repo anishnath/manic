@@ -23,9 +23,10 @@ are occurrences across the `geometry/` samples.
   (`bar{i}`). All collapse to literals before rendering — kits are unaffected.
 - **Look / config**: `canvas` accepts pixels or presets (`"16:9"`/`"square"`/
   `"portrait"`/`"1080p"`/`"4k"`); `w`/`h`/`cx`/`cy` predefined. Selectable
-  **templates** — `plain` (default, blank screen), `terminal`, `paper`,
-  `blueprint` — each retints the palette and sets chrome/glow/CRT; author-set
-  `masthead` (no engine branding baked in). Same content renders in any template.
+  **templates** — `mono` (default black-and-white editorial), `plain`,
+  `terminal`, `paper`, `blueprint`, `shorts` — each retints the palette and sets
+  chrome/glow/CRT; author-set `masthead` (no engine branding baked in). Same
+  content renders in any template.
 - Animation: named verbs + a general `to(id, property, value)` (x, y, opacity,
   scale, angle, trace, color, **hue** — cycles around the colour wheel, and
   **value** — a live `counter`'s number); `rotate`/`spin`; camera `cam`/`zoom`;
@@ -143,7 +144,10 @@ stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
 ### Geometry (olympiad) — largely covered now
 Done (all **dynamic** unless noted): `meet` (line∩line), **`linecircle`**
 (line∩circle), **`circlecircle`** (circle∩circle) — the last two output two
-points `{id}0/1`; **`tangent`** (two touch-points from an external point);
+points `{id}0/1`; **`tangent`** (two touch-points from an external point); **`commontangent`**
+(a common tangent to TWO circles — external/direct or internal/transverse — as the
+segment between the touch points, so its length is the tangent length `√(d²−(r₁∓r₂)²)`;
+static);
 **`reflect`** (point across a line); **`bisector`** (point on the internal angle
 bisector); **`circle2`** (circle by centre + a point on it); **`rotpoint`**
 (point rotated about another by θ — gives equilateral apexes, regular figures);
@@ -533,10 +537,47 @@ evaluator can reach the scene.
     bindable (`let`) and flow into `counter`/downstream builtins like the numeric
     layer.
   - *Hard dependency:* the payoff lands only if the math **renders as math**
-    (`x² + 2x + 1`, stacked fractions), so CAS effectively pulls the (still
-    undecided) **LaTeX / typesetting** track forward with it — or at least a
-    `mathtext-lite` super/subscript + `\frac` subset. ASCII (`x^2 + 2*x + 1`)
-    undercuts the teaching benefit for the non-programmer audience.
+    (`x² + 2x + 1`, stacked fractions). ASCII (`x^2 + 2*x + 1`) undercuts the
+    teaching benefit for the non-programmer audience.
+
+**LaTeX / math typesetting — Phase 1 SHIPPED ✅ (2026-07), on [RaTeX](https://github.com/erweixin/RaTeX), a CORE capability for ALL kits.**
+`equation(id,(x,y),`latex`,[size])` typesets KaTeX-grade LaTeX (fractions, roots,
+exponents, Greek, big operators) as a white-on-transparent PNG (RaTeX `embed-fonts`
+→ self-contained binary, no font install), drawn via `Shape::Image { tint: true }`
+so it takes the template colour and `color`/`recolor` work. LaTeX goes in **backtick
+raw strings** (new lexer literal `` `...` ``) so `\frac`/`\theta`/`\neq` survive.
+Verified by render (`examples/equation.manic`); 177 tests. Remaining: Phase 2
+(DisplayList → native manic glyph/rule entities for draw-on animation + vector
+scaling), then migrate kit ASCII labels and drop the old "No LaTeX" gotcha (done in
+SYSTEM_PROMPT). Original decision + survey below.
+
+**Decision detail — adopt RaTeX, a CORE capability for ALL kits (not just creator):**
+Every kit currently emits ASCII math (`x^2`, `pi*r^2*h`, `3600/47`, geo labels) — it
+reads messy across the whole system, so this is engine-wide, not a creator add-on.
+Chosen after surveying the field: browser-only MathML crates (katex-rs/pulldown-latex/
+latex2mathml) can't render in native mp4; ReX is "not production"; embedding all of
+Typst is overkill. **RaTeX** is pure-Rust, MIT, KaTeX-grade (>99.5% coverage), and
+decomposed into `ratex-parser → ratex-layout → DisplayList → ratex-render`.
+**Spike-validated** (2026-07, in-repo throwaway): the pipeline fetches, builds, and
+renders textbook-quality output here (quadratic formula, Σ with limits, √ vinculum,
+π/∠/°). Fonts = 20 KaTeX TTFs, 540 KB, MIT — bundle via `include_bytes!`. Plan:
+- **Phase 1 (fast):** `ratex-render` PNG → an `equation(id,(x,y),"latex",[size])`
+  builtin using manic's existing `Shape::Image`. Full coverage immediately; bitmaps
+  (fade/scale/move). Includes (both REQUIRED for Phase 1 to render at all):
+  - **Bundle the fonts INTO the binary** — `include_bytes!` the 20 KaTeX TTFs
+    (540 KB, MIT/OFL, ship their licence), like manic already embeds IBM Plex. NO
+    system install, NO shipped font dir. `render_to_png` only accepts a `font_dir`,
+    so extract the embedded bytes to an OS cache/temp dir once at startup and point
+    `font_dir` there (the loader's global cache keys on the dir → one-time cost).
+    Self-contained across EC2 headless, both Linux cross-builds, and WASM.
+  - Render transparent-bg + template-fg colour (recolour DisplayList items; default
+    is black-on-white).
+- **Phase 2 (native, the manic way):** consume the `DisplayList` → emit manic glyph +
+  rule entities (bundled KaTeX fonts) → equations become first-class, theme-coloured,
+  **drawn-on stroke by stroke**. Same layout, native rendering.
+- **Bonus:** `ratex-wasm` gives the SAME engine in the playground editor → preview
+  matches the render exactly.
+Once shipped, retire the "No LaTeX" gotcha and migrate kit equation labels off ASCII.
 - **Probability and statistics** — ✅ *shipped* — deterministic (seeded) sampling,
   distributions, regression, histograms, and confidence intervals broadened the
   engine into data and algorithm explainers while retaining reproducible recordings.
@@ -1089,30 +1130,429 @@ live preview + stills stay clean and fast):
 Disable with `--no-brand`. (Also fixed: the `--png`/`--alpha` sequence now writes
 frames upright — `export_png`'s internal flip is cancelled in `record.rs`.)
 
+## Creator Kit v2 core — shipped ✅
+
+The first Creator Kit shipped the complete quiz-Short loop (`creator`/`socials`,
+`quiz`/`option`/`run`, countdown, safe-zone guide, figure auto-fit, four skins and
+five question reveals). V2 is an intentional production redesign, not a second
+pile of skins. Its shipped core contains three ordered slices:
+
+### V2.1 — responsive layout and design foundations
+
+- **Viewport-aware kit layout.** Creator constructors must read the actual canvas
+  dimensions instead of baking `540`/`1920` coordinates. One format must adapt to
+  portrait `9:16`, feed `4:5`, square `1:1`, and landscape `16:9` canvases.
+- **Platform safe areas.** Named `shorts`, `reels`, `tiktok`, and `clean` guides
+  provide top/bottom/side insets; all automatic format regions stay inside them.
+- **Shared regions.** Header, media, choices, timer, caption and footer are derived
+  from the safe content rectangle and density, rather than positioned separately.
+- **Creator design tokens.** A small internal style model owns typography roles,
+  spacing, card fill/edge, accent use, glow, option density, timer treatment, and
+  motion recipe. The default is a restrained **studio/editorial** look: strong
+  hierarchy, one accent, crisp panels and purposeful motion. `badge`, `minimal`,
+  `glass`, and `plain` remain available and backwards compatible.
+- **Reliable fitting.** `figure()` uses shared entity bounds and includes text,
+  images/equations, curves, stroke and scale. It must fail clearly on an empty
+  target and avoid silently producing a broken live construction.
+
+### V2.2 — Quiz v2
+
+- Preserve every v1 file unchanged: `quiz(q,"?")`, the old skin/reveal words,
+  `option(...[,correct])`, and `run(q,dur)` remain valid.
+- Extend the order-free quiz spec with explicit `key=value` options for
+  `layout`, `density`, `timer`, `motion`, and `reveal`. Defaults stay concise.
+- Responsive answer layouts cover 1–6 options (stack up to four; auto/grid up to six),
+  long-answer wrapping, phone-readable minimum type, and deterministic overflow
+  diagnostics instead of overlaps.
+- Timer treatments: `ring`, `bar`, `number`, and `none`. Reveal treatments keep
+  the correct answer legible, deliberately de-emphasise distractors, and allow an
+  optional author-supplied explanation/source without inventing a solution act.
+- Motion recipes: `calm`, `studio`, `punch`, and `cut`, with timing derived from
+  the requested `run` duration rather than hard-coded absolute beats.
+
+Proposed v2 authoring surface (the exact accepted keys are documented by parser
+errors and tests):
+
+```manic
+canvas("9:16"); template("mono");
+creator(me, "@anish2good name=Optics_Lab yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan footer=compact");
+quiz(q, "Which glass bends blue light more?",
+     "studio layout=media-first reveal=rise timer=bar density=comfortable");
+option(q, "Crown glass");
+option(q, "Flint glass", correct);
+option(q, "Both equally");
+option(q, "Neither");
+prism(p, (540, 650), "sf11");
+figure(p);
+explain(q, "Flint glass has stronger dispersion.");
+run(q, 12);
+socials(me);
+```
+
+### V2.3 — creator brand system
+
+- Extend `creator(id,"spec")` without breaking existing specs: display name,
+  handle, logo/avatar image, accent/secondary colours, tagline, website, footer
+  style and default CTA live in one reusable profile.
+- Footer variants: `compact`, `signature`, `social`, and `none`; automatic layout
+  uses configured identity content and stays inside the active safe area.
+- A reusable `endcard(profile, [spec])` produces a professional final creator
+  lockup with optional CTA. Custom avatar/channel art remains optional through
+  `logo=`; the social footer itself uses native vector marks.
+- Brand choices are creator content, separate from manic's engine-level recorded
+  watermark/pre-roll and from the global canvas `template()` palette.
+
+### V2 core acceptance criteria
+
+1. Old Creator Kit examples parse, validate, and retain their existing entity ids.
+2. The same v2 quiz source lays out without overlap on 9:16, 4:5, 1:1, and 16:9.
+3. Stress cases cover 2–6 choices, long text, inline math, light/dark templates,
+   logo/no-logo profiles, and representative geo/physics/optics figures.
+4. Unit tests cover spec parsing, layout regions, safe-area selection, backwards
+   compatibility, profiles, footer variants, and end cards.
+5. Representative frames are rendered and visually inspected at question,
+   countdown, answer-reveal, and end-card moments before v2 is called complete.
+6. `SYSTEM_PROMPT.md`, the creator book chapter, examples, and this capability
+   ledger are updated together with the implementation.
+
+**Deferred until after the v2 core:** fact-card, listicle, this-or-that and other
+format families will reuse these foundations, but are not allowed to delay the
+responsive quiz + brand-system release.
+
+**Implementation result (2026-07-18):** ✅ logical canvas size now reaches every
+kit through `Scene`; ✅ responsive header/media/choices/timer/footer regions adapt
+across 9:16, 4:5, 1:1 and 16:9; ✅ named Shorts/Reels/TikTok/clean safe areas;
+✅ rounded translucent-safe UI panels; ✅ a restrained studio palette under
+`template("shorts")`; ✅ Studio is the new quiz default while all v1 skin/reveal
+words and entity ids remain; ✅ v2 `layout`/`density`/`timer`/`motion`/`safe`/
+`accent` parsing; ✅ width-aware answer type and 1–6 auto/grid layout (stack is
+guarded at four); ✅ optional `explain`; ✅ expanded creator profile, four footer
+styles and hidden `endcard`; ✅ improved `figure` bounds for paths/text/images/
+equations plus live-dependency diagnostics; ✅ catalog, prompt, book, gallery and
+`examples/creator-v2.manic` updated. Sixteen Creator/Timing tests cover the v2
+surface, including all four aspect ratios and generic named phases; the complete
+193-test library suite passes.
+Question, choices/countdown, reveal, end-card, square and landscape frames were
+rendered and visually inspected. That visual pass caught and fixed translucent
+corner overdraw, timer/explanation collision, and narrow-card text overflow.
+
+**Gold-path Reel documentation — shipped ✅ (2026-07):** mdBook now promotes a
+first-class `Create a polished Reel` workflow directly after Getting Started.
+It covers platform-safe composition, phone-first content hierarchy, layout and
+motion choices, exact pacing, native timer selection, reusable branding,
+end-card design, still-frame review, and Reel export. The copyable
+`examples/perfect-reel.manic` starter is editor-checked and visually reviewed at
+its hook, countdown, reveal, and end-card beats.
+
+**Creator v2 + LaTeX review set — shipped ✅ (2026-07):** three focused examples
+exercise inline and display math through the responsive Creator surface:
+`examples/creator-v2-latex-calculus.manic` (9:16 studio),
+`examples/creator-v2-latex-algebra.manic` (1:1 paper), and
+`examples/creator-v2-latex-physics.manic` (16:9 studio). Portrait, square, and
+landscape frames were rendered and visually inspected. The review also fixed
+tintable equation images to use semantic template remapping, keeping formula
+options legible on light templates.
+
+### Creator v2.4 — questions, options and native socials shipped ✅ (2026-07)
+
+This pass deliberately does **not** expand general image/asset support. It
+polishes the high-frequency authored surfaces that should work from DSL alone:
+
+- Question headers now allocate separate decoration and text regions, so the
+  kicker/rule cannot collide with a wrapped prompt. Stable tags expose
+  `{id}.question` plus `.panel`, `.kicker`, `.rule`, and `.text` roles while
+  preserving existing ids such as `q.q` and `q.qrule`.
+- `labels=letters|numbers|none` controls the option index treatment. Letters are
+  the compatibility default; number/no-label modes suit ordered choices and
+  polls. Answer cards reserve a uniform right-side check zone, auto-fit long
+  text, and centre a single card in the final row of a five-choice grid.
+- Options expose stable `{id}.options`, `{id}.option.a` through `.option.f`,
+  role suffixes (`.card`, `.badge`, `.label`, `.text`, `.check`), and
+  `{id}.option.correct`. This makes common A/B/C/D styling precise without
+  depending on internal compact ids.
+- The social footer uses one normalized native-vector registry for YouTube, X,
+  Instagram, TikTok, Facebook, LinkedIn, GitHub, web, email, and a generic-link
+  fallback. Common aliases normalize to stable tags such as
+  `{id}.social.youtube` and `{id}.social.web`. Up to three configured values are
+  displayed as professional icon+text lockups; larger sets remain responsive by
+  collapsing to icons plus the profile handle.
+- Maintained Creator examples now use `yt=zarigatongy`, `x=@anish2good`, and
+  `web=8gwifi.org/manic`. The flagship v2 example is asset-free; optional
+  `logo=` compatibility remains for authors who intentionally provide a custom
+  avatar or channel mark.
+
+Parser/layout/compatibility coverage includes label modes, semantic tags,
+five-choice centring, canonical social aliases, exact profile values, and the
+unknown-platform fallback. The mdBook, builtin catalog, system prompt, and
+Creator/Reel examples document the same shipped surface. The complete 196-test
+library suite passes, including editor validation for every shipped example.
+
+### Timing v2 core — generic + Creator adapters shipped ✅ (2026-07)
+
+The original quiz timer deliberately shipped as a small surface
+(`ring|bar|number|none`) with a fixed five-second display and motion-dependent
+phase percentages. Timing v2 keeps the ring as the polished zero-config default
+but separates **choreography** from **timer appearance**:
+
+- `timing(clock,[(x,y)],"intro=1 demo=6 finish=1")` creates a
+  format-neutral named-phase controller. `timed(clock) { during("intro") {
+  ... } ... }` schedules any ordinary manic animation at exact phase offsets
+  while running the native timer in parallel. Phase source order is irrelevant;
+  short blocks are padded, while overruns, duplicates, and unknown phases fail
+  clearly instead of drifting. `duration=6` is a one-phase `main` shorthand.
+- `timing(q,"...")`: pace presets plus explicit `ask`, `options`, `think`,
+  `reveal`, `hold`, and `stagger` phases. Explicit phases make `run(q)` derive
+  the total duration; legacy `run(q,dur)` continues to scale the preset beat.
+- `timerstyle(clock|q,[(x,y)],"...")`: native `ring`, `bar`, `number`,
+  `segments`, `ticks`, `pulse`, and `none` looks with responsive position,
+  count direction, size, thickness, semantic colours, optional label/digit
+  placement, and finish cue. `run(clock)` is the timer-only form; a generic
+  controller never accepts a competing `run(clock,dur)` duration.
+- Stable timer-part tags expose track/progress/value/label/effects for ordinary
+  modifiers. Standalone `countdown` uses the same visual vocabulary.
+- SVG is intentionally deferred: native primitives already provide scalable,
+  template-aware, progress-animatable timers. A future SVG feature should
+  convert paths to native traceable geometry instead of rasterizing them into a
+  non-animatable timer image.
+
+Delivered with exact generic/quiz phase and counter tests, backward
+compatibility, catalog and prompt coverage, a non-quiz physics example,
+dedicated portrait/square/landscape examples, and the six-look comparison
+gallery. All 193 tests pass. Mid-countdown frames were rendered and
+visually inspected at 9:16, 1:1, and 16:9; that review also corrected horizontal
+timer digit/label spacing so segmented and bar looks stay inside their regions.
+
+## Creator format templates — manic for social creators (v1 shipped)
+
+**A new audience: content creators, not just domain educators.** Every kit so far
+adds a *domain* (math, physics, optics). This is **orthogonal** — a *format* layer:
+opinionated, slot-filled, branded, pre-timed scene generators for social formats
+(YouTube **Shorts** / Reels / TikTok). A creator picks a template, drops in content
+(a question, four options, an answer) and their branding (handles, accent colour),
+and manic produces a polished vertical clip — no timeline authoring, no design
+skill. This turns manic from a *tool* into a *product creators return to*.
+
+**Worked example — the quiz Short** (the format the request describes): a question
+appears → an animated figure/illustration → four option cards (A–D) → a countdown
+timer → time-out → the correct answer is revealed (right card glows, the rest dim)
+→ a socials footer (handles + icons). Roughly:
+
+```manic
+canvas("9:16");                 // portrait 1080×1920 (already supported)
+creator(me, "@anish2good yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=gold");
+
+// FREEDOM path — builder verbs: any number of options, per-option media later
+quiz(q, "Which glass bends BLUE light more?");
+option(q, "Crown glass");
+option(q, "Flint glass", correct);      // mark the right one
+option(q, "Both equal");
+option(q, "Neither");
+figure(q, prism);               // optional illustration slot — ANY manic entity / kit sim
+run(q, 12);                     // plays the whole beat: ask · countdown · reveal
+socials(me);                    // the creator's footer, pinned in the safe zone
+
+// EASY path — one-liner shorthand for the canonical 4-option quiz:
+//   quiz(q, "Which glass bends BLUE light more?", "Crown", "Flint", "Both", "Neither", answer: 2);
+```
+
+**Mostly reuse — the foundation already ships.** Portrait canvas ✅
+(`canvas("9:16")` → 1080×1920), the **`reel`** branded preset ✅, engine branding
+for 1080×1920 ✅, `par`/`seq`/`wait`/`stagger` timing, `Counter` (a live 5→0
+countdown digit), `Arc` (a shrinking timer ring), colour/theme, `banner`/
+`watermark`. A countdown = a Counter `Value` track + an `Arc` sweep; a reveal =
+`show`/`flash`/`color` on the right card — all existing verbs. **The template only
+bakes the layout + the timeline.**
+
+**The `figure` slot takes ANY manic entity** — it references an id, and everything
+in manic is an entity, so a shape, a group, a kit sim (`prism`/`triangle`/
+`pendulum`), a `def`, or even a **live-animating** sim can be the illustration
+(the prism disperses / the geometry constructs *while* the question shows). Bare-id
+tag-broadcast moves/scales a multi-part builtin into the slot as one. The only new
+bit is **auto-fit**: compute the entity/group's 2-D bounding box (no general helper
+today — reuse the footprint-bbox pattern in `three.rs`) and scale+translate it into
+the figure region; `figure(q, fig)` auto-fits, or the creator places it and it's
+just marked as the slot content.
+
+**⬜ Tracked polish (do after the `creator` kit build):** the figure's small dot
+markers (e.g. a circumcentre) are a touch small for a phone screen — bump their
+size / add a thin ring so they pop in the `figure` slot.
+
+**Prototype-first — SHIPPED:** the first quiz Short is hand-authored from shipped
+primitives in **`examples/quiz-geometry.manic`** (9:16): typewriter `type`
+question, an **animated geometry figure** (the geo kit constructs the Euler line —
+which *is* the answer), four `rect` option cards, a countdown ring + `say`-driven
+digit, a time-out reveal (correct card `recolor`→lime + `flash`/`pulse`, the rest
+`fade`), over a `text` socials footer. ~20 s, renders under the `reel` preset. That
+proven file is the reference the `quiz`/`countdown`/`socials` builtins will later
+collapse to a few lines — the same "build by hand, then extract the builtin" path
+the physics sims followed.
+
+**What's genuinely new:**
+1. **Reusable UI components** (a small `creator`/`ui` kit): `choices`/`card` (the
+   A–D option cards), `countdown` (ring + digit), `reveal` (highlight-correct /
+   dim-others beat), `socials` (a handle+icon footer). Useful well beyond quizzes.
+   The `figure` slot auto-fits any entity (bounds→scale). **The POC is
+   template-agnostic** — it uses only palette-semantic colours (`fg`/`cyan`/
+   `magenta`/`lime`/`dim`/`panel`, which the template remaps) and outline-only
+   chrome, so it renders with correct contrast on `paper` (light) AND `terminal`
+   (dark); the fixed consts (`gold`/`red`/…) are avoided for contrast-critical bits.
+2. **✅ Raster image embedding SHIPPED** — `image(id, (x,y), "path", [w], [h])`
+   (`Shape::Image` + a thread-local macroquad texture cache preloaded in
+   `player::run_loop`, drawn in `render::draw_entity`; missing file → a crossed
+   placeholder box). Loads real **logos / avatars / photo backdrops**, animates
+   like any entity, `examples/image.manic` + bundled `assets/manic-logo.png`.
+   Engine-only (no browser preview — the WASM front-end has no macroquad). The
+   quiz POC keeps its *drawn* vector social icons (no trademark PNGs bundled),
+   but a creator can now drop their own real logo/avatar in via `image(...)`.
+2. **Format templates** — `quiz` first; then a family: `countdown` (N→0 hype),
+   `factcard` (hook → fact → source), `listicle` (top-N reveal), `thisorthat`
+   (A-vs-B poll), `hotseat` (rapid Q&A). One builtin per format.
+3. **Shorts safe-zones** — a portrait layout that keeps content clear of the
+   platform UI (bottom action bar, right rail, top clock): a `safezone` helper or
+   an automatic inset the templates respect.
+4. **A creator profile** — `creator(id, handle, x, yt, ig, tiktok, accent, logo)`
+   set once (or in a small reusable file) and reused across every video; drives
+   the `socials` footer + accent colour. Extends the brand kit.
+5. **A `shorts` theme/preset** — punchy caption sizing, bold outlines, high
+   contrast for tiny phone screens, safe-zone insets on by default.
+
+**SHIPPED so far (`src/kits/creator.rs`):** ✅ **`creator(id, "spec")`** — a reusable
+profile parsed from a space-separated spec (`@handle`, `yt=`/`x=`/`ig=`/`tt=`/
+`fb=`/`li=`/`gh=`/`web=`/`email=` pairs, `accent=colour`), stored in
+`Scene::creators`. ✅ **`socials(id, [at])`** — draws the footer using normalized
+native platform marks and configured values; `at` defaults to the responsive
+bottom safe region. It needs no downloads or image/SVG assets; `logo=` remains
+available for a separate custom avatar in compact/signature layouts. ✅ **`quiz(id,
+"question")`** + **`option(id, "text", [correct])`** — the question (typewriter,
+wrapped) + auto **2×2** option grid + countdown widget; the correct option gets a
+lime highlight. ✅ **`run(id, [dur])`** drives the whole **ask → countdown →
+reveal** beat (the shared `run` verb dispatches to `build_quiz_clip` when the id is
+a quiz — `Scene::quizzes`). `option`/`socials` opt out of tag-broadcast
+(`consumes_structure_id`). Figure is author-supplied. **`examples/quiz-euler.manic`
+= the ~60-line POC collapsed to `quiz` + 4 `option`s + `run`. FIRST KIT VERSION
+COMPLETE.** **Production polish done:** cards **slide up + fade** in (Pos+Opacity),
+long answers **wrap** within cards, the reveal **pops** the correct card (lime
+highlight Scale-bump + a **drawn ✓**) and **dims** the wrong ones (0.28) instead of
+vanishing, and the geo figure **dots are bigger** (`r` 5→7 — the tracked nit).
+**Auto-layout done:** `run` lays the answers out by count — a centred column for
+≤3, a 2×2 grid for 4+ (2/3/4 all verified) — by computing each slot from the final
+count and sliding the cards in via Pos tracks (options are created at a neutral
+spot; `run` knows the total). **All the structural features shipped too:**
+✅ a **draining ring** (the countdown ring is a full-circle `Arc` whose `trace`
+animates 1→0 — the Arc line already honours `trace`, no new prop needed);
+✅ **`countdown(id, [at], [secs])`** standalone (draining ring + digit as a
+`SimData` playback, `run`-driven); ✅ **`safezone(id, [inset])`** (a faint 9:16
+content-safe guide); ✅ **`figure(target, [center], [size])`** (auto-fit: a 2-D
+bbox over the group, then a uniform scale+translate of each entity's shape into the
+zone — a kit sim / tagged group drops in without hand-placing); ✅ a **`shorts`
+template** (neon-on-black, extra glow, no chrome — for phone screens). The
+`reveal` beat stays folded into `quiz`'s `run` (no separate builtin needed).
+**Creator kit: first production version + all planned features COMPLETE.**
+
+**Production redesign — card SKINS (verified by still-render):** the quiz was
+rebuilt from wireframe-grade to broadcast-grade with **4 selectable card skins**,
+chosen via the `quiz` style spec (order-free with the reveal, e.g. `"glass fade"`):
+`badge` (default — framed question panel + a "QUESTION" kicker pill + coloured
+letter-badge answer cards), `minimal` (kicker + accent rule, outline rows), `glass`
+(glowing borders, Reels look), and `plain` (flat). One `SkinSpec` table drives the
+question header, cards, and reveal, so a new skin is one entry — and every skin
+still works under any global `template()`. The reveal now tints + glows the correct
+card, draws a check, and turns the correct **badge green**; a persistent faint
+track ring means the countdown never decays to a lone digit. All skins verified by
+headless `--still` PNG export.
+
+> ⚠️ **Testing status — creative kits need more field testing (pre/post-deploy).**
+> The creator kit + the **Shorts system-prompt guidance** are shipping, but they've
+> only been exercised on a handful of prompts. The failure modes we've already
+> caught-and-fixed are all layout/authoring judgement, not engine bugs: figures
+> hand-plotted instead of kit-constructed, `figure()` misused on live geo,
+> pre-solved coordinates, the worked-solution act shown unprompted, figure labels
+> colliding with the answer cards, and geo point labels left at the 22px default.
+> Each fix went into the system prompt, not the engine — which means **the quality
+> bar here lives in the prompt and must be validated by generating real Shorts**
+> (across models, topics, and question types) and rendering them, not by unit
+> tests. **Action items:** (1) build a small regression set of representative
+> Short prompts and eyeball the renders after each prompt change; (2) keep the
+> `--still` visual-check loop in the deploy workflow; (3) apply the same
+> generate-render-critique discipline to **every future creative kit** (new formats
+> like countdown/factcard/listicle/this-or-that) before calling them production —
+> expect the first cut to need prompt tuning, and budget for it.
+
+**Two layers (mirrors the physics kit's Layer 1 / Layer 2):**
+- **Layer 1 — named templates**, for creators: pick `quiz`/`countdown`/…, fill the
+  slots, `run`. Zero design skill.
+- **Layer 2 — author-your-own template**, for designers: define a reusable format
+  (named slots + layout + a default timeline) with `def` + parameters, so a studio
+  ships its own branded template and reuses it across a channel.
+
+**Decided (locked):**
+- **Content input — freedom + easy:** primarily **builder verbs** (`quiz(q,"?")`
+  then `option(q,"text"[,correct])`) so a creator gets full freedom — any number of
+  options, per-option media later — AND an **easy one-liner shorthand**
+  (`quiz(q,"?","A","B","C","D",answer:2)`) for the common 4-option case. Both map
+  to the same quiz structure.
+- **Branding — a reusable creator profile:** `creator(id, handle, x, yt, ig,
+  tiktok, accent, logo)` set once, ideally in a small file a channel reuses across
+  every video; `socials(id)` drops the safe-zone footer. One place to edit brand.
+- **A new `creator` kit** (`src/kits/creator.rs`), separate from `brand` (which
+  stays about manic's own watermark/intro). Holds `creator`/`socials`/`quiz` +
+  the shared UI components + `safezone`.
+- **First deliverable — the full `quiz` Short end-to-end** (9:16 layout · question
+  · option cards · countdown ring+digit · time-out reveal · socials footer), as
+  the proof of the whole format; the reusable components (`countdown`/`choices`/
+  `reveal`/`socials`) fall out of it and get exposed standalone.
+
+**First-build sequence (when we start):** `creator` kit skeleton + `creator`
+profile + `socials` footer → `safezone` insets for 9:16 → `countdown` (Counter
+`Value` + `Arc` sweep) → `choices`/`card` (A–D option cards) → `reveal`
+(highlight-correct/dim-others) → the `quiz` template (both input paths) + `run`
+beat → a `shorts` theme → one example + book gallery + the builtin checklist.
+
+**Why it fits:** the same "fill it in, get a correct animation" promise aimed at a
+huge new audience; ~80% composition of shipped primitives; and the quiz Short
+alone is a proven, repeatable viral format — a creator can make one a day.
+
 ## Templates / themes
 
-**Shipped (v1).** The look is now a selectable **template**, chosen with
+**Shipped.** The look is a selectable **template**, chosen with
 `template("name")` (or `--template <name>` at render time). Chrome is driven by
 `style::Template` (`Chrome::None|Minimal|Full` + background + masthead strings),
 carried on the `Movie` and read by `render::draw_page_chrome`.
-- **`plain` (default)** — a blank screen: background + content only, no frame /
-  dots / masthead / rule. This is now the out-of-the-box look.
+- **`mono` (default)** — restrained black-and-white editorial palette on a
+  near-black blank screen, no frame/dots/masthead/rule, with a subtle glow. A
+  DSL file that omits `template(...)` gets this look.
+- **`plain`** — the original saturated neon palette on a blank screen, retained
+  as an explicit compatibility choice.
 - **`terminal`** — the neon terminal-window chrome (border, corner brackets,
   window dots, centred title, masthead, two-tone rule), now opt-in.
 
+`mono` aliases are `monochrome`, `blackwhite`, `black-white`, and `bw`. Tests
+cover the DSL default, explicit-template override, aliases, and greyscale
+remapping of every named semantic colour. Both the explicit mono Timing v2
+scene and a template-free sine-wave scene were rendered and visually inspected.
+
+**mdBook template guide shipped (2026-07).** Templates now have a dedicated
+navigation chapter with a runnable mono sample, selection matrix, aliases,
+semantic-colour and `hue(...)` behavior, DSL-versus-CLI override rules,
+Creator/Reel recommendations, and phone-size review tips. Getting Started,
+Colour & Style, Creator formats, the Reel gold path, and the introduction link
+back to the same guide.
+
 **Runtime palette DONE.** Each template carries a `style::Palette` (bg/fg/cyan/
-magenta/lime/dim/panel). The engine still bakes neon everywhere; the renderer
+magenta/lime/gold/red/orange/blue/dim/panel). The engine still bakes neon everywhere; the renderer
 **remaps** each palette colour to the active template's at draw time
 (`Palette::remap`, in `draw_entity`), so `--template` retints **content** too,
 while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`
-(default, neon palette), `terminal` (neon + chrome), `paper` (ink on cream),
-`blueprint` (white/cyan on navy). **Masthead is author-set** (`masthead(...)`),
-empty by default — no `manic ~ %` / `60FPS` branding is baked into any template.
+(neon palette), `terminal` (neon + chrome), `paper` (ink on cream), `blueprint`
+(white/cyan on navy), `shorts` (creator studio), and `mono` (default greyscale).
+**Masthead is author-set** (`masthead(...)`), empty by default — no
+`manic ~ %` / `60FPS` branding is baked into any template.
 
 **Per-template glow + CRT DONE.** Each template has a `glow` multiplier (applied
 to every entity's halo at render) and a `crt` default. `plain`/`terminal` glow
-= 1 (neon); `paper`/`blueprint` glow = 0 (crisp, flat — right for print). `--crt`
-still forces the post-process on regardless of the template default.
+= 1 (neon), `mono` = 0.35 (subtle), `shorts` = 0.65, and
+`paper`/`blueprint` = 0 (crisp, flat — right for print). `--crt` still forces
+the post-process on regardless of the template default.
 
 **Still to do:** template-controlled **fonts** (needs alternate font assets
 bundled — the separate "selectable fonts" work); more palettes; a `minimal`
@@ -1135,45 +1575,16 @@ student/teacher style — not just clean neon geometry. Two independent layers:
 - The two compose: `chalkboard` template + `sketch` style = teacher-at-the-board.
 Decide later.
 
-**What a template bundles:**
-- palette + the named-colour map (what `cyan`/`magenta`/`lime`/`fg`/`dim`/`bg`/
-  `panel` resolve to — each theme can retint these semantic roles);
-- fonts (mono / display);
-- chrome style (terminal window frame · plain · paper/notebook · blueprint);
-- glow factor and CRT default (on for neon, off for a print look);
-- masthead text/format.
+**What a template bundles today:**
+- palette + the complete named-colour map (`fg`, `dim`, `panel`, and every
+  semantic accent);
+- chrome style (none/minimal/full), glow factor, and CRT default;
+- optional author-set masthead text.
 
-**Chrome is developer branding — must be optional.** Today every frame bakes in
-the terminal frame, traffic-light dots, the accent rule, and the masthead text
-`manic ~ %` / `60FPS · DETERMINISTIC` (all in `render.rs::draw_page_chrome`).
-A *content author* (the target user) doesn't want engine branding in their
-video. So chrome needs levels — at minimum **`full`** (frame + dots + masthead,
-today's look), **`minimal`** (masthead only, no window frame), and **`clean`**
-(nothing but the author's content on the background). The masthead is
-**author-set or empty** — never baked technical text like "60FPS ·
-DETERMINISTIC". Selectable per-movie (`chrome("clean")` / part of the template)
-and via a `--clean` CLI flag. This is small and independently useful — worth
-shipping ahead of the full theme refactor.
-
-**How to address it (extend, don't fork the renderer):**
-1. Replace the `pub const` palette in `style.rs` with a runtime `Theme` struct;
-   `Theme::neon()` holds today's exact values (zero visual change by default).
-   Ship a few built-ins: `neon` (default), `paper` (light ink-on-cream, no glow/
-   CRT), `blueprint` (cyan-on-navy grid), `slate` (muted dark).
-2. Make colour resolution theme-aware: `resolve_color(name)` and kit default
-   colours read the active theme's role map instead of the constants. (Kits keep
-   using semantic names — `style::CYAN` becomes `theme.cyan`.)
-3. Carry the chosen `Theme` on the `Movie`; `render.rs`/`player.rs` read chrome/
-   glow/CRT from it instead of hard-coded values.
-4. Selection: a top-level `template("neon")` statement (reserved control name)
-   with a `--theme <name>` CLI override.
-
-**Effort:** medium — a focused refactor (style → runtime `Theme`; thread through
-`resolve_color`, `render`, `player`; one language keyword), not a rewrite.
-**Note:** existing examples assume dark-bg + glow, so a light theme intentionally
-changes their look — that's the feature; neon remains default so nothing breaks.
-Composes with the separately-planned **selectable fonts** (a theme picks fonts;
-custom fonts refine within a theme).
+Chrome and engine branding are independent. `mono`, `plain`, `paper`,
+`blueprint`, and `shorts` have no page chrome; `terminal` opts into the full
+window treatment. Recording-preset branding remains separately controllable
+with `--no-brand`.
 
 ## Web / editor language services — **shipped** (prototype UI)
 

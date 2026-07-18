@@ -145,7 +145,15 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
         style::FG
     };
     let advance = size * 0.6; // IBM Plex Mono ~0.6 em per glyph
-    let words: Vec<&str> = text.split_whitespace().collect();
+    // Any `$…$` math keeps the caption as ONE unit so the inline-math pass can
+    // typeset it (whole-span → equation image; mixed → RichText). A formula can't
+    // be karaoke'd word-by-word anyway, so this only forgoes word-split on
+    // math-bearing captions.
+    let words: Vec<&str> = if text.contains('$') {
+        vec![text.trim()]
+    } else {
+        text.split_whitespace().collect()
+    };
     let total_chars: usize =
         words.iter().map(|w| w.chars().count()).sum::<usize>() + words.len().saturating_sub(1); // + single spaces
     let x_left = center.x - total_chars as f32 * advance / 2.0;
@@ -435,6 +443,39 @@ fn c_line(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `image(id, (x,y), "path", [w], [h])` — a raster image (PNG/JPG) centred on
+/// `(x,y)`, drawn `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded
+/// once at render start; animate it like any entity (`show`/`move`/`fade`/…). A
+/// missing file draws a crossed placeholder box.
+fn c_image(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let path = a.text(2)?;
+    let w = a.opt_num(3)?.unwrap_or(300.0).max(1.0);
+    let h = a.opt_num(4)?.unwrap_or(w).max(1.0);
+    s.add(Entity::new(id, Shape::Image { path, w, h, tint: false }, pos, style::FG));
+    Ok(())
+}
+
+/// `equation(id, (x,y), "latex", [size])` — typeset a LaTeX math string (real
+/// fractions/roots/exponents/Greek via RaTeX) centred at `(x,y)`. `size` is the
+/// em height in px (default 48). Rendered white-on-transparent and drawn tinted
+/// by the entity colour, so it takes the template palette and `color`/`recolor`
+/// work; animate with `show`/`fade`/`move`/`scale` (it's an image, so no `draw`).
+fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let latex = a.text(2)?;
+    let size = a.opt_num(3)?.unwrap_or(48.0).clamp(6.0, 400.0);
+    // Layout now (cheap); the player rasterises at the render scale (pixel-sharp).
+    let (w, h, _baseline) = crate::latex::layout_dims(&latex, size)
+        .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
+    let path = crate::latex::eq_path(&latex, size);
+    s.pending_eqs.push((path.clone(), latex, size));
+    s.add(Entity::new(id, Shape::Image { path, w, h, tint: true }, pos, style::FG));
+    Ok(())
+}
+
 /// `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` — a filled polygon through
 /// the given points (screen coordinates; ≥ 3). A trailing colour word is optional.
 /// Filled with a matching outline; drop the opacity (`opacity(id, 0.3)`) for a
@@ -649,6 +690,14 @@ fn m_size(s: &mut Scene, a: &Args) -> Result<(), Error> {
     if let Shape::Text { size, .. } = &mut ent_mut(s, a)?.shape {
         *size = n;
     }
+    Ok(())
+}
+
+/// `wrap(id, width)` — wrap a text/caption/`$…$` label to `width` px (breaks at
+/// word boundaries; inline math stays atomic). Without it, text is a single line.
+fn m_wrap(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let w = a.num(1)?.max(1.0);
+    ent_mut(s, a)?.wrap = Some(w);
     Ok(())
 }
 
@@ -1217,6 +1266,8 @@ pub fn register(r: &mut Registry) {
     r.ctor("dot", c_dot);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
+    r.ctor("image", c_image);
+    r.ctor("equation", c_equation);
     r.ctor("line", c_line);
     r.ctor("polygon", c_polygon);
     r.ctor("arrow", c_arrow);
@@ -1236,6 +1287,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("filled", m_filled);
     r.ctor("outline", m_outline);
     r.ctor("size", m_size);
+    r.ctor("wrap", m_wrap);
     r.ctor("stroke", m_stroke);
     r.ctor("glow", m_glow);
     r.ctor("z", m_z);
@@ -1280,6 +1332,79 @@ pub fn register(r: &mut Registry) {
 
 #[cfg(test)]
 mod tests {
+    /// `image(id, at, "path", [w], [h])` builds a `Shape::Image` entity carrying
+    /// the path + size; validates with default and explicit sizes.
+    #[test]
+    fn image_builds_shape() {
+        use crate::primitives::Shape;
+        let m = crate::parse("canvas(\"16:9\");\nimage(logo, (640, 360), \"foo.png\", 400, 200);\n").unwrap();
+        let e = m.base().get("logo").expect("image entity");
+        match &e.shape {
+            Shape::Image { path, w, h, .. } => {
+                assert_eq!(path, "foo.png");
+                assert_eq!((*w, *h), (400.0, 200.0));
+            }
+            other => panic!("expected Shape::Image, got {other:?}"),
+        }
+        // an equation renders (via RaTeX) to a tinted Shape::Image with real px dims
+        let e = crate::parse("canvas(\"16:9\");\nequation(q, (640, 360), `\\frac{1}{2}+\\sqrt{x}`, 48);\n").unwrap();
+        match &e.base().get("q").expect("equation entity").shape {
+            Shape::Image { tint, w, h, path } => {
+                assert!(*tint, "equation image must be tinted by entity colour");
+                assert!(*w > 0.0 && *h > 0.0, "equation should have real pixel dims");
+                assert!(path.ends_with(".png"), "equation caches a PNG: {path}");
+            }
+            other => panic!("expected equation Shape::Image, got {other:?}"),
+        }
+        // defaults: w=300 square, and it validates in a scene
+        let m2 = crate::parse("canvas(\"16:9\");\nimage(l, (100, 100), \"x.png\");\nshow(l, 0.5);\n").unwrap();
+        assert!(m2.validate().is_ok(), "image + show should validate: {:?}", m2.validate().err());
+    }
+
+    /// Holistic inline LaTeX: a whole-`$…$` string in ANY text (plain `text`, a
+    /// geo point label, a `caption`) is typeset to a tinted equation image by the
+    /// build post-pass — with zero per-kit code — while plain text is untouched.
+    #[test]
+    fn inline_dollar_math_typeset_everywhere() {
+        use crate::primitives::Shape;
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             text(plain, (cx, 80), \"just x^2 text\");\n\
+             text(cap, (cx, 200), `$E = mc^2$`);\n\
+             point(A, (cx, 300), `$\\alpha$`);\n\
+             caption(c2, `$\\int_0^1 x\\,dx$`, (cx, 400));\n",
+        )
+        .unwrap();
+        let base = m.base();
+        // plain text (no `$`) is byte-identically untouched → still Text
+        assert!(matches!(base.get("plain").unwrap().shape, Shape::Text { .. }), "plain text must not change");
+        // every whole-`$…$` label became a tinted equation image
+        for id in ["cap", "A.label", "c2.w0"] {
+            match &base.get(id).unwrap_or_else(|| panic!("missing {id}")).shape {
+                Shape::Image { tint, .. } => assert!(*tint, "{id} should be a tinted equation image"),
+                o => panic!("{id}: expected typeset image, got {o:?}"),
+            }
+        }
+    }
+
+    /// Mixed text + inline `$…$` on one line → `RichText` with text·math·text runs
+    /// (Phase 2b). Plain strings (no `$`) stay `Shape::Text` — no regression.
+    #[test]
+    fn mixed_inline_math_becomes_richtext() {
+        use crate::primitives::{Shape, TextRun};
+        let m = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), `The area is $\\pi r^2$ units`);\n").unwrap();
+        match &m.base().get("t").unwrap().shape {
+            Shape::RichText { runs, .. } => {
+                assert!(matches!(runs.first(), Some(TextRun::Text(_))), "starts with text");
+                assert!(runs.iter().any(|r| matches!(r, TextRun::Math { .. })), "has a math run");
+                assert!(matches!(runs.last(), Some(TextRun::Text(_))), "ends with text");
+            }
+            o => panic!("expected RichText, got {o:?}"),
+        }
+        let p = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), \"plain only\");\n").unwrap();
+        assert!(matches!(p.base().get("t").unwrap().shape, Shape::Text { .. }), "no-$ stays Text");
+    }
+
     /// `sticky(id)` sets the screen-pin flag on an entity, and broadcasts over a tag.
     #[test]
     fn sticky_pins_entity_and_broadcasts() {

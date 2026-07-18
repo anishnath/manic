@@ -15,7 +15,7 @@ Arguments are:
 | kind | example |
 |---|---|
 | number | `40`, `-5`, `2.5` |
-| string | `"hello"` (escapes: `\n \t \" \\`) |
+| string | `"hello"` — keeps backslashes verbatim so **LaTeX works directly** (`"\frac{1}{2}"`, `"\theta"`); only `\"` (a literal quote) and `\\` are special. **`\n` is a hard line break** in `text`/`caption` (text also auto-wraps if you `wrap(id,w)`). Backticks `` `...` `` are also raw and additionally let the LaTeX contain a `"`. |
 | name | `A`, `cyan`, `smooth` (an entity id, color, easing, or function) |
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
 | 3D point | `(2, -1, 3)` — an `(x, y, z)` coordinate triple |
@@ -48,7 +48,7 @@ a beat written above its declaration.
 | `title("...")` | window title + the masthead shown on every frame |
 | `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
 | `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
-| `template("name")` | the overall look. `"plain"` (default) is a blank screen — background + your content only. `"terminal"` neon window chrome (border, dots, title, rule); `"paper"` ink on cream; `"blueprint"` white/cyan on navy. Each **retints** the palette (`cyan`/`fg`/`bg`…). Override at render with `--template <name>`. |
+| `template("name")` | the overall look. `"mono"` is the **default** when omitted: black-and-white editorial on near-black with subtle glow (aliases `monochrome`, `blackwhite`, `black-white`, `bw`). `"plain"` keeps the original neon palette; `"terminal"` adds neon window chrome; `"paper"` is ink on cream; `"blueprint"` is white/cyan on navy; `"shorts"` is a restrained colour Creator surface. Each remaps every named semantic colour (`cyan`/`magenta`/`lime`/`fg`/`dim`/`panel`/…). Bespoke `hue(...)` colours pass through. Override the DSL choice for one render with `--template <name>`. |
 | `masthead("left", ["right"])` | your own header text in the top corners (shown by `terminal`). Empty by default — no engine branding is ever baked in. |
 
 Put these first. (It's `canvas`, not `size` — `size` sets text size.)
@@ -172,6 +172,8 @@ address.
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
+| `image(id, (x,y), "path", [w], [h])` | a **raster image** (PNG/JPG) from a file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing file draws a crossed placeholder box. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
+| `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Rendered white-on-transparent and drawn **tinted by the entity colour**, so it follows `template()` and `color`/`recolor` work. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace). Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
 | `support(id, (cx,cy), [len], ["dir"])` | a **hatched fixed support** (wall / ceiling / floor) for mechanics diagrams — a baseline `{id}.line` + diagonal hatch ticks `{id}.tick{i}`. `"dir"` is the OPEN side: `"down"` (ceiling, default), `"up"` (floor), `"left"`/`"right"` (walls). Tagged bare `{id}` + `{id}.parts`. Pairs with `template("paper")` for a textbook look |
 | `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
@@ -295,6 +297,34 @@ stagger(0.08) {
   show(a);
   show(b);
   show(c);
+}
+```
+
+### Generic Timing v2 — named phases for any scene
+
+`timing` is not limited to quizzes. With a fresh id it creates a format-neutral
+clock whose phase names are yours:
+
+| call | meaning |
+|---|---|
+| `timing(id, [(x,y)], "intro=1 demo=6 finish=1")` | declare exact named phase durations and create a native timer; `duration=6` is shorthand for one `main` phase |
+| `timed(id) { ... }` | schedule the clock and its `during` blocks together |
+| `during("phase") { ... }` | place one block at that phase's absolute start; source order does not affect timing, short blocks are padded, overruns/duplicates/unknown phases error |
+| `run(id)` | timer-only playback when no authored phase blocks are needed; generic exact clocks reject a competing `run(id,dur)` |
+
+Restyle the clock with the same `timerstyle` vocabulary documented in the
+Creator kit: `ring`, `bar`, `number`, `segments`, `ticks`, `pulse`, or `none`.
+
+```manic
+canvas("16:9");
+text(heading, (cx, 100), "ONE CLOCK · THREE PHASES"); hidden(heading);
+circle(ball, (260, 420), 48);
+timing(clock, (1160, 80), "intro=1 motion=4 finish=1");
+timerstyle(clock, "look=ticks direction=fill label=SCENE finish=hold");
+timed(clock) {
+  during("intro")  { show(heading, 0.5); }
+  during("motion") { move(ball, (900, 420), 3.5); }
+  during("finish") { pulse(ball); }
 }
 ```
 
@@ -543,6 +573,7 @@ incircle, centroid, foot, angle mark, and all sides update live.
 | `linecircle(id, a, b, center, through)` | the **two** points where line `ab` meets circle `(center, through)` → `{id}0`, `{id}1` |
 | `circlecircle(id, o1, on1, o2, on2)` | the two intersection points of circles `(o1,on1)` and `(o2,on2)` → `{id}0`, `{id}1` |
 | `tangent(id, from, center, through)` | the **two** tangent touch-points from external point `from` to circle `(center, through)` → `{id}0`, `{id}1` |
+| `commontangent(id, oA, aOn, oB, bOn, ["type"])` | a **common tangent to two circles** (each = centre + a point on it). `type` = `"external"`/`"direct"` (default) or `"internal"`/`"transverse"`. Draws the segment `{id}` **between the touch points** (its length = the tangent length: external `√(d²−(r₁−r₂)²)`, internal `√(d²−(r₁+r₂)²)`); touch dots `{id}.a`/`{id}.b`. Errors if the circles are too close for that tangent. |
 | `circumcircle(id, a, b, c)` | circle through the three points |
 | `incircle(id, a, b, c)` | circle inscribed in the triangle |
 | `anglemark(id, a, b, c)` | an arc marking the angle at vertex `b` |
@@ -676,6 +707,44 @@ run(l, 7);                           // sweep the focal length — the focus sli
 
 prism(p, (560, 400), "sf11");        // white light → a rainbow (real dispersion)
 run(p, 7);                           // sweep the incidence angle — the fan swings
+```
+
+## The creator kit
+
+**Responsive social-video formats** — one source adapts to 9:16, 4:5, 1:1 and
+16:9. Creator owns safe layout regions, question hierarchy, fitted options,
+timing, timer presentation, reusable identity and end cards. The global
+`mono` template is the professional black-and-white default; use `shorts` when
+accent hue matters.
+
+| builtin | what it does |
+|---|---|
+| `creator(id, "spec")` | store one reusable profile. The first bare token is its handle; keys include `name`, `tagline`, `accent`, `secondary`, `footer=social|compact|signature|none`, `cta`, `safe=shorts|reels|tiktok|clean`, and optional custom `logo`. Platform values use `yt|youtube`, `x|twitter`, `ig|instagram`, `tt|tiktok`, `fb|facebook`, `li|linkedin`, `gh|github`, `web|site|url`, and `email|mail`. Use underscores for spaces inside values. Creates no drawables itself. |
+| `socials(id, [at])` | draw the selected responsive footer. Social mode uses normalized native YouTube/X/Instagram/TikTok/Facebook/LinkedIn/GitHub/web/email marks—no image or SVG assets required. Up to three configured values appear beside their icons; larger sets collapse to icons plus the profile handle. Tags include `{id}.footer`, `{id}.socials`, `{id}.social.<platform>` and `.icon`/`.label`. |
+| `quiz(id, "question", ["spec"])` | start a responsive quiz. The zero-config default is the professional `studio` skin, typewriter question, letter labels, balanced pace and draining ring. The order-free spec accepts legacy skin/reveal words and `skin`, `reveal=type|fade|rise|pop|cut`, `layout=auto|stack|grid|media-first`, `density=compact|comfortable|spacious`, `labels=letters|numbers|none`, `timer=ring|bar|number|segments|ticks|pulse|none`, `motion=calm|studio|punch|cut`, `pace=quick|balanced|calm|dramatic`, `seconds`, `safe`, and `accent`. Question tags are `{id}.question` plus `.panel`, `.kicker`, `.rule`, `.text`; compact ids such as `{id}.q` remain compatible. |
+| `option(id, "text", [correct])` | add one of 1–6 answers. Stack supports up to four; auto/grid support six and centre a single final-row card. Type auto-fits, every card reserves a right-side check zone, and exactly one trailing `correct` choice receives the reveal highlight/check while distractors dim. Stable tags are `{id}.options`, `{id}.option.a`…`.f`, role suffixes `.card`/`.badge`/`.label`/`.text`/`.check`, and `{id}.option.correct`. |
+| `timing(quiz, "spec")` | configure the quiz choreography independently: a `quick|balanced|calm|dramatic` preset and optional exact `ask`, `options`, `think`, `reveal`, `hold`, `stagger` or `seconds` values. A preset may be scaled by `run(q,dur)`; after any numeric phase use `run(q)` so there is only one duration source. |
+| `timerstyle(id, "spec")` | style a quiz or generic Timing v2 clock without changing its phases: `look`, `position=auto|header|media|below`, `number=inside|outside|none`, `direction=drain|fill`, `size`, `thickness`, `color`, `track`, `label`, `font=mono|display`, and `finish=fade|hold|flash|pulse`. Stable groups are `{id}.timer`, `.timer.track`, `.timer.progress`, `.timer.value`, `.timer.label`, `.timer.effects`. |
+| `countdown(id, [at], [secs], ["style"])` | standalone timer using the same native looks and style vocabulary. Play it with `run(id, secs)`. |
+| `safezone(id, [inset|"profile"])` | visualize a numeric inset or named `shorts`/`reels`/`tiktok`/`clean` safe area while composing. Remove or hide the guide for export. |
+| `figure(target, [center], [size])` | auto-fit any entity/group—including text, images, LaTeX equations and paths—into the responsive media zone. Tag every source dependency of a live construction; incomplete live groups fail clearly. |
+| `explain(id, "text", ["source"])` | optional author-supplied answer context shown at reveal. Do not add it unless the explanation/source is actually authored. |
+| `endcard(profile, ["cta=... safe=..."])` | build a hidden responsive creator lockup; reveal it at the close with `show(profile.endcard)`. |
+
+```manic
+canvas("9:16");
+template("mono");
+creator(me, "@anish2good name=Olympiad_Minute yt=zarigatongy x=@anish2good web=8gwifi.org/manic footer=social safe=reels");
+quiz(q, "In a cyclic quadrilateral, angle A is 68 degrees. Find angle C.",
+     "studio labels=letters layout=auto safe=reels");
+option(q, "68 degrees");
+option(q, "102 degrees");
+option(q, "112 degrees", correct);
+option(q, "122 degrees");
+timing(q, "balanced ask=1.2 options=1 think=4.8 reveal=0.8 hold=2.2");
+timerstyle(q, "look=bar direction=drain label=THINK finish=pulse");
+socials(me);
+run(q);
 ```
 
 ## The 3D kit

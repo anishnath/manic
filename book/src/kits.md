@@ -126,6 +126,40 @@ distance images a nearby point. Analysis: `rayfan` (the ray-fan aberration plot)
 Airy-disk diffraction-limit overlay). A rainbow glows on the dark bench; the
 geometric ray diagrams also take `template("paper")` for a textbook look.
 
+## creator
+
+A **format** layer (not a subject): responsive, pre-timed social-video templates
+a content creator fills in—question, answers, media and a reusable profile. V2
+adapts the same source to 9:16, 4:5, 1:1 and 16:9, with named platform safe areas,
+a polished studio default, configurable motion/timers, responsive footers and end cards.
+
+```manic
+canvas("9:16"); template("shorts");
+creator(me, "@anish2good name=Math_With_Me yt=zarigatongy x=@anish2good web=8gwifi.org/manic footer=social accent=magenta");
+quiz(q, "What is 7 x 8?", "studio labels=letters pace=calm motion=calm");
+option(q, "54"); option(q, "56", correct); option(q, "48"); option(q, "63");
+timerstyle(q, "look=segments position=media finish=pulse");
+run(q, 8);                                  // scales the calm ask → think → reveal beat
+socials(me);
+endcard(me);                                // reveal later with show(me.endcard)
+```
+
+`quiz(id, "question", ["style"])` starts the format; `style` mixes a card **skin** —
+`studio` (rounded editorial default) · `badge` (framed panel + coloured letter badges) · `minimal` (kicker + accent
+rule, outline rows) · `glass` (glowing borders) · `plain` (flat) — and a question
+**reveal** — `type` (typewriter, default) · `fade` · `rise` · `pop` · `cut`.
+`option(id, "text", [correct])` adds an answer; `run` **auto-lays-out** one to six cards,
+fits their type, slides them in, plays the selected native timer, and lights up the correct
+card (green badge + check). `timing(id,"preset ask=... options=... think=... reveal=... hold=... stagger=...")`
+separates exact choreography from `timerstyle(id,"look=... position=... direction=... finish=...")`.
+The zero-config default remains a balanced draining ring; `run(id,dur)` scales a preset,
+while an explicitly timed quiz uses `run(id)` so authored seconds remain exact. Also standalone:
+`countdown(id, [at], [secs], ["style"])`, `safezone(id, [inset|"profile"])`, `figure(target,
+[center], [size])`, optional `explain`, and `endcard`. Social icons are
+vector-drawn with normalized native marks for YouTube, X, Instagram, TikTok,
+Facebook, LinkedIn, GitHub, web, and email. Profile values appear beside up to
+three icons; no image or SVG assets are required.
+
 ---
 
 Each kit has a full reference at <https://8gwifi.org/manic>, and you can see them

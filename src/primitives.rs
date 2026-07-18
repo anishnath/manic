@@ -4,6 +4,15 @@
 use macroquad::prelude::{Color, Vec2};
 
 /// What an [`Entity`] looks like. Positions inside a shape (e.g. `to`,
+/// One run of a [`Shape::RichText`] line: either a plain-text span (drawn with
+/// the entity's font/colour) or a pre-rendered math image (a cached RaTeX PNG
+/// with its logical width/height and the baseline offset from its top).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextRun {
+    Text(String),
+    Math { path: String, w: f32, h: f32, baseline: f32 },
+}
+
 /// polygon points) are in absolute scene coordinates; `Entity::pos` is added
 /// as an offset for polygons and is the anchor/centre for everything else.
 #[derive(Debug, Clone, PartialEq)]
@@ -49,6 +58,18 @@ pub enum Shape {
     },
     /// Text anchored on `pos`.
     Text { content: String, size: f32 },
+    /// A raster image (PNG/JPG) centred on `pos`, drawn at `w`×`h` px (scaled by
+    /// `Entity::scale`). `path` is loaded once into a texture cache at render
+    /// start; a missing/unloaded image draws a placeholder box. `tint`: when true
+    /// the texture is multiplied by `Entity::color` (for a white-on-transparent
+    /// glyph image like a rendered equation, so it takes the template colour);
+    /// when false it draws at full colour (photos/logos).
+    Image { path: String, w: f32, h: f32, tint: bool },
+    /// **Mixed text + inline math** on one line: a sequence of plain-text and
+    /// pre-rendered math runs, laid out left-to-right and baseline-aligned at
+    /// render time. Built by the inline-`$…$` pass from a `Shape::Text` whose
+    /// content has embedded math. `size` is the em height.
+    RichText { runs: Vec<TextRun>, size: f32 },
 }
 
 /// Horizontal anchoring for [`Shape::Text`].
@@ -147,6 +168,11 @@ pub struct Entity {
     pub align: Align,
     /// Rotation in degrees, applied to text only (used for e.g. stamps).
     pub rot: f32,
+    /// Corner radius for rectangle entities. Zero keeps the classic square
+    /// rectangle; creator/UI cards use a positive value for polished panels.
+    /// Stored on the entity rather than `Shape::Rect` so existing constructors
+    /// and shape pattern matches remain backwards compatible.
+    pub corner_radius: f32,
     /// Max text width in logical pixels; longer text word-wraps into
     /// centred lines. `None` = single line. Text only.
     pub wrap: Option<f32>,
@@ -587,6 +613,7 @@ impl Entity {
             font: FontKind::default(),
             align: Align::default(),
             rot: 0.0,
+            corner_radius: 0.0,
             wrap: None,
             tags: Vec::new(),
             sticky: false,

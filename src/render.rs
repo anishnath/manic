@@ -6,10 +6,41 @@
 //! soft glow (halo) pass drawn behind fully-traced strokes and text.
 
 use macroquad::prelude::*;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
-use crate::primitives::{Align, Entity, FontKind, Shape};
+use crate::primitives::{Align, Entity, FontKind, Shape, TextRun};
 use crate::scene::Scene;
 use crate::style::{self, Fonts};
+
+thread_local! {
+    /// Loaded image textures, keyed by their `path`. macroquad runs
+    /// single-threaded (the render loop), so a thread-local cache is safe.
+    static TEXTURES: RefCell<HashMap<String, Texture2D>> = RefCell::new(HashMap::new());
+}
+
+/// Load every referenced image path into the texture cache once, before the
+/// frame loop. Call from the async render loop. A path that fails to load is
+/// simply skipped (its entity draws a placeholder box).
+pub async fn preload_textures<I: IntoIterator<Item = String>>(paths: I) {
+    for path in paths {
+        let cached = TEXTURES.with(|t| t.borrow().contains_key(&path));
+        if cached {
+            continue;
+        }
+        match load_texture(&path).await {
+            Ok(tex) => {
+                tex.set_filter(FilterMode::Linear);
+                TEXTURES.with(|t| t.borrow_mut().insert(path.clone(), tex));
+            }
+            Err(_) => eprintln!("image: could not load `{path}` (drawing a placeholder)"),
+        }
+    }
+}
+
+fn get_texture(path: &str) -> Option<Texture2D> {
+    TEXTURES.with(|t| t.borrow().get(path).cloned())
+}
 
 /// World (logical) → output (physical) transform: supersampling factor `ss`
 /// plus the animatable 2D camera (`cam` centre, `zoom` factor).
@@ -198,6 +229,64 @@ fn halo(c: Color, opacity: f32, g: f32) -> Color {
     Color::new(c.r, c.g, c.b, (opacity * 0.18 * g).clamp(0.0, 1.0))
 }
 
+/// Filled rounded rectangle as a non-overlapping triangle fan. Avoiding layered
+/// bars/circles matters for translucent UI fills: overlapping alpha would show
+/// as darker discs at every corner.
+fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.5 {
+        draw_rectangle(x, y, w, h, color);
+        return;
+    }
+    let mut pts = Vec::with_capacity(36);
+    for (cx, cy, a0) in [
+        (x + w - r, y + r, -90.0_f32),
+        (x + w - r, y + h - r, 0.0),
+        (x + r, y + h - r, 90.0),
+        (x + r, y + r, 180.0),
+    ] {
+        for i in 0..=8 {
+            let a = (a0 + i as f32 * 90.0 / 8.0).to_radians();
+            pts.push(Vec2::new(cx + r * a.cos(), cy + r * a.sin()));
+        }
+    }
+    let c = Vec2::new(x + w * 0.5, y + h * 0.5);
+    for i in 0..pts.len() {
+        draw_triangle(c, pts[i], pts[(i + 1) % pts.len()], color);
+    }
+}
+
+/// Rounded outline sampled as one closed path, so glow and trace semantics stay
+/// consistent with every other stroked manic shape.
+fn draw_rounded_rect_lines(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    r: f32,
+    width: f32,
+    color: Color,
+) {
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.5 {
+        draw_rectangle_lines(x, y, w, h, width, color);
+        return;
+    }
+    let mut pts = Vec::with_capacity(37);
+    let mut corner = |cx: f32, cy: f32, a0: f32| {
+        for i in 0..=8 {
+            let a = (a0 + i as f32 * 90.0 / 8.0).to_radians();
+            pts.push(Vec2::new(cx + r * a.cos(), cy + r * a.sin()));
+        }
+    };
+    corner(x + w - r, y + r, -90.0);
+    corner(x + w - r, y + h - r, 0.0);
+    corner(x + r, y + h - r, 90.0);
+    corner(x + r, y + r, 180.0);
+    pts.push(pts[0]);
+    draw_path(&pts, 1.0, width, color);
+}
+
 /// Rotate `p` about `center` by `rad` radians.
 fn rot_pt(p: Vec2, center: Vec2, rad: f32) -> Vec2 {
     if rad == 0.0 {
@@ -272,10 +361,15 @@ pub fn draw_text_block(
 ) {
     let font_size = raster.max(1.0).round() as u16;
     let font_scale = size.max(0.01) / font_size as f32;
-    let lines = match wrap {
-        Some(w) => wrap_lines(text, font, font_size, font_scale, w),
-        None => vec![text.to_string()],
-    };
+    // `\n` (a literal backslash-n, kept by the LaTeX-safe lexer) is a HARD line
+    // break; wrap each hard line independently.
+    let lines: Vec<String> = text
+        .split("\\n")
+        .flat_map(|hard| match wrap {
+            Some(w) => wrap_lines(hard, font, font_size, font_scale, w),
+            None => vec![hard.to_string()],
+        })
+        .collect();
     let total_chars: usize = lines.iter().map(|l| l.chars().count()).sum();
     let mut char_budget = if trace >= 1.0 {
         usize::MAX
@@ -415,22 +509,28 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let (w, h) = (w * e.scale * k, h * e.scale * k);
             if !rotated {
                 let (x, y) = (p.x - w / 2.0, p.y - h / 2.0);
+                let rr = (e.corner_radius * e.scale * k).clamp(0.0, w.min(h) / 2.0);
                 if e.stroke.fill {
-                    draw_rectangle(x, y, w, h, fill);
+                    if rr > 0.5 {
+                        draw_rounded_rect(x, y, w, h, rr, fill);
+                    } else {
+                        draw_rectangle(x, y, w, h, fill);
+                    }
                 }
                 if e.stroke.outline {
                     if trace >= 1.0 {
                         if glow_on {
-                            draw_rectangle_lines(
-                                x,
-                                y,
-                                w,
-                                h,
-                                width * 5.0,
-                                halo(outline, e.opacity, glow),
-                            );
+                            if rr > 0.5 {
+                                draw_rounded_rect_lines(x, y, w, h, rr, width * 5.0, halo(outline, e.opacity, glow));
+                            } else {
+                                draw_rectangle_lines(x, y, w, h, width * 5.0, halo(outline, e.opacity, glow));
+                            }
                         }
-                        draw_rectangle_lines(x, y, w, h, width * 2.0, outline);
+                        if rr > 0.5 {
+                            draw_rounded_rect_lines(x, y, w, h, rr, width * 2.0, outline);
+                        } else {
+                            draw_rectangle_lines(x, y, w, h, width * 2.0, outline);
+                        }
                     } else {
                         let c = [
                             Vec2::new(x, y),
@@ -709,6 +809,197 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 e.type_cursor,
             );
         }
+        Shape::Image { path, w, h, tint } => {
+            let (dw, dh) = (w * e.scale * k, h * e.scale * k);
+            // honour the entity's alignment: Left anchors the LEFT edge at `pos`
+            // (a `$…$` label that sat right of a badge stays put), Center centres.
+            let x = match e.align {
+                Align::Left => p.x,
+                Align::Center => p.x - dw / 2.0,
+            };
+            let y = p.y - dh / 2.0;
+            if let Some(tex) = get_texture(path) {
+                // Equation and other tintable images use the same semantic
+                // template remap as text and vector shapes. Without this,
+                // FG-baked formula labels stay pale on light templates.
+                let tint_color = if *tint { base } else { WHITE };
+                draw_texture_ex(
+                    &tex,
+                    x,
+                    y,
+                    style::with_opacity(tint_color, e.opacity),
+                    DrawTextureParams {
+                        dest_size: Some(vec2(dw, dh)),
+                        rotation: rad,
+                        ..Default::default()
+                    },
+                );
+            } else {
+                // missing/unloaded → a crossed placeholder box (reads as a slot)
+                let lw = k.max(1.0);
+                draw_rectangle_lines(x, y, dw, dh, 2.0 * lw, outline);
+                draw_line(x, y, x + dw, y + dh, lw, outline);
+                draw_line(x + dw, y, x, y + dh, lw, outline);
+            }
+        }
+        Shape::RichText { runs, size } => {
+            // Mixed text + inline math, baseline-aligned, with word-WRAP: text
+            // breaks at spaces, math runs are atomic. Text draws with the entity
+            // font/colour; math runs are pre-rendered PNGs tinted by the colour.
+            let scale = e.scale * k;
+            let phys = size * scale;
+            let raster = (size * view.ss).max(1.0);
+            let font_size = raster.round() as u16;
+            let font_scale = phys.max(0.01) / font_size as f32;
+            let font = font_of(fonts, e.font);
+            let measure = |t: &str| measure_text(t, font, font_size, font_scale).width;
+            let space_w = measure(" ");
+            let wrap_w = e.wrap.map(|w| w * k).unwrap_or(f32::INFINITY);
+
+            // 1) tokenise the runs into words / spaces / math atoms / hard breaks
+            enum Tok {
+                Word(String),
+                Space,
+                Break,       // `\n` — a hard line break
+                Math(usize), // index into `runs`
+            }
+            let mut toks: Vec<Tok> = Vec::new();
+            for (ri, r) in runs.iter().enumerate() {
+                match r {
+                    TextRun::Text(s) => {
+                        // `\n` (literal backslash-n) forces a line break
+                        for (si, seg) in s.split("\\n").enumerate() {
+                            if si > 0 {
+                                toks.push(Tok::Break);
+                            }
+                            let mut word = String::new();
+                            for ch in seg.chars() {
+                                if ch.is_whitespace() {
+                                    if !word.is_empty() {
+                                        toks.push(Tok::Word(std::mem::take(&mut word)));
+                                    }
+                                    if !matches!(toks.last(), Some(Tok::Space)) {
+                                        toks.push(Tok::Space);
+                                    }
+                                } else {
+                                    word.push(ch);
+                                }
+                            }
+                            if !word.is_empty() {
+                                toks.push(Tok::Word(word));
+                            }
+                        }
+                    }
+                    TextRun::Math { .. } => toks.push(Tok::Math(ri)),
+                }
+            }
+            let width_of = |t: &Tok| match t {
+                Tok::Word(w) => measure(w),
+                Tok::Space => space_w,
+                Tok::Break => 0.0,
+                Tok::Math(i) => match &runs[*i] {
+                    TextRun::Math { w, .. } => w * scale,
+                    _ => 0.0,
+                },
+            };
+
+            // 2) greedy line-break (break before a word/math that overflows; a
+            //    trailing space at the break is dropped)
+            let mut lines: Vec<Vec<usize>> = vec![vec![]];
+            let mut cur_w = 0.0;
+            for (ti, t) in toks.iter().enumerate() {
+                let tw = width_of(t);
+                let line = lines.last_mut().unwrap();
+                if matches!(t, Tok::Break) {
+                    // drop a trailing space, then start a fresh line
+                    if matches!(line.last().map(|&j| &toks[j]), Some(Tok::Space)) {
+                        line.pop();
+                    }
+                    lines.push(Vec::new());
+                    cur_w = 0.0;
+                } else if matches!(t, Tok::Space) {
+                    if !line.is_empty() {
+                        line.push(ti);
+                        cur_w += tw;
+                    }
+                } else {
+                    if !line.is_empty() && cur_w + tw > wrap_w {
+                        if matches!(lines.last().unwrap().last().map(|&j| &toks[j]), Some(Tok::Space)) {
+                            lines.last_mut().unwrap().pop();
+                        }
+                        lines.push(vec![ti]);
+                        cur_w = tw;
+                    } else {
+                        lines.last_mut().unwrap().push(ti);
+                        cur_w += tw;
+                    }
+                }
+            }
+
+            // 3) PER-LINE metrics: each line is only as tall as its own content
+            //    (text ascent/descent, or a tall fraction/integral where present),
+            //    so text-only lines stay tight and math lines get just enough room.
+            let ascent = measure_text("Xg", font, font_size, font_scale).offset_y;
+            let descent = phys * 0.22;
+            let gap = phys * 0.16;
+            let metrics: Vec<(f32, f32)> = lines
+                .iter()
+                .map(|line| {
+                    let (mut above, mut below) = (ascent, descent);
+                    for &j in line {
+                        if let Tok::Math(i) = &toks[j] {
+                            if let TextRun::Math { h, baseline, .. } = &runs[*i] {
+                                above = above.max(baseline * scale);
+                                below = below.max((h - baseline) * scale);
+                            }
+                        }
+                    }
+                    (above, below)
+                })
+                .collect();
+            let total_h: f32 = metrics.iter().map(|(a, b)| a + b + gap).sum();
+            let mut y = p.y - total_h / 2.0;
+            for (li, line) in lines.iter().enumerate() {
+                let (above, below) = metrics[li];
+                let line_w: f32 = line.iter().map(|&j| width_of(&toks[j])).sum();
+                let mut x = match e.align {
+                    Align::Center => p.x - line_w / 2.0,
+                    Align::Left => p.x,
+                };
+                let baseline_y = y + above;
+                y += above + below + gap;
+                for &j in line {
+                    match &toks[j] {
+                        Tok::Break => {} // never enters a line; here for exhaustiveness
+                        Tok::Space => x += space_w,
+                        Tok::Word(w) => {
+                            draw_text_ex(
+                                w,
+                                x,
+                                baseline_y,
+                                TextParams { font, font_size, font_scale, font_scale_aspect: 1.0, rotation: 0.0, color: stroke_c },
+                            );
+                            x += measure(w);
+                        }
+                        Tok::Math(i) => {
+                            if let TextRun::Math { path, w, h, baseline } = &runs[*i] {
+                                let (dw, dh) = (w * scale, h * scale);
+                                if let Some(tex) = get_texture(path) {
+                                    draw_texture_ex(
+                                        &tex,
+                                        x,
+                                        baseline_y - baseline * scale,
+                                        stroke_c,
+                                        DrawTextureParams { dest_size: Some(vec2(dw, dh)), ..Default::default() },
+                                    );
+                                }
+                                x += dw;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -736,8 +1027,8 @@ pub fn draw_scene(scene: &Scene, fonts: &Fonts, view: &View, tpl: &style::Templa
 
 /// Draw (per the template's chrome level) the page chrome: a glowing border
 /// with corner brackets, three "window dots", the title, a
-/// masthead, and a two-tone rule. `Chrome::None` (the default `plain` template)
-/// draws only the background — a blank screen. It lives in world coordinates,
+/// masthead, and a two-tone rule. `Chrome::None` (used by default `mono` and by
+/// `plain`) draws only the background — a blank screen. It lives in world coordinates,
 /// so camera moves treat the chrome as part of the page rather than sticky UI.
 pub fn draw_page_chrome(
     tpl: &style::Template,
@@ -748,7 +1039,7 @@ pub fn draw_page_chrome(
     view: &View,
 ) {
     if tpl.chrome == style::Chrome::None {
-        return; // plain: blank screen, content only
+        return; // no chrome: blank screen, content only
     }
     let full = tpl.chrome == style::Chrome::Full;
     let pal = tpl.palette;
