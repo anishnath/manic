@@ -122,7 +122,7 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "equation",
             Ctor,
             "std",
-            "typeset a LaTeX math string (real fractions/roots/exponents/Greek) centred at a point; size = em height px (default 48). Put the LaTeX in BACKTICKS so backslashes survive: equation(q,(cx,cy),`\\frac{1}{2}+\\sqrt{x}`). Takes the template colour (color/recolor work); animate with show/fade/move/scale (it's an image, not draw-on)",
+            "typeset a LaTeX math string centred at a point; standard \\textcolor{cyan}{...} gives individual terms semantic Manic colours that follow the template. Put LaTeX in BACKTICKS; animate with show/fade/move/scale (image, not draw-on)",
             &[("id", Name, R), ("center", Point, R), ("latex", Str, R), ("size", Num, O)],
         ),
         spec(
@@ -131,6 +131,18 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "a line segment",
             &[("id", Name, R), ("from", Point, R), ("to", Point, R)],
+        ),
+        spec(
+            "link",
+            Ctor,
+            "std",
+            "a straight or bent edge that follows two moving entities",
+            &[
+                ("id", Name, R),
+                ("from", Ident, R),
+                ("to", Ident, R),
+                ("bend", Num, O),
+            ],
         ),
         spec(
             "arrow",
@@ -153,6 +165,19 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "a small filled dot",
             &[("id", Name, R), ("at", Point, R), ("r", Num, O)],
+        ),
+        spec(
+            "particles",
+            Ctor,
+            "std",
+            "deterministic small dots inside a circle or rectangle",
+            &[
+                ("id", Name, R),
+                ("container", Ident, R),
+                ("count", Num, R),
+                ("radius", Num, O),
+                ("seed", Num, O),
+            ],
         ),
         spec(
             "text",
@@ -369,6 +394,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             &[("id", Ident, R), ("dur", Num, O)],
         ),
         spec(
+            "flow",
+            Verb,
+            "std",
+            "send a luminous emphasis pulse over a path",
+            &[("path", Ident, R), ("dur", Num, O)],
+        ),
+        spec(
             "erase",
             Verb,
             "std",
@@ -440,6 +472,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
                 ("dur", Num, O),
                 ("ease", Ease, O),
             ],
+        ),
+        spec(
+            "wander",
+            Verb,
+            "std",
+            "gently move a particle group inside its source container",
+            &[("particles", Ident, R), ("dur", Num, O)],
         ),
         spec(
             "shift",
@@ -541,6 +580,14 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "swap two entities, or array slots i,j",
             &[("a", Ident, R), ("b", Ident, R), ("dur", Num, O)],
+        ),
+        // variadic entity list + optional duration/arc/easing tail
+        spec(
+            "cycle",
+            MutVerb,
+            "std",
+            "move entities cyclically into one another's positions along an optional arc",
+            &[],
         ),
         spec(
             "cam",
@@ -1447,6 +1494,13 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "roll3",
+            Verb,
+            "three",
+            "roll the 3D camera around its viewing direction",
+            &[("degrees", Num, R), ("dur", Num, O), ("ease", Ease, O)],
+        ),
+        spec(
             "look3",
             Verb,
             "three",
@@ -1630,8 +1684,8 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "watermark",
             Ctor,
             "brand",
-            "a screen-fixed watermark",
-            &[("id", Name, R), ("at", Point, R), ("text", Str, O)],
+            "a screen-fixed watermark; omit the point for responsive bottom-right placement or pass an exact point",
+            &[("id", Name, R), ("at", Point, O), ("text", Str, O)],
         ),
         spec(
             "histogram",

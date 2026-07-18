@@ -258,15 +258,7 @@ fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
 
 /// Rounded outline sampled as one closed path, so glow and trace semantics stay
 /// consistent with every other stroked manic shape.
-fn draw_rounded_rect_lines(
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    r: f32,
-    width: f32,
-    color: Color,
-) {
+fn draw_rounded_rect_lines(x: f32, y: f32, w: f32, h: f32, r: f32, width: f32, color: Color) {
     let r = r.clamp(0.0, w.min(h) / 2.0);
     if r <= 0.5 {
         draw_rectangle_lines(x, y, w, h, width, color);
@@ -463,6 +455,76 @@ fn draw_text_glow(
 
 // ---- entities -----------------------------------------------------------------
 
+fn flow_path_points(e: &Entity, view: &View) -> Option<Vec<Vec2>> {
+    let p = view.xform(e.pos);
+    let rad = e.rot.to_radians();
+    Some(match &e.shape {
+        Shape::Line { to } | Shape::Arrow { to } => {
+            vec![p, rot_pt(view.xform(*to), p, rad)]
+        }
+        Shape::Curve { ctrl, to, .. } => bezier_pts(
+            p,
+            rot_pt(view.xform(*ctrl), p, rad),
+            rot_pt(view.xform(*to), p, rad),
+            48,
+        ),
+        Shape::Polyline { pts } => {
+            let mut out: Vec<Vec2> = pts.iter().map(|q| view.xform(*q + e.pos)).collect();
+            if e.rot.abs() > 1e-3 {
+                let c = centroid(&out);
+                for q in &mut out {
+                    *q = rot_pt(*q, c, rad);
+                }
+            }
+            out
+        }
+        Shape::Arc {
+            r, start, sweep, ..
+        } => {
+            let n = ((sweep.abs() / 4.0).ceil() as usize).max(8);
+            let a0 = (start + e.rot).to_radians();
+            let da = sweep.to_radians() / n as f32;
+            let rr = r * e.scale * view.k();
+            (0..=n)
+                .map(|i| {
+                    let a = a0 + da * i as f32;
+                    p + Vec2::new(a.cos(), a.sin()) * rr
+                })
+                .collect()
+        }
+        _ => return None,
+    })
+}
+
+fn draw_flow_overlay(e: &Entity, view: &View, tpl: &style::Template) {
+    let phase = e.flow.rem_euclid(1.0);
+    if e.flow <= 1e-4 || phase <= 1e-4 || phase >= 0.9999 {
+        return;
+    }
+    let Some(pts) = flow_path_points(e, view) else {
+        return;
+    };
+    if pts.len() < 2 {
+        return;
+    }
+    let tail_phase = (phase - 0.075).max(0.0);
+    let (tail, _) = path_point(&pts, tail_phase);
+    let (head, _) = path_point(&pts, phase);
+    let c = style::with_opacity(tpl.palette.fg, e.opacity);
+    let width = (e.stroke.width * view.k()).max(2.0);
+    draw_line(
+        tail.x,
+        tail.y,
+        head.x,
+        head.y,
+        width * 4.5,
+        halo(c, e.opacity, 1.8),
+    );
+    draw_line(tail.x, tail.y, head.x, head.y, width * 1.8, c);
+    draw_circle(head.x, head.y, width * 3.2, halo(c, e.opacity, 2.2));
+    draw_circle(head.x, head.y, width * 1.25, c);
+}
+
 /// Draw one entity through `view`.
 pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template) {
     if e.opacity <= 0.001 || e.id == crate::movie::CAMERA_ID {
@@ -521,9 +583,24 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     if trace >= 1.0 {
                         if glow_on {
                             if rr > 0.5 {
-                                draw_rounded_rect_lines(x, y, w, h, rr, width * 5.0, halo(outline, e.opacity, glow));
+                                draw_rounded_rect_lines(
+                                    x,
+                                    y,
+                                    w,
+                                    h,
+                                    rr,
+                                    width * 5.0,
+                                    halo(outline, e.opacity, glow),
+                                );
                             } else {
-                                draw_rectangle_lines(x, y, w, h, width * 5.0, halo(outline, e.opacity, glow));
+                                draw_rectangle_lines(
+                                    x,
+                                    y,
+                                    w,
+                                    h,
+                                    width * 5.0,
+                                    halo(outline, e.opacity, glow),
+                                );
                             }
                         }
                         if rr > 0.5 {
@@ -595,7 +672,12 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let q = rot_pt(view.xform(*to), p, rad);
             let pts = coil_points(p, q, *turns);
             if glow_on {
-                draw_path(&pts, trace, width * e.scale * 3.0, halo(stroke_c, e.opacity, glow));
+                draw_path(
+                    &pts,
+                    trace,
+                    width * e.scale * 3.0,
+                    halo(stroke_c, e.opacity, glow),
+                );
             }
             draw_path(&pts, trace, width * e.scale, stroke_c);
         }
@@ -924,7 +1006,10 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     }
                 } else {
                     if !line.is_empty() && cur_w + tw > wrap_w {
-                        if matches!(lines.last().unwrap().last().map(|&j| &toks[j]), Some(Tok::Space)) {
+                        if matches!(
+                            lines.last().unwrap().last().map(|&j| &toks[j]),
+                            Some(Tok::Space)
+                        ) {
                             lines.last_mut().unwrap().pop();
                         }
                         lines.push(vec![ti]);
@@ -977,12 +1062,25 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                                 w,
                                 x,
                                 baseline_y,
-                                TextParams { font, font_size, font_scale, font_scale_aspect: 1.0, rotation: 0.0, color: stroke_c },
+                                TextParams {
+                                    font,
+                                    font_size,
+                                    font_scale,
+                                    font_scale_aspect: 1.0,
+                                    rotation: 0.0,
+                                    color: stroke_c,
+                                },
                             );
                             x += measure(w);
                         }
                         Tok::Math(i) => {
-                            if let TextRun::Math { path, w, h, baseline } = &runs[*i] {
+                            if let TextRun::Math {
+                                path,
+                                w,
+                                h,
+                                baseline,
+                            } = &runs[*i]
+                            {
                                 let (dw, dh) = (w * scale, h * scale);
                                 if let Some(tex) = get_texture(path) {
                                     draw_texture_ex(
@@ -990,7 +1088,10 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                                         x,
                                         baseline_y - baseline * scale,
                                         stroke_c,
-                                        DrawTextureParams { dest_size: Some(vec2(dw, dh)), ..Default::default() },
+                                        DrawTextureParams {
+                                            dest_size: Some(vec2(dw, dh)),
+                                            ..Default::default()
+                                        },
                                     );
                                 }
                                 x += dw;
@@ -1001,6 +1102,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             }
         }
     }
+    draw_flow_overlay(e, view, tpl);
 }
 
 /// Draw a whole scene in z-order (stable within equal z).

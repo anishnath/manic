@@ -59,6 +59,9 @@ SECTIONS = [
    ("inverse-derivatives",
     "Why a function and its inverse have reciprocal slopes: `e^x` and `ln x` mirrored\n"
     "across `y = x`, with the slopes at matching points multiplying to 1."),
+   ("derivative-of-ln-x",
+    "A visual proof of `(ln x)' = 1/x`: one continuous 3D coordinate plane turns over,\n"
+    "x/y exchange screen roles, and unchanged algebra terms retain their identity."),
    ("spline",
     "Interpolation: one smooth curve drawn through a scattered set of points — it\n"
     "passes through every knot exactly."),
@@ -195,6 +198,9 @@ SECTIONS = [
    ("timing-v2-scene",
     "Generic Timing v2 controlling an ordinary physics scene: one named-phase clock schedules\n"
     "the intro, pendulum motion and finish independently from its native timer look."),
+   ("zeroth-law-thermodynamics",
+    "The Zeroth Law told through three particle-filled bodies: thermal relations connect,\n"
+    "the bodies settle onto one temperature axis, and equilibrium becomes visible."),
    ("pendulum-damped",
     "The same four views with friction on (`damping`): the swing decays, the phase loop\n"
     "spirals inward, the well ball settles, and the total-energy line drops — dissipation\n"
@@ -496,6 +502,9 @@ SECTIONS = [
     "flies along with the bullet (`cam`/`zoom`), a block drops in out of nowhere, and BOOM —\n"
     "`flash`/`shake`/`pulse` + a `for`-loop spark burst. manic as a movie language."),
    ("fractal_tree", "One recursive `def`, drawn to depth 12."),
+   ("particles-flow",
+    "Contained ambient motion and live curved connections in four generic words: `particles`,\n"
+    "`wander`, `link`, and `flow`. The ids supply the domain meaning."),
    ("hue_wave", "An animated hue wave across a grid."),
    ("hill_run", "A little scene animated with the language layer."),
    ("walk",

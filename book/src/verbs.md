@@ -44,10 +44,36 @@ shift(p, (0, -120));    // -> move by a delta (relative)
 scale(r, 1.4);          // -> animate uniform scale to 1.4x
 rotate(r, 45);          // -> rotate by 45 degrees
 grow(arrow, (500, 200));// -> animate a line/arrow endpoint (draws or retargets)
+cycle(x, y, z, 0.8, 90, smooth); // -> x→y→z→x along arcs
 ```
+
+`cycle(a, b, c, …, [dur], [arc], [ease])` moves every entity into the next
+one's position and the last into the first. The path arc is in degrees and
+defaults to 90; pass `0` for straight paths. Repeated calls compose, making it
+useful for symbol rearrangements, card carousels, and CyclicReplace-style moves.
 
 <div class="watch">▶ Watch: motion</div>
 <div class="manic-video" data-video="motion"></div>
+
+## Ambient motion and path flow
+
+```manic
+particles(bubbles, glass, 24, 5, 7);
+link(pipe, glass, tank, 35);
+untraced(pipe);
+
+par {
+  wander(bubbles, 6);              // always stays inside glass
+  seq { draw(pipe); flow(pipe, 1); }
+}
+```
+
+`wander` is deterministic: the same optional particle seed gives the same
+placement and motion in preview and in the final recording. It occupies the
+duration you give it, so run it in `par` with the story it should accompany.
+`flow` sends a temporary luminous pulse over any line, arrow, curve, spline,
+arc, or tracked `link`; it is useful for a signal, energy, traffic, or simply
+directing attention.
 
 ## Content & colour
 

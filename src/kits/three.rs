@@ -58,11 +58,17 @@ fn c_camera(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let d = eye - target;
     let radius = d.length().max(0.01);
-    let rotation = vec3(
-        d.y.atan2(d.x).to_degrees(),
-        d.z.atan2(d.x.hypot(d.y)).to_degrees(),
-        0.0,
-    );
+    let flat = d.x.hypot(d.y);
+    // Azimuth is undefined at an exact pole. Pick the convention whose
+    // analytical orbit frame keeps +Y screen-up for a directly overhead (or
+    // underside) camera. This makes a later pole-crossing orbit start from a
+    // deterministic orientation instead of depending on atan2(0, 0).
+    let azimuth = if flat <= 1e-6 {
+        if d.z >= 0.0 { -90.0 } else { 90.0 }
+    } else {
+        d.y.atan2(d.x).to_degrees()
+    };
+    let rotation = vec3(azimuth, d.z.atan2(flat).to_degrees(), 0.0);
     if let Some(cam) = s.get_3d_mut(CAMERA3_ID) {
         cam.pos = target;
         cam.rotation = rotation;
@@ -1029,7 +1035,7 @@ fn v_orbit(s: &Scene, a: &Args) -> Result<Clip, Error> {
         tracks: vec![
             track(
                 CAMERA3_ID,
-                Prop::Rot3,
+                Prop::Orbit3,
                 TargetValue::Abs(Value::V3(rot)),
                 dur,
                 easing,
@@ -1042,6 +1048,27 @@ fn v_orbit(s: &Scene, a: &Args) -> Result<Clip, Error> {
                 easing,
             ),
         ],
+        events: vec![],
+    })
+}
+
+/// `roll3(degrees, [duration], [ease])` — rotate the camera's up direction
+/// around its viewing axis. Separate from `orbit3`, so both compose in `par`.
+fn v_roll(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    if s.get_3d(CAMERA3_ID).is_none() {
+        return Err(Error::new("`roll3` needs `camera3(...)`", a.name_span));
+    }
+    let degrees = a.num(0)?;
+    let (dur, easing) = timing(a, 1, 1.2)?;
+    Ok(Clip {
+        dur,
+        tracks: vec![track(
+            CAMERA3_ID,
+            Prop::Roll3,
+            TargetValue::Abs(Value::F(degrees)),
+            dur,
+            easing,
+        )],
         events: vec![],
     })
 }
@@ -1326,6 +1353,7 @@ pub fn register(r: &mut Registry) {
     r.verb("rotate3", v_rotate);
     r.verb("grow3", v_grow);
     r.verb("orbit3", v_orbit);
+    r.verb("roll3", v_roll);
     r.verb("look3", v_look);
     r.ctor("pin3", c_pin);
     r.ctor("follow3", c_follow3);
@@ -1411,6 +1439,7 @@ mod tests {
                 move3(box, (2, 1, 2), 1, linear);
                 rotate3(box, (0, 0, 180), 1, linear);
                 orbit3(60, 25, 10, 1, linear);
+                roll3(-90, 1, linear);
             }
         "#;
         let movie = crate::parse(src).unwrap();
@@ -1432,6 +1461,7 @@ mod tests {
         assert!(
             (frame.get_3d(CAMERA3_ID).unwrap().rotation.x - (start_az + 60.0) / 2.0).abs() < 0.01
         );
+        assert!((frame.get_3d(CAMERA3_ID).unwrap().rotation.z + 45.0).abs() < 0.01);
     }
 
     #[test]

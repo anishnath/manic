@@ -491,15 +491,25 @@ fn c_tangent(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// centres between the circles); otherwise the direct/external tangent. Returns
 /// the "upper" of the pair, or `None` if that tangent doesn't exist for the given
 /// separation. Lengths: external `√(d²−(r1−r2)²)`, internal `√(d²−(r1+r2)²)`.
-fn common_tangent_pts(c1: Vec2, r1: f32, c2: Vec2, r2: f32, internal: bool) -> Option<(Vec2, Vec2)> {
+fn common_tangent_pts(
+    c1: Vec2,
+    r1: f32,
+    c2: Vec2,
+    r2: f32,
+    internal: bool,
+) -> Option<(Vec2, Vec2)> {
     let d = (c2 - c1).length();
     if d < 1e-4 {
         return None;
     }
     let u = (c2 - c1) / d; // along the line of centres
     let v = Vec2::new(-u.y, u.x); // perpendicular
-    // cos of the angle the touch-normal makes with the line of centres
-    let cos = if internal { (r1 + r2) / d } else { (r1 - r2) / d };
+                                  // cos of the angle the touch-normal makes with the line of centres
+    let cos = if internal {
+        (r1 + r2) / d
+    } else {
+        (r1 - r2) / d
+    };
     if cos.abs() > 1.0 {
         return None; // no such tangent at this separation
     }
@@ -718,7 +728,10 @@ fn c_segment(s: &mut Scene, a: &Args) -> Result<(), Error> {
     e.link = Some(Link {
         from: ida,
         to: idb,
-        trim: 0.0,
+        trim_from: 0.0,
+        trim_to: 0.0,
+        auto_trim: false,
+        bend: 0.0,
     });
     s.add(e);
     Ok(())
@@ -859,18 +872,26 @@ mod tests {
         // internal (transverse): length = sqrt(d^2 - (r1+r2)^2) = sqrt(231)
         let (p1, p2) = common_tangent_pts(c1, r1, c2, r2, true).unwrap();
         assert!(((p2 - p1).length() - (d * d - (r1 + r2).powi(2)).sqrt()).abs() < 1e-2);
-        assert!(is_tangent(p1, p2, c1, r1) && is_tangent(p2, p1, c2, r2), "internal not tangent to both");
+        assert!(
+            is_tangent(p1, p2, c1, r1) && is_tangent(p2, p1, c2, r2),
+            "internal not tangent to both"
+        );
 
         // external (direct): length = sqrt(d^2 - (r1-r2)^2)
         let (q1, q2) = common_tangent_pts(c1, r1, c2, r2, false).unwrap();
         assert!(((q2 - q1).length() - (d * d - (r1 - r2).powi(2)).sqrt()).abs() < 1e-2);
-        assert!(is_tangent(q1, q2, c1, r1) && is_tangent(q2, q1, c2, r2), "external not tangent to both");
+        assert!(
+            is_tangent(q1, q2, c1, r1) && is_tangent(q2, q1, c2, r2),
+            "external not tangent to both"
+        );
     }
 
     #[test]
     fn internal_tangent_absent_when_circles_overlap() {
         // centres 6 apart, radii 8 & 5 → r1+r2=13 > 6, no internal tangent
-        assert!(common_tangent_pts(Vec2::new(0.0, 0.0), 8.0, Vec2::new(6.0, 0.0), 5.0, true).is_none());
+        assert!(
+            common_tangent_pts(Vec2::new(0.0, 0.0), 8.0, Vec2::new(6.0, 0.0), 5.0, true).is_none()
+        );
     }
 
     #[test]
@@ -882,7 +903,10 @@ mod tests {
         )
         .unwrap();
         let base = m.base();
-        assert!(base.contains("t") && base.contains("t.a") && base.contains("t.b"), "missing tangent parts");
+        assert!(
+            base.contains("t") && base.contains("t.a") && base.contains("t.b"),
+            "missing tangent parts"
+        );
         assert!(m.validate().is_ok());
     }
 }

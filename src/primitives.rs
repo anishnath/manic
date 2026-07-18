@@ -10,7 +10,12 @@ use macroquad::prelude::{Color, Vec2};
 #[derive(Debug, Clone, PartialEq)]
 pub enum TextRun {
     Text(String),
-    Math { path: String, w: f32, h: f32, baseline: f32 },
+    Math {
+        path: String,
+        w: f32,
+        h: f32,
+        baseline: f32,
+    },
 }
 
 /// polygon points) are in absolute scene coordinates; `Entity::pos` is added
@@ -64,7 +69,12 @@ pub enum Shape {
     /// the texture is multiplied by `Entity::color` (for a white-on-transparent
     /// glyph image like a rendered equation, so it takes the template colour);
     /// when false it draws at full colour (photos/logos).
-    Image { path: String, w: f32, h: f32, tint: bool },
+    Image {
+        path: String,
+        w: f32,
+        h: f32,
+        tint: bool,
+    },
     /// **Mixed text + inline math** on one line: a sequence of plain-text and
     /// pre-rendered math runs, laid out left-to-right and baseline-aligned at
     /// render time. Built by the inline-`$…$` pass from a `Shape::Text` whose
@@ -129,7 +139,14 @@ impl Default for StrokeStyle {
 pub struct Link {
     pub from: String,
     pub to: String,
-    pub trim: f32,
+    pub trim_from: f32,
+    pub trim_to: f32,
+    /// Recompute circle/rectangle boundary intersections every frame. Generic
+    /// std `link`s enable this; kit edges with explicit trim distances do not.
+    pub auto_trim: bool,
+    /// Quadratic-bezier bow in logical pixels. Zero keeps a straight edge;
+    /// positive bends left of the from→to direction.
+    pub bend: f32,
 }
 
 /// A recompute hook for a *derived* entity: given the current positions of its
@@ -159,6 +176,10 @@ pub struct Entity {
     /// traced (fills fade in alongside). Text: fraction of characters shown
     /// (typewriter). Declare `.untraced()`, animate with `trace_in`/`type_in`.
     pub trace: f32,
+    /// Monotonic path-flow phase. Its fractional part renders as a short
+    /// luminous pulse travelling over path-like shapes; integer values are
+    /// resting states with no pulse. The `flow` verb advances it by one.
+    pub flow: f32,
     /// Draw order: higher `z` draws on top.
     pub z: i32,
     pub stroke: StrokeStyle,
@@ -254,7 +275,10 @@ impl GraphFn {
     }
     /// The point on the curve at `x`, in screen coords.
     pub fn point(&self, x: f32) -> Vec2 {
-        Vec2::new(self.center.x + x * self.sx, self.center.y - self.y(x) * self.sy)
+        Vec2::new(
+            self.center.x + x * self.sx,
+            self.center.y - self.y(x) * self.sy,
+        )
     }
     /// Slope `dy/dx` at `x` (math units) by symmetric central difference — a
     /// tight numerical estimate; non-finite at corners/breaks so the caller can
@@ -339,7 +363,10 @@ impl GraphFn {
                     None
                 };
                 if let Some(r) = r {
-                    if out.last().map_or(true, |&l| (r - l).abs() > span.abs() * 1e-3) {
+                    if out
+                        .last()
+                        .map_or(true, |&l| (r - l).abs() > span.abs() * 1e-3)
+                    {
                         out.push(r);
                     }
                 }
@@ -418,7 +445,14 @@ fn interp(xs: &[f32], ys: &[f32], x: f32) -> f32 {
 /// Definite integral of a graph's function over `[a, b]` by composite Simpson's
 /// rule. Exposed so `accum` can build the accumulation function `∫ₐˣ f`.
 pub(crate) fn integrate(g: &GraphFn, a: f32, b: f32, n: u32) -> f32 {
-    let n = { let m = n.max(2); if m % 2 == 1 { m + 1 } else { m } } as usize;
+    let n = {
+        let m = n.max(2);
+        if m % 2 == 1 {
+            m + 1
+        } else {
+            m
+        }
+    } as usize;
     // a signed step gives the signed integral directly (negative when b < a)
     let h = (b - a) / n as f32;
     if h == 0.0 {
@@ -448,10 +482,21 @@ pub enum GraphView {
     Slope { graph: GraphFn, x: f32, off: Vec2 },
     /// Filled region under the curve from `a` to the moving bound `x`, sampled
     /// with `n` intervals.
-    Area { graph: GraphFn, a: f32, x: f32, n: u32 },
+    Area {
+        graph: GraphFn,
+        a: f32,
+        x: f32,
+        n: u32,
+    },
     /// A live readout of the definite integral from `a` to the moving bound `x`,
     /// pinned at screen position `at` (climbs as `x` sweeps).
-    Integral { graph: GraphFn, a: f32, x: f32, n: u32, at: Vec2 },
+    Integral {
+        graph: GraphFn,
+        a: f32,
+        x: f32,
+        n: u32,
+        at: Vec2,
+    },
     /// A plain dot riding the curve at `x` (a `Shape::Circle` whose `pos`
     /// follows the curve). Used by `limit`'s approaching point; slide it with
     /// `to(id, x, …)`.
@@ -608,6 +653,7 @@ impl Entity {
             opacity: 1.0,
             scale: 1.0,
             trace: 1.0,
+            flow: 0.0,
             z: 0,
             stroke: StrokeStyle::default(),
             font: FontKind::default(),

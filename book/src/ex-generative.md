@@ -24,6 +24,17 @@ One recursive `def`, drawn to depth 12.
 
 <div class="manic-video" data-video="ex-fractal_tree"></div>
 
+## particles-flow
+
+Contained ambient motion and live curved connections in four generic words: `particles`,
+`wander`, `link`, and `flow`. The ids supply the domain meaning.
+
+```manic
+{{#include ../../examples/particles-flow.manic}}
+```
+
+<div class="manic-video" data-video="ex-particles-flow"></div>
+
 ## hue_wave
 
 An animated hue wave across a grid.

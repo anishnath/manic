@@ -95,7 +95,8 @@ are occurrences across the `geometry/` samples.
   `circle2`; conics `ellipse`/`parabola`/`hyperbola`; `fullline` (infinite);
   `anglemark`, `rightangle`.
 - **brand** — `banner` (icon trio + "manic" wordmark, create→expand→unwrite)
-  and `watermark` (screen-fixed persistent mark).
+  and `watermark` (screen-fixed persistent mark with a responsive bottom-right
+  default and exact-position override).
 - **three** — hybrid depth-tested 3D under the normal 2D overlay: `camera3`
   (perspective/orthographic Z-up orbit camera), `point3`, `line3`, `arrow3`,
   `cube3`, `sphere3`, `grid3`, `axes3` (ticks + numbers), plus `pin3` (glue a 2D
@@ -103,7 +104,7 @@ are occurrences across the `geometry/` samples.
   point), `curve3` (parametric 3D curve), `surface3` (z=f(x,y) filled mesh), `param3` (parametric surface — tori/Möbius), `prism3`/`pyramid3`/`revolve3`
   (filled, flat-shaded solids), `extrude3` (extrude a 2D shape/boolean-region → CSG solids),
   `thick` (tube strokes); verbs `move3`, `shift3`, `rotate3`,
-  `grow3`, `orbit3`, `look3`. Shared modifiers/verbs (`color`, `opacity`,
+  `grow3`, `orbit3`, `roll3`, `look3`. Shared modifiers/verbs (`color`, `opacity`,
   `hidden`, `untraced`, `tag`, `show`, `fade`, `draw`, `recolor`, `flash`,
   `pulse`, `scale`) also address 3D entities. See **3D foundation** below.
 
@@ -120,7 +121,10 @@ stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
 - **Camera** — one Z-up orbit camera with perspective or orthographic
   projection. `camera3` sets its eye, target, and field of view (a single value,
   reused as the orthographic height), plus the projection; `orbit3` animates
-  azimuth, elevation, and radius, while `look3` animates the target.
+  azimuth, elevation, and radius, `roll3` animates orientation around the view
+  direction, and `look3` animates the target. An analytical pole-safe orbit
+  frame keeps exact overhead/underside views stable and continuous through a
+  pole crossing—there is no fallback-axis cutoff that can snap mid-turn.
 - **Rendering & output** — depth-tested 3D renders beneath the normal 2D
   overlay. Preview, stills, CRT output, and recordings all use the same
   depth-enabled render target. Render-target Y correction keeps screen
@@ -140,6 +144,153 @@ stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
   primitives, axes, transforms, a pinned label, and hybrid 2D/3D composition.
 
 ## Gaps
+
+### Implemented on `codex/generic-motion-vocabulary` — compact generic motion
+
+The `codex/generic-motion-vocabulary` branch closes a creator-facing gap exposed
+by the Zeroth-Law reference animation: manic can already render the result, but
+authors currently have to hand-place and hand-animate dozens of dots and fake
+motion along curved connections. That violates the product goal of a small,
+readable language for non-programmers.
+
+This slice deliberately adds only three domain-neutral words and exposes one
+existing engine concept:
+
+- **`particles(id, container, count, [radius], [seed])`** — create a seeded,
+  deterministic group of small dots inside a circle or rectangle. The author's id
+  supplies the meaning: `bubbles`, `dust`, `stars`, `data`, or `molecules` all
+  use the same constructor. Children are `{id}.p0…`, tagged by bare `{id}`.
+- **`wander(id, [duration])`** — give a particle group gentle ambient movement
+  for the clip duration while keeping every child inside its source container.
+  Evaluation remains pure by absolute time, so preview scrubbing and recording
+  produce the same frame.
+- **`link(id, a, b, [bend])`** — expose the engine's tracked-edge mechanism as
+  public std vocabulary. `bend=0` is a straight link; non-zero bend produces a
+  curve whose endpoints continue to follow moving entities.
+- **`flow(path, [duration])`** — send a luminous emphasis pulse over a line,
+  curve, spline, or tracked link. It expresses energy, a signal, traffic, data,
+  or attention without inventing a domain-specific object.
+
+Example target:
+
+```manic
+circle(glass, (cx,cy), 120);
+particles(bubbles, glass, 30, 6, 7);
+wander(bubbles, 6);
+
+circle(tank, (cx+360,cy), 120);
+link(pipe, glass, tank, 30);
+untraced(pipe); draw(pipe); flow(pipe, 1.2);
+```
+
+Non-goals for this slice: no `molecule`, `reservoir`, `heatflow`, or
+`zerothlaw` builtin; no new word for shrinking three objects onto an axis
+(`par` + `move` + `scale` already reads clearly); and no broad particle-effects
+system with emitters, forces, collisions, or dozens of knobs. Further
+3Blue1Brown-derived work must clear the same gate: recur across several lessons,
+replace substantial manual scripting, and remain teachable in one sentence.
+
+The first implementation keeps the containment promise exact: circles and
+rectangles are convex, so both the sampled positions and every tween between
+them stay inside. Concave-region path planning, collisions, emitters, forces,
+and physics remain intentionally outside this small primitive. Dedicated tests
+cover seeded repeatability, containment at sampled times, pure out-of-order
+timeline evaluation, moving bent links, flow phase, and invalid targets.
+
+Reference: `examples/particles-flow.manic` isolates the four generic motion
+words, while `examples/zeroth-law-thermodynamics.manic` uses them in the full
+published lesson with contained matter, thermal links, and an explicit Manic
+watermark.
+
+### 3Blue1Brown benchmark audit — prioritized, vocabulary-gated
+
+The audit compared repeated visual techniques, not subject-matter terms. Manic
+already has strong coverage for formula plots, exact geometry, 2×2 transforms,
+outline morphing, simulations, and a substantial 3-D layer. The remaining gaps
+below are roadmap candidates, not promised builtins:
+
+1. **Matching transforms for equation/text parts (highest leverage).** Official
+   Manim examples use `TransformMatchingStrings` and `TransformMatchingShapes`
+   so symbols can visibly retain identity through an algebraic rewrite. Manic's
+   LaTeX remains a single raster entity, so arbitrary formula matching is still
+   open. The common positional subset is now covered by generic
+   `cycle(a,b,c,…,[duration],[arc],[ease])`: independently declared symbols move
+   cyclically into one another's positions along an optional arc, matching
+   Manim's `CyclicReplace` without adding algebra-specific vocabulary. See the
+   [official example scenes](https://github.com/3b1b/manim/blob/master/example_scenes.py).
+2. **General path remapping / nonlinear deformation.** The same examples expose
+   arbitrary `apply_function` and `apply_complex_function`, while the
+   [Fourier lesson](https://www.3blue1brown.com/lessons/fourier-transforms/)
+   repeatedly winds an ordinary graph around a circle. Manic can apply a linear
+   2×2 matrix and plot a formula, but cannot yet bend an existing grid, curve,
+   or group through a reusable nonlinear map.
+3. **Move an arbitrary entity along an existing path.** `flow` deliberately
+   moves only an emphasis pulse. A dot, label, camera, or copied shape following
+   a curve still needs sampled manual `move`s. This recurs in orbit, signal,
+   tracing, and winding scenes, so one path-binding extension may eventually be
+   justified after representative examples define its simplest semantics.
+4. **Dense, data-driven connection fields.** The
+   [neural-network lesson](https://www.3blue1brown.com/lessons/neural-networks/)
+   uses large layered graphs whose edge brightness/color encode weights and
+   whose activations propagate. This belongs in a reusable data/algo figure or
+   batch styling mechanism, not dozens of core words.
+5. **Longer-horizon rendering capabilities.** Recursive path refinement in the
+   [Hilbert-curve lesson](https://www.3blue1brown.com/lessons/hilbert-curve/),
+   procedural fields in the
+   [Newton-fractal lesson](https://www.3blue1brown.com/lessons/newtons-fractal/),
+   and 4-D projection in the
+   [quaternion lesson](https://www.3blue1brown.com/lessons/quaternions/)
+   expose real gaps, but each has a higher implementation/teaching cost and
+   lower creator frequency than items 1–3.
+
+Roadmap rule: build a representative scene first; add vocabulary only when the
+same operation recurs, removes substantial manual scripting, composes outside
+its originating subject, and can still be explained in one sentence.
+
+### Published benchmark 2 — inverse derivatives through a turning plane
+
+`engine-test-2.mp4` derives `(ln x)' = 1/x` by treating an inverse function as
+the same curve seen after the coordinate plane turns over: start with `y=e^x`,
+build its `rise/run = y/1` tangent triangle, exchange the screen roles of `x`
+and `y`, then read the reflected relationship as `y=ln(x)` with slope `1/x`.
+
+Most of the scene is already ordinary vocabulary: `curve3` expresses both
+parametric forms, `line3` builds the exact slope triangle, `pin3` attaches
+labels, `morph3` carries the curve and triangle continuously between inverse
+parameterisations, and `orbit3` supplies the spatial plane turn. The one real
+camera gap was orientation:
+
+- **`roll3(degrees, [duration], [ease])`** — rotate the 3-D camera's up vector
+  around its viewing direction. This is general cinematography vocabulary, not
+  inverse-function vocabulary. Combined with `orbit3`, it lets a plane pass
+  continuously from an overhead view to its underside while deliberately
+  exchanging which world axis is horizontal or vertical on screen.
+- The camera frame must remain well-defined directly above/below a Z-up plane.
+  The renderer derives its right/up basis analytically from azimuth/elevation,
+  giving a continuous finite frame through the pole instead of switching to a
+  fallback axis at a threshold (the old switch caused a visible mid-turn snap).
+
+Reference-frame review exposed two further generic presentation gaps:
+
+- **`cycle(a,b,c,…,[duration],[arc],[ease])`** moves each entity to the next
+  entity's position and the last back to the first, following a circular arc
+  (90 degrees by default). This is the small Manic equivalent of Manim's
+  `CyclicReplace`; the `xy` plane label can therefore become `yx` by moving the
+  actual `x` and `y` glyphs rather than crossfading two labels.
+- `equation` now preserves standard LaTeX term colors such as
+  `\textcolor{magenta}{\mathrm{slope}}` and
+  `\textcolor{cyan}{x}`. Manic semantic color names are remapped through the
+  selected template before rasterisation, while uncolored terms retain the
+  template foreground. This keeps emphasis meaningful in `plain`, `paper`,
+  `shorts`, and the default `mono` look.
+
+No new `inverse`, `logproof`, `slopefraction`, or `swapaxes` builtin is planned.
+Those ideas remain composition: geometry + camera + LaTeX. The acceptance test
+is `examples/derivative-of-ln-x.manic`: no blank cuts during either plane turn, the
+`x`/`y` glyphs visibly cycle, screen roles exchange continuously, semantic
+equation terms keep their colors, unchanged algebra pieces retain identity
+while only the rewritten terms animate, the explicit Manic watermark persists,
+and the final curve/formula agree.
 
 ### Geometry (olympiad) — largely covered now
 Done (all **dynamic** unless noted): `meet` (line∩line), **`linecircle`**
@@ -219,8 +370,10 @@ and entity `copy` — now covered too. Essentially the whole family; only
     no group tags); `copy(c, a)` then morph/move `c` while `a` stays put.
   - **`Swap`** → **`swap(a, b, [dur], [ease])`** exchanges two entities' positions;
     the array form `swap(arr, i, j)` slides slot values and chains across a sort.
+  - **`CyclicReplace`** → **`cycle(a, b, c, …, [dur], [arc], [ease])`** moves
+    every entity into the next position and the last into the first along a
+    circular path (`arc` degrees, default 90). Repeated calls compose.
 - **Partial (expressible, no dedicated builtin):**
-  - `CyclicReplace` → a `for` loop of `move`s.
   - `FadeTransform` / `FadeTransformPieces` → crossfade `par { fade(a); show(b); }`
     — not point-matched.
   - `Restore` → the revert machinery exists internally (`pulse`/`flash`
@@ -1093,16 +1246,19 @@ geometry/rendering work listed above.
 The timeline is a pure function of `t`, so an ordinary verb sees only the base
 scene: a *chain* of swaps would each read stale positions. This is now solved
 with a **mutating-verb** kind — `MutVerbFn = fn(&mut Scene, &Args) -> Clip` — and
-a build-time occupancy map `Scene::occ` (structure id → entity per slot). A
-mutating verb produces its clip *and* updates `occ`, so the next step sees the
-current state. This is the general primitive for stateful data structures
-(sorting today; stack push/pop, queue, pointer moves next), and it composes
-across the stateless timeline without any render-time state.
+a build-time occupancy map `Scene::occ` (structure id → entity per slot), plus
+`Scene::motion_pos` for repeated positional cycles. A mutating verb produces
+its clip and updates the relevant logical state, so the next step sees the
+current arrangement. This composes across the stateless timeline without any
+render-time state.
 
 - **`swap(arr, i, j)`** (std, mutating) — the values in slots `i`/`j` **slide**
   past each other (one hops over the top) into the swapped slots, and `occ`
   updates so a whole sort chains correctly. `swap(a, b)` (two entity ids) still
   does the plain position swap.
+- **`cycle(a, b, c, …)`** (std, mutating) — rotates ordinary entities through
+  their logical positions along arcs; repeated cycles keep moving rather than
+  rereading stale t=0 positions.
 - **`compare(arr, i, j, [color])`** (algo) — flashes the values *currently* in
   those slots (reads live `occ`), the comparison step of a sort.
 

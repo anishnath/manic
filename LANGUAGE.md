@@ -172,9 +172,11 @@ address.
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
+| `particles(id, container, count, [radius], [seed])` | a deterministic group of small dots inside a `circle` or `rect`; children are `{id}.p0…` and the bare id addresses the group. The id supplies the meaning—`bubbles`, `dust`, `stars`, `data`, etc. |
 | `image(id, (x,y), "path", [w], [h])` | a **raster image** (PNG/JPG) from a file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing file draws a crossed placeholder box. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
-| `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Rendered white-on-transparent and drawn **tinted by the entity colour**, so it follows `template()` and `color`/`recolor` work. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace). Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
+| `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Color individual terms with standard LaTeX and Manic palette names: `` `\textcolor{magenta}{\mathrm{slope}}=\textcolor{cyan}{x}` ``; semantic colors follow the active template and uncolored terms use its foreground. Ordinary single-color equations still follow `color`/`recolor`. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace). Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
+| `link(id, from, to, [bend])` | a line that stays attached to two moving entities; it meets circle/rectangle boundaries automatically. `bend=0` is straight, positive/negative values bow to opposite sides. |
 | `support(id, (cx,cy), [len], ["dir"])` | a **hatched fixed support** (wall / ceiling / floor) for mechanics diagrams — a baseline `{id}.line` + diagonal hatch ticks `{id}.tick{i}`. `"dir"` is the OPEN side: `"down"` (ceiling, default), `"up"` (floor), `"left"`/`"right"` (walls). Tagged bare `{id}` + `{id}.parts`. Pairs with `template("paper")` for a textbook look |
 | `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
 | `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point |
@@ -222,6 +224,8 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `move(id, target, [dur], [ease])` | move to a point **or another entity's position** |
 | `shift(id, (dx,dy), [dur], [ease])` | move by a delta |
 | `grow(id, target, [dur], [ease])` | move a line/arrow's endpoint (draws or retargets it) |
+| `wander(id, [dur])` | gently move a `particles` group while keeping every dot inside its original circle/rectangle; seeded and deterministic |
+| `flow(path, [dur])` | send one luminous emphasis pulse over a line, arrow, curve, spline, arc, or `link` |
 | `draw(id, [dur])` | trace a stroke on (declare `untraced` first) |
 | `erase(id, [dur])` | trace a stroke off |
 | `type(id, [dur])` | typewriter-reveal a text entity |
@@ -237,6 +241,7 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
 | `transform(id, (ox,oy), a, b, c, d, [dur], [ease])` | apply the 2×2 matrix `[[a,b],[c,d]]` about origin `(ox,oy)` — broadcast over a tag to shear/rotate a whole grid + vectors (Manim `ApplyMatrix`) |
 | `swap(a, b, [dur], [ease])` | animate two entities into each other's position (array form `swap(arr, i, j)` slides slot values & chains across a sort) |
+| `cycle(a, b, c, …, [dur], [arc], [ease])` | move each entity into the next one's position and the last into the first one's position (Manim `CyclicReplace`). `arc` is degrees and defaults to 90; use `0` for straight paths. Repeated cycles compose statefully. |
 | `karaoke(id, [delay], [color])` | highlight a `caption`'s words in sequence (lyrics-style) |
 | `wordpop(id, [delay])` | pop a `caption`'s words in one at a time (TikTok-style; `hidden(id.words)` first) |
 | `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
@@ -244,6 +249,33 @@ take an optional trailing **duration** (seconds) and **easing** name:
 
 `move`/`grow` accept an entity id as the target (`move(A, B)` moves A to B's
 position); everything else takes a literal `(x, y)`.
+
+### Contained motion and live connections
+
+Four generic words replace the common pattern of hand-placing and hand-moving
+dozens of dots. They are intentionally not chemistry vocabulary:
+
+```manic
+circle(glass, (400,300), 100);
+particles(bubbles, glass, 24, 5, 7);
+
+rect(tank, (750,300), 180, 160);
+particles(data, tank, 18, 4, 19);
+
+link(pipe, glass, tank, 35);
+untraced(pipe);
+
+par {
+  wander(bubbles, 6);
+  wander(data, 6);
+  seq { draw(pipe, 0.8); flow(pipe, 1.2); }
+}
+```
+
+The optional seed makes placement and motion repeat exactly in preview, stills,
+and recordings. `wander` occupies its requested duration, so put it in `par`
+with the story beats it should accompany. A `link` follows `move`d endpoints;
+`flow` is transient emphasis and does not alter the path itself.
 
 ### Animate anything — `to` / `set`
 
@@ -788,6 +820,7 @@ scrubbable like every other Manic track.
 | `rotate3(id, (xdeg,ydeg,zdeg), [dur], [ease])` | Euler rotation in Z-Y-X order |
 | `grow3(id, to, [dur], [ease])` | retarget a `line3` or `arrow3` endpoint |
 | `orbit3(azimuth, elevation, radius, [dur], [ease])` | animate the camera orbit |
+| `roll3(degrees, [dur], [ease])` | roll the camera around its viewing direction; compose with `orbit3` in `par` for turning-plane and cinematic banking shots |
 | `look3(target, [dur], [ease])` | animate the camera target |
 
 ### What works on 3D entities (and what doesn't)
@@ -799,7 +832,7 @@ says so and lists the alternatives).
 | Applies to 3D | 2D-only (errors on a 3D id → use the alt) |
 |---|---|
 | **modifiers:** `color`, `opacity`, `hidden`, `untraced`, `tag`, `thick` | `hue` → use `color` with a palette name · `stroke` → use `thick` · `glow`, `z`, `size`, `bold`, `outlined`/`filled`/`outline` |
-| **verbs:** `show`, `fade`, `draw`, `flash`, `pulse`, `recolor`, `scale`, and `to(id, morph\|opacity\|scale\|trace\|color, …)` | `move`/`shift`/`rotate`/`spin` → use `move3`/`shift3`/`rotate3` · `cam`/`zoom` → use `camera3`/`orbit3`/`look3` · `transform` (2D matrix) · `morph` → use `morph3` · `to(x/y)` (no 3D single-axis form) |
+| **verbs:** `show`, `fade`, `draw`, `flash`, `pulse`, `recolor`, `scale`, and `to(id, morph\|opacity\|scale\|trace\|color, …)` | `move`/`shift`/`rotate`/`spin` → use `move3`/`shift3`/`rotate3` · `cam`/`zoom` → use `camera3`/`orbit3`/`roll3`/`look3` · `transform` (2D matrix) · `morph` → use `morph3` · `to(x/y)` (no 3D single-axis form) |
 
 Spatial tracks always go through the explicit `move3`/`rotate3`/`grow3` family.
 
@@ -821,14 +854,15 @@ manic's own logo and mark (à la `ManimBanner`).
 | call | makes |
 |---|---|
 | `banner(id, (cx,cy), [scale])` | the manic logo: a cyan circle + magenta square + lime triangle icon trio (`{id}.dot`/`{id}.sq`/`{id}.tri`, tag `{id}.icon`) and the "manic" wordmark (`{id}.word`) |
-| `watermark(id, (x,y), ["text"])` | a small, glowing, **screen-fixed** mark that ignores camera moves and persists |
+| `watermark(id, [(x,y)], ["text"])` | a small, glowing, **screen-fixed** mark that ignores camera moves and persists. With no point it responsively sits bottom-right; pass a point to protect important content or platform UI. Default text: `Made With Manic`. |
 
 Animate it `create → expand → unwrite` like the reference banner:
 
 ```
 banner(logo, (600, 360), 1.1);
 untraced(logo.icon);  hidden(logo.word);
-watermark(wm, (1120, 690), "manic // synthwave");
+watermark(autoMark);                              // responsive bottom-right
+watermark(wm, (150, 48), "manic // synthwave"); // exact composition control
 
 draw(logo.icon);      // create — trace the icons on (broadcasts over the trio)
 show(logo.word);      // expand — reveal the wordmark

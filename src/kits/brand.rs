@@ -4,8 +4,9 @@
 //!   triangle icon trio + the "manic" wordmark. Tagged `{id}.icon` (the three
 //!   shapes) and `id`; the wordmark is `{id}.word`. Animate create→expand with
 //!   `draw({id}.icon)` then `show({id}.word)`.
-//! - `watermark(id, (x,y), ["text"])` — a small, glowing, screen-fixed mark
-//!   that stays put through camera moves; drop it once and it persists.
+//! - `watermark(id, [(x,y)], ["text"])` — a small, glowing, screen-fixed mark
+//!   that stays put through camera moves. Omit the point for a responsive
+//!   bottom-right placement; pass one when the composition needs another spot.
 
 use macroquad::prelude::Vec2;
 
@@ -91,14 +92,27 @@ fn c_banner(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
-/// `watermark(id, (x,y), ["text"])` — a persistent, screen-fixed brand mark.
+/// Responsive bottom-right centre for a watermark string. The edge inset scales
+/// with the canvas while the text allowance keeps the *right edge* safe rather
+/// than placing the string's centre directly against the viewport edge.
+fn default_watermark_pos(canvas: Vec2, text: &str) -> Vec2 {
+    let edge = (canvas.x.min(canvas.y) * 0.035).clamp(24.0, 48.0);
+    let half_text = (text.chars().count() as f32 * 6.2).clamp(36.0, canvas.x * 0.30);
+    Vec2::new(canvas.x - edge - half_text, canvas.y - edge)
+}
+
+/// `watermark(id, [(x,y)], ["text"])` — a persistent, screen-fixed brand mark.
 fn c_watermark(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let pos = a.pair(1)?;
     let text = if a.len() > 2 {
         a.text(2)?
     } else {
-        "manic".to_string()
+        "Made With Manic".to_string()
+    };
+    let pos = if a.len() > 1 {
+        a.pair(1)?
+    } else {
+        default_watermark_pos(s.canvas(), &text)
     };
     let mut e = Entity::new(
         id,
@@ -121,4 +135,32 @@ fn c_watermark(s: &mut Scene, a: &Args) -> Result<(), Error> {
 pub fn register(r: &mut Registry) {
     r.ctor("banner", c_banner);
     r.ctor("watermark", c_watermark);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn watermark_defaults_responsively_and_keeps_exact_position_control() {
+        let portrait = crate::parse("canvas(1080,1920); watermark(mark);").unwrap();
+        let mark = portrait.base().get("mark").unwrap();
+        assert!(mark.sticky);
+        assert!(mark.pos.x > 900.0 && mark.pos.y > 1850.0, "{:?}", mark.pos);
+        assert!(matches!(
+            &mark.shape,
+            Shape::Text { content, .. } if content == "Made With Manic"
+        ));
+
+        let custom = crate::parse(
+            "canvas(1280,720); watermark(mark,(150,48),\"custom identity\");",
+        )
+        .unwrap();
+        let mark = custom.base().get("mark").unwrap();
+        assert_eq!(mark.pos, Vec2::new(150.0, 48.0));
+        assert!(matches!(
+            &mark.shape,
+            Shape::Text { content, .. } if content == "custom identity"
+        ));
+    }
 }

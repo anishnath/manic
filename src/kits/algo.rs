@@ -159,7 +159,10 @@ fn c_graph(s: &mut Scene, a: &Args) -> Result<(), Error> {
         edge.link = Some(Link {
             from: format!("{id}.{u}"),
             to: format!("{id}.{v}"),
-            trim: radius,
+            trim_from: radius,
+            trim_to: radius,
+            auto_trim: false,
+            bend: 0.0,
         });
         edge.tags.push(id.clone());
         edge.tags.push(edges_tag.clone());
@@ -1931,7 +1934,13 @@ mod tests {
         let m = movie("list(dll, \"3 8 5\", (640,300), doubly, 70, 50); color(dll, magenta); insert(dll, 1, \"7\");");
         // color(dll, …) reached the node box, its value text, the head/NULL labels,
         // and a structural arrow — i.e. the whole list is addressable by `dll`
-        for part in ["dll.node0", "dll.node0.v", "dll.head", "dll.null", "dll.ar0"] {
+        for part in [
+            "dll.node0",
+            "dll.node0.v",
+            "dll.head",
+            "dll.null",
+            "dll.ar0",
+        ] {
             assert_eq!(
                 m.base().get(part).unwrap().color,
                 crate::style::MAGENTA,

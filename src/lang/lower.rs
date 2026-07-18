@@ -584,7 +584,25 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn consumes_structure_id(name: &str) -> bool {
     matches!(
         name,
-        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "timing" | "timerstyle" | "socials" | "figure" | "explain" | "endcard"
+        "particles"
+            | "wander"
+            | "link"
+            | "karaoke"
+            | "wordpop"
+            | "swing"
+            | "run"
+            | "forces"
+            | "phase"
+            | "well"
+            | "timegraph"
+            | "energygraph"
+            | "option"
+            | "timing"
+            | "timerstyle"
+            | "socials"
+            | "figure"
+            | "explain"
+            | "endcard"
     )
 }
 
@@ -654,7 +672,10 @@ fn unknown_id_error(scene: &Scene, id: &str, s: &Stmt) -> Error {
     let base = format!("`{id}` is not created — no entity or tag has this id");
     match crate::namehint::nearest_name(id, &crate::namehint::candidate_names(scene)) {
         Some(sugg) => Error::new(format!("{base}; did you mean `{sugg}`?"), span),
-        None => Error::new(format!("{base} — create it (a shape/text/…) before animating it"), span),
+        None => Error::new(
+            format!("{base} — create it (a shape/text/…) before animating it"),
+            span,
+        ),
     }
 }
 
@@ -716,9 +737,10 @@ fn build_timed_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result
             args.span_of(0),
         )
     })?;
-    let block = s.block.as_ref().ok_or_else(|| {
-        Error::new("`timed` needs a `{ ... }` block", s.name_span)
-    })?;
+    let block = s
+        .block
+        .as_ref()
+        .ok_or_else(|| Error::new("`timed` needs a `{ ... }` block", s.name_span))?;
     let mut clips = vec![crate::kits::creator::build_generic_timing_clip(
         scene,
         &id,
@@ -729,7 +751,10 @@ fn build_timed_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result
     for phase_stmt in block {
         if phase_stmt.name != "during" {
             return Err(Error::new(
-                format!("`timed` contains `{}` — wrap phase animation in `during(\"phase\") {{ ... }}`", phase_stmt.name),
+                format!(
+                    "`timed` contains `{}` — wrap phase animation in `during(\"phase\") {{ ... }}`",
+                    phase_stmt.name
+                ),
                 phase_stmt.name_span,
             ));
         }
@@ -755,9 +780,10 @@ fn build_timed_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result
                 phase_args.span_of(0),
             ));
         }
-        let phase_block = phase_stmt.block.as_ref().ok_or_else(|| {
-            Error::new("`during` needs a `{ ... }` block", phase_stmt.name_span)
-        })?;
+        let phase_block = phase_stmt
+            .block
+            .as_ref()
+            .ok_or_else(|| Error::new("`during` needs a `{ ... }` block", phase_stmt.name_span))?;
         let mut inner = Vec::with_capacity(phase_block.len());
         for stmt in phase_block {
             inner.push(lower_inner(scene, stmt, registry)?);

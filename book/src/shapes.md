@@ -21,8 +21,38 @@ Plus a few composite helpers built from those: `polygon`, `arc`/`sector`, `brace
 — the hatched wall / ceiling / floor for mechanics & textbook diagrams (`"dir"` is
 the open side: `"down"` ceiling, `"up"` floor, `"left"`/`"right"` walls).
 
+Two more helpers cover scenes that would otherwise need dozens of manual dots
+and endpoints:
+
+```manic
+circle(glass, (400,300), 100);
+particles(bubbles, glass, 24, 5, 7); // id, container, count, radius, seed
+
+rect(tank, (750,300), 180, 160);
+link(pipe, glass, tank, 35);         // 35 px of curve; 0 is straight
+```
+
+`particles` works inside circles and rectangles. Its bare id addresses every
+child dot, so `hidden(bubbles)` and `recolor(bubbles, fg)` affect the whole
+group. `link` meets those shapes at their boundaries and stays attached when
+either endpoint moves.
+
 Points are `(x, y)` in pixels, **origin top-left, y increasing downward**. Use
 `cx`, `cy`, `w`, `h` to stay canvas-independent.
+
+For display mathematics, `equation` accepts LaTeX in backticks. Standard
+`\textcolor` can emphasize individual terms with Manic's semantic palette; the
+colors automatically follow the selected template:
+
+```manic
+equation(step, (cx, 620),
+  `\textcolor{magenta}{\mathrm{slope}}=
+   \frac{\textcolor{cyan}{\mathrm{rise}}}
+        {\textcolor{gold}{\mathrm{run}}}`, 40);
+```
+
+Leave a term uncolored to use the template foreground. A single-color equation
+can still be styled as one entity with `color` and animated with `recolor`.
 
 ```manic
 {{#include ../samples/shapes.manic}}

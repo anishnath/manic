@@ -21,6 +21,18 @@ pub struct PlaybackTrack {
     pub points: Vec<Vec2>,
 }
 
+/// Build-time metadata for a deterministic group created by `particles`.
+/// The drawable children remain ordinary dot entities; `wander` reads this
+/// small record to generate contained position tracks without adding a runtime
+/// particle simulator to the renderer.
+#[derive(Debug, Clone)]
+pub struct ParticleGroup {
+    pub container: String,
+    pub children: Vec<String>,
+    pub radius: f32,
+    pub seed: u64,
+}
+
 /// Everything a pre-simulated sim exposes — the reusable **baseline** for every
 /// physics sim. A sim's ctor fills this once; the sim-view drawables replay via
 /// `playback`, and the OPTIONAL view builtins (`phase`/`well`/…) read the raw
@@ -98,6 +110,14 @@ pub struct Scene {
     /// swaps knows the *current* occupant of each slot. Build-time only — the
     /// renderer never reads it.
     pub occ: HashMap<String, Vec<String>>,
+    /// Build-time logical positions for stateful positional verbs (`swap` and
+    /// `cycle`). The base entities must stay at their t=0 positions, so these
+    /// verbs carry their authored end positions separately when repeated.
+    /// Frame rendering never reads this map.
+    pub motion_pos: HashMap<String, macroquad::prelude::Vec2>,
+    /// Generic contained particle groups (`particles`/`wander`). Build-time
+    /// only; frames contain ordinary entities and deterministic timeline tracks.
+    pub particle_groups: HashMap<String, ParticleGroup>,
     /// 2D labels bound to 3D positions (`pin3`), applied per-frame by the player.
     pub pins: Vec<Pin3>,
     /// Pre-simulated playback for physics sims (`physics` kit): maps a sim id to
