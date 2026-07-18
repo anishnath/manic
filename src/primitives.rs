@@ -168,6 +168,11 @@ pub struct Entity {
     pub align: Align,
     /// Rotation in degrees, applied to text only (used for e.g. stamps).
     pub rot: f32,
+    /// Corner radius for rectangle entities. Zero keeps the classic square
+    /// rectangle; creator/UI cards use a positive value for polished panels.
+    /// Stored on the entity rather than `Shape::Rect` so existing constructors
+    /// and shape pattern matches remain backwards compatible.
+    pub corner_radius: f32,
     /// Max text width in logical pixels; longer text word-wraps into
     /// centred lines. `None` = single line. Text only.
     pub wrap: Option<f32>,
@@ -608,6 +613,7 @@ impl Entity {
             font: FontKind::default(),
             align: Align::default(),
             rot: 0.0,
+            corner_radius: 0.0,
             wrap: None,
             tags: Vec::new(),
             sticky: false,

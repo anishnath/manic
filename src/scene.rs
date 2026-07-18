@@ -85,6 +85,10 @@ enum EntitySlot {
 /// world at t = 0; the timeline produces per-frame copies of it.
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
+    /// Logical canvas size. Kits use this for responsive layout; render scale is
+    /// deliberately separate, so a 1080x1920 Short and its supersampled export
+    /// share identical layout coordinates.
+    pub canvas_size: macroquad::prelude::Vec2,
     pub entities: Vec<Entity>,
     pub entities_3d: Vec<Entity3D>,
     index: HashMap<String, EntitySlot>,
@@ -113,14 +117,88 @@ pub struct Scene {
     pub pending_eqs: Vec<(String, String, f32)>,
 }
 
-/// A creator's social profile — a display handle, the platforms they're on
-/// (`(key, user_or_url)`, e.g. `("yt", "@mychannel")`), and an optional accent
-/// colour. Set once by `creator(id, "spec")`, drawn by `socials(id)`.
+/// How a creator identity is presented at the bottom of a format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorFooter {
+    /// Platform icons + handle: the v1 treatment and backwards-compatible default.
+    #[default]
+    Social,
+    /// Small logo/name/handle lockup with no platform-icon row.
+    Compact,
+    /// Larger logo, display name and tagline lockup.
+    Signature,
+    /// Suppress the footer entirely.
+    None,
+}
+
+/// Platform-safe content inset profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorSafe {
+    #[default]
+    Shorts,
+    Reels,
+    Tiktok,
+    Clean,
+}
+
+/// A creator's reusable brand profile. Existing handle/platform/accent fields
+/// remain; v2 adds identity and presentation fields for responsive footers and
+/// end cards.
 #[derive(Debug, Clone, Default)]
 pub struct CreatorProfile {
     pub handle: String,
+    pub display_name: String,
+    pub tagline: String,
+    pub logo: String,
+    pub website: String,
+    pub cta: String,
     pub platforms: Vec<(String, String)>,
     pub accent: Option<macroquad::prelude::Color>,
+    pub secondary: Option<macroquad::prelude::Color>,
+    pub footer: CreatorFooter,
+    pub safe: CreatorSafe,
+}
+
+/// A centre/size rectangle used by the responsive creator layout.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CreatorRect {
+    pub center: macroquad::prelude::Vec2,
+    pub size: macroquad::prelude::Vec2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizLayout {
+    #[default]
+    Auto,
+    Stack,
+    Grid,
+    MediaFirst,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizDensity {
+    Compact,
+    #[default]
+    Comfortable,
+    Spacious,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizTimer {
+    #[default]
+    Ring,
+    Bar,
+    Number,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorMotion {
+    Calm,
+    #[default]
+    Studio,
+    Punch,
+    Cut,
 }
 
 /// A quiz-Short's state (`quiz`/`option` builtins): the question + its option
@@ -133,18 +211,38 @@ pub struct QuizData {
     pub highlight: String,
     /// how the question text reveals in (typewriter by default).
     pub reveal: QuizReveal,
-    /// the card/question design skin (Badge by default).
+    /// The card/question design skin (Studio by default in v2).
     pub skin: QuizSkin,
+    pub layout: QuizLayout,
+    pub density: QuizDensity,
+    pub timer_style: QuizTimer,
+    pub motion: CreatorMotion,
+    pub safe: CreatorSafe,
+    pub accent: Option<macroquad::prelude::Color>,
+    /// Responsive layout snapshot computed when `quiz` is constructed.
+    pub header: CreatorRect,
+    pub media: CreatorRect,
+    pub choices: CreatorRect,
+    pub timer: CreatorRect,
+    pub footer: CreatorRect,
+    pub card_size: macroquad::prelude::Vec2,
+    pub question_pos: macroquad::prelude::Vec2,
+    pub ui_scale: f32,
+    /// Optional author-supplied explanation/source entity ids.
+    pub explanation: String,
+    pub source: String,
 }
 
 /// The visual design of a quiz's question header + answer cards. Orthogonal to
 /// the global `template()` (which retints the palette) — a skin picks the layout
-/// and chrome. Default = `Badge`.
+/// and chrome. Default = `Studio`; all v1 skin names remain explicit options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuizSkin {
-    /// Framed question panel + a filled letter-badge on each answer card. The
-    /// bold, modern quiz-app look. Default.
+    /// Restrained editorial cards: rounded, crisp, one accent and clear type.
     #[default]
+    Studio,
+    /// Framed question panel + a filled letter-badge on each answer card. The
+    /// bold, modern quiz-app v1 look.
     Badge,
     /// Editorial: a kicker over a thin accent rule, outline-only answer rows.
     Minimal,
@@ -183,7 +281,25 @@ pub struct QuizOpt {
 
 impl Scene {
     pub fn new() -> Self {
-        Scene::default()
+        Scene {
+            canvas_size: macroquad::prelude::Vec2::new(1280.0, 720.0),
+            ..Scene::default()
+        }
+    }
+
+    /// Set the logical viewport before constructors run.
+    pub fn set_canvas_size(&mut self, width: f32, height: f32) {
+        self.canvas_size = macroquad::prelude::Vec2::new(width.max(1.0), height.max(1.0));
+    }
+
+    /// Logical viewport used by responsive kits.
+    pub fn canvas(&self) -> macroquad::prelude::Vec2 {
+        let v = self.canvas_size;
+        if v.x > 0.0 && v.y > 0.0 {
+            v
+        } else {
+            macroquad::prelude::Vec2::new(1280.0, 720.0)
+        }
     }
 
     /// Add an entity. Panics on duplicate id.

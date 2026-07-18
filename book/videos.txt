@@ -224,3 +224,4 @@ ex-quiz-geometry-2|PLACEHOLDER|Geometry Quiz: When Is the Circumcentre OUTSIDE? 
 ex-image|PLACEHOLDER|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
 ex-quiz-euler|PLACEHOLDER|I Built This Geometry Quiz Short in 12 Lines — manic
 ex-quiz-skins|PLACEHOLDER|4 Quiz-Short Designs From ONE Line of Code — manic
+ex-creator-v2|PLACEHOLDER|Creator Kit v2 — One Responsive Quiz Across Every Social Format

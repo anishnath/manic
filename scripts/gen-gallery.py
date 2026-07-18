@@ -483,15 +483,16 @@ SECTIONS = [
     "A Pi Day card: a rainbow petal-flower built from a loop of circles, radial rays,\n"
     "the digits of π, and the definition `circumference / diameter = pi`."),
  ]),
- dict(slug="creator", title="Creator formats — Shorts",
-   intro="Vertical (9:16) social-video formats a creator fills in. The `creator` kit turns a "
-         "question, a few answers and a social profile into a branded, timed Short — no timeline "
-         "authoring. `quiz` picks a card **skin** (`badge` default · `minimal` · `glass` · `plain`) "
-         "and a question **reveal** (`type` default · `fade` · `rise` · `pop` · `cut`) from one "
-         "order-free style string, e.g. `\"glass fade\"`; `option` cards auto-lay-out by count "
-         "(centred column ≤3, 2×2 for 4); `run` plays the whole ask→countdown→reveal beat; "
-         "`figure` auto-fits an illustration between the header and the cards.",
+ dict(slug="creator", title="Creator formats — responsive social video",
+   intro="Creator Kit v2 turns a question, answers, media and a reusable creator profile into a "
+         "polished timed social clip. The same source adapts to 9:16, 4:5, 1:1 and 16:9 with "
+         "platform-safe regions. `studio` is the restrained editorial default; explicit `layout`, "
+         "`density`, `timer`, `motion`, `safe` and `accent` controls customise it. Responsive "
+         "footers, optional explanations and final end cards share the same brand profile.",
    sub=SUB, items=[
+   ("creator-v2",
+    "The complete v2 core: responsive studio quiz, optics media, width-aware answer cards, a\n"
+    "signature creator footer, optional explanation and a branded final end card."),
    ("quiz-skins",
     "The quiz Short in a dozen lines: `quiz`/`option`/`run` + a `creator`/`socials` footer.\n"
     "Change the one style word on `quiz(...)` to switch card SKIN — `badge` (framed panel +\n"

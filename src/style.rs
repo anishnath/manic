@@ -86,6 +86,21 @@ impl Palette {
         }
     }
 
+    /// Restrained dark editorial palette for creator formats. It preserves the
+    /// semantic roles while reducing saturation and glow fatigue on long-form
+    /// phone viewing.
+    pub fn studio() -> Palette {
+        Palette {
+            bg: Color::new(0.035, 0.047, 0.075, 1.0),
+            fg: Color::new(0.94, 0.95, 0.98, 1.0),
+            cyan: Color::new(0.30, 0.72, 1.0, 1.0),
+            magenta: Color::new(0.63, 0.48, 1.0, 1.0),
+            lime: Color::new(0.35, 0.86, 0.58, 1.0),
+            dim: Color::new(0.46, 0.52, 0.64, 1.0),
+            panel: Color::new(0.075, 0.098, 0.145, 1.0),
+        }
+    }
+
     /// Remap a neon-palette colour to this palette's corresponding role,
     /// preserving alpha. Colours that aren't a palette role pass through.
     pub fn remap(&self, c: Color) -> Color {
@@ -192,14 +207,14 @@ impl Template {
         }
     }
 
-    /// A punchy vertical-video look for Shorts/Reels: neon palette on black with
-    /// a stronger glow (halos pop on a phone), no window chrome.
+    /// Professional creator look for Shorts/Reels: restrained editorial colour,
+    /// crisp panels and a small halo for emphasis, with no window chrome.
     pub fn shorts() -> Template {
         Template {
             name: "shorts".into(),
             chrome: Chrome::None,
-            palette: Palette::neon(),
-            glow: 1.6,
+            palette: Palette::studio(),
+            glow: 0.65,
             crt: false,
             masthead_left: String::new(),
             masthead_right: String::new(),

@@ -262,8 +262,13 @@ fn d_rightangle(e: &mut Entity, p: &[Vec2]) {
         let u = (a - b).normalize_or_zero();
         let v = (c - b).normalize_or_zero();
         let sz = 16.0;
+        // Polyline points are local to the entity position. Keeping the mark
+        // local lets responsive `figure()` transforms move and scale it just
+        // like every other geometric construction; absolute points here made
+        // right-angle glyphs drift away from their vertices after auto-fit.
+        e.pos = b;
         if let Shape::Polyline { pts } = &mut e.shape {
-            *pts = vec![b + u * sz, b + u * sz + v * sz, b + v * sz];
+            *pts = vec![u * sz, u * sz + v * sz, v * sz];
         }
     }
 }

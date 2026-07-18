@@ -92,6 +92,7 @@ impl Movie {
     /// recordings supersample to 1080p regardless.
     pub fn new(title: &str, width: u32, height: u32) -> Movie {
         let mut scene = Scene::new();
+        scene.set_canvas_size(width as f32, height as f32);
         let mut cam = Entity::new(
             CAMERA_ID,
             Shape::Circle { r: 0.0 },

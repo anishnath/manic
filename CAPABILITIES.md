@@ -1129,7 +1129,121 @@ live preview + stills stay clean and fast):
 Disable with `--no-brand`. (Also fixed: the `--png`/`--alpha` sequence now writes
 frames upright — `export_png`'s internal flip is cancelled in `record.rs`.)
 
-## Creator format templates — manic for social creators (planned) 🚧
+## Creator Kit v2 core — shipped ✅
+
+The first Creator Kit shipped the complete quiz-Short loop (`creator`/`socials`,
+`quiz`/`option`/`run`, countdown, safe-zone guide, figure auto-fit, four skins and
+five question reveals). V2 is an intentional production redesign, not a second
+pile of skins. Its shipped core contains three ordered slices:
+
+### V2.1 — responsive layout and design foundations
+
+- **Viewport-aware kit layout.** Creator constructors must read the actual canvas
+  dimensions instead of baking `540`/`1920` coordinates. One format must adapt to
+  portrait `9:16`, feed `4:5`, square `1:1`, and landscape `16:9` canvases.
+- **Platform safe areas.** Named `shorts`, `reels`, `tiktok`, and `clean` guides
+  provide top/bottom/side insets; all automatic format regions stay inside them.
+- **Shared regions.** Header, media, choices, timer, caption and footer are derived
+  from the safe content rectangle and density, rather than positioned separately.
+- **Creator design tokens.** A small internal style model owns typography roles,
+  spacing, card fill/edge, accent use, glow, option density, timer treatment, and
+  motion recipe. The default is a restrained **studio/editorial** look: strong
+  hierarchy, one accent, crisp panels and purposeful motion. `badge`, `minimal`,
+  `glass`, and `plain` remain available and backwards compatible.
+- **Reliable fitting.** `figure()` uses shared entity bounds and includes text,
+  images/equations, curves, stroke and scale. It must fail clearly on an empty
+  target and avoid silently producing a broken live construction.
+
+### V2.2 — Quiz v2
+
+- Preserve every v1 file unchanged: `quiz(q,"?")`, the old skin/reveal words,
+  `option(...[,correct])`, and `run(q,dur)` remain valid.
+- Extend the order-free quiz spec with explicit `key=value` options for
+  `layout`, `density`, `timer`, `motion`, and `reveal`. Defaults stay concise.
+- Responsive answer layouts cover 1–6 options (stack up to four; auto/grid up to six),
+  long-answer wrapping, phone-readable minimum type, and deterministic overflow
+  diagnostics instead of overlaps.
+- Timer treatments: `ring`, `bar`, `number`, and `none`. Reveal treatments keep
+  the correct answer legible, deliberately de-emphasise distractors, and allow an
+  optional author-supplied explanation/source without inventing a solution act.
+- Motion recipes: `calm`, `studio`, `punch`, and `cut`, with timing derived from
+  the requested `run` duration rather than hard-coded absolute beats.
+
+Proposed v2 authoring surface (the exact accepted keys are documented by parser
+errors and tests):
+
+```manic
+canvas("9:16"); template("shorts");
+creator(me, "@opticslab name=Optics_Lab accent=cyan footer=compact");
+quiz(q, "Which glass bends blue light more?",
+     "studio layout=media-first reveal=rise timer=bar density=comfortable");
+option(q, "Crown glass");
+option(q, "Flint glass", correct);
+option(q, "Both equally");
+option(q, "Neither");
+prism(p, (540, 650), "sf11");
+figure(p);
+explain(q, "Flint glass has stronger dispersion.");
+run(q, 12);
+socials(me);
+```
+
+### V2.3 — creator brand system
+
+- Extend `creator(id,"spec")` without breaking existing specs: display name,
+  handle, logo/avatar image, accent/secondary colours, tagline, website, footer
+  style and default CTA live in one reusable profile.
+- Footer variants: `compact`, `signature`, `social`, and `none`; automatic layout
+  uses configured identity content and stays inside the active safe area.
+- A reusable `endcard(profile, [spec])` produces a professional final creator
+  lockup with optional CTA. Exact platform artwork remains author-supplied via
+  `image(...)`; manic does not bundle trademark logos.
+- Brand choices are creator content, separate from manic's engine-level recorded
+  watermark/pre-roll and from the global canvas `template()` palette.
+
+### V2 core acceptance criteria
+
+1. Old Creator Kit examples parse, validate, and retain their existing entity ids.
+2. The same v2 quiz source lays out without overlap on 9:16, 4:5, 1:1, and 16:9.
+3. Stress cases cover 2–6 choices, long text, inline math, light/dark templates,
+   logo/no-logo profiles, and representative geo/physics/optics figures.
+4. Unit tests cover spec parsing, layout regions, safe-area selection, backwards
+   compatibility, profiles, footer variants, and end cards.
+5. Representative frames are rendered and visually inspected at question,
+   countdown, answer-reveal, and end-card moments before v2 is called complete.
+6. `SYSTEM_PROMPT.md`, the creator book chapter, examples, and this capability
+   ledger are updated together with the implementation.
+
+**Deferred until after the v2 core:** fact-card, listicle, this-or-that and other
+format families will reuse these foundations, but are not allowed to delay the
+responsive quiz + brand-system release.
+
+**Implementation result (2026-07-18):** ✅ logical canvas size now reaches every
+kit through `Scene`; ✅ responsive header/media/choices/timer/footer regions adapt
+across 9:16, 4:5, 1:1 and 16:9; ✅ named Shorts/Reels/TikTok/clean safe areas;
+✅ rounded translucent-safe UI panels; ✅ a restrained studio palette under
+`template("shorts")`; ✅ Studio is the new quiz default while all v1 skin/reveal
+words and entity ids remain; ✅ v2 `layout`/`density`/`timer`/`motion`/`safe`/
+`accent` parsing; ✅ width-aware answer type and 1–6 auto/grid layout (stack is
+guarded at four); ✅ optional `explain`; ✅ expanded creator profile, four footer
+styles and hidden `endcard`; ✅ improved `figure` bounds for paths/text/images/
+equations plus live-dependency diagnostics; ✅ catalog, prompt, book, gallery and
+`examples/creator-v2.manic` updated. Ten creator tests cover the v2 surface,
+including all four aspect ratios; the complete 184-test library suite passes.
+Question, choices/countdown, reveal, end-card, square and landscape frames were
+rendered and visually inspected. That visual pass caught and fixed translucent
+corner overdraw, timer/explanation collision, and narrow-card text overflow.
+
+**Creator v2 + LaTeX review set — shipped ✅ (2026-07):** three focused examples
+exercise inline and display math through the responsive Creator surface:
+`examples/creator-v2-latex-calculus.manic` (9:16 studio),
+`examples/creator-v2-latex-algebra.manic` (1:1 paper), and
+`examples/creator-v2-latex-physics.manic` (16:9 studio). Portrait, square, and
+landscape frames were rendered and visually inspected. The review also fixed
+tintable equation images to use semantic template remapping, keeping formula
+options legible on light templates.
+
+## Creator format templates — manic for social creators (v1 shipped)
 
 **A new audience: content creators, not just domain educators.** Every kit so far
 adds a *domain* (math, physics, optics). This is **orthogonal** — a *format* layer:

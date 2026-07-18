@@ -229,6 +229,64 @@ fn halo(c: Color, opacity: f32, g: f32) -> Color {
     Color::new(c.r, c.g, c.b, (opacity * 0.18 * g).clamp(0.0, 1.0))
 }
 
+/// Filled rounded rectangle as a non-overlapping triangle fan. Avoiding layered
+/// bars/circles matters for translucent UI fills: overlapping alpha would show
+/// as darker discs at every corner.
+fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.5 {
+        draw_rectangle(x, y, w, h, color);
+        return;
+    }
+    let mut pts = Vec::with_capacity(36);
+    for (cx, cy, a0) in [
+        (x + w - r, y + r, -90.0_f32),
+        (x + w - r, y + h - r, 0.0),
+        (x + r, y + h - r, 90.0),
+        (x + r, y + r, 180.0),
+    ] {
+        for i in 0..=8 {
+            let a = (a0 + i as f32 * 90.0 / 8.0).to_radians();
+            pts.push(Vec2::new(cx + r * a.cos(), cy + r * a.sin()));
+        }
+    }
+    let c = Vec2::new(x + w * 0.5, y + h * 0.5);
+    for i in 0..pts.len() {
+        draw_triangle(c, pts[i], pts[(i + 1) % pts.len()], color);
+    }
+}
+
+/// Rounded outline sampled as one closed path, so glow and trace semantics stay
+/// consistent with every other stroked manic shape.
+fn draw_rounded_rect_lines(
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    r: f32,
+    width: f32,
+    color: Color,
+) {
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.5 {
+        draw_rectangle_lines(x, y, w, h, width, color);
+        return;
+    }
+    let mut pts = Vec::with_capacity(37);
+    let mut corner = |cx: f32, cy: f32, a0: f32| {
+        for i in 0..=8 {
+            let a = (a0 + i as f32 * 90.0 / 8.0).to_radians();
+            pts.push(Vec2::new(cx + r * a.cos(), cy + r * a.sin()));
+        }
+    };
+    corner(x + w - r, y + r, -90.0);
+    corner(x + w - r, y + h - r, 0.0);
+    corner(x + r, y + h - r, 90.0);
+    corner(x + r, y + r, 180.0);
+    pts.push(pts[0]);
+    draw_path(&pts, 1.0, width, color);
+}
+
 /// Rotate `p` about `center` by `rad` radians.
 fn rot_pt(p: Vec2, center: Vec2, rad: f32) -> Vec2 {
     if rad == 0.0 {
@@ -451,22 +509,28 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let (w, h) = (w * e.scale * k, h * e.scale * k);
             if !rotated {
                 let (x, y) = (p.x - w / 2.0, p.y - h / 2.0);
+                let rr = (e.corner_radius * e.scale * k).clamp(0.0, w.min(h) / 2.0);
                 if e.stroke.fill {
-                    draw_rectangle(x, y, w, h, fill);
+                    if rr > 0.5 {
+                        draw_rounded_rect(x, y, w, h, rr, fill);
+                    } else {
+                        draw_rectangle(x, y, w, h, fill);
+                    }
                 }
                 if e.stroke.outline {
                     if trace >= 1.0 {
                         if glow_on {
-                            draw_rectangle_lines(
-                                x,
-                                y,
-                                w,
-                                h,
-                                width * 5.0,
-                                halo(outline, e.opacity, glow),
-                            );
+                            if rr > 0.5 {
+                                draw_rounded_rect_lines(x, y, w, h, rr, width * 5.0, halo(outline, e.opacity, glow));
+                            } else {
+                                draw_rectangle_lines(x, y, w, h, width * 5.0, halo(outline, e.opacity, glow));
+                            }
                         }
-                        draw_rectangle_lines(x, y, w, h, width * 2.0, outline);
+                        if rr > 0.5 {
+                            draw_rounded_rect_lines(x, y, w, h, rr, width * 2.0, outline);
+                        } else {
+                            draw_rectangle_lines(x, y, w, h, width * 2.0, outline);
+                        }
                     } else {
                         let c = [
                             Vec2::new(x, y),
@@ -755,12 +819,15 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             };
             let y = p.y - dh / 2.0;
             if let Some(tex) = get_texture(path) {
-                let base = if *tint { e.color } else { WHITE };
+                // Equation and other tintable images use the same semantic
+                // template remap as text and vector shapes. Without this,
+                // FG-baked formula labels stay pale on light templates.
+                let tint_color = if *tint { base } else { WHITE };
                 draw_texture_ex(
                     &tex,
                     x,
                     y,
-                    style::with_opacity(base, e.opacity),
+                    style::with_opacity(tint_color, e.opacity),
                     DrawTextureParams {
                         dest_size: Some(vec2(dw, dh)),
                         rotation: rad,
@@ -828,7 +895,8 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             }
             let width_of = |t: &Tok| match t {
                 Tok::Word(w) => measure(w),
-                Tok::Space | Tok::Break => space_w * 0.0,
+                Tok::Space => space_w,
+                Tok::Break => 0.0,
                 Tok::Math(i) => match &runs[*i] {
                     TextRun::Math { w, .. } => w * scale,
                     _ => 0.0,

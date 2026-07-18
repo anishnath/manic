@@ -571,7 +571,7 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn consumes_structure_id(name: &str) -> bool {
     matches!(
         name,
-        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "socials" | "figure"
+        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "socials" | "figure" | "explain" | "endcard"
     )
 }
 

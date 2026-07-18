@@ -24,7 +24,7 @@
     - [Transforms & morphing](ex-transforms.md)
     - [Text & UI](ex-text.md)
     - [Generative & recursive](ex-generative.md)
-    - [Creator formats — Shorts](ex-creator.md)
+    - [Creator formats — responsive social video](ex-creator.md)
     - [Boolean shapes](ex-boolean.md)
     - [3D scenes](ex-3d.md)
 - [Troubleshooting](troubleshooting.md)
