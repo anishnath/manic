@@ -303,10 +303,15 @@ pub fn draw_text_block(
 ) {
     let font_size = raster.max(1.0).round() as u16;
     let font_scale = size.max(0.01) / font_size as f32;
-    let lines = match wrap {
-        Some(w) => wrap_lines(text, font, font_size, font_scale, w),
-        None => vec![text.to_string()],
-    };
+    // `\n` (a literal backslash-n, kept by the LaTeX-safe lexer) is a HARD line
+    // break; wrap each hard line independently.
+    let lines: Vec<String> = text
+        .split("\\n")
+        .flat_map(|hard| match wrap {
+            Some(w) => wrap_lines(hard, font, font_size, font_scale, w),
+            None => vec![hard.to_string()],
+        })
+        .collect();
     let total_chars: usize = lines.iter().map(|l| l.chars().count()).sum();
     let mut char_budget = if trace >= 1.0 {
         usize::MAX
@@ -742,7 +747,13 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
         }
         Shape::Image { path, w, h, tint } => {
             let (dw, dh) = (w * e.scale * k, h * e.scale * k);
-            let (x, y) = (p.x - dw / 2.0, p.y - dh / 2.0);
+            // honour the entity's alignment: Left anchors the LEFT edge at `pos`
+            // (a `$…$` label that sat right of a badge stays put), Center centres.
+            let x = match e.align {
+                Align::Left => p.x,
+                Align::Center => p.x - dw / 2.0,
+            };
+            let y = p.y - dh / 2.0;
             if let Some(tex) = get_texture(path) {
                 let base = if *tint { e.color } else { WHITE };
                 draw_texture_ex(
@@ -778,31 +789,38 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let space_w = measure(" ");
             let wrap_w = e.wrap.map(|w| w * k).unwrap_or(f32::INFINITY);
 
-            // 1) tokenise the runs into words / spaces / math atoms
+            // 1) tokenise the runs into words / spaces / math atoms / hard breaks
             enum Tok {
                 Word(String),
                 Space,
+                Break,       // `\n` — a hard line break
                 Math(usize), // index into `runs`
             }
             let mut toks: Vec<Tok> = Vec::new();
             for (ri, r) in runs.iter().enumerate() {
                 match r {
                     TextRun::Text(s) => {
-                        let mut word = String::new();
-                        for ch in s.chars() {
-                            if ch.is_whitespace() {
-                                if !word.is_empty() {
-                                    toks.push(Tok::Word(std::mem::take(&mut word)));
-                                }
-                                if !matches!(toks.last(), Some(Tok::Space)) {
-                                    toks.push(Tok::Space);
-                                }
-                            } else {
-                                word.push(ch);
+                        // `\n` (literal backslash-n) forces a line break
+                        for (si, seg) in s.split("\\n").enumerate() {
+                            if si > 0 {
+                                toks.push(Tok::Break);
                             }
-                        }
-                        if !word.is_empty() {
-                            toks.push(Tok::Word(word));
+                            let mut word = String::new();
+                            for ch in seg.chars() {
+                                if ch.is_whitespace() {
+                                    if !word.is_empty() {
+                                        toks.push(Tok::Word(std::mem::take(&mut word)));
+                                    }
+                                    if !matches!(toks.last(), Some(Tok::Space)) {
+                                        toks.push(Tok::Space);
+                                    }
+                                } else {
+                                    word.push(ch);
+                                }
+                            }
+                            if !word.is_empty() {
+                                toks.push(Tok::Word(word));
+                            }
                         }
                     }
                     TextRun::Math { .. } => toks.push(Tok::Math(ri)),
@@ -810,7 +828,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             }
             let width_of = |t: &Tok| match t {
                 Tok::Word(w) => measure(w),
-                Tok::Space => space_w,
+                Tok::Space | Tok::Break => space_w * 0.0,
                 Tok::Math(i) => match &runs[*i] {
                     TextRun::Math { w, .. } => w * scale,
                     _ => 0.0,
@@ -824,7 +842,14 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             for (ti, t) in toks.iter().enumerate() {
                 let tw = width_of(t);
                 let line = lines.last_mut().unwrap();
-                if matches!(t, Tok::Space) {
+                if matches!(t, Tok::Break) {
+                    // drop a trailing space, then start a fresh line
+                    if matches!(line.last().map(|&j| &toks[j]), Some(Tok::Space)) {
+                        line.pop();
+                    }
+                    lines.push(Vec::new());
+                    cur_w = 0.0;
+                } else if matches!(t, Tok::Space) {
                     if !line.is_empty() {
                         line.push(ti);
                         cur_w += tw;
@@ -877,6 +902,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 y += above + below + gap;
                 for &j in line {
                     match &toks[j] {
+                        Tok::Break => {} // never enters a line; here for exhaustiveness
                         Tok::Space => x += space_w,
                         Tok::Word(w) => {
                             draw_text_ex(

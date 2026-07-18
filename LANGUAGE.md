@@ -15,7 +15,7 @@ Arguments are:
 | kind | example |
 |---|---|
 | number | `40`, `-5`, `2.5` |
-| string | `"hello"` (escapes: `\n \t \" \\`), or a **raw string** `` `...` `` (backticks) that keeps every backslash — for LaTeX in `equation(...)` |
+| string | `"hello"` — keeps backslashes verbatim so **LaTeX works directly** (`"\frac{1}{2}"`, `"\theta"`); only `\"` (a literal quote) and `\\` are special. **`\n` is a hard line break** in `text`/`caption` (text also auto-wraps if you `wrap(id,w)`). Backticks `` `...` `` are also raw and additionally let the LaTeX contain a `"`. |
 | name | `A`, `cyan`, `smooth` (an entity id, color, easing, or function) |
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
 | 3D point | `(2, -1, 3)` — an `(x, y, z)` coordinate triple |

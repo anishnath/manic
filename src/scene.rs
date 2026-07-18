@@ -107,6 +107,10 @@ pub struct Scene {
     /// Quiz-Short state (`quiz`/`option`): id → question/options/countdown.
     /// `run(id)` reads it to emit the ask → countdown → reveal beat. Build-time.
     pub quizzes: HashMap<String, QuizData>,
+    /// LaTeX equations to rasterise at the RENDER scale (so they're pixel-sharp,
+    /// not up/down-scaled). Layout/size are fixed at build; the player renders the
+    /// PNG at `dpr = render scale` before the frame loop. `(cache path, latex, em size)`.
+    pub pending_eqs: Vec<(String, String, f32)>,
 }
 
 /// A creator's social profile — a display handle, the platforms they're on

@@ -467,12 +467,11 @@ fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let pos = a.pair(1)?;
     let latex = a.text(2)?;
     let size = a.opt_num(3)?.unwrap_or(48.0).clamp(6.0, 400.0);
-    let dpr = 2.0;
-    let (png, pw, ph, _baseline) = crate::latex::render_png(&latex, size, dpr)
+    // Layout now (cheap); the player rasterises at the render scale (pixel-sharp).
+    let (w, h, _baseline) = crate::latex::layout_dims(&latex, size)
         .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
-    let path = crate::latex::cache_png(&latex, size, &png)
-        .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
-    let (w, h) = (pw as f32 / dpr, ph as f32 / dpr);
+    let path = crate::latex::eq_path(&latex, size);
+    s.pending_eqs.push((path.clone(), latex, size));
     s.add(Entity::new(id, Shape::Image { path, w, h, tint: true }, pos, style::FG));
     Ok(())
 }

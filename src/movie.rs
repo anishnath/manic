@@ -133,26 +133,26 @@ impl Movie {
     /// **zero per-kit code**. Plain text (no `$`) is byte-identically untouched;
     /// bad LaTeX is left as literal text (never panics or aborts the build).
     pub(crate) fn typeset_inline_math(&mut self) {
-        use crate::primitives::{Align, TextRun};
-        let dpr = 2.0;
-        // Render one `$…$` math span to a cached PNG → (path, w, h, baseline) in
-        // LOGICAL px. Returns None on bad LaTeX (caller leaves it as text).
-        let render = |latex: &str, size: f32| -> Option<(String, f32, f32, f32)> {
-            let (png, pw, ph, base) = crate::latex::render_png(latex, size, dpr).ok()?;
-            let path = crate::latex::cache_png(latex, size, &png).ok()?;
-            Some((path, pw as f32 / dpr, ph as f32 / dpr, base / dpr))
+        use crate::primitives::TextRun;
+        // Lay out one `$…$` span now (LOGICAL px) and queue it for the player to
+        // rasterise at render scale. Returns None on bad LaTeX (left as text).
+        let mut pending: Vec<(String, String, f32)> = Vec::new();
+        let mut layout = |latex: &str, size: f32| -> Option<(String, f32, f32, f32)> {
+            let (w, h, base) = crate::latex::layout_dims(latex, size).ok()?;
+            let path = crate::latex::eq_path(latex, size);
+            pending.push((path.clone(), latex.to_string(), size));
+            Some((path, w, h, base))
         };
         for e in self.scene.entities.iter_mut() {
             let (content, size) = match &e.shape {
                 Shape::Text { content, size } => (content.clone(), *size),
                 _ => continue,
             };
-            // 2a — a WHOLE-`$…$` label becomes a single centred equation image.
+            // 2a — a WHOLE-`$…$` label becomes an equation image. It keeps the
+            // entity's alignment (the Image draw honours Left vs Center), so a
+            // left-aligned option label stays right of its badge.
             if let Some(inner) = whole_math_span(&content) {
-                if let Some((path, w, h, _)) = render(inner, size) {
-                    if matches!(e.align, Align::Left) {
-                        e.pos.x += w / 2.0; // Image centres on pos; keep left edge put
-                    }
+                if let Some((path, w, h, _)) = layout(inner, size) {
                     e.shape = Shape::Image { path, w, h, tint: true };
                 }
                 continue;
@@ -167,7 +167,7 @@ impl Movie {
             for r in raw {
                 match r {
                     RawRun::Text(t) => runs.push(TextRun::Text(t)),
-                    RawRun::Math(m) => match render(&m, size) {
+                    RawRun::Math(m) => match layout(&m, size) {
                         Some((path, w, h, baseline)) => runs.push(TextRun::Math { path, w, h, baseline }),
                         None => {
                             ok = false; // bad LaTeX in a run → leave the whole line as text
@@ -180,6 +180,7 @@ impl Movie {
                 e.shape = Shape::RichText { runs, size };
             }
         }
+        self.scene.pending_eqs.extend(pending);
     }
 
     /// Start describing an animation act (same as the free [`act()`]).

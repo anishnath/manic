@@ -264,6 +264,15 @@ pub async fn run_loop(mut movie: Movie) {
     } else {
         None
     };
+    // Rasterise LaTeX equations at the RENDER scale so they're pixel-sharp (1:1
+    // with the display), not up/down-scaled from a fixed density. `opts.scale` is
+    // the supersampling factor (view.ss); clamp to a sane range.
+    {
+        let dpr = opts.scale.clamp(1.5, 8.0);
+        for (path, latex, size) in &base.pending_eqs {
+            let _ = crate::latex::render_to_path(latex, *size, dpr, path);
+        }
+    }
     // preload any image textures referenced by the scene (+ the intro) once,
     // before the frame loop — `image(...)` entities draw from this cache
     {

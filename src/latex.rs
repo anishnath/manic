@@ -53,26 +53,45 @@ pub fn render_png(latex: &str, em_px: f32, dpr: f32) -> Result<(Vec<u8>, u32, u3
     Ok((png, w, h, baseline))
 }
 
-/// Write `png` to a stable per-content cache file and return its path. Keyed by
-/// (latex, size) so identical equations reuse one file; drawn by `Shape::Image`.
-pub fn cache_png(latex: &str, size: f32, png: &[u8]) -> Result<String, String> {
+/// LOGICAL (dpr-independent) box of a typeset equation, in px: total width/height
+/// and the baseline offset from the top. Cheap — layout only, no rasterisation.
+pub fn layout_dims(latex: &str, size: f32) -> Result<(f32, f32, f32), String> {
+    let nodes = ratex_parser::parse(latex).map_err(|e| format!("{e:?}"))?;
+    let lbox = ratex_layout::layout(&nodes, &ratex_layout::LayoutOptions::default());
+    let dl = ratex_layout::to_display_list(&lbox);
+    let pad = 6.0_f32;
+    let w = ((dl.width as f32) * size + 2.0 * pad).max(1.0);
+    let h = ((dl.height + dl.depth) as f32 * size + 2.0 * pad).max(1.0);
+    let baseline = (dl.height as f32) * size + pad;
+    Ok((w, h, baseline))
+}
+
+/// The deterministic cache path for an equation, keyed by (latex, size) only —
+/// the pixel density is chosen at render time, so one logical equation maps to
+/// one file that the player (re)renders at the current render scale.
+pub fn eq_path(latex: &str, size: f32) -> String {
     let mut hasher = DefaultHasher::new();
     latex.hash(&mut hasher);
     size.to_bits().hash(&mut hasher);
     let key = hasher.finish();
+    std::env::temp_dir()
+        .join("manic-eq")
+        .join(format!("{key:016x}.png"))
+        .to_string_lossy()
+        .into_owned()
+}
 
-    let dir: PathBuf = std::env::temp_dir().join("manic-eq");
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let path = dir.join(format!("{key:016x}.png"));
-    if !path.exists() {
-        // Atomic write: a unique temp file + rename, so concurrent renders of the
-        // same equation can't observe (or produce) a half-written PNG.
-        let tmp = dir.join(format!("{key:016x}.{}.tmp", std::process::id()));
-        std::fs::write(&tmp, png).map_err(|e| e.to_string())?;
-        // rename is atomic on the same filesystem; ignore the race where another
-        // process already produced the final file.
-        let _ = std::fs::rename(&tmp, &path);
-        let _ = std::fs::remove_file(&tmp);
+/// Rasterise `latex` at `dpr` and write it to `path` (atomic). Called by the
+/// player with `dpr = render scale`, so the PNG is pixel-1:1 with the display.
+pub fn render_to_path(latex: &str, size: f32, dpr: f32, path: &str) -> Result<(), String> {
+    let (png, _, _, _) = render_png(latex, size, dpr)?;
+    let p = PathBuf::from(path);
+    if let Some(dir) = p.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    path.into_os_string().into_string().map_err(|_| "non-utf8 cache path".to_string())
+    let tmp = p.with_extension(format!("{}.tmp", std::process::id()));
+    std::fs::write(&tmp, &png).map_err(|e| e.to_string())?;
+    let _ = std::fs::rename(&tmp, &p);
+    let _ = std::fs::remove_file(&tmp);
+    Ok(())
 }

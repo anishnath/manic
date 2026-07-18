@@ -15,9 +15,11 @@ is the authoritative spec for generation; follow it exactly.
 - Arguments: **number** (`40`, `-5`, `2.5`), **string** (`"hi"`), **name**
   (`A`, `cyan`, `smooth` — bare word), **point** (`(x, y)`), or **3D point**
   (`(x, y, z)`).
-- Strings: `"..."` processes escapes (`\n`, `\t`, `\"`, `\\`). A **raw string**
-  `` `...` `` (backticks) keeps every backslash verbatim — use it for **LaTeX** in
-  `equation(...)` so `\frac`, `\theta`, `\times`, `\neq` survive intact.
+- Strings keep backslashes verbatim, so **LaTeX works in a normal `"..."` string**
+  (`"\frac"`, `"\theta"`, `"\neq"` all survive; `\"` escapes a quote, `\\` a
+  backslash). Backticks `` `...` `` are also raw and let the LaTeX contain a `"`.
+  **`\n` is a hard line break** in `text`/`caption` (and text auto-wraps to a
+  width if you `wrap(id, w)`), so you rarely need it.
 - `//` starts a line comment.
 - 2D coordinates are pixels; origin **top-left**; **y increases downward**.
 - 3D coordinates are logical units in a right-handed **Z-up** world. x/y are
@@ -85,9 +87,13 @@ Constructors and timeline may be written in any order.
 5. **Real math → `equation(...)`; `text(...)` stays plain mono.** For anything
    with fractions/roots/exponents/Greek/operators, use
    `equation(id, (x,y), `latex`, [size])` — it typesets real LaTeX (KaTeX-grade)
-   and takes the template colour. **Put the LaTeX in BACKTICKS** so backslashes
-   survive: `` equation(f,(cx,320),`V = \pi r^2 h`,60) ``,
-   `` equation(q,(cx,300),`x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`,64) ``. Prefer this
+   and takes the template colour.
+   **⚠️ The LaTeX must be inside a STRING** (double quotes or backticks — both keep
+   backslashes verbatim). The one real mistake is leaving it BARE:
+   `equation(q,(x,y),\frac12)` won't parse. Both of these work:
+   `equation(f,(cx,320),"V = \pi r^2 h",60)` and
+   `` equation(f,(cx,320),`V = \pi r^2 h`,60) `` (use backticks if the LaTeX itself
+   contains a `"`). Same for every `$…$` — it lives in a normal string. Prefer this
    over ASCII math on screen. (`equation` is an image: `show`/`fade`/`move`/`scale`
    animate it; `draw`/trace does not.)
    **Inline `$…$` in ANY text is auto-typeset — whole OR mixed.** Use a backtick
