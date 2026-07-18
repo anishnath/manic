@@ -5,7 +5,7 @@ title("Creator v2 — LaTeX Calculus");
 canvas("9:16");
 template("shorts");
 
-creator(me, "@calculuslab name=Calculus_Lab tagline=One_integral_at_a_time accent=cyan secondary=magenta footer=signature cta=Save_for_revision safe=shorts");
+creator(me, "@anish2good name=Calculus_Lab tagline=One_integral_at_a_time yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan secondary=magenta footer=signature cta=Save_for_revision safe=shorts");
 
 quiz(q, `Evaluate $\int_0^1 2x\,dx$.`,
      "studio layout=media-first reveal=rise timer=bar density=comfortable motion=calm safe=shorts accent=cyan");

@@ -2,8 +2,8 @@
 //!
 //! This is the seam between the domain-agnostic front end and the kits. The
 //! lowerer itself only knows a handful of reserved control-flow names
-//! (`title`, `size`, `par`, `seq`, `stagger`, `section`, `wait`, `beat`,
-//! `mark`). Every other call name is looked up in the registry, which kits
+//! (`title`, `size`, `par`, `seq`, `stagger`, `timed`, `during`, `section`,
+//! `wait`, `beat`, `mark`). Every other call name is looked up in the registry, which kits
 //! populate with **constructors** (declare entities at t=0) and **verbs**
 //! (produce timeline clips). Meaning lives in the kits; structure lives here.
 //!
@@ -14,7 +14,7 @@
 //! So an entity may be referenced by a beat that appears above its
 //! declaration — order the cast and the script however reads best.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use macroquad::prelude::{Color, Vec2, Vec3};
 
@@ -99,6 +99,8 @@ fn is_reserved(name: &str) -> bool {
             | "par"
             | "seq"
             | "stagger"
+            | "timed"
+            | "during"
             | "section"
             | "wait"
             | "beat"
@@ -404,7 +406,9 @@ fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
     if let Some((name, span)) = template {
         movie.template = crate::style::Template::by_name(&name).ok_or_else(|| {
             Error::new(
-                format!("unknown template `{name}` — try `plain` or `terminal`"),
+                format!(
+                    "unknown template `{name}` — try `mono`, `plain`, `terminal`, `paper`, `blueprint`, or `shorts`"
+                ),
                 span,
             )
         })?;
@@ -495,6 +499,15 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
             movie.play(clip);
             Ok(())
         }
+        "timed" => {
+            let clip = build_timed_scene(&mut movie.scene, s, registry)?;
+            movie.play(clip);
+            Ok(())
+        }
+        "during" => Err(Error::new(
+            "`during` belongs inside `timed(clock) { ... }`",
+            s.name_span,
+        )),
         _ => {
             // a mutating verb carries state forward, so it gets `&mut scene`
             if let Some(f) = registry.mut_verbs.get(s.name.as_str()) {
@@ -571,7 +584,7 @@ fn run_ctor(f: CtorFn, scene: &mut Scene, s: &Stmt) -> Result<(), Error> {
 fn consumes_structure_id(name: &str) -> bool {
     matches!(
         name,
-        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "socials" | "figure" | "explain" | "endcard"
+        "karaoke" | "wordpop" | "swing" | "run" | "forces" | "phase" | "well" | "timegraph" | "energygraph" | "option" | "timing" | "timerstyle" | "socials" | "figure" | "explain" | "endcard"
     )
 }
 
@@ -651,6 +664,11 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
     match s.name.as_str() {
         "wait" | "beat" => Ok(Clip::wait(args_of(s).num(0)?)),
         "par" | "seq" | "stagger" => build_block_scene(scene, s, registry),
+        "timed" => build_timed_scene(scene, s, registry),
+        "during" => Err(Error::new(
+            "`during` belongs directly inside `timed(clock) { ... }`",
+            s.name_span,
+        )),
         "section" | "mark" => Err(Error::new(
             format!("`{}` can't appear inside a par/seq/stagger block", s.name),
             s.name_span,
@@ -682,6 +700,83 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
             }
         }
     }
+}
+
+/// `timed(clock) { during("phase") { ... } }` — schedule ordinary scene
+/// animation against the exact named phases declared by generic `timing`.
+/// Phase blocks may appear in any source order because their absolute offsets
+/// come from the controller. The native timer playback runs in parallel.
+fn build_timed_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {
+    let args = args_of(s);
+    args.max(1)?;
+    let id = args.ident(0)?;
+    let timing = scene.timings.get(&id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("no generic timing controller `{id}` — call `timing({id}, \"intro=1 main=6\")` first"),
+            args.span_of(0),
+        )
+    })?;
+    let block = s.block.as_ref().ok_or_else(|| {
+        Error::new("`timed` needs a `{ ... }` block", s.name_span)
+    })?;
+    let mut clips = vec![crate::kits::creator::build_generic_timing_clip(
+        scene,
+        &id,
+        None,
+        args.span_of(0),
+    )?];
+    let mut used = HashSet::new();
+    for phase_stmt in block {
+        if phase_stmt.name != "during" {
+            return Err(Error::new(
+                format!("`timed` contains `{}` — wrap phase animation in `during(\"phase\") {{ ... }}`", phase_stmt.name),
+                phase_stmt.name_span,
+            ));
+        }
+        let phase_args = args_of(phase_stmt);
+        phase_args.max(1)?;
+        let raw_name = phase_args.text(0)?;
+        let phase_name = raw_name.to_ascii_lowercase();
+        let Some((offset, duration)) = timing.phase(&phase_name) else {
+            let available = timing
+                .phases
+                .iter()
+                .map(|phase| phase.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Error::new(
+                format!("unknown timing phase `{raw_name}` — available phases: {available}"),
+                phase_args.span_of(0),
+            ));
+        };
+        if !used.insert(phase_name.clone()) {
+            return Err(Error::new(
+                format!("timing phase `{raw_name}` has more than one `during` block"),
+                phase_args.span_of(0),
+            ));
+        }
+        let phase_block = phase_stmt.block.as_ref().ok_or_else(|| {
+            Error::new("`during` needs a `{ ... }` block", phase_stmt.name_span)
+        })?;
+        let mut inner = Vec::with_capacity(phase_block.len());
+        for stmt in phase_block {
+            inner.push(lower_inner(scene, stmt, registry)?);
+        }
+        let clip = Clip::seq(inner);
+        if clip.dur > duration + 0.001 {
+            return Err(Error::new(
+                format!(
+                    "phase `{raw_name}` is {duration:.2}s but its animation takes {:.2}s — shorten the block or increase `{phase_name}=...`",
+                    clip.dur
+                ),
+                phase_stmt.name_span,
+            ));
+        }
+        let remaining = (duration - clip.dur).max(0.0);
+        let padded = Clip::seq(vec![clip, Clip::wait(remaining)]);
+        clips.push(padded.shift(offset));
+    }
+    Ok(Clip::par(clips))
 }
 
 fn build_block_scene(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip, Error> {

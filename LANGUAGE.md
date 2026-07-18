@@ -48,7 +48,7 @@ a beat written above its declaration.
 | `title("...")` | window title + the masthead shown on every frame |
 | `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
 | `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
-| `template("name")` | the overall look. `"plain"` (default) is a blank screen — background + your content only. `"terminal"` neon window chrome (border, dots, title, rule); `"paper"` ink on cream; `"blueprint"` white/cyan on navy; `"shorts"` a punchy vertical-video look (neon on black, extra-strong glow, no chrome). Each **retints** the palette (`cyan`/`fg`/`bg`…). Override at render with `--template <name>`. |
+| `template("name")` | the overall look. `"mono"` is the **default** when omitted: black-and-white editorial on near-black with subtle glow (aliases `monochrome`, `blackwhite`, `black-white`, `bw`). `"plain"` keeps the original neon palette; `"terminal"` adds neon window chrome; `"paper"` is ink on cream; `"blueprint"` is white/cyan on navy; `"shorts"` is a restrained colour Creator surface. Each remaps every named semantic colour (`cyan`/`magenta`/`lime`/`fg`/`dim`/`panel`/…). Bespoke `hue(...)` colours pass through. Override the DSL choice for one render with `--template <name>`. |
 | `masthead("left", ["right"])` | your own header text in the top corners (shown by `terminal`). Empty by default — no engine branding is ever baked in. |
 
 Put these first. (It's `canvas`, not `size` — `size` sets text size.)
@@ -297,6 +297,34 @@ stagger(0.08) {
   show(a);
   show(b);
   show(c);
+}
+```
+
+### Generic Timing v2 — named phases for any scene
+
+`timing` is not limited to quizzes. With a fresh id it creates a format-neutral
+clock whose phase names are yours:
+
+| call | meaning |
+|---|---|
+| `timing(id, [(x,y)], "intro=1 demo=6 finish=1")` | declare exact named phase durations and create a native timer; `duration=6` is shorthand for one `main` phase |
+| `timed(id) { ... }` | schedule the clock and its `during` blocks together |
+| `during("phase") { ... }` | place one block at that phase's absolute start; source order does not affect timing, short blocks are padded, overruns/duplicates/unknown phases error |
+| `run(id)` | timer-only playback when no authored phase blocks are needed; generic exact clocks reject a competing `run(id,dur)` |
+
+Restyle the clock with the same `timerstyle` vocabulary documented in the
+Creator kit: `ring`, `bar`, `number`, `segments`, `ticks`, `pulse`, or `none`.
+
+```manic
+canvas("16:9");
+text(heading, (cx, 100), "ONE CLOCK · THREE PHASES"); hidden(heading);
+circle(ball, (260, 420), 48);
+timing(clock, (1160, 80), "intro=1 motion=4 finish=1");
+timerstyle(clock, "look=ticks direction=fill label=SCENE finish=hold");
+timed(clock) {
+  during("intro")  { show(heading, 0.5); }
+  during("motion") { move(ball, (900, 420), 3.5); }
+  during("finish") { pulse(ball); }
 }
 ```
 
@@ -683,30 +711,40 @@ run(p, 7);                           // sweep the incidence angle — the fan sw
 
 ## The creator kit
 
-**Social-video format templates** — set a reusable profile once, then drop it into
-a vertical (`canvas("9:16")`) scene. (More builtins — `quiz`/`countdown`/… — land
-here next; today it's the profile + footer.)
+**Responsive social-video formats** — one source adapts to 9:16, 4:5, 1:1 and
+16:9. Creator owns safe layout regions, question hierarchy, fitted options,
+timing, timer presentation, reusable identity and end cards. The global
+`mono` template is the professional black-and-white default; use `shorts` when
+accent hue matters.
 
 | builtin | what it does |
 |---|---|
-| `creator(id, "spec")` | a reusable **profile** (set once). `spec` is space-separated: a display handle (`@name`), `platform=user` pairs (`yt=`, `x=`, `ig=`, `tt=`, `gh=`, `web=`), and `accent=colour`. Creates no drawables — `socials` reads it. |
-| `socials(id, [at])` | draw the **footer**: a rule + a row of **drawn** platform icons (only the configured ones) + the handle. Icons are vector-drawn (template-safe, no downloads); for exact brand logos use `image(...)`. `at` centres the row (default the 9:16 bottom). Tagged bare `{id}` + `{id}.footer`. |
-| `quiz(id, "question", ["style"])` | start a **quiz Short**: a framed question header + answer cards + a countdown widget. Add answers with `option`, then `run(id, [dur])` plays the whole **ask → countdown → reveal** beat. Parts `{id}.q/.ring/.timer/.c{i}/.t{i}/.hl`. Optional `style` is an order-free mix of a card **skin** — `"badge"` (framed panel + letter badges, **default**), `"minimal"` (kicker + accent rule, outline rows), `"glass"` (glowing borders), `"plain"` (flat) — and a question **reveal** — `"type"` (typewriter, **default**), `"fade"`, `"rise"`, `"pop"`, `"cut"`. Omit `style` for the badge+typewriter default; add one only for variety (`"glass"`, `"minimal fade"`, …). |
-| `option(id, "text", [correct])` | add an answer to quiz `id`. `run` lays them out by count — a **centred column for ≤3, a 2×2 grid for 4+** — and slides them in; text wraps to fit. A trailing `correct` marks the right one — it gets a lime highlight + a drawn check on the reveal while the others dim. |
-| `countdown(id, [at], [secs])` | a standalone countdown widget — a **draining ring** + a digit, counting from `secs` (default 5). Play it with `run(id, secs)`. |
-| `safezone(id, [inset])` | a faint 9:16 **content-safe** guide rectangle (clear of the platform clock / action bar) — a composing aid; `hidden(id)` it for the final render. |
-| `figure(target, [center], [size])` | **auto-fit** a group into the figure zone: scales + moves `target` (any entity / kit sim — tag its parts with one name) to fill the zone, so an illustration drops in without hand-placing. |
+| `creator(id, "spec")` | store one reusable profile. The first bare token is its handle; keys include `name`, `tagline`, `accent`, `secondary`, `footer=social|compact|signature|none`, `cta`, `safe=shorts|reels|tiktok|clean`, and optional custom `logo`. Platform values use `yt|youtube`, `x|twitter`, `ig|instagram`, `tt|tiktok`, `fb|facebook`, `li|linkedin`, `gh|github`, `web|site|url`, and `email|mail`. Use underscores for spaces inside values. Creates no drawables itself. |
+| `socials(id, [at])` | draw the selected responsive footer. Social mode uses normalized native YouTube/X/Instagram/TikTok/Facebook/LinkedIn/GitHub/web/email marks—no image or SVG assets required. Up to three configured values appear beside their icons; larger sets collapse to icons plus the profile handle. Tags include `{id}.footer`, `{id}.socials`, `{id}.social.<platform>` and `.icon`/`.label`. |
+| `quiz(id, "question", ["spec"])` | start a responsive quiz. The zero-config default is the professional `studio` skin, typewriter question, letter labels, balanced pace and draining ring. The order-free spec accepts legacy skin/reveal words and `skin`, `reveal=type|fade|rise|pop|cut`, `layout=auto|stack|grid|media-first`, `density=compact|comfortable|spacious`, `labels=letters|numbers|none`, `timer=ring|bar|number|segments|ticks|pulse|none`, `motion=calm|studio|punch|cut`, `pace=quick|balanced|calm|dramatic`, `seconds`, `safe`, and `accent`. Question tags are `{id}.question` plus `.panel`, `.kicker`, `.rule`, `.text`; compact ids such as `{id}.q` remain compatible. |
+| `option(id, "text", [correct])` | add one of 1–6 answers. Stack supports up to four; auto/grid support six and centre a single final-row card. Type auto-fits, every card reserves a right-side check zone, and exactly one trailing `correct` choice receives the reveal highlight/check while distractors dim. Stable tags are `{id}.options`, `{id}.option.a`…`.f`, role suffixes `.card`/`.badge`/`.label`/`.text`/`.check`, and `{id}.option.correct`. |
+| `timing(quiz, "spec")` | configure the quiz choreography independently: a `quick|balanced|calm|dramatic` preset and optional exact `ask`, `options`, `think`, `reveal`, `hold`, `stagger` or `seconds` values. A preset may be scaled by `run(q,dur)`; after any numeric phase use `run(q)` so there is only one duration source. |
+| `timerstyle(id, "spec")` | style a quiz or generic Timing v2 clock without changing its phases: `look`, `position=auto|header|media|below`, `number=inside|outside|none`, `direction=drain|fill`, `size`, `thickness`, `color`, `track`, `label`, `font=mono|display`, and `finish=fade|hold|flash|pulse`. Stable groups are `{id}.timer`, `.timer.track`, `.timer.progress`, `.timer.value`, `.timer.label`, `.timer.effects`. |
+| `countdown(id, [at], [secs], ["style"])` | standalone timer using the same native looks and style vocabulary. Play it with `run(id, secs)`. |
+| `safezone(id, [inset|"profile"])` | visualize a numeric inset or named `shorts`/`reels`/`tiktok`/`clean` safe area while composing. Remove or hide the guide for export. |
+| `figure(target, [center], [size])` | auto-fit any entity/group—including text, images, LaTeX equations and paths—into the responsive media zone. Tag every source dependency of a live construction; incomplete live groups fail clearly. |
+| `explain(id, "text", ["source"])` | optional author-supplied answer context shown at reveal. Do not add it unless the explanation/source is actually authored. |
+| `endcard(profile, ["cta=... safe=..."])` | build a hidden responsive creator lockup; reveal it at the close with `show(profile.endcard)`. |
 
 ```manic
 canvas("9:16");
-creator(me, "@manic yt=@mychannel x=manic accent=magenta");
-quiz(q, "3 centres are always collinear — on WHICH line?");
-option(q, "the Euler line", correct);
-option(q, "a perpendicular bisector");
-option(q, "an angle bisector");
-option(q, "a median");
-run(q, 14);        // types the question, staggers the cards, counts down, reveals
-socials(me);       // footer, bottom-safe
+template("mono");
+creator(me, "@anish2good name=Olympiad_Minute yt=zarigatongy x=@anish2good web=8gwifi.org/manic footer=social safe=reels");
+quiz(q, "In a cyclic quadrilateral, angle A is 68 degrees. Find angle C.",
+     "studio labels=letters layout=auto safe=reels");
+option(q, "68 degrees");
+option(q, "102 degrees");
+option(q, "112 degrees", correct);
+option(q, "122 degrees");
+timing(q, "balanced ask=1.2 options=1 think=4.8 reveal=0.8 hold=2.2");
+timerstyle(q, "look=bar direction=drain label=THINK finish=pulse");
+socials(me);
+run(q);
 ```
 
 ## The 3D kit

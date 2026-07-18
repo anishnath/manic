@@ -3,9 +3,11 @@
 [Introduction](introduction.md)
 
 - [Getting started](getting-started.md)
+- [Create a polished Reel](creator-reels.md)
 - [Shapes — the cast](shapes.md)
 - [Verbs — bringing it to life](verbs.md)
-- [Timing — par, seq & stagger](timing.md)
+- [Timing — flow, named phases & clocks](timing.md)
+- [Templates — choose the whole visual system](templates.md)
 - [Colour & style](colour.md)
 - [The language layer](language-layer.md)
 - [Kits — math, geometry, algorithms](kits.md)

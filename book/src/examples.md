@@ -14,6 +14,6 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Transforms & morphing](ex-transforms.md) — 3 examples
 - [Text & UI](ex-text.md) — 6 examples
 - [Generative & recursive](ex-generative.md) — 9 examples
-- [Creator formats — responsive social video](ex-creator.md) — 5 examples
+- [Creator formats — responsive social video](ex-creator.md) — 9 examples
 - [Boolean shapes](ex-boolean.md) — 1 example
 - [3D scenes](ex-3d.md) — 10 examples

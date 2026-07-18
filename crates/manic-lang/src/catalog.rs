@@ -2232,22 +2232,36 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "socials",
             Ctor,
             "creator",
-            "draw the creator profile's responsive social/compact/signature footer",
+            "draw the creator profile's responsive footer; social mode uses normalized native YouTube/X/Instagram/TikTok/Facebook/LinkedIn/GitHub/web/email icons",
             &[("id", Ident, R), ("at", Point, O)],
         ),
         spec(
             "quiz",
             Ctor,
             "creator",
-            "start a responsive quiz: studio default; optional skin/reveal words or layout/density/timer/motion/safe/accent key=value controls",
+            "start a responsive quiz: studio default; optional skin/reveal/layout/density/labels/timer/pace/seconds/motion/safe/accent controls",
             &[("id", Name, R), ("question", Str, R), ("style", Str, O)],
         ),
         spec(
             "option",
             Ctor,
             "creator",
-            "add one of up to six responsive answer cards; a trailing `correct` marks the right one",
+            "add one of up to six fitted answer cards with stable A–F semantic tags; a trailing `correct` marks the right one",
             &[("id", Ident, R), ("text", Str, R), ("correct", Ident, O)],
+        ),
+        spec(
+            "timing",
+            Ctor,
+            "creator",
+            "generic named-phase timing controller (optional position) or quiz-specific pace/phase configuration; use generic controllers with timed/during",
+            &[],
+        ),
+        spec(
+            "timerstyle",
+            Ctor,
+            "creator",
+            "style a quiz or generic timing controller: optional generic position plus native look, number, direction, size, colours, label and finish",
+            &[],
         ),
         spec(
             "safezone",
@@ -2260,8 +2274,8 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "countdown",
             Ctor,
             "creator",
-            "a standalone countdown widget — a draining ring + digit, counting from `secs`; play with run(id, secs)",
-            &[("id", Name, R), ("at", Point, O), ("secs", Num, O)],
+            "a standalone Timing v2 widget sharing the quiz timer looks and style controls; play with run(id, secs)",
+            &[("id", Name, R), ("at", Point, O), ("secs", Num, O), ("style", Str, O)],
         ),
         spec(
             "figure",
@@ -2288,7 +2302,10 @@ pub fn catalog() -> Vec<BuiltinSpec> {
 }
 
 /// Palette colour names (the only colours the DSL accepts).
-pub const COLORS: &[&str] = &["fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel", "rainbow"];
+pub const COLORS: &[&str] = &[
+    "fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel",
+    "rainbow",
+];
 
 /// Easing names accepted where a `[ease]` argument is allowed.
 pub const EASINGS: &[&str] = &[
@@ -2309,10 +2326,38 @@ pub const EASINGS: &[&str] = &[
 /// sync with the engine's `named_formula` table; guarded by the engine test
 /// `catalog_named_fns_match_engine`.
 pub const NAMED_FNS: &[&str] = &[
-    "sin", "cos", "tan", "asin", "arcsin", "acos", "arccos", "atan", "arctan",
-    "parabola", "sq", "square", "cubic", "cube", "line", "id", "identity", "abs",
-    "exp", "sqrt", "log", "ln", "recip", "inv", "gauss", "bell", "sinc",
-    "sigmoid", "logistic", "relu", "step", "heaviside",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "arcsin",
+    "acos",
+    "arccos",
+    "atan",
+    "arctan",
+    "parabola",
+    "sq",
+    "square",
+    "cubic",
+    "cube",
+    "line",
+    "id",
+    "identity",
+    "abs",
+    "exp",
+    "sqrt",
+    "log",
+    "ln",
+    "recip",
+    "inv",
+    "gauss",
+    "bell",
+    "sinc",
+    "sigmoid",
+    "logistic",
+    "relu",
+    "step",
+    "heaviside",
 ];
 
 /// Build-time control keywords (handled by the parser, not the registry).
@@ -2345,10 +2390,16 @@ pub const CANVAS_PRESETS: &[&str] = &[
 
 /// `template(...)` / `--template` names (primary + aliases).
 pub const TEMPLATES: &[&str] = &[
+    "mono",
     "plain",
     "terminal",
     "paper",
     "blueprint",
+    "shorts",
+    "monochrome",
+    "blackwhite",
+    "black-white",
+    "bw",
     "blank",
     "clean",
     "neon",
@@ -2356,6 +2407,8 @@ pub const TEMPLATES: &[&str] = &[
     "print",
     "light",
     "blue",
+    "short",
+    "punch",
 ];
 
 #[cfg(test)]

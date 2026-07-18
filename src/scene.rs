@@ -111,6 +111,10 @@ pub struct Scene {
     /// Quiz-Short state (`quiz`/`option`): id → question/options/countdown.
     /// `run(id)` reads it to emit the ask → countdown → reveal beat. Build-time.
     pub quizzes: HashMap<String, QuizData>,
+    /// Generic named-phase timing controllers. Unlike `QuizTiming`, these are
+    /// format-neutral: `timed(id) { during("phase") { ... } }` can coordinate
+    /// any ordinary scene while the same native timer widget runs alongside it.
+    pub timings: HashMap<String, TimingData>,
     /// LaTeX equations to rasterise at the RENDER scale (so they're pixel-sharp,
     /// not up/down-scaled). Layout/size are fixed at build; the player renders the
     /// PNG at `dpr = render scale` before the frame loop. `(cache path, latex, em size)`.
@@ -183,13 +187,193 @@ pub enum QuizDensity {
     Spacious,
 }
 
+/// Visible option-index treatment. Letters remain the compatibility/default
+/// choice; numbers and no labels are useful for polls and statement lists.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum QuizLabels {
+    #[default]
+    Letters,
+    Numbers,
+    None,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuizTimer {
     #[default]
     Ring,
     Bar,
     Number,
+    Segments,
+    Ticks,
+    Pulse,
     None,
+}
+
+/// Named timing rhythms for a creator quiz. A preset is a convenient starting
+/// point; `timing(...)` may override any individual phase afterward.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CreatorPace {
+    Quick,
+    #[default]
+    Balanced,
+    Calm,
+    Dramatic,
+}
+
+/// Absolute phase durations (seconds) for the ask → options → think → reveal
+/// → hold beat. `custom` records whether the author supplied numeric phases;
+/// explicit phases intentionally reject a second total duration in `run`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct QuizTiming {
+    pub pace: CreatorPace,
+    pub ask: f32,
+    pub options: f32,
+    pub think: f32,
+    pub reveal: f32,
+    pub hold: f32,
+    pub stagger: f32,
+    pub custom: bool,
+}
+
+impl QuizTiming {
+    pub fn preset(pace: CreatorPace) -> Self {
+        let (ask, options, think, reveal, hold, stagger) = match pace {
+            CreatorPace::Quick => (0.70, 0.70, 3.0, 0.50, 2.10, 0.045),
+            CreatorPace::Balanced => (1.40, 1.20, 5.0, 0.80, 3.60, 0.065),
+            CreatorPace::Calm => (1.80, 1.60, 7.0, 1.00, 3.60, 0.090),
+            CreatorPace::Dramatic => (1.10, 1.40, 5.0, 0.90, 3.60, 0.075),
+        };
+        Self {
+            pace,
+            ask,
+            options,
+            think,
+            reveal,
+            hold,
+            stagger,
+            custom: false,
+        }
+    }
+
+    pub fn total(self) -> f32 {
+        self.ask + self.options + self.think + self.reveal + self.hold
+    }
+}
+
+impl Default for QuizTiming {
+    fn default() -> Self {
+        Self::preset(CreatorPace::Balanced)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerPosition {
+    #[default]
+    Auto,
+    Header,
+    Media,
+    Below,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerNumber {
+    #[default]
+    Inside,
+    Outside,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerDirection {
+    #[default]
+    Drain,
+    Fill,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerFinish {
+    #[default]
+    Fade,
+    Hold,
+    Flash,
+    Pulse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TimerFont {
+    #[default]
+    Mono,
+    Display,
+}
+
+/// Visual tokens for quiz and standalone countdown widgets. Colours are
+/// optional semantic overrides; the quiz accent and DIM track remain defaults.
+#[derive(Debug, Clone)]
+pub struct CreatorTimerSpec {
+    pub look: QuizTimer,
+    pub position: TimerPosition,
+    pub number: TimerNumber,
+    pub direction: TimerDirection,
+    pub finish: TimerFinish,
+    pub font: TimerFont,
+    pub size: f32,
+    pub thickness: f32,
+    pub color: Option<macroquad::prelude::Color>,
+    pub track: Option<macroquad::prelude::Color>,
+    pub label: String,
+}
+
+impl Default for CreatorTimerSpec {
+    fn default() -> Self {
+        Self {
+            look: QuizTimer::Ring,
+            position: TimerPosition::Auto,
+            number: TimerNumber::Inside,
+            direction: TimerDirection::Drain,
+            finish: TimerFinish::Fade,
+            font: TimerFont::Mono,
+            size: 1.0,
+            thickness: 1.0,
+            color: None,
+            track: None,
+            label: String::new(),
+        }
+    }
+}
+
+/// One named, absolute-duration phase in a generic timing controller.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TimingPhase {
+    pub name: String,
+    pub duration: f32,
+}
+
+/// Format-neutral Timing v2 data. `timing(id, ...)` creates this, `timerstyle`
+/// controls its optional native clock, and the lowerer schedules `during`
+/// blocks at the exact offsets derived from `phases`.
+#[derive(Debug, Clone)]
+pub struct TimingData {
+    pub phases: Vec<TimingPhase>,
+    pub timer_style: CreatorTimerSpec,
+    pub timer_rect: CreatorRect,
+    pub ui_scale: f32,
+}
+
+impl TimingData {
+    pub fn total(&self) -> f32 {
+        self.phases.iter().map(|phase| phase.duration).sum()
+    }
+
+    pub fn phase(&self, name: &str) -> Option<(f32, f32)> {
+        let mut offset = 0.0;
+        for phase in &self.phases {
+            if phase.name == name {
+                return Some((offset, phase.duration));
+            }
+            offset += phase.duration;
+        }
+        None
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -215,7 +399,9 @@ pub struct QuizData {
     pub skin: QuizSkin,
     pub layout: QuizLayout,
     pub density: QuizDensity,
-    pub timer_style: QuizTimer,
+    pub labels: QuizLabels,
+    pub timer_style: CreatorTimerSpec,
+    pub timing: QuizTiming,
     pub motion: CreatorMotion,
     pub safe: CreatorSafe,
     pub accent: Option<macroquad::prelude::Color>,
@@ -273,6 +459,9 @@ pub struct QuizOpt {
     pub card: String,
     pub text: String,
     pub correct: bool,
+    /// Whether this option has a filled badge behind its A/B/C/D (or numeric)
+    /// label. The runner uses this for the correct-state badge overlay.
+    pub badge: bool,
     /// Every slide-in part of this card (card, badge, letter, text) paired with
     /// its offset from the card centre, so `run` can move + fade the whole card
     /// as a unit regardless of skin.

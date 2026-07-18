@@ -135,10 +135,11 @@ a polished studio default, configurable motion/timers, responsive footers and en
 
 ```manic
 canvas("9:16"); template("shorts");
-creator(me, "@mathwithme name=Math_With_Me footer=signature accent=magenta");
-quiz(q, "What is 7 x 8?", "studio timer=bar motion=calm");
+creator(me, "@anish2good name=Math_With_Me yt=zarigatongy x=@anish2good web=8gwifi.org/manic footer=social accent=magenta");
+quiz(q, "What is 7 x 8?", "studio labels=letters pace=calm motion=calm");
 option(q, "54"); option(q, "56", correct); option(q, "48"); option(q, "63");
-run(q, 8);                                  // ask → countdown → reveal, the whole beat
+timerstyle(q, "look=segments position=media finish=pulse");
+run(q, 8);                                  // scales the calm ask → think → reveal beat
 socials(me);
 endcard(me);                                // reveal later with show(me.endcard)
 ```
@@ -148,11 +149,16 @@ endcard(me);                                // reveal later with show(me.endcard
 rule, outline rows) · `glass` (glowing borders) · `plain` (flat) — and a question
 **reveal** — `type` (typewriter, default) · `fade` · `rise` · `pop` · `cut`.
 `option(id, "text", [correct])` adds an answer; `run` **auto-lays-out** one to six cards,
-fits their type, slides them in, drains the selected timer
-ring, and lights up the correct card (green badge + check). Also standalone:
-`countdown(id, [at], [secs])`, `safezone(id, [inset|"profile"])`, `figure(target,
-[center], [size])`, optional `explain`, and `endcard`. Social icons remain
-vector-drawn; exact brand art comes from the creator's `logo=` image.
+fits their type, slides them in, plays the selected native timer, and lights up the correct
+card (green badge + check). `timing(id,"preset ask=... options=... think=... reveal=... hold=... stagger=...")`
+separates exact choreography from `timerstyle(id,"look=... position=... direction=... finish=...")`.
+The zero-config default remains a balanced draining ring; `run(id,dur)` scales a preset,
+while an explicitly timed quiz uses `run(id)` so authored seconds remain exact. Also standalone:
+`countdown(id, [at], [secs], ["style"])`, `safezone(id, [inset|"profile"])`, `figure(target,
+[center], [size])`, optional `explain`, and `endcard`. Social icons are
+vector-drawn with normalized native marks for YouTube, X, Instagram, TikTok,
+Facebook, LinkedIn, GitHub, web, and email. Profile values appear beside up to
+three icons; no image or SVG assets are required.
 
 ---
 

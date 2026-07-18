@@ -23,9 +23,10 @@ are occurrences across the `geometry/` samples.
   (`bar{i}`). All collapse to literals before rendering — kits are unaffected.
 - **Look / config**: `canvas` accepts pixels or presets (`"16:9"`/`"square"`/
   `"portrait"`/`"1080p"`/`"4k"`); `w`/`h`/`cx`/`cy` predefined. Selectable
-  **templates** — `plain` (default, blank screen), `terminal`, `paper`,
-  `blueprint` — each retints the palette and sets chrome/glow/CRT; author-set
-  `masthead` (no engine branding baked in). Same content renders in any template.
+  **templates** — `mono` (default black-and-white editorial), `plain`,
+  `terminal`, `paper`, `blueprint`, `shorts` — each retints the palette and sets
+  chrome/glow/CRT; author-set `masthead` (no engine branding baked in). Same
+  content renders in any template.
 - Animation: named verbs + a general `to(id, property, value)` (x, y, opacity,
   scale, angle, trace, color, **hue** — cycles around the colour wheel, and
   **value** — a live `counter`'s number); `rotate`/`spin`; camera `cam`/`zoom`;
@@ -1173,8 +1174,8 @@ Proposed v2 authoring surface (the exact accepted keys are documented by parser
 errors and tests):
 
 ```manic
-canvas("9:16"); template("shorts");
-creator(me, "@opticslab name=Optics_Lab accent=cyan footer=compact");
+canvas("9:16"); template("mono");
+creator(me, "@anish2good name=Optics_Lab yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan footer=compact");
 quiz(q, "Which glass bends blue light more?",
      "studio layout=media-first reveal=rise timer=bar density=comfortable");
 option(q, "Crown glass");
@@ -1196,8 +1197,8 @@ socials(me);
 - Footer variants: `compact`, `signature`, `social`, and `none`; automatic layout
   uses configured identity content and stays inside the active safe area.
 - A reusable `endcard(profile, [spec])` produces a professional final creator
-  lockup with optional CTA. Exact platform artwork remains author-supplied via
-  `image(...)`; manic does not bundle trademark logos.
+  lockup with optional CTA. Custom avatar/channel art remains optional through
+  `logo=`; the social footer itself uses native vector marks.
 - Brand choices are creator content, separate from manic's engine-level recorded
   watermark/pre-roll and from the global canvas `template()` palette.
 
@@ -1228,11 +1229,20 @@ words and entity ids remain; ✅ v2 `layout`/`density`/`timer`/`motion`/`safe`/
 guarded at four); ✅ optional `explain`; ✅ expanded creator profile, four footer
 styles and hidden `endcard`; ✅ improved `figure` bounds for paths/text/images/
 equations plus live-dependency diagnostics; ✅ catalog, prompt, book, gallery and
-`examples/creator-v2.manic` updated. Ten creator tests cover the v2 surface,
-including all four aspect ratios; the complete 184-test library suite passes.
+`examples/creator-v2.manic` updated. Sixteen Creator/Timing tests cover the v2
+surface, including all four aspect ratios and generic named phases; the complete
+193-test library suite passes.
 Question, choices/countdown, reveal, end-card, square and landscape frames were
 rendered and visually inspected. That visual pass caught and fixed translucent
 corner overdraw, timer/explanation collision, and narrow-card text overflow.
+
+**Gold-path Reel documentation — shipped ✅ (2026-07):** mdBook now promotes a
+first-class `Create a polished Reel` workflow directly after Getting Started.
+It covers platform-safe composition, phone-first content hierarchy, layout and
+motion choices, exact pacing, native timer selection, reusable branding,
+end-card design, still-frame review, and Reel export. The copyable
+`examples/perfect-reel.manic` starter is editor-checked and visually reviewed at
+its hook, countdown, reveal, and end-card beats.
 
 **Creator v2 + LaTeX review set — shipped ✅ (2026-07):** three focused examples
 exercise inline and display math through the responsive Creator surface:
@@ -1242,6 +1252,75 @@ exercise inline and display math through the responsive Creator surface:
 landscape frames were rendered and visually inspected. The review also fixed
 tintable equation images to use semantic template remapping, keeping formula
 options legible on light templates.
+
+### Creator v2.4 — questions, options and native socials shipped ✅ (2026-07)
+
+This pass deliberately does **not** expand general image/asset support. It
+polishes the high-frequency authored surfaces that should work from DSL alone:
+
+- Question headers now allocate separate decoration and text regions, so the
+  kicker/rule cannot collide with a wrapped prompt. Stable tags expose
+  `{id}.question` plus `.panel`, `.kicker`, `.rule`, and `.text` roles while
+  preserving existing ids such as `q.q` and `q.qrule`.
+- `labels=letters|numbers|none` controls the option index treatment. Letters are
+  the compatibility default; number/no-label modes suit ordered choices and
+  polls. Answer cards reserve a uniform right-side check zone, auto-fit long
+  text, and centre a single card in the final row of a five-choice grid.
+- Options expose stable `{id}.options`, `{id}.option.a` through `.option.f`,
+  role suffixes (`.card`, `.badge`, `.label`, `.text`, `.check`), and
+  `{id}.option.correct`. This makes common A/B/C/D styling precise without
+  depending on internal compact ids.
+- The social footer uses one normalized native-vector registry for YouTube, X,
+  Instagram, TikTok, Facebook, LinkedIn, GitHub, web, email, and a generic-link
+  fallback. Common aliases normalize to stable tags such as
+  `{id}.social.youtube` and `{id}.social.web`. Up to three configured values are
+  displayed as professional icon+text lockups; larger sets remain responsive by
+  collapsing to icons plus the profile handle.
+- Maintained Creator examples now use `yt=zarigatongy`, `x=@anish2good`, and
+  `web=8gwifi.org/manic`. The flagship v2 example is asset-free; optional
+  `logo=` compatibility remains for authors who intentionally provide a custom
+  avatar or channel mark.
+
+Parser/layout/compatibility coverage includes label modes, semantic tags,
+five-choice centring, canonical social aliases, exact profile values, and the
+unknown-platform fallback. The mdBook, builtin catalog, system prompt, and
+Creator/Reel examples document the same shipped surface. The complete 196-test
+library suite passes, including editor validation for every shipped example.
+
+### Timing v2 core — generic + Creator adapters shipped ✅ (2026-07)
+
+The original quiz timer deliberately shipped as a small surface
+(`ring|bar|number|none`) with a fixed five-second display and motion-dependent
+phase percentages. Timing v2 keeps the ring as the polished zero-config default
+but separates **choreography** from **timer appearance**:
+
+- `timing(clock,[(x,y)],"intro=1 demo=6 finish=1")` creates a
+  format-neutral named-phase controller. `timed(clock) { during("intro") {
+  ... } ... }` schedules any ordinary manic animation at exact phase offsets
+  while running the native timer in parallel. Phase source order is irrelevant;
+  short blocks are padded, while overruns, duplicates, and unknown phases fail
+  clearly instead of drifting. `duration=6` is a one-phase `main` shorthand.
+- `timing(q,"...")`: pace presets plus explicit `ask`, `options`, `think`,
+  `reveal`, `hold`, and `stagger` phases. Explicit phases make `run(q)` derive
+  the total duration; legacy `run(q,dur)` continues to scale the preset beat.
+- `timerstyle(clock|q,[(x,y)],"...")`: native `ring`, `bar`, `number`,
+  `segments`, `ticks`, `pulse`, and `none` looks with responsive position,
+  count direction, size, thickness, semantic colours, optional label/digit
+  placement, and finish cue. `run(clock)` is the timer-only form; a generic
+  controller never accepts a competing `run(clock,dur)` duration.
+- Stable timer-part tags expose track/progress/value/label/effects for ordinary
+  modifiers. Standalone `countdown` uses the same visual vocabulary.
+- SVG is intentionally deferred: native primitives already provide scalable,
+  template-aware, progress-animatable timers. A future SVG feature should
+  convert paths to native traceable geometry instead of rasterizing them into a
+  non-animatable timer image.
+
+Delivered with exact generic/quiz phase and counter tests, backward
+compatibility, catalog and prompt coverage, a non-quiz physics example,
+dedicated portrait/square/landscape examples, and the six-look comparison
+gallery. All 193 tests pass. Mid-countdown frames were rendered and
+visually inspected at 9:16, 1:1, and 16:9; that review also corrected horizontal
+timer digit/label spacing so segmented and bar looks stay inside their regions.
 
 ## Creator format templates — manic for social creators (v1 shipped)
 
@@ -1260,7 +1339,7 @@ timer → time-out → the correct answer is revealed (right card glows, the res
 
 ```manic
 canvas("9:16");                 // portrait 1080×1920 (already supported)
-creator(me, handle: "@myhandle", x: "myhandle", yt: "@mychannel", accent: gold);
+creator(me, "@anish2good yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=gold");
 
 // FREEDOM path — builder verbs: any number of options, per-option media later
 quiz(q, "Which glass bends BLUE light more?");
@@ -1338,11 +1417,12 @@ the physics sims followed.
    contrast for tiny phone screens, safe-zone insets on by default.
 
 **SHIPPED so far (`src/kits/creator.rs`):** ✅ **`creator(id, "spec")`** — a reusable
-profile parsed from a space-separated spec (`@handle`, `yt=`/`x=`/`ig=`/`tt=`/`gh=`/
-`web=` pairs, `accent=colour`), stored in `Scene::creators`. ✅ **`socials(id, [at])`**
-— draws the footer (rule + a row of **drawn vector platform icons**, only the
-configured ones, + the handle; `at` defaults to the 9:16 bottom). No downloads / no
-trademark PNGs — a creator wanting exact logos uses `image(...)`. ✅ **`quiz(id,
+profile parsed from a space-separated spec (`@handle`, `yt=`/`x=`/`ig=`/`tt=`/
+`fb=`/`li=`/`gh=`/`web=`/`email=` pairs, `accent=colour`), stored in
+`Scene::creators`. ✅ **`socials(id, [at])`** — draws the footer using normalized
+native platform marks and configured values; `at` defaults to the responsive
+bottom safe region. It needs no downloads or image/SVG assets; `logo=` remains
+available for a separate custom avatar in compact/signature layouts. ✅ **`quiz(id,
 "question")`** + **`option(id, "text", [correct])`** — the question (typewriter,
 wrapped) + auto **2×2** option grid + countdown widget; the correct option gets a
 lime highlight. ✅ **`run(id, [dur])`** drives the whole **ask → countdown →
@@ -1434,28 +1514,45 @@ alone is a proven, repeatable viral format — a creator can make one a day.
 
 ## Templates / themes
 
-**Shipped (v1).** The look is now a selectable **template**, chosen with
+**Shipped.** The look is a selectable **template**, chosen with
 `template("name")` (or `--template <name>` at render time). Chrome is driven by
 `style::Template` (`Chrome::None|Minimal|Full` + background + masthead strings),
 carried on the `Movie` and read by `render::draw_page_chrome`.
-- **`plain` (default)** — a blank screen: background + content only, no frame /
-  dots / masthead / rule. This is now the out-of-the-box look.
+- **`mono` (default)** — restrained black-and-white editorial palette on a
+  near-black blank screen, no frame/dots/masthead/rule, with a subtle glow. A
+  DSL file that omits `template(...)` gets this look.
+- **`plain`** — the original saturated neon palette on a blank screen, retained
+  as an explicit compatibility choice.
 - **`terminal`** — the neon terminal-window chrome (border, corner brackets,
   window dots, centred title, masthead, two-tone rule), now opt-in.
 
+`mono` aliases are `monochrome`, `blackwhite`, `black-white`, and `bw`. Tests
+cover the DSL default, explicit-template override, aliases, and greyscale
+remapping of every named semantic colour. Both the explicit mono Timing v2
+scene and a template-free sine-wave scene were rendered and visually inspected.
+
+**mdBook template guide shipped (2026-07).** Templates now have a dedicated
+navigation chapter with a runnable mono sample, selection matrix, aliases,
+semantic-colour and `hue(...)` behavior, DSL-versus-CLI override rules,
+Creator/Reel recommendations, and phone-size review tips. Getting Started,
+Colour & Style, Creator formats, the Reel gold path, and the introduction link
+back to the same guide.
+
 **Runtime palette DONE.** Each template carries a `style::Palette` (bg/fg/cyan/
-magenta/lime/dim/panel). The engine still bakes neon everywhere; the renderer
+magenta/lime/gold/red/orange/blue/dim/panel). The engine still bakes neon everywhere; the renderer
 **remaps** each palette colour to the active template's at draw time
 (`Palette::remap`, in `draw_entity`), so `--template` retints **content** too,
 while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`
-(default, neon palette), `terminal` (neon + chrome), `paper` (ink on cream),
-`blueprint` (white/cyan on navy). **Masthead is author-set** (`masthead(...)`),
-empty by default — no `manic ~ %` / `60FPS` branding is baked into any template.
+(neon palette), `terminal` (neon + chrome), `paper` (ink on cream), `blueprint`
+(white/cyan on navy), `shorts` (creator studio), and `mono` (default greyscale).
+**Masthead is author-set** (`masthead(...)`), empty by default — no
+`manic ~ %` / `60FPS` branding is baked into any template.
 
 **Per-template glow + CRT DONE.** Each template has a `glow` multiplier (applied
 to every entity's halo at render) and a `crt` default. `plain`/`terminal` glow
-= 1 (neon); `paper`/`blueprint` glow = 0 (crisp, flat — right for print). `--crt`
-still forces the post-process on regardless of the template default.
+= 1 (neon), `mono` = 0.35 (subtle), `shorts` = 0.65, and
+`paper`/`blueprint` = 0 (crisp, flat — right for print). `--crt` still forces
+the post-process on regardless of the template default.
 
 **Still to do:** template-controlled **fonts** (needs alternate font assets
 bundled — the separate "selectable fonts" work); more palettes; a `minimal`
@@ -1478,45 +1575,16 @@ student/teacher style — not just clean neon geometry. Two independent layers:
 - The two compose: `chalkboard` template + `sketch` style = teacher-at-the-board.
 Decide later.
 
-**What a template bundles:**
-- palette + the named-colour map (what `cyan`/`magenta`/`lime`/`fg`/`dim`/`bg`/
-  `panel` resolve to — each theme can retint these semantic roles);
-- fonts (mono / display);
-- chrome style (terminal window frame · plain · paper/notebook · blueprint);
-- glow factor and CRT default (on for neon, off for a print look);
-- masthead text/format.
+**What a template bundles today:**
+- palette + the complete named-colour map (`fg`, `dim`, `panel`, and every
+  semantic accent);
+- chrome style (none/minimal/full), glow factor, and CRT default;
+- optional author-set masthead text.
 
-**Chrome is developer branding — must be optional.** Today every frame bakes in
-the terminal frame, traffic-light dots, the accent rule, and the masthead text
-`manic ~ %` / `60FPS · DETERMINISTIC` (all in `render.rs::draw_page_chrome`).
-A *content author* (the target user) doesn't want engine branding in their
-video. So chrome needs levels — at minimum **`full`** (frame + dots + masthead,
-today's look), **`minimal`** (masthead only, no window frame), and **`clean`**
-(nothing but the author's content on the background). The masthead is
-**author-set or empty** — never baked technical text like "60FPS ·
-DETERMINISTIC". Selectable per-movie (`chrome("clean")` / part of the template)
-and via a `--clean` CLI flag. This is small and independently useful — worth
-shipping ahead of the full theme refactor.
-
-**How to address it (extend, don't fork the renderer):**
-1. Replace the `pub const` palette in `style.rs` with a runtime `Theme` struct;
-   `Theme::neon()` holds today's exact values (zero visual change by default).
-   Ship a few built-ins: `neon` (default), `paper` (light ink-on-cream, no glow/
-   CRT), `blueprint` (cyan-on-navy grid), `slate` (muted dark).
-2. Make colour resolution theme-aware: `resolve_color(name)` and kit default
-   colours read the active theme's role map instead of the constants. (Kits keep
-   using semantic names — `style::CYAN` becomes `theme.cyan`.)
-3. Carry the chosen `Theme` on the `Movie`; `render.rs`/`player.rs` read chrome/
-   glow/CRT from it instead of hard-coded values.
-4. Selection: a top-level `template("neon")` statement (reserved control name)
-   with a `--theme <name>` CLI override.
-
-**Effort:** medium — a focused refactor (style → runtime `Theme`; thread through
-`resolve_color`, `render`, `player`; one language keyword), not a rewrite.
-**Note:** existing examples assume dark-bg + glow, so a light theme intentionally
-changes their look — that's the feature; neon remains default so nothing breaks.
-Composes with the separately-planned **selectable fonts** (a theme picks fonts;
-custom fonts refine within a theme).
+Chrome and engine branding are independent. `mono`, `plain`, `paper`,
+`blueprint`, and `shorts` have no page chrome; `terminal` opts into the full
+window treatment. Recording-preset branding remains separately controllable
+with `--no-brand`.
 
 ## Web / editor language services — **shipped** (prototype UI)
 

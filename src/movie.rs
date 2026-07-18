@@ -82,7 +82,7 @@ pub struct Movie {
     /// Named beat markers from [`Movie::mark`], exported to `markers.json`
     /// alongside recordings for narration alignment.
     pub marks: Vec<(f32, String)>,
-    /// The visual template (look/chrome). Defaults to `plain` (blank screen).
+    /// The visual template (look/chrome). Defaults to `mono`.
     pub template: style::Template,
     section_n: usize,
 }
@@ -110,7 +110,7 @@ impl Movie {
             cursor: 0.0,
             sections: Vec::new(),
             marks: Vec::new(),
-            template: style::Template::plain(),
+            template: style::Template::default(),
             section_n: 0,
         }
     }
@@ -418,6 +418,15 @@ mod validate_tests {
     fn parse_passes_when_all_ids_exist() {
         let m = crate::parse("dot(a, (100,100), 5);\nshow(a, 0.5);").unwrap();
         assert!(m.validate().is_ok(), "all ids exist → should validate");
+    }
+
+    #[test]
+    fn dsl_defaults_to_mono_but_respects_an_explicit_template() {
+        let default_movie = crate::parse("dot(a, (100,100), 5);").unwrap();
+        assert_eq!(default_movie.template.name, "mono");
+
+        let neon_movie = crate::parse("template(\"plain\"); dot(a, (100,100), 5);").unwrap();
+        assert_eq!(neon_movie.template.name, "plain");
     }
 
     /// `Movie::validate` (the `manic check` net) directly flags a bad track even

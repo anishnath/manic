@@ -2,8 +2,10 @@
 
 ## The palette
 
-manic uses a small, fixed set of colour names — no hex, no RGB. They're tuned to
-glow on the dark default background:
+manic uses a small set of semantic colour names. The default `mono` template
+maps all of them to distinct black-and-white luminance levels; choose `plain`
+or another colour template when hue should carry meaning. Their original neon
+roles are:
 
 | name | is | name | is |
 |---|---|---|---|
@@ -75,6 +77,9 @@ vertical / social clips.
 
 ## Templates — the whole look
 
+For the complete selection guide, CLI override rules, mono tips and a runnable
+black-and-white example, see [Templates — choose the whole visual system](templates.md).
+
 `template("...")` sets the movie's **look** in one call: the background, how the
 palette renders, the glow, and any page chrome. Put it near the top, after
 `canvas(...)`.
@@ -86,18 +91,29 @@ template("paper");     // a flat white exam-paper page
 
 | template | look |
 |---|---|
-| `plain` | the default — neon on near-black, no chrome |
+| `mono` (aliases `monochrome`, `bw`) | **default** — black-and-white editorial, near-black page, subtle glow |
+| `plain` | original neon palette on near-black, no chrome |
 | `terminal` | the neon-terminal frame (border, title, masthead) |
 | `paper` (aliases `light`, `print`) | white page, dark ink — for print / textbook figures |
 | `blueprint` (alias `blue`) | white & cyan lines on deep navy |
+| `shorts` | restrained dark creator palette for Shorts and Reels |
+
+Omitting `template(...)` is exactly the same as selecting `template("mono")`.
+Use explicit `plain` when an older scene should keep the original neon colours.
 
 The clever part is the **palette remap**: a template doesn't just change the
-background, it re-maps every palette colour to that template's role. So on
-`paper`, `panel` → light box, `fg` → dark ink, `lime` → forest green, and so on —
+background, it re-maps every named palette colour to that template's role. So
+on `mono`, `cyan`, `magenta`, `lime`, `gold`, `red`, `orange`, and `blue` become
+carefully separated greys; on `paper`, `panel` → light box, `fg` → dark ink,
+`lime` → forest green, and so on —
 which means your existing scene renders legibly on the new page **without
 recolouring anything**. That's why `template("paper")` alone turns a pulley,
 a spring, or a linked list into a clean textbook figure (see
 [Elevating a scene](elevating.md)). `paper`/`blueprint` also drop the glow for
 crisp print output.
+
+`hue(...)` and future explicit RGB colours are intentionally bespoke, so they
+pass through instead of being forced to greyscale. Use the named palette colours
+when a scene must remain strictly monochrome.
 
 Next: loops, variables, and macros → [The language layer](language-layer.md).

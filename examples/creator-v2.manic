@@ -5,7 +5,7 @@ title("Creator Kit v2 — Optics Quiz");
 canvas("9:16");
 template("shorts");
 
-creator(me, "@opticslab name=Optics_Lab tagline=Physics_made_visible logo=assets/manic-logo.png accent=cyan secondary=magenta footer=signature cta=Follow_for_more safe=shorts");
+creator(me, "@anish2good name=Optics_Lab tagline=Physics_made_visible yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan secondary=magenta footer=signature cta=Follow_for_more safe=shorts");
 
 quiz(q, "Which glass separates blue and red light more?",
      "studio layout=media-first reveal=rise timer=bar density=comfortable motion=studio safe=shorts accent=cyan");

@@ -5,7 +5,7 @@ title("Creator v2 — LaTeX Algebra");
 canvas("square");
 template("paper");
 
-creator(me, "@algebrastudio name=Algebra_Studio tagline=Patterns_before_procedures accent=magenta secondary=cyan footer=compact cta=Try_it_first safe=clean");
+creator(me, "@anish2good name=Algebra_Studio tagline=Patterns_before_procedures yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=magenta secondary=cyan footer=compact cta=Try_it_first safe=clean");
 
 quiz(q, `Which expression equals $x^2-5x+6$?`,
      "studio layout=auto reveal=fade timer=number density=compact motion=calm safe=clean accent=magenta");

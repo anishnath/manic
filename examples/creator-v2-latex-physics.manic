@@ -5,7 +5,7 @@ title("Creator v2 — LaTeX Physics");
 canvas("16:9");
 template("shorts");
 
-creator(me, "@physicsnotes name=Physics_Notes tagline=Concepts_in_one_frame accent=gold secondary=cyan footer=signature cta=Follow_for_more safe=clean");
+creator(me, "@anish2good name=Physics_Notes tagline=Concepts_in_one_frame yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=gold secondary=cyan footer=signature cta=Follow_for_more safe=clean");
 
 quiz(q, `A mass $m$ moves at speed $v$. What is its kinetic energy?`,
      "studio layout=auto reveal=fade timer=ring density=compact motion=studio safe=clean accent=gold");

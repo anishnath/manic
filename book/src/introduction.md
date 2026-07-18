@@ -44,3 +44,9 @@ manic yourfile.manic --record out # render to out/out.mp4
 ```
 
 Ready? [Start with your first animation →](getting-started.md)
+
+Making vertical social content? Take the production path directly:
+[Create a polished Reel →](creator-reels.md)
+
+Choosing the visual surface? Manic defaults to the professional black-and-white
+`mono` look; compare every option in [Templates →](templates.md).

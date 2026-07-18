@@ -1,9 +1,6 @@
-//! The house visual style: **neon terminal / synthwave**.
-//!
-//! A near-black void, glowing monospace type, and three saturated neon spot
-//! colors (cyan, magenta, lime). Every video reads like a frame captured off a
-//! phosphor CRT running the same terminal. Change the palette here and every
-//! movie follows.
+//! The visual-template system. New movies default to a restrained monochrome
+//! editorial palette; the original neon, terminal, paper, blueprint, and
+//! creator palettes remain explicit choices.
 
 use macroquad::prelude::Color;
 use macroquad::text::{load_ttf_font_from_bytes, Font};
@@ -31,10 +28,10 @@ pub const DIM: Color = Color::new(0.42, 0.40, 0.56, 1.0);
 /// Slightly lifted panel fill (nodes, cells, section cards) over the void.
 pub const PANEL: Color = Color::new(0.098, 0.086, 0.169, 1.0);
 
-/// The seven semantic colour roles a template can retint. The engine bakes the
-/// neon values everywhere; the renderer remaps them to the active template's
-/// palette at draw time (so `--template` retints content, and bespoke colours —
-/// `hue`, explicit RGB — pass through untouched).
+/// The semantic colour roles a template can retint. The engine bakes the neon
+/// values everywhere; the renderer remaps them to the active template's palette
+/// at draw time (so `--template` retints content, and bespoke colours — `hue`,
+/// explicit RGB — pass through untouched).
 #[derive(Debug, Clone, Copy)]
 pub struct Palette {
     pub bg: Color,
@@ -42,6 +39,10 @@ pub struct Palette {
     pub cyan: Color,
     pub magenta: Color,
     pub lime: Color,
+    pub gold: Color,
+    pub red: Color,
+    pub orange: Color,
+    pub blue: Color,
     pub dim: Color,
     pub panel: Color,
 }
@@ -55,8 +56,30 @@ impl Palette {
             cyan: CYAN,
             magenta: MAGENTA,
             lime: LIME,
+            gold: GOLD,
+            red: RED,
+            orange: ORANGE,
+            blue: BLUE,
             dim: DIM,
             panel: PANEL,
+        }
+    }
+
+    /// Restrained black-and-white editorial palette. Semantic colours retain
+    /// different luminance levels, so meaning survives without hue.
+    pub fn mono() -> Palette {
+        Palette {
+            bg: Color::new(0.022, 0.022, 0.022, 1.0),
+            fg: Color::new(0.95, 0.95, 0.95, 1.0),
+            cyan: Color::new(0.82, 0.82, 0.82, 1.0),
+            magenta: Color::new(0.68, 0.68, 0.68, 1.0),
+            lime: Color::new(0.98, 0.98, 0.98, 1.0),
+            gold: Color::new(0.88, 0.88, 0.88, 1.0),
+            red: Color::new(0.58, 0.58, 0.58, 1.0),
+            orange: Color::new(0.76, 0.76, 0.76, 1.0),
+            blue: Color::new(0.72, 0.72, 0.72, 1.0),
+            dim: Color::new(0.43, 0.43, 0.43, 1.0),
+            panel: Color::new(0.075, 0.075, 0.075, 1.0),
         }
     }
 
@@ -68,6 +91,10 @@ impl Palette {
             cyan: Color::new(0.0, 0.44, 0.62, 1.0),
             magenta: Color::new(0.78, 0.09, 0.42, 1.0),
             lime: Color::new(0.18, 0.53, 0.22, 1.0),
+            gold: GOLD,
+            red: RED,
+            orange: ORANGE,
+            blue: BLUE,
             dim: Color::new(0.55, 0.54, 0.58, 1.0),
             panel: Color::new(0.89, 0.88, 0.83, 1.0),
         }
@@ -81,6 +108,10 @@ impl Palette {
             cyan: Color::new(0.55, 0.80, 1.0, 1.0),
             magenta: Color::new(1.0, 0.62, 0.40, 1.0),
             lime: Color::new(0.62, 0.92, 0.70, 1.0),
+            gold: GOLD,
+            red: RED,
+            orange: ORANGE,
+            blue: BLUE,
             dim: Color::new(0.45, 0.58, 0.80, 1.0),
             panel: Color::new(0.10, 0.18, 0.34, 1.0),
         }
@@ -96,6 +127,10 @@ impl Palette {
             cyan: Color::new(0.30, 0.72, 1.0, 1.0),
             magenta: Color::new(0.63, 0.48, 1.0, 1.0),
             lime: Color::new(0.35, 0.86, 0.58, 1.0),
+            gold: GOLD,
+            red: RED,
+            orange: ORANGE,
+            blue: BLUE,
             dim: Color::new(0.46, 0.52, 0.64, 1.0),
             panel: Color::new(0.075, 0.098, 0.145, 1.0),
         }
@@ -114,6 +149,10 @@ impl Palette {
             (neon.cyan, self.cyan),
             (neon.magenta, self.magenta),
             (neon.lime, self.lime),
+            (neon.gold, self.gold),
+            (neon.red, self.red),
+            (neon.orange, self.orange),
+            (neon.blue, self.blue),
             (neon.dim, self.dim),
             (neon.panel, self.panel),
         ] {
@@ -137,7 +176,7 @@ pub enum Chrome {
 }
 
 /// A visual template: what look the whole movie renders in. The default is
-/// `plain` (a blank screen); `terminal` is the opt-in neon-terminal chrome.
+/// `mono`; `plain` retains the original neon palette without chrome.
 #[derive(Debug, Clone)]
 pub struct Template {
     pub name: String,
@@ -153,7 +192,20 @@ pub struct Template {
 }
 
 impl Template {
-    /// The default: a plain blank screen — background + content only.
+    /// The default: restrained monochrome on near-black, no page chrome.
+    pub fn mono() -> Template {
+        Template {
+            name: "mono".into(),
+            chrome: Chrome::None,
+            palette: Palette::mono(),
+            glow: 0.35,
+            crt: false,
+            masthead_left: String::new(),
+            masthead_right: String::new(),
+        }
+    }
+
+    /// The original neon palette on a blank screen — background + content only.
     pub fn plain() -> Template {
         Template {
             name: "plain".into(),
@@ -224,6 +276,9 @@ impl Template {
     /// Resolve a template by name (`None` if unknown).
     pub fn by_name(name: &str) -> Option<Template> {
         match name.trim().to_ascii_lowercase().as_str() {
+            "mono" | "monochrome" | "blackwhite" | "black-white" | "bw" => {
+                Some(Self::mono())
+            }
             "plain" | "blank" | "clean" => Some(Self::plain()),
             "terminal" | "neon" | "shell" => Some(Self::terminal()),
             "paper" | "print" | "light" => Some(Self::paper()),
@@ -236,7 +291,31 @@ impl Template {
 
 impl Default for Template {
     fn default() -> Self {
-        Template::plain()
+        Template::mono()
+    }
+}
+
+#[cfg(test)]
+mod template_tests {
+    use super::*;
+
+    #[test]
+    fn mono_is_the_default_template() {
+        assert_eq!(Template::default().name, "mono");
+        assert_eq!(Template::by_name("monochrome").unwrap().name, "mono");
+        assert_eq!(Template::by_name("bw").unwrap().name, "mono");
+    }
+
+    #[test]
+    fn mono_remaps_every_named_semantic_colour_to_greyscale() {
+        let mono = Palette::mono();
+        for source in [
+            VOID, FG, CYAN, MAGENTA, LIME, GOLD, RED, ORANGE, BLUE, DIM, PANEL,
+        ] {
+            let mapped = mono.remap(source);
+            assert!((mapped.r - mapped.g).abs() < 0.0001);
+            assert!((mapped.g - mapped.b).abs() < 0.0001);
+        }
     }
 }
 

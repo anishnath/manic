@@ -6,7 +6,7 @@ canvas("9:16");
 template("shorts");
 
 // a reusable creator profile (set once, drawn by `socials`)
-creator(me, "@mathwithme yt=mathwithme x=mathwithme ig=mathwithme accent=magenta");
+creator(me, "@anish2good yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=magenta");
 
 // the quiz: a question + four answers, one marked `correct`
 quiz(q, "What is 7 x 8?", "badge");

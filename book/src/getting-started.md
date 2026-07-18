@@ -3,6 +3,9 @@
 Let's make the smallest real animation: a title fades in, a circle draws itself,
 and it pulses once.
 
+> Here primarily for vertical social video? Jump to
+> [Create a polished Reel](creator-reels.md), the complete Creator Kit workflow.
+
 ```manic
 {{#include ../samples/hello.manic}}
 ```
@@ -25,6 +28,11 @@ and it pulses once.
 | `draw(sun, 1.2)` | **script:** trace `sun`'s outline on over 1.2s |
 | `pulse(sun)` | **script:** grow-and-settle attention pulse |
 | `wait(1.0)` | hold for a second at the end |
+
+There is no `template(...)` line in this first sample, so it uses the
+professional black-and-white `mono` template automatically. See
+[Templates](templates.md) when you want paper, blueprint, terminal, or a
+colourful surface.
 
 Two things worth internalising right away:
 

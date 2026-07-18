@@ -11,7 +11,7 @@ title("Quiz — the Euler Line");
 canvas("9:16");
 template("paper");
 
-creator(me, "@manic yt=@mychannel x=manic ig=manic accent=magenta");
+creator(me, "@anish2good yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=magenta");
 
 // --- the quiz: question + four answers (kit handles layout + the beat) ---
 quiz(q, "3 triangle centres are always collinear — on WHICH line?");

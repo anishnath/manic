@@ -1,0 +1,34 @@
+// Mono is the default; keep this line explicit when teaching or sharing.
+title("Mono template");
+canvas("16:9");
+template("mono");
+
+rect(card, (640, 360), 930, 430);
+color(card, panel);
+
+text(head, (640, 205), "ONE PALETTE · CLEAR HIERARCHY");
+size(head, 42);
+color(head, fg);
+hidden(head);
+
+circle(a, (410, 370), 58); color(a, cyan); hidden(a);
+circle(b, (640, 370), 58); color(b, magenta); hidden(b);
+circle(c, (870, 370), 58); color(c, lime); hidden(c);
+
+text(al, (410, 470), "PRIMARY"); color(al, fg); hidden(al);
+text(bl, (640, 470), "SECONDARY"); color(bl, dim); hidden(bl);
+text(cl, (870, 470), "SUCCESS"); color(cl, lime); hidden(cl);
+
+show(head, 0.4);
+par {
+  show(a, 0.5);
+  show(b, 0.5);
+  show(c, 0.5);
+}
+par {
+  show(al, 0.35);
+  show(bl, 0.35);
+  show(cl, 0.35);
+}
+pulse(c);
+wait(1);

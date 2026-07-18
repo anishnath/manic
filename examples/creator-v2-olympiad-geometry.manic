@@ -9,7 +9,7 @@ title("Creator v2 — Olympiad Geometry");
 canvas("9:16");
 template("shorts");
 
-creator(me, "@geometrylab name=Geometry_Lab tagline=See_the_hidden_lemma accent=cyan secondary=magenta footer=signature cta=Pause_then_prove safe=shorts");
+creator(me, "@anish2good name=Geometry_Lab tagline=See_the_hidden_lemma yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan secondary=magenta footer=signature cta=Pause_then_prove safe=shorts");
 
 quiz(q, `From $P$, $PA$ and $PB$ are tangents to circle $(O)$. If $r=5$ and $OP=13$, find $AB$.`,
      "studio layout=media-first reveal=rise timer=bar density=compact motion=calm safe=shorts accent=cyan");

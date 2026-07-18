@@ -23,8 +23,8 @@ use crate::parser::parse;
 
 /// Control-flow / meta names handled by the lowerer, not the registry.
 const RESERVED_CONTROL: &[&str] = &[
-    "par", "seq", "stagger", "section", "wait", "beat", "mark", "title", "canvas", "template",
-    "masthead",
+    "par", "seq", "stagger", "timed", "during", "section", "wait", "beat", "mark", "title",
+    "canvas", "template", "masthead",
 ];
 
 // ---- output shapes --------------------------------------------------------

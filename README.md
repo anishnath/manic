@@ -87,7 +87,7 @@ clean for iteration). Turn it off with `--no-brand`.
 | `--from S --to S` | record only a time range (clips) |
 | `--gif` | write `DIR/out.gif` instead of mp4 |
 | `--png` / `--alpha` | PNG sequence (alpha = transparent, no chrome) |
-| `--template NAME` | look/chrome: `plain` (default) · `terminal` · `paper` · `blueprint` |
+| `--template NAME` | look/chrome: `mono` (default) · `plain` · `terminal` · `paper` · `blueprint` · `shorts` |
 | `--crt` | bake in the CRT scanline + bloom + vignette look |
 | `--still S` | export one PNG at time `S` and exit |
 

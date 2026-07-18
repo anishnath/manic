@@ -1027,8 +1027,8 @@ pub fn draw_scene(scene: &Scene, fonts: &Fonts, view: &View, tpl: &style::Templa
 
 /// Draw (per the template's chrome level) the page chrome: a glowing border
 /// with corner brackets, three "window dots", the title, a
-/// masthead, and a two-tone rule. `Chrome::None` (the default `plain` template)
-/// draws only the background — a blank screen. It lives in world coordinates,
+/// masthead, and a two-tone rule. `Chrome::None` (used by default `mono` and by
+/// `plain`) draws only the background — a blank screen. It lives in world coordinates,
 /// so camera moves treat the chrome as part of the page rather than sticky UI.
 pub fn draw_page_chrome(
     tpl: &style::Template,
@@ -1039,7 +1039,7 @@ pub fn draw_page_chrome(
     view: &View,
 ) {
     if tpl.chrome == style::Chrome::None {
-        return; // plain: blank screen, content only
+        return; // no chrome: blank screen, content only
     }
     let full = tpl.chrome == style::Chrome::Full;
     let pal = tpl.palette;
