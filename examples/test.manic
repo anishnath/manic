@@ -1,104 +1,66 @@
-title("Parallelogram Side");
+title("Integral Equation Quiz");
 canvas("9:16");
-template("neon");
+template("shorts");
 
-creator(me, "@mathquick yt=@mathquick accent=cyan");
+creator(me, "@anish yt=anishdev accent=cyan");
 socials(me);
 
-quiz(q, "A parallelogram has base 12 cm and perimeter 60 cm. Find the other side.", "glass fade");
-option(q, "12 cm");
-option(q, "18 cm", correct);
-option(q, "24 cm");
-option(q, "30 cm");
+// --- Cast (Constructors) ---
 
-point(A, (265, 760), "A");
-point(B, (815, 760), "B");
-point(D, (395, 565), "D");
-point(C, (945, 565), "C");
+// 1. The Quiz Question and Options
+quiz(q, "Solve for continuous $u(x)$:\n$u(x) = 1 + \\int_{0}^{x} u(t) \\, dt$");
+option(q, "$u(x) = x$");
+option(q, "$u(x) = e^x$", correct);
+option(q, "$u(x) = 1 + x$");
+option(q, "$u(x) = \\cos(x)$");
 
-segment(AB, A, B);
-segment(BC, B, C);
-segment(CD, C, D);
-segment(DA, D, A);
+// 2. Subject Figure (Visualization above the cards)
+// Center at (540, 600), scale coordinates to fit within y: 430-840
+let x_off = 420;
+let y_off = 780;
+let sx = 80;
+let sy = 45;
 
-text(baseLab, (540, 815), "12 cm");
-display(baseLab);
-size(baseLab, 36);
-color(baseLab, gold);
-hidden(baseLab);
+axes(ax, (x_off, y_off), 220, 160);
+color(ax, dim);
 
-text(sideLab1, (310, 650), "x cm");
-display(sideLab1);
-size(sideLab1, 36);
-color(sideLab1, magenta);
-hidden(sideLab1);
+// Plot u(x) = e^x
+plot(p, (x_off, y_off), sx, sy, "exp(x)", (0, 2.2));
+color(p, cyan);
+stroke(p, 4);
 
-text(sideLab2, (880, 650), "x cm");
-display(sideLab2);
-size(sideLab2, 36);
-color(sideLab2, magenta);
-hidden(sideLab2);
+// Visual area sweep for the integral term
+area(int_area, p, 0, 0);
+color(int_area, magenta);
+opacity(int_area, 0.35);
 
-text(periLab, (540, 500), "perimeter = 60 cm");
-display(periLab);
-size(periLab, 34);
-color(periLab, lime);
-hidden(periLab);
+// Labels inside the graphic zone
+text(lbl_eq, (540, 440), `$u(x) = 1 + \\text{Area}$`);
+size(lbl_eq, 32);
+color(lbl_eq, fg);
 
-color(A, fg);
-color(B, fg);
-color(C, fg);
-color(D, fg);
-size(A.label, 32);
-size(B.label, 32);
-size(C.label, 32);
-size(D.label, 32);
+// Hide elements for the custom staggered entry during the quiz ask
+hidden(ax);
+untraced(p);
+hidden(lbl_eq);
 
-color(AB, gold);
-color(CD, gold);
-color(BC, magenta);
-color(DA, magenta);
-stroke(AB, 6);
-stroke(BC, 6);
-stroke(CD, 6);
-stroke(DA, 6);
-
-hidden(A);
-hidden(B);
-hidden(C);
-hidden(D);
-untraced(AB);
-untraced(BC);
-untraced(CD);
-untraced(DA);
+// --- Script (Timeline) ---
 
 par {
-run(q, 14);
-seq {
-wait(1.0);
-par {
-show(A, 0.25);
-show(B, 0.25);
-draw(AB, 0.7);
+    // Start the standard quiz loop (Ask -> Countdown -> Reveal)
+    run(q, 12.0);
+
+    // Build the visual graph synchronously while the question is being read
+    seq {
+        wait(1.0);
+        show(ax, 0.5);
+        show(lbl_eq, 0.5);
+
+        par {
+            draw(p, 3.5, smooth);
+            to(int_area, x, 1.8, 3.5, smooth);
+        }
+    }
 }
-show(baseLab, 0.35);
-wait(0.15);
-par {
-show(D, 0.25);
-show(C, 0.25);
-draw(DA, 0.7);
-draw(BC, 0.7);
-draw(CD, 0.7);
-}
-par {
-show(sideLab1, 0.35);
-show(sideLab2, 0.35);
-show(periLab, 0.35);
-}
-wait(8.0);
-par {
-pulse(sideLab1, 0.8);
-pulse(sideLab2, 0.8);
-}
-}
-}
+
+wait(2.0);

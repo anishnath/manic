@@ -129,3 +129,69 @@ spiralling into the sink at the origin.
 ```
 
 <div class="manic-video" data-video="ex-trajectory"></div>
+
+## band
+
+The area trapped between two curves, filled directly with `band(top,bottom)` while both
+boundary plots remain visible.
+
+```manic
+{{#include ../../examples/band.manic}}
+```
+
+<div class="manic-video" data-video="ex-band"></div>
+
+## curve-features
+
+Read a cubic by its geometry: maxima/minima where the slope is zero and an inflection
+where the curve changes its bend (`extrema`, `inflections`).
+
+```manic
+{{#include ../../examples/curve-features.manic}}
+```
+
+<div class="manic-video" data-video="ex-curve-features"></div>
+
+## ftc
+
+The Fundamental Theorem of Calculus: accumulate the area under a curve, differentiate
+that area function, and watch the original function return.
+
+```manic
+{{#include ../../examples/ftc.manic}}
+```
+
+<div class="manic-video" data-video="ex-ftc"></div>
+
+## limit
+
+A removable discontinuity visualized as an approaching point, open circle and live
+finite limit at x→0.
+
+```manic
+{{#include ../../examples/limit.manic}}
+```
+
+<div class="manic-video" data-video="ex-limit"></div>
+
+## limit-infinity
+
+A rational function settling onto its horizontal asymptote, with `limit(...,inf)`
+detecting and marking the value at infinity.
+
+```manic
+{{#include ../../examples/limit-infinity.manic}}
+```
+
+<div class="manic-video" data-video="ex-limit-infinity"></div>
+
+## taylor
+
+Taylor polynomials of increasing degree closing in on sin(x), one additional
+approximation at a time.
+
+```manic
+{{#include ../../examples/taylor.manic}}
+```
+
+<div class="manic-video" data-video="ex-taylor"></div>

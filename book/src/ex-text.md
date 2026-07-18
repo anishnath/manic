@@ -52,6 +52,28 @@ The manic logo / banner reveal.
 
 <div class="manic-video" data-video="ex-banner"></div>
 
+## equation
+
+Display-quality LaTeX for fractions, roots, sums, powers and integrals, with semantic
+colour and template tinting.
+
+```manic
+{{#include ../../examples/equation.manic}}
+```
+
+<div class="manic-video" data-video="ex-equation"></div>
+
+## inline-math
+
+Inline LaTeX mixed with ordinary prose, including wrapped explanatory text and a
+standalone display equation.
+
+```manic
+{{#include ../../examples/inline-math.manic}}
+```
+
+<div class="manic-video" data-video="ex-inline-math"></div>
+
 ## image
 
 Embed a raster image (PNG/JPG) with `image(id, (x,y), "path", w, h)` — a real file drawn

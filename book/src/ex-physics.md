@@ -17,6 +17,17 @@ potential-energy well, and energy over time (`pendulum` + `phase`/`timegraph`/
 
 <div class="manic-video" data-video="ex-pendulum"></div>
 
+## timing-v2-scene
+
+Generic Timing v2 controlling an ordinary physics scene: one named-phase clock schedules
+the intro, pendulum motion and finish independently from its native timer look.
+
+```manic
+{{#include ../../examples/timing-v2-scene.manic}}
+```
+
+<div class="manic-video" data-video="ex-timing-v2-scene"></div>
+
 ## pendulum-damped
 
 The same four views with friction on (`damping`): the swing decays, the phase loop

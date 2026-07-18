@@ -112,3 +112,25 @@ they hug the surface.
 ```
 
 <div class="manic-video" data-video="ex-double-integral3"></div>
+
+## multivariable3
+
+Calculus on a surface: a smooth hill, its tangent plane and the gradient arrow at a
+chosen point, inspected with an orbiting camera.
+
+```manic
+{{#include ../../examples/multivariable3.manic}}
+```
+
+<div class="manic-video" data-video="ex-multivariable3"></div>
+
+## volume3
+
+The volume under a surface represented as solid 3D Riemann-sum columns, turning a
+double integral into visible geometry.
+
+```manic
+{{#include ../../examples/volume3.manic}}
+```
+
+<div class="manic-video" data-video="ex-volume3"></div>

@@ -37,7 +37,7 @@ motion|b20vwIjqbm8|Make It MOVE: manic Motion Verbs in 30s
 text|_MLrC93RqsU|Animated Text + Typewriter — manic
 timing|sP61cl_PJj4|par · seq · stagger: Timing in manic
 loop|m-l37juylp8|One Loop → a Full Rainbow (manic)
-template-mono|PLACEHOLDER|Black & White by Default — manic's Mono Template
+template-mono|8R1BOiFmzJo|Black & White by Default — manic's Mono Template
 
 # ---- examples: algorithms & data structures ----
 ex-bubble_sort|kA4gDkjwsRQ|Bubble Sort, ACTUALLY Animated — manic
@@ -65,12 +65,12 @@ ex-spline|luCo9NmmbaA|A Smooth Curve Through Any Points — manic
 ex-trajectory|-QeYAZ2GHVQ|Phase Portrait: Flowing Into a Spiral — manic
 ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integral — manic
 ex-inverse-derivatives|-HEjdSVXdXc|Why Inverse Functions Have Reciprocal Slopes — manic
-ex-band|PLACEHOLDER|The Area Between Two Curves, Visualized — manic
-ex-curve-features|PLACEHOLDER|Maxima, Minima & Inflection Points on One Curve — manic
-ex-ftc|PLACEHOLDER|The Fundamental Theorem of Calculus, Animated — manic
-ex-limit|PLACEHOLDER|A Function Can Miss the Point but Still Have a Limit — manic
-ex-limit-infinity|PLACEHOLDER|Limits at Infinity & Horizontal Asymptotes — manic
-ex-taylor|PLACEHOLDER|Taylor Series: Watch Polynomials Become sin(x) — manic
+ex-band|-VZZulWKHr8|The Area Between Two Curves, Visualized — manic
+ex-curve-features|O3TmUiMzafU|Maxima, Minima & Inflection Points on One Curve — manic
+ex-ftc|TPQM2kkcLJA|The Fundamental Theorem of Calculus, Animated — manic
+ex-limit|c0ZzNiHh4P0|A Function Can Miss the Point but Still Have a Limit — manic
+ex-limit-infinity|ORkllIXzQtc|Limits at Infinity & Horizontal Asymptotes — manic
+ex-taylor|5_W8DHKCI88|Taylor Series: Watch Polynomials Become sin(x) — manic
 
 # ---- examples: linear algebra & tables ----
 ex-linear-algebra|qjMYJQqvwCg|Linear Algebra in Five Ideas — A Complete Visual Lesson — manic
@@ -127,8 +127,8 @@ ex-captions|oM2Fw-H3lNg|Karaoke & Word-Pop Captions — manic
 ex-terminal_boot|JDdcN2toYoo|A Neon Terminal Boots Up — manic
 ex-brace|ftbN0Xh2u1E|Curly Braces, Animated — manic
 ex-banner|FhoIX7kKQXU|The manic Logo Reveal
-ex-equation|PLACEHOLDER|Beautiful LaTeX Equations From Plain Text — manic
-ex-inline-math|PLACEHOLDER|Mix LaTeX Math Inside Any Sentence — manic
+ex-equation|2r9pZUjMVbE|Beautiful LaTeX Equations From Plain Text — manic
+ex-inline-math|I0Bl6rCHH5M|Mix LaTeX Math Inside Any Sentence — manic
 
 # ---- examples: generative & recursive ----
 ex-fractal_tree|nYiPEEQEmIs|One Rule → a Fractal Tree — manic
@@ -153,8 +153,8 @@ ex-matrix3|SjXDqg3xNE8|A 3×3×3 Matrix and Its Inverse, in 3D — manic
 ex-linear-map3|McLljqiPcFI|A 3×3 Matrix Deforms a Cube — Determinant as Volume, in 3D — manic
 ex-eigen3|eZpNxcOa_cs|Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axes — manic
 ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic
-ex-multivariable3|PLACEHOLDER|Gradient & Tangent Plane on a 3D Surface — manic
-ex-volume3|PLACEHOLDER|A Double Integral Made Solid — Volume Under a Surface — manic
+ex-multivariable3|Py_dIt_Qfyg|Gradient & Tangent Plane on a 3D Surface — manic
+ex-volume3|EvgfZJTtcAE|A Double Integral Made Solid — Volume Under a Surface — manic
 
 # ---- examples: physics — simulations ----
 ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
@@ -230,19 +230,19 @@ ex-off-axis|LKyW73JMIWU|Coma & Astigmatism — Why Off-Axis Is the Hard Test —
 # ---- examples: figures & scenes ----
 ex-walk|WCtQngDtvEM|A Figure Walking Down the Road — manic
 ex-two_person_walk|VE7PPnPAufE|Two Figures Meet, Shake Hands & Walk On — manic
-ex-quiz-geometry|PLACEHOLDER|Only 1% Get This Geometry Quiz Right — manic
-ex-quiz-geometry-2|PLACEHOLDER|Geometry Quiz: When Is the Circumcentre OUTSIDE? — manic
-ex-image|PLACEHOLDER|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
-ex-quiz-euler|PLACEHOLDER|I Built This Geometry Quiz Short in 12 Lines — manic
-ex-quiz-skins|PLACEHOLDER|4 Quiz-Short Designs From ONE Line of Code — manic
-ex-creator-v2|PLACEHOLDER|Creator Kit v2 — One Responsive Quiz Across Every Social Format
-ex-perfect-reel|PLACEHOLDER|Make a Perfect Math Reel From One Script — manic
-ex-creator-v2-options-socials|PLACEHOLDER|Professional Quiz Options + Native Social Icons — manic
-ex-creator-v2-timing|PLACEHOLDER|Control Every Beat of a Quiz Reel — Creator Timing v2
-ex-creator-v2-timers|PLACEHOLDER|Six Professional Countdown Designs, One Timing System — manic
-ex-creator-v2-timing-square|PLACEHOLDER|One Quiz, Perfectly Reflowed for a Square Feed — manic
-ex-creator-v2-olympiad-geometry|PLACEHOLDER|Olympiad Geometry Reel — Pause, Predict, Prove — manic
-ex-creator-v2-latex-calculus|PLACEHOLDER|A Calculus Reel With Real LaTeX — manic
-ex-creator-v2-latex-algebra|PLACEHOLDER|A LaTeX Algebra Quiz, Perfectly Typeset — manic
-ex-creator-v2-latex-physics|PLACEHOLDER|Physics Equations on a Responsive Creator Canvas — manic
-ex-timing-v2-scene|PLACEHOLDER|One Clock Controls an Entire Physics Scene — Timing v2
+ex-quiz-geometry|zWaFgGU2Gn4|Only 1% Get This Geometry Quiz Right — manic
+ex-quiz-geometry-2|MbKmHFeF7Ks|Geometry Quiz: When Is the Circumcentre OUTSIDE? — manic
+ex-image|3h0wTYGzHTU|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
+ex-quiz-euler|N8vC0qFYcHA|I Built This Geometry Quiz Short in 12 Lines — manic
+ex-quiz-skins|zXoo9_IWEiI|4 Quiz-Short Designs From ONE Line of Code — manic
+ex-creator-v2|6DP_6tPfspA|Creator Kit v2 — One Responsive Quiz Across Every Social Format
+ex-perfect-reel|-AcCbVbv7qI|Make a Perfect Math Reel From One Script — manic
+ex-creator-v2-options-socials|KHFV5y7NE5Q|Professional Quiz Options + Native Social Icons — manic
+ex-creator-v2-timing|JqLTda9s5-M|Control Every Beat of a Quiz Reel — Creator Timing v2
+ex-creator-v2-timers|05c2EgQiM-Y|Six Professional Countdown Designs, One Timing System — manic
+ex-creator-v2-timing-square|LJ9MGGycSGc|One Quiz, Perfectly Reflowed for a Square Feed — manic
+ex-creator-v2-olympiad-geometry|hOqmIKif6Zw|Olympiad Geometry Reel — Pause, Predict, Prove — manic
+ex-creator-v2-latex-calculus|5DvQz4-o2PE|A Calculus Reel With Real LaTeX — manic
+ex-creator-v2-latex-algebra|cAiE56lF6ho|A LaTeX Algebra Quiz, Perfectly Typeset — manic
+ex-creator-v2-latex-physics|EMS6jlHhXk0|Physics Equations on a Responsive Creator Canvas — manic
+ex-timing-v2-scene|oihH-HyPOSI|One Clock Controls an Entire Physics Scene — Timing v2

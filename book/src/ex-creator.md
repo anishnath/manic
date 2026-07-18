@@ -1,134 +1,123 @@
 # Creator formats — responsive social video
 
-Creator Kit v2 turns a question, answers, illustration and reusable creator profile into a polished timed social clip—without hand-authoring the layout or timeline. The same format adapts to portrait 9:16, feed 4:5, square 1:1 and landscape 16:9. Its regions respect named Shorts, Reels and TikTok safe areas.
+Creator Kit v2 turns a question, answers, media and a reusable creator profile into a polished timed social clip. The same source adapts to 9:16, 4:5, 1:1 and 16:9 with platform-safe regions. `studio` plus a balanced ring is the restrained default; `timing` controls the beat independently from `timerstyle`, whose native ring, bar, number, segments, ticks and pulse looks remain crisp at every size. Explicit `layout`, `density`, `labels`, `motion`, `safe` and `accent` controls customise the rest. Responsive native social icons, optional explanations and final end cards share the same brand profile.
 
-The global default `template("mono")` gives Creator scenes a professional
-black-and-white surface without any template declaration. Use `shorts` when
-channel accent hue matters; template choice never changes the responsive
-regions or timing. See the [template selection guide](templates.md).
+Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
 
-For the recommended idea-to-export workflow, phone-size design checklist, and
-production-ready starter, begin with [Create a polished Reel](creator-reels.md).
+## perfect-reel
 
-The default `studio` skin is restrained and editorial: rounded crisp panels, one accent colour and purposeful motion. Legacy `badge`, `minimal`, `glass` and `plain` skins remain available. A quiz's optional spec accepts both old reveal words and explicit v2 controls:
+The gold-path production starter: phone-safe composition, real LaTeX, exact pacing,
+professional mono styling, creator identity, timeline markers and a focused end card.
 
 ```manic
-quiz(q, "Which glass separates blue and red light more?",
-     "studio layout=media-first reveal=rise timer=bar density=comfortable motion=studio safe=shorts accent=cyan");
+{{#include ../../examples/perfect-reel.manic}}
 ```
 
-Controls are `skin`, `reveal`, `layout=auto|stack|grid|media-first`, `density=compact|comfortable|spacious`, `labels=letters|numbers|none`, `timer=ring|bar|number|segments|ticks|pulse|none`, `motion=calm|studio|punch|cut`, `pace=quick|balanced|calm|dramatic`, `seconds`, `safe=shorts|reels|tiktok|clean`, and `accent`. `option` handles one to six answers and fits text to narrow cards; stack is intentionally capped at four while auto/grid support six. Mark exactly one answer correct. `run` plays the ask→choices→countdown→reveal beat. `explain` adds optional author-supplied answer context.
+<div class="manic-video" data-video="ex-perfect-reel"></div>
 
-## Question and answer design
+## creator-v2-options-socials
 
-Letters are the default because they scan quickly in a timed quiz. Use
-`labels=numbers` for ordered choices or `labels=none` for polls and short
-statements. Every card reserves the same right-hand success zone, so a reveal
-check never collides with long answer text; a fifth option is centred in its
-last grid row instead of looking accidentally left-aligned.
-
-The generated parts have stable semantic tags for safe custom styling and
-animation. Question parts use `q.question`, `.question.panel`,
-`.question.kicker`, `.question.rule`, and `.question.text`. Options use
-`q.options`, `q.option.a` through `.option.f`, then role suffixes such as
-`.card`, `.badge`, `.label`, `.text`, and `.check`. The correct choice also has
-`q.option.correct`. Existing compact entity ids such as `q.q`, `q.c0`, and
-`q.t0` remain valid.
-
-### creator-v2-options-socials
-
-An asset-free review scene for the professional A/B/C/D treatment and the
-native YouTube, X, and web identity lockups:
+The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D
+cards, uniform correct-state spacing, and native YouTube/X/web identity lockups.
 
 ```manic
 {{#include ../../examples/creator-v2-options-socials.manic}}
 ```
 
-## Timing v2 — choreography and appearance are independent
-
-A plain `quiz(q,"...")` remains the recommended zero-config choice: it uses the balanced pace and polished draining ring. Inline `pace=` and `seconds=` cover quick changes. For full control, author each phase separately and choose a timer look without changing the timeline:
-
-Timing v2 itself is format-neutral. The quiz form below is an adapter that gives
-the common engine quiz-specific phase names; for `timing(clock,"intro=1 demo=6")`
-with `timed`/`during` in any ordinary scene, see [Timing — Generic Timing v2](timing.md#generic-timing-v2--one-clock-for-any-scene).
-
-```manic
-timing(q, "calm ask=1.2 options=1.1 think=6 reveal=0.8 hold=2.2 stagger=0.07");
-timerstyle(q, "look=segments position=media number=outside direction=drain \
-size=large color=magenta label=THINK finish=pulse");
-run(q); // exact authored total: 11.3 seconds
-```
-
-`timing` phases are `ask`, `options`, `think`, `reveal`, `hold`, and `stagger`. With a preset, `run(q,8)` proportionally scales the whole beat. Once any numeric phase is explicit, use `run(q)`; also supplying a duration would leave two competing sources of truth, so manic reports a clear error.
-
-`timerstyle` accepts `look=ring|bar|number|segments|ticks|pulse|none`, `position=auto|header|media|below`, `number=inside|outside|none`, `direction=drain|fill`, `size`, `thickness`, `color`, `track`, `label`, `font=mono|display`, and `finish=fade|hold|flash|pulse`. The looks are native shapes, so they remain crisp, theme-aware and progress-animatable at every canvas size—no SVG is required.
-
-Every timer exposes stable groups for ordinary modifiers: `q.timer`, `q.timer.track`, `q.timer.progress`, `q.timer.value`, `q.timer.label`, and `q.timer.effects`. Standalone `countdown(id,[at],[secs],["style"])` uses exactly the same vocabulary.
-
-### creator-v2-timing
-
-An explicitly choreographed portrait quiz with LaTeX, a media-first layout and segmented timer:
-
-```manic
-{{#include ../../examples/creator-v2-timing.manic}}
-```
-
-### creator-v2-timers
-
-The six native timer looks running side by side in landscape:
-
-```manic
-{{#include ../../examples/creator-v2-timers.manic}}
-```
-
-### creator-v2-timing-square
-
-A square feed card using a scaled dramatic preset and a filling tick timer:
-
-```manic
-{{#include ../../examples/creator-v2-timing-square.manic}}
-```
+<div class="manic-video" data-video="ex-creator-v2-options-socials"></div>
 
 ## creator-v2
 
-The complete v2 core: responsive quiz, optics media, signature footer, explanation and final end card. Change the canvas in this example to `(1080,1350)`, `(1080,1080)` or `(1280,720)` to see the regions reflow.
+The complete v2 core: responsive studio quiz, optics media, width-aware answer cards, a
+signature creator footer, optional explanation and a branded final end card.
 
 ```manic
 {{#include ../../examples/creator-v2.manic}}
 ```
 
-The expanded profile keeps identity in one reusable declaration:
+<div class="manic-video" data-video="ex-creator-v2"></div>
+
+## creator-v2-timing
+
+Timing v2 in a portrait quiz: exact ask/options/think/reveal/hold phases, LaTeX media, and a
+segmented timer whose presentation can change without changing the choreography.
 
 ```manic
-creator(me, "@anish2good name=Optics_Lab tagline=Physics_made_visible \
-yt=zarigatongy x=@anish2good web=8gwifi.org/manic \
-accent=cyan secondary=magenta \
-footer=signature cta=Follow_for_more safe=shorts");
-
-socials(me);                 // responsive selected footer
-endcard(me);                 // hidden final lockup
-// ... after the main beat:
-show(me.endcard, 0.6);
+{{#include ../../examples/creator-v2-timing.manic}}
 ```
 
-Footer styles are `social`, `compact`, `signature`, and `none`. Social footers
-use a consistent native-vector icon system, so no image or SVG assets are
-needed. Supported keys and aliases are `yt|youtube`, `x|twitter`,
-`ig|instagram`, `tt|tiktok`, `fb|facebook`, `li|linkedin`, `gh|github`,
-`web|site|url`, and `email|mail`; unknown keys receive a neutral link icon.
-With up to three identities, the configured values are shown beside their
-icons. Larger sets collapse to an icon row plus the profile handle. Use
-`logo=` only when you intentionally want a separate custom avatar or channel
-mark in compact/signature layouts.
+<div class="manic-video" data-video="ex-creator-v2-timing"></div>
 
-`safezone(id,"reels")` visualises a named platform safe area. `figure(group)` now measures text, images, equations and curves. For a live derived construction, tag all source dependencies; v2 reports a clear error when fitting an incomplete live group.
+## creator-v2-timers
 
-Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
+All six native Timing v2 looks—ring, bar, number, segments, ticks and pulse—running side by
+side. Native shapes keep every look scalable, theme-aware and progress-animatable.
+
+```manic
+{{#include ../../examples/creator-v2-timers.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-timers"></div>
+
+## creator-v2-timing-square
+
+A square feed-card variant with a scaled dramatic preset and a filling tick timer, showing
+that timing and timer placement reflow independently across formats.
+
+```manic
+{{#include ../../examples/creator-v2-timing-square.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-timing-square"></div>
+
+## creator-v2-olympiad-geometry
+
+An olympiad-level geometry Reel built as pause → predict → prove, with a responsive
+construction, authored explanation and reusable creator identity.
+
+```manic
+{{#include ../../examples/creator-v2-olympiad-geometry.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-olympiad-geometry"></div>
+
+## creator-v2-latex-calculus
+
+Portrait Creator v2 with inline and display LaTeX: a calculus question, fitted formula
+answers and crisp typesetting throughout the timed reveal.
+
+```manic
+{{#include ../../examples/creator-v2-latex-calculus.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-latex-calculus"></div>
+
+## creator-v2-latex-algebra
+
+Square Creator v2 on a paper surface, checking that algebraic LaTeX and answer cards
+remain balanced and readable outside the vertical format.
+
+```manic
+{{#include ../../examples/creator-v2-latex-algebra.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-latex-algebra"></div>
+
+## creator-v2-latex-physics
+
+Landscape Creator v2 with a physics equation, proving the same LaTeX quiz system
+reflows cleanly for widescreen explainers.
+
+```manic
+{{#include ../../examples/creator-v2-latex-physics.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-v2-latex-physics"></div>
 
 ## quiz-skins
 
 The quiz Short in a dozen lines: `quiz`/`option`/`run` + a `creator`/`socials` footer.
-Change the one style word on `quiz(...)` to switch a legacy card SKIN — `badge` (framed panel +
+Change the one style word on `quiz(...)` to switch card SKIN — `badge` (framed panel +
 coloured letter badges), `minimal`, `glass` (glowing borders) or `plain` — and add a
 question REVEAL in the same string (e.g. `"glass fade"`). The correct card lights up with a
 green badge + check on reveal; a draining ring counts the timer down.
