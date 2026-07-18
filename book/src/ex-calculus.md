@@ -108,6 +108,17 @@ across `y = x`, with the slopes at matching points multiplying to 1.
 
 <div class="manic-video" data-video="ex-inverse-derivatives"></div>
 
+## derivative-of-ln-x
+
+A visual proof of `(ln x)' = 1/x`: one continuous 3D coordinate plane turns over,
+x/y exchange screen roles, and unchanged algebra terms retain their identity.
+
+```manic
+{{#include ../../examples/derivative-of-ln-x.manic}}
+```
+
+<div class="manic-video" data-video="ex-derivative-of-ln-x"></div>
+
 ## spline
 
 Interpolation: one smooth curve drawn through a scattered set of points — it

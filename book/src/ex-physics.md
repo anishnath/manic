@@ -28,6 +28,17 @@ the intro, pendulum motion and finish independently from its native timer look.
 
 <div class="manic-video" data-video="ex-timing-v2-scene"></div>
 
+## zeroth-law-thermodynamics
+
+The Zeroth Law told through three particle-filled bodies: thermal relations connect,
+the bodies settle onto one temperature axis, and equilibrium becomes visible.
+
+```manic
+{{#include ../../examples/zeroth-law-thermodynamics.manic}}
+```
+
+<div class="manic-video" data-video="ex-zeroth-law-thermodynamics"></div>
+
 ## pendulum-damped
 
 The same four views with friction on (`damping`): the swing decays, the phase loop

@@ -9,10 +9,11 @@ use macroquad::prelude::Vec2;
 use crate::animate::act;
 use crate::easing::Easing;
 use crate::geom;
+use crate::lang::ast::ExprKind;
 use crate::lang::diag::Error;
 use crate::lang::lower::{apply_dur_ease, resolve_color, resolve_easing, Args, Registry};
-use crate::primitives::{Entity, FontKind, Shape, StrokeStyle};
-use crate::scene::Scene;
+use crate::primitives::{Entity, FontKind, Link, Shape, StrokeStyle};
+use crate::scene::{ParticleGroup, Scene};
 use crate::style;
 use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value};
 
@@ -63,6 +64,218 @@ fn c_text(s: &mut Scene, a: &Args) -> Result<(), Error> {
         pos,
         style::FG,
     ));
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct TinyRng(u64);
+
+impl TinyRng {
+    fn new(seed: u64) -> Self {
+        Self(seed.max(1))
+    }
+
+    fn unit(&mut self) -> f32 {
+        // xorshift64*: tiny, deterministic and sufficient for visual sampling.
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        let v = x.wrapping_mul(0x2545_F491_4F6C_DD1D);
+        ((v >> 40) as f32) / ((1u32 << 24) as f32)
+    }
+}
+
+fn stable_seed(id: &str) -> u64 {
+    id.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+        (h ^ b as u64).wrapping_mul(0x1000_0000_01b3)
+    })
+}
+
+fn rot_local(v: Vec2, deg: f32) -> Vec2 {
+    let (sn, cs) = deg.to_radians().sin_cos();
+    Vec2::new(v.x * cs - v.y * sn, v.x * sn + v.y * cs)
+}
+
+/// Deterministically sample inset points inside a circle or rectangle. Both
+/// shapes are convex, so tweening between any two samples also stays contained.
+/// Supporting arbitrary concave regions would require path planning rather
+/// than a small creator-facing primitive, so it is intentionally out of v1.
+fn particle_points(
+    container: &Entity,
+    count: usize,
+    radius: f32,
+    seed: u64,
+) -> Result<Vec<Vec2>, String> {
+    let mut rng = TinyRng::new(seed);
+    match &container.shape {
+        Shape::Circle { r } => {
+            let usable = r * container.scale.abs() - radius;
+            if usable < 0.0 {
+                return Err(format!(
+                    "particle radius {radius} is larger than the circle's interior"
+                ));
+            }
+            Ok((0..count)
+                .map(|_| {
+                    let a = std::f32::consts::TAU * rng.unit();
+                    let d = usable * rng.unit().sqrt();
+                    container.pos + Vec2::new(a.cos() * d, a.sin() * d)
+                })
+                .collect())
+        }
+        Shape::Rect { w, h } => {
+            let hw = w * container.scale.abs() * 0.5 - radius;
+            let hh = h * container.scale.abs() * 0.5 - radius;
+            if hw < 0.0 || hh < 0.0 {
+                return Err(format!(
+                    "particle radius {radius} is larger than the rectangle's interior"
+                ));
+            }
+            Ok((0..count)
+                .map(|_| {
+                    let local =
+                        Vec2::new((rng.unit() * 2.0 - 1.0) * hw, (rng.unit() * 2.0 - 1.0) * hh);
+                    container.pos + rot_local(local, container.rot)
+                })
+                .collect())
+        }
+        _ => Err("particles currently support circle or rect containers".into()),
+    }
+}
+
+/// `particles(id, container, count, [radius], [seed])` — deterministic small
+/// dots inside a circle or rectangle. Meaning comes from the author's id
+/// (`bubbles`, `dust`, `stars`, `molecules`, …), not domain-specific engine code.
+fn c_particles(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(5)?;
+    let id = a.ident(0)?;
+    if s.particle_groups.contains_key(&id) || s.contains(&id) {
+        return Err(Error::new(format!("`{id}` already exists"), a.span_of(0)));
+    }
+    let container_id = a.ident(1)?;
+    let count_num = a.num(2)?;
+    if !(1.0..=500.0).contains(&count_num) {
+        return Err(Error::new(
+            "particle count must be between 1 and 500",
+            a.span_of(2),
+        ));
+    }
+    let count = count_num.round() as usize;
+    let radius = a.opt_num(3)?.unwrap_or(5.0);
+    if !(0.5..=64.0).contains(&radius) {
+        return Err(Error::new(
+            "particle radius must be between 0.5 and 64",
+            a.span_of(3),
+        ));
+    }
+    let seed = a
+        .opt_num(4)?
+        .map(|v| v.max(1.0).round() as u64)
+        .unwrap_or_else(|| stable_seed(&id));
+    let container = s.get(&container_id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("no 2-D container named `{container_id}`"),
+            a.span_of(1),
+        )
+    })?;
+    let points = particle_points(&container, count, radius, seed).map_err(|m| {
+        Error::new(
+            format!("`{container_id}` cannot contain particles: {m}"),
+            a.span_of(1),
+        )
+    })?;
+    let mut children = Vec::with_capacity(count);
+    for (i, p) in points.into_iter().enumerate() {
+        let child = format!("{id}.p{i}");
+        let mut e = Entity::new(child.clone(), Shape::Circle { r: radius }, p, style::CYAN);
+        e.stroke.fill = true;
+        e.stroke.outline = false;
+        e.glow = 0.7;
+        e.z = container.z + 1;
+        e.tags.push(id.clone());
+        e.tags.push(format!("{id}.particles"));
+        s.add(e);
+        children.push(child);
+    }
+    s.particle_groups.insert(
+        id,
+        ParticleGroup {
+            container: container_id,
+            children,
+            radius,
+            seed,
+        },
+    );
+    Ok(())
+}
+
+fn trim_to_boundary(e: &Entity, dir_world: Vec2) -> f32 {
+    match &e.shape {
+        Shape::Circle { r } => r * e.scale,
+        Shape::Rect { w, h } => {
+            let d = rot_local(dir_world, -e.rot);
+            let hw = w * e.scale * 0.5;
+            let hh = h * e.scale * 0.5;
+            let tx = if d.x.abs() > 1e-5 {
+                hw / d.x.abs()
+            } else {
+                f32::INFINITY
+            };
+            let ty = if d.y.abs() > 1e-5 {
+                hh / d.y.abs()
+            } else {
+                f32::INFINITY
+            };
+            tx.min(ty)
+        }
+        _ => 0.0,
+    }
+}
+
+/// `link(id, a, b, [bend])` — a public, tracked std edge. It meets circle/rect
+/// boundaries automatically and remains attached when either endpoint moves.
+fn c_link(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let from_id = a.ident(1)?;
+    let to_id = a.ident(2)?;
+    let bend = a.opt_num(3)?.unwrap_or(0.0);
+    let from_e = s
+        .get(&from_id)
+        .cloned()
+        .ok_or_else(|| Error::new(format!("no 2-D entity named `{from_id}`"), a.span_of(1)))?;
+    let to_e = s
+        .get(&to_id)
+        .cloned()
+        .ok_or_else(|| Error::new(format!("no 2-D entity named `{to_id}`"), a.span_of(2)))?;
+    let dir = (to_e.pos - from_e.pos).normalize_or_zero();
+    let trim_from = trim_to_boundary(&from_e, dir);
+    let trim_to = trim_to_boundary(&to_e, -dir);
+    let from = from_e.pos + dir * trim_from;
+    let to = to_e.pos - dir * trim_to;
+    let shape = if bend.abs() <= 1e-4 {
+        Shape::Line { to }
+    } else {
+        let delta = to - from;
+        let perp = Vec2::new(-delta.y, delta.x).normalize_or_zero();
+        Shape::Curve {
+            ctrl: (from + to) * 0.5 + perp * bend,
+            to,
+            arrow: false,
+        }
+    };
+    let mut e = Entity::new(id, shape, from, style::FG);
+    e.link = Some(Link {
+        from: from_id,
+        to: to_id,
+        trim_from,
+        trim_to,
+        auto_trim: true,
+        bend,
+    });
+    s.add(e);
     Ok(())
 }
 
@@ -145,10 +358,10 @@ fn c_caption(s: &mut Scene, a: &Args) -> Result<(), Error> {
         style::FG
     };
     let advance = size * 0.6; // IBM Plex Mono ~0.6 em per glyph
-    // Any `$…$` math keeps the caption as ONE unit so the inline-math pass can
-    // typeset it (whole-span → equation image; mixed → RichText). A formula can't
-    // be karaoke'd word-by-word anyway, so this only forgoes word-split on
-    // math-bearing captions.
+                              // Any `$…$` math keeps the caption as ONE unit so the inline-math pass can
+                              // typeset it (whole-span → equation image; mixed → RichText). A formula can't
+                              // be karaoke'd word-by-word anyway, so this only forgoes word-split on
+                              // math-bearing captions.
     let words: Vec<&str> = if text.contains('$') {
         vec![text.trim()]
     } else {
@@ -191,7 +404,11 @@ fn c_support(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let center = a.pair(1)?;
     let len = a.opt_num(2)?.unwrap_or(220.0).max(12.0);
-    let dir = if a.len() > 3 { a.text(3)? } else { "down".to_string() };
+    let dir = if a.len() > 3 {
+        a.text(3)?
+    } else {
+        "down".to_string()
+    };
     // material normal — points INTO the solid, away from the open side
     let nrm = match dir.as_str() {
         "up" => Vec2::new(0.0, 1.0),     // floor: solid below the line
@@ -206,14 +423,26 @@ fn c_support(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let parts = format!("{id}.parts");
     let tags = vec![id.clone(), parts.clone()];
-    let mut base = Entity::new(format!("{id}.line"), Shape::Line { to: center + u * (len / 2.0) }, p0, style::FG);
+    let mut base = Entity::new(
+        format!("{id}.line"),
+        Shape::Line {
+            to: center + u * (len / 2.0),
+        },
+        p0,
+        style::FG,
+    );
     base.stroke.width = 3.0;
     base.tags = tags.clone();
     s.add(base);
     let n = (len / spacing) as usize;
     for i in 0..=n {
         let bp = p0 + u * (i as f32 * spacing);
-        let mut t = Entity::new(format!("{id}.tick{i}"), Shape::Line { to: bp + tdir }, bp, style::FG);
+        let mut t = Entity::new(
+            format!("{id}.tick{i}"),
+            Shape::Line { to: bp + tdir },
+            bp,
+            style::FG,
+        );
         t.stroke.width = 1.5;
         t.tags = tags.clone();
         s.add(t);
@@ -453,7 +682,17 @@ fn c_image(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let path = a.text(2)?;
     let w = a.opt_num(3)?.unwrap_or(300.0).max(1.0);
     let h = a.opt_num(4)?.unwrap_or(w).max(1.0);
-    s.add(Entity::new(id, Shape::Image { path, w, h, tint: false }, pos, style::FG));
+    s.add(Entity::new(
+        id,
+        Shape::Image {
+            path,
+            w,
+            h,
+            tint: false,
+        },
+        pos,
+        style::FG,
+    ));
     Ok(())
 }
 
@@ -461,7 +700,9 @@ fn c_image(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// fractions/roots/exponents/Greek via RaTeX) centred at `(x,y)`. `size` is the
 /// em height in px (default 48). Rendered white-on-transparent and drawn tinted
 /// by the entity colour, so it takes the template palette and `color`/`recolor`
-/// work; animate with `show`/`fade`/`move`/`scale` (it's an image, so no `draw`).
+/// work. Standard `\textcolor{name}{...}` can colour individual terms with a
+/// Manic semantic colour; those roles are remapped through the active template.
+/// Animate with `show`/`fade`/`move`/`scale` (it's an image, so no `draw`).
 fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let pos = a.pair(1)?;
@@ -471,8 +712,14 @@ fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let (w, h, _baseline) = crate::latex::layout_dims(&latex, size)
         .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
     let path = crate::latex::eq_path(&latex, size);
+    let tint = !crate::latex::has_explicit_color(&latex);
     s.pending_eqs.push((path.clone(), latex, size));
-    s.add(Entity::new(id, Shape::Image { path, w, h, tint: true }, pos, style::FG));
+    s.add(Entity::new(
+        id,
+        Shape::Image { path, w, h, tint },
+        pos,
+        style::FG,
+    ));
     Ok(())
 }
 
@@ -1131,13 +1378,17 @@ fn v_swap(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
     // ---- generic two-entity position swap ----
     let idb = a.ident(1)?;
     let pa = s
+        .motion_pos
         .get(&id0)
-        .ok_or_else(|| Error::new(format!("no entity named `{id0}`"), a.span_of(0)))?
-        .pos;
+        .copied()
+        .or_else(|| s.get(&id0).map(|e| e.pos))
+        .ok_or_else(|| Error::new(format!("no entity named `{id0}`"), a.span_of(0)))?;
     let pb = s
+        .motion_pos
         .get(&idb)
-        .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(1)))?
-        .pos;
+        .copied()
+        .or_else(|| s.get(&idb).map(|e| e.pos))
+        .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(1)))?;
     let dur = a.opt_num(2)?.unwrap_or(0.6);
     let easing = if a.len() > 3 {
         resolve_easing(&a.ident(3)?, a.span_of(3))?
@@ -1152,9 +1403,120 @@ fn v_swap(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
         dur,
         easing,
     };
+    s.motion_pos.insert(id0.clone(), pb);
+    s.motion_pos.insert(idb.clone(), pa);
     Ok(Clip {
         dur,
         tracks: vec![track(id0, pb), track(idb, pa)],
+        events: Vec::new(),
+    })
+}
+
+/// Point on the signed circular arc from `from` to `to`. `sweep` is radians;
+/// zero degenerates to a straight line. Positive/negative sweeps bend to
+/// opposite sides, which naturally sends a two-object cycle around both sides.
+fn arc_point(from: Vec2, to: Vec2, sweep: f32, u: f32) -> Vec2 {
+    let chord = to - from;
+    let len = chord.length();
+    if len < 1e-5 || sweep.abs() < 1e-4 {
+        return from.lerp(to, u);
+    }
+    let half_tan = (sweep * 0.5).tan();
+    if half_tan.abs() < 1e-5 {
+        return from.lerp(to, u);
+    }
+    let perp = Vec2::new(-chord.y, chord.x) / len;
+    let centre = (from + to) * 0.5 + perp * (len / (2.0 * half_tan));
+    let start = from - centre;
+    let angle = sweep * u;
+    let (sn, cs) = angle.sin_cos();
+    centre + Vec2::new(start.x * cs - start.y * sn, start.x * sn + start.y * cs)
+}
+
+/// `cycle(a, b, c, ..., [dur], [arc_deg], [ease])` — move every entity into
+/// the next one's position, with the last returning to the first. The default
+/// 90-degree path arc is the compact Manic equivalent of Manim CyclicReplace.
+fn v_cycle(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    let first_num = a
+        .exprs
+        .iter()
+        .position(|e| matches!(&e.kind, ExprKind::Num(_)))
+        .unwrap_or(a.len());
+    if first_num < 2 {
+        return Err(Error::new(
+            "cycle needs at least two entity names",
+            a.name_span,
+        ));
+    }
+
+    let mut ids = Vec::with_capacity(first_num);
+    for i in 0..first_num {
+        ids.push(a.ident(i)?);
+    }
+    let tail = &a.exprs[first_num..];
+    if tail.len() > 3 {
+        return Err(Error::new(
+            "cycle tail is [duration], [arc degrees], [ease]",
+            tail[3].span,
+        ));
+    }
+    let dur = match tail.first() {
+        Some(e) => match &e.kind {
+            ExprKind::Num(n) if *n > 0.0 => *n,
+            ExprKind::Num(_) => return Err(Error::new("cycle duration must be positive", e.span)),
+            _ => return Err(Error::new("cycle duration should be a number", e.span)),
+        },
+        None => 0.8,
+    };
+    let arc_deg = match tail.get(1) {
+        Some(e) => match &e.kind {
+            ExprKind::Num(n) => *n,
+            _ => return Err(Error::new("cycle arc should be degrees", e.span)),
+        },
+        None => 90.0,
+    };
+    let easing = match tail.get(2) {
+        Some(e) => match &e.kind {
+            ExprKind::Ident(name) => resolve_easing(name, e.span)?,
+            _ => return Err(Error::new("cycle easing should be a name", e.span)),
+        },
+        None => Easing::InOutCubic,
+    };
+
+    let mut from = Vec::with_capacity(ids.len());
+    for (i, id) in ids.iter().enumerate() {
+        let p = s
+            .motion_pos
+            .get(id)
+            .copied()
+            .or_else(|| s.get(id).map(|e| e.pos))
+            .ok_or_else(|| Error::new(format!("no entity named `{id}`"), a.span_of(i)))?;
+        from.push(p);
+    }
+    let targets: Vec<Vec2> = (0..ids.len()).map(|i| from[(i + 1) % from.len()]).collect();
+    let sweep = arc_deg.to_radians();
+    let segments = if sweep.abs() < 1e-4 { 1 } else { 12 };
+    let mut tracks = Vec::with_capacity(ids.len() * segments);
+    for (id, (&p0, &p1)) in ids.iter().zip(from.iter().zip(targets.iter())) {
+        for k in 1..=segments {
+            let raw_u = k as f32 / segments as f32;
+            let u = easing.apply(raw_u);
+            tracks.push(TrackSpec {
+                id: id.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::Abs(Value::V(arc_point(p0, p1, sweep, u))),
+                start: dur * (k - 1) as f32 / segments as f32,
+                dur: dur / segments as f32,
+                easing: Easing::Linear,
+            });
+        }
+    }
+    for (id, target) in ids.iter().zip(targets) {
+        s.motion_pos.insert(id.clone(), target);
+    }
+    Ok(Clip {
+        dur,
+        tracks,
         events: Vec::new(),
     })
 }
@@ -1201,6 +1563,102 @@ fn v_cam(_s: &Scene, a: &Args) -> Result<Clip, Error> {
 fn v_zoom(_s: &Scene, a: &Args) -> Result<Clip, Error> {
     let z = a.num(0)?;
     Ok(apply_dur_ease(act().cam_zoom(z), a, 1)?.into())
+}
+
+/// `wander(particles, [duration])` — contained, deterministic ambient motion.
+/// It expands to ordinary position tracks at build time, preserving the core
+/// invariant that evaluating frame `t` is pure and freely scrubbable.
+fn v_wander(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(2)?;
+    let id = a.ident(0)?;
+    let duration = a.opt_num(1)?.unwrap_or(4.0);
+    if duration <= 0.0 {
+        return Err(Error::new("wander duration must be positive", a.span_of(1)));
+    }
+    let group = s.particle_groups.get(&id).ok_or_else(|| {
+        Error::new(
+            format!("no particle group `{id}` — call particles({id}, ...) first"),
+            a.span_of(0),
+        )
+    })?;
+    let container = s.get(&group.container).ok_or_else(|| {
+        Error::new(
+            format!("particle container `{}` no longer exists", group.container),
+            a.span_of(0),
+        )
+    })?;
+    let segments = ((duration / 0.85).ceil() as usize).clamp(1, 32);
+    let step = duration / segments as f32;
+    let targets = particle_points(
+        container,
+        group.children.len() * segments,
+        group.radius,
+        group.seed ^ 0x9e37_79b9_7f4a_7c15,
+    )
+    .map_err(|m| {
+        Error::new(
+            format!("cannot wander inside `{}`: {m}", group.container),
+            a.span_of(0),
+        )
+    })?;
+    let mut tracks = Vec::with_capacity(group.children.len() * segments);
+    for (i, child) in group.children.iter().enumerate() {
+        for k in 0..segments {
+            tracks.push(TrackSpec {
+                id: child.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::Abs(Value::V(targets[k * group.children.len() + i])),
+                start: k as f32 * step,
+                dur: step,
+                easing: Easing::InOutQuad,
+            });
+        }
+    }
+    Ok(Clip {
+        tracks,
+        events: Vec::new(),
+        dur: duration,
+    })
+}
+
+/// `flow(path, [duration])` — advance the transient luminous path pulse by one
+/// cycle. Repeated calls compose because the stored phase is monotonic and the
+/// renderer uses only its fractional part.
+fn v_flow(s: &Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(2)?;
+    let id = a.ident(0)?;
+    let e = s
+        .get(&id)
+        .ok_or_else(|| Error::new(format!("no path named `{id}`"), a.span_of(0)))?;
+    if !matches!(
+        e.shape,
+        Shape::Line { .. }
+            | Shape::Arrow { .. }
+            | Shape::Curve { .. }
+            | Shape::Polyline { .. }
+            | Shape::Arc { .. }
+    ) {
+        return Err(Error::new(
+            format!("`{id}` is not a line, curve, spline, arc, or link"),
+            a.span_of(0),
+        ));
+    }
+    let dur = a.opt_num(1)?.unwrap_or(1.0);
+    if dur <= 0.0 {
+        return Err(Error::new("flow duration must be positive", a.span_of(1)));
+    }
+    Ok(Clip {
+        tracks: vec![TrackSpec {
+            id,
+            prop: Prop::Flow,
+            target: TargetValue::Rel(Value::F(1.0)),
+            start: 0.0,
+            dur,
+            easing: Easing::Linear,
+        }],
+        events: Vec::new(),
+        dur,
+    })
 }
 
 // ---- boolean shape ops ----------------------------------------------------
@@ -1264,11 +1722,13 @@ pub fn register(r: &mut Registry) {
     r.ctor("morph", c_morph);
     r.ctor("copy", c_copy);
     r.ctor("dot", c_dot);
+    r.ctor("particles", c_particles);
     r.ctor("circle", c_circle);
     r.ctor("rect", c_rect);
     r.ctor("image", c_image);
     r.ctor("equation", c_equation);
     r.ctor("line", c_line);
+    r.ctor("link", c_link);
     r.ctor("polygon", c_polygon);
     r.ctor("arrow", c_arrow);
     r.ctor("brace", c_brace);
@@ -1326,18 +1786,197 @@ pub fn register(r: &mut Registry) {
     r.verb("zoom", v_zoom);
     r.verb("transform", v_transform); // apply a 2x2 matrix (ApplyMatrix)
     r.mut_verb("swap", v_swap); // two entities, or stateful array slot-swap
+    r.mut_verb("cycle", v_cycle); // variadic CyclicReplace with an optional path arc
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
     r.verb("wordpop", v_wordpop); // pop caption words in one at a time
+    r.verb("wander", v_wander); // contained deterministic ambient particle motion
+    r.verb("flow", v_flow); // luminous pulse travelling over a path
 }
 
 #[cfg(test)]
 mod tests {
+    use macroquad::prelude::Vec2;
+
+    #[test]
+    fn particles_are_seeded_repeatable_and_contained() {
+        let src = "canvas(\"16:9\");\n\
+                   circle(tank, (400, 300), 100);\n\
+                   particles(bubbles, tank, 24, 5, 7);\n";
+        let a = crate::parse(src).unwrap();
+        let b = crate::parse(src).unwrap();
+        let group = a
+            .base()
+            .particle_groups
+            .get("bubbles")
+            .expect("particle group");
+        assert_eq!(group.children.len(), 24);
+        assert_eq!(group.seed, 7);
+        for child in &group.children {
+            let pa = a.base().get(child).unwrap().pos;
+            let pb = b.base().get(child).unwrap().pos;
+            assert_eq!(pa, pb, "the same seed must reproduce `{child}` exactly");
+            assert!(
+                pa.distance(Vec2::new(400.0, 300.0)) <= 95.001,
+                "`{child}` must stay inset by its radius"
+            );
+        }
+        assert!(a.validate().is_ok());
+    }
+
+    #[test]
+    fn wander_is_contained_and_evaluation_order_independent() {
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             circle(tank, (400, 300), 100);\n\
+             particles(bubbles, tank, 20, 5, 11);\n\
+             wander(bubbles, 4);\n",
+        )
+        .unwrap();
+        let (base, timeline) = m.finalize();
+        let group = base.particle_groups.get("bubbles").unwrap();
+        let mut changed = false;
+        for t in [0.4, 1.5, 3.7] {
+            let frame = timeline.apply(&base, t);
+            for child in &group.children {
+                let p = frame.get(child).unwrap().pos;
+                changed |= p != base.get(child).unwrap().pos;
+                assert!(
+                    p.distance(Vec2::new(400.0, 300.0)) <= 95.001,
+                    "`{child}` escaped the circle at t={t}"
+                );
+            }
+        }
+        assert!(changed, "wander must actually move the particles");
+
+        let _later = timeline.apply(&base, 3.2);
+        let after_seek = timeline.apply(&base, 0.65);
+        let fresh = timeline.apply(&base, 0.65);
+        for child in &group.children {
+            assert_eq!(
+                after_seek.get(child).unwrap().pos,
+                fresh.get(child).unwrap().pos
+            );
+        }
+    }
+
+    #[test]
+    fn cycle_follows_an_arc_and_repeated_cycles_compose() {
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             dot(a, (100, 100)); dot(b, (300, 100));\n\
+             cycle(a, b, 1, 90, smooth);\n\
+             cycle(a, b, 1, 90, smooth);\n",
+        )
+        .unwrap();
+        let (base, timeline) = m.finalize();
+        let halfway = timeline.apply(&base, 0.5);
+        assert!(
+            (halfway.get("a").unwrap().pos.y - 100.0).abs() > 10.0,
+            "a non-zero cycle arc must leave the straight chord"
+        );
+        let swapped = timeline.apply(&base, 1.0);
+        assert!((swapped.get("a").unwrap().pos - Vec2::new(300.0, 100.0)).length() < 0.01);
+        assert!((swapped.get("b").unwrap().pos - Vec2::new(100.0, 100.0)).length() < 0.01);
+        let returned = timeline.apply(&base, 2.0);
+        assert!((returned.get("a").unwrap().pos - Vec2::new(100.0, 100.0)).length() < 0.01);
+        assert!((returned.get("b").unwrap().pos - Vec2::new(300.0, 100.0)).length() < 0.01);
+    }
+
+    #[test]
+    fn cycle_rotates_three_positions() {
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             dot(a, (100,100)); dot(b, (200,100)); dot(c, (300,100));\n\
+             cycle(a, b, c, 1, 60, linear);\n",
+        )
+        .unwrap();
+        let (base, timeline) = m.finalize();
+        let end = timeline.apply(&base, 1.0);
+        assert!((end.get("a").unwrap().pos - Vec2::new(200.0, 100.0)).length() < 0.01);
+        assert!((end.get("b").unwrap().pos - Vec2::new(300.0, 100.0)).length() < 0.01);
+        assert!((end.get("c").unwrap().pos - Vec2::new(100.0, 100.0)).length() < 0.01);
+    }
+
+    #[test]
+    fn bent_link_tracks_moving_entities_and_flow_phase() {
+        use crate::primitives::Shape;
+
+        let m = crate::parse(
+            "canvas(\"16:9\");\n\
+             circle(A, (200, 300), 50);\n\
+             circle(B, (500, 300), 70);\n\
+             link(ab, A, B, 40);\n\
+             par { move(A, (250, 200), 1); move(B, (550, 400), 1); flow(ab, 1); }\n",
+        )
+        .unwrap();
+        let (base, timeline) = m.finalize();
+        let frame = timeline.apply(&base, 0.5);
+        let a = frame.get("A").unwrap().pos;
+        let b = frame.get("B").unwrap().pos;
+        let edge = frame.get("ab").unwrap();
+        let Shape::Curve { ctrl, to, .. } = edge.shape else {
+            panic!("a non-zero bend must create a curve");
+        };
+        assert!((edge.pos.distance(a) - 50.0).abs() < 0.01);
+        assert!((to.distance(b) - 70.0).abs() < 0.01);
+        assert!((ctrl - (edge.pos + to) * 0.5).length() > 39.9);
+        assert!((edge.flow - 0.5).abs() < 0.001);
+        assert!((timeline.apply(&base, 1.0).get("ab").unwrap().flow - 1.0).abs() < 0.001);
+
+        // Rectangle trim is directional, so it must be recomputed as the other
+        // endpoint moves from the short side to the long side.
+        let rect_movie = crate::parse(
+            "canvas(\"16:9\");\n\
+             rect(box, (200, 200), 120, 60);\n\
+             circle(B, (500, 200), 20);\n\
+             link(edge, box, B);\n\
+             move(B, (200, 500), 1);\n",
+        )
+        .unwrap();
+        let (rect_base, rect_timeline) = rect_movie.finalize();
+        let end = rect_timeline.apply(&rect_base, 1.0);
+        assert_eq!(end.get("edge").unwrap().pos, Vec2::new(200.0, 230.0));
+    }
+
+    #[test]
+    fn motion_vocabulary_rejects_invalid_targets() {
+        let bad_container = crate::parse(
+            "canvas(\"16:9\"); line(path, (10,10), (100,100)); particles(bits, path, 8);",
+        )
+        .err()
+        .expect("line cannot contain particles")
+        .to_string();
+        assert!(bad_container.contains("circle or rect"), "{bad_container}");
+
+        let too_large = crate::parse(
+            "canvas(\"16:9\"); circle(tiny, (20,20), 2); particles(bits, tiny, 3, 4);",
+        )
+        .err()
+        .expect("oversized particles must fail")
+        .to_string();
+        assert!(too_large.contains("larger than the circle"), "{too_large}");
+
+        let bad_wander = crate::parse("canvas(\"16:9\"); wander(bits, 2);")
+            .err()
+            .expect("unknown particle group must fail")
+            .to_string();
+        assert!(bad_wander.contains("no particle group"), "{bad_wander}");
+
+        let bad_flow = crate::parse("canvas(\"16:9\"); circle(c, (100,100), 20); flow(c, 1);")
+            .err()
+            .expect("circle is not a path")
+            .to_string();
+        assert!(bad_flow.contains("is not a line"), "{bad_flow}");
+    }
+
     /// `image(id, at, "path", [w], [h])` builds a `Shape::Image` entity carrying
     /// the path + size; validates with default and explicit sizes.
     #[test]
     fn image_builds_shape() {
         use crate::primitives::Shape;
-        let m = crate::parse("canvas(\"16:9\");\nimage(logo, (640, 360), \"foo.png\", 400, 200);\n").unwrap();
+        let m =
+            crate::parse("canvas(\"16:9\");\nimage(logo, (640, 360), \"foo.png\", 400, 200);\n")
+                .unwrap();
         let e = m.base().get("logo").expect("image entity");
         match &e.shape {
             Shape::Image { path, w, h, .. } => {
@@ -1347,7 +1986,10 @@ mod tests {
             other => panic!("expected Shape::Image, got {other:?}"),
         }
         // an equation renders (via RaTeX) to a tinted Shape::Image with real px dims
-        let e = crate::parse("canvas(\"16:9\");\nequation(q, (640, 360), `\\frac{1}{2}+\\sqrt{x}`, 48);\n").unwrap();
+        let e = crate::parse(
+            "canvas(\"16:9\");\nequation(q, (640, 360), `\\frac{1}{2}+\\sqrt{x}`, 48);\n",
+        )
+        .unwrap();
         match &e.base().get("q").expect("equation entity").shape {
             Shape::Image { tint, w, h, path } => {
                 assert!(*tint, "equation image must be tinted by entity colour");
@@ -1356,9 +1998,25 @@ mod tests {
             }
             other => panic!("expected equation Shape::Image, got {other:?}"),
         }
+        let colored = crate::parse(
+            "canvas(\"16:9\"); equation(q,(cx,cy),`\\textcolor{cyan}{x}=\\textcolor{gold}{1}`,48);",
+        )
+        .unwrap();
+        match &colored.base().get("q").unwrap().shape {
+            Shape::Image { tint, .. } => {
+                assert!(!*tint, "term-coloured equations preserve their own pixels")
+            }
+            other => panic!("expected coloured equation Shape::Image, got {other:?}"),
+        }
         // defaults: w=300 square, and it validates in a scene
-        let m2 = crate::parse("canvas(\"16:9\");\nimage(l, (100, 100), \"x.png\");\nshow(l, 0.5);\n").unwrap();
-        assert!(m2.validate().is_ok(), "image + show should validate: {:?}", m2.validate().err());
+        let m2 =
+            crate::parse("canvas(\"16:9\");\nimage(l, (100, 100), \"x.png\");\nshow(l, 0.5);\n")
+                .unwrap();
+        assert!(
+            m2.validate().is_ok(),
+            "image + show should validate: {:?}",
+            m2.validate().err()
+        );
     }
 
     /// Holistic inline LaTeX: a whole-`$…$` string in ANY text (plain `text`, a
@@ -1377,11 +2035,16 @@ mod tests {
         .unwrap();
         let base = m.base();
         // plain text (no `$`) is byte-identically untouched → still Text
-        assert!(matches!(base.get("plain").unwrap().shape, Shape::Text { .. }), "plain text must not change");
+        assert!(
+            matches!(base.get("plain").unwrap().shape, Shape::Text { .. }),
+            "plain text must not change"
+        );
         // every whole-`$…$` label became a tinted equation image
         for id in ["cap", "A.label", "c2.w0"] {
             match &base.get(id).unwrap_or_else(|| panic!("missing {id}")).shape {
-                Shape::Image { tint, .. } => assert!(*tint, "{id} should be a tinted equation image"),
+                Shape::Image { tint, .. } => {
+                    assert!(*tint, "{id} should be a tinted equation image")
+                }
                 o => panic!("{id}: expected typeset image, got {o:?}"),
             }
         }
@@ -1392,17 +2055,32 @@ mod tests {
     #[test]
     fn mixed_inline_math_becomes_richtext() {
         use crate::primitives::{Shape, TextRun};
-        let m = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), `The area is $\\pi r^2$ units`);\n").unwrap();
+        let m = crate::parse(
+            "canvas(\"16:9\");\ntext(t, (cx, 100), `The area is $\\pi r^2$ units`);\n",
+        )
+        .unwrap();
         match &m.base().get("t").unwrap().shape {
             Shape::RichText { runs, .. } => {
-                assert!(matches!(runs.first(), Some(TextRun::Text(_))), "starts with text");
-                assert!(runs.iter().any(|r| matches!(r, TextRun::Math { .. })), "has a math run");
-                assert!(matches!(runs.last(), Some(TextRun::Text(_))), "ends with text");
+                assert!(
+                    matches!(runs.first(), Some(TextRun::Text(_))),
+                    "starts with text"
+                );
+                assert!(
+                    runs.iter().any(|r| matches!(r, TextRun::Math { .. })),
+                    "has a math run"
+                );
+                assert!(
+                    matches!(runs.last(), Some(TextRun::Text(_))),
+                    "ends with text"
+                );
             }
             o => panic!("expected RichText, got {o:?}"),
         }
         let p = crate::parse("canvas(\"16:9\");\ntext(t, (cx, 100), \"plain only\");\n").unwrap();
-        assert!(matches!(p.base().get("t").unwrap().shape, Shape::Text { .. }), "no-$ stays Text");
+        assert!(
+            matches!(p.base().get("t").unwrap().shape, Shape::Text { .. }),
+            "no-$ stays Text"
+        );
     }
 
     /// `sticky(id)` sets the screen-pin flag on an entity, and broadcasts over a tag.
@@ -1416,9 +2094,18 @@ mod tests {
              sticky(grp);\n",
         )
         .unwrap();
-        assert!(m.base().get("hud").unwrap().sticky, "sticky(hud) should pin the entity");
-        assert!(m.base().get("a").unwrap().sticky, "sticky(grp) should broadcast to tagged `a`");
-        assert!(m.base().get("b").unwrap().sticky, "sticky(grp) should broadcast to tagged `b`");
+        assert!(
+            m.base().get("hud").unwrap().sticky,
+            "sticky(hud) should pin the entity"
+        );
+        assert!(
+            m.base().get("a").unwrap().sticky,
+            "sticky(grp) should broadcast to tagged `a`"
+        );
+        assert!(
+            m.base().get("b").unwrap().sticky,
+            "sticky(grp) should broadcast to tagged `b`"
+        );
         assert!(m.validate().is_ok());
     }
 
@@ -1437,7 +2124,10 @@ mod tests {
             assert!(m.base().contains(sub), "missing `{sub}`");
         }
         // the bare id tags every part, so color(ceil, …) broadcasts to the ticks
-        assert_eq!(m.base().get("ceil.tick0").unwrap().color, crate::style::CYAN);
+        assert_eq!(
+            m.base().get("ceil.tick0").unwrap().color,
+            crate::style::CYAN
+        );
         assert!(m.validate().is_ok());
     }
 }

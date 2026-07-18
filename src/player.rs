@@ -249,7 +249,7 @@ pub async fn run_loop(mut movie: Movie) {
     if opts.branded {
         crate::branding::add_watermark(&mut movie);
     }
-    let (base, timeline) = movie.finalize();
+    let (mut base, timeline) = movie.finalize();
     let title = movie.title.clone();
     let intro_tpl = crate::style::Template::plain();
     let intro: Option<(crate::scene::Scene, crate::timeline::Timeline)> = if opts.branded {
@@ -269,8 +269,25 @@ pub async fn run_loop(mut movie: Movie) {
     // the supersampling factor (view.ss); clamp to a sane range.
     {
         let dpr = opts.scale.clamp(1.5, 8.0);
-        for (path, latex, size) in &base.pending_eqs {
-            let _ = crate::latex::render_to_path(latex, *size, dpr, path);
+        let pending = base.pending_eqs.clone();
+        for (path, latex, size) in pending {
+            // Keep the ordinary white texture available for inline-math runs.
+            let _ = crate::latex::render_to_path(&latex, size, dpr, &path);
+            if crate::latex::has_explicit_color(&latex) {
+                let styled = crate::latex::with_palette_colors(&latex, &movie.template.palette);
+                let styled_path = crate::latex::eq_path(&styled, size);
+                let _ = crate::latex::render_to_path_preserve(&styled, size, dpr, &styled_path);
+                // Whole equations use the template-resolved full-colour image;
+                // mixed inline math deliberately retains its parent text tint.
+                for e in &mut base.entities {
+                    if let crate::primitives::Shape::Image { path: p, tint, .. } = &mut e.shape {
+                        if *p == path {
+                            *p = styled_path.clone();
+                            *tint = false;
+                        }
+                    }
+                }
+            }
         }
     }
     // preload any image textures referenced by the scene (+ the intro) once,

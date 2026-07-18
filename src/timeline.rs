@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::easing::Easing;
-use crate::primitives::{GraphView, Shape};
+use crate::primitives::{Entity, GraphView, Shape};
 use crate::scene::Scene;
 
 /// A dynamically-typed animatable value.
@@ -60,8 +60,16 @@ pub enum Prop {
     Rot,
     /// Euler rotation in degrees for a 3D entity.
     Rot3,
+    /// Camera azimuth/elevation. Kept separate from roll so `orbit3` and
+    /// `roll3` can run concurrently without overwriting each other.
+    Orbit3,
+    /// Camera roll in degrees around the viewing direction.
+    Roll3,
     /// Draw-on / typewriter progress ([`crate::primitives::Entity::trace`]).
     Trace,
+    /// Monotonic path-flow phase; the renderer uses its fractional part for a
+    /// transient travelling emphasis pulse.
+    Flow,
     /// HSL hue angle in degrees — drives `color` for colour cycling.
     Hue,
     /// A live numeric readout ([`crate::primitives::Counter::value`]); the
@@ -196,6 +204,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             Prop::Scale => Value::F(e.scale),
             Prop::Rot => Value::F(e.rot),
             Prop::Trace => Value::F(e.trace),
+            Prop::Flow => Value::F(e.flow),
             Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
             Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
             Prop::Morph => {
@@ -216,6 +225,8 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
                 None => return None,
             },
             Prop::Rot3 => return None,
+            Prop::Orbit3 => return None,
+            Prop::Roll3 => return None,
         });
     }
     let e = scene.get_3d(id)?;
@@ -225,6 +236,8 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
         Prop::Opacity => Value::F(e.opacity),
         Prop::Scale => Value::F(e.scale),
         Prop::Rot3 => Value::V3(e.rotation),
+        Prop::Orbit3 => Value::V3(e.rotation),
+        Prop::Roll3 => Value::F(e.rotation.z),
         Prop::Trace => Value::F(e.trace),
         Prop::To => match &e.shape {
             crate::primitives3d::Shape3D::Line { to }
@@ -237,7 +250,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             }
             Value::F(0.0)
         }
-        Prop::Rot | Prop::Hue | Prop::Value | Prop::PlotX => return None,
+        Prop::Rot | Prop::Hue | Prop::Value | Prop::PlotX | Prop::Flow => return None,
     })
 }
 
@@ -250,6 +263,7 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             (Prop::Scale, Value::F(s)) => e.scale = s,
             (Prop::Rot, Value::F(r)) => e.rot = r,
             (Prop::Trace, Value::F(f)) => e.trace = f,
+            (Prop::Flow, Value::F(f)) => e.flow = f,
             (Prop::Hue, Value::F(h)) => {
                 e.hue = Some(h);
                 let c = crate::style::hsl(h, 1.0, 0.6);
@@ -355,6 +369,11 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
         (Prop::Opacity, Value::F(o)) => e.opacity = o,
         (Prop::Scale, Value::F(s)) => e.scale = s,
         (Prop::Rot3, Value::V3(r)) => e.rotation = r,
+        (Prop::Orbit3, Value::V3(r)) => {
+            e.rotation.x = r.x;
+            e.rotation.y = r.y;
+        }
+        (Prop::Roll3, Value::F(r)) => e.rotation.z = r,
         (Prop::Trace, Value::F(f)) => e.trace = f,
         (Prop::To, Value::V3(p)) => {
             if let crate::primitives3d::Shape3D::Line { to }
@@ -393,6 +412,33 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             }
         }
         _ => {}
+    }
+}
+
+fn linked_boundary_trim(e: &Entity, dir_world: Vec2, fallback: f32) -> f32 {
+    match &e.shape {
+        Shape::Circle { r } => r * e.scale.abs(),
+        Shape::Rect { w, h } => {
+            let (sn, cs) = (-e.rot).to_radians().sin_cos();
+            let d = Vec2::new(
+                dir_world.x * cs - dir_world.y * sn,
+                dir_world.x * sn + dir_world.y * cs,
+            );
+            let hw = w * e.scale.abs() * 0.5;
+            let hh = h * e.scale.abs() * 0.5;
+            let tx = if d.x.abs() > 1e-5 {
+                hw / d.x.abs()
+            } else {
+                f32::INFINITY
+            };
+            let ty = if d.y.abs() > 1e-5 {
+                hh / d.y.abs()
+            } else {
+                f32::INFINITY
+            };
+            tx.min(ty)
+        }
+        _ => fallback,
     }
 }
 
@@ -535,19 +581,34 @@ impl Timeline {
             let Some(link) = scene.entities[i].link.clone() else {
                 continue;
             };
-            let (Some(a), Some(b)) = (
-                scene.get(&link.from).map(|e| e.pos),
-                scene.get(&link.to).map(|e| e.pos),
-            ) else {
+            let (Some(a_entity), Some(b_entity)) = (scene.get(&link.from), scene.get(&link.to))
+            else {
                 continue;
             };
+            let (a, b) = (a_entity.pos, b_entity.pos);
             let dir = (b - a).normalize_or_zero();
-            scene.entities[i].pos = a + dir * link.trim;
-            let to = b - dir * link.trim;
-            if let Shape::Line { to: t } | Shape::Arrow { to: t } | Shape::Curve { to: t, .. } =
-                &mut scene.entities[i].shape
-            {
-                *t = to;
+            let trim_from = if link.auto_trim {
+                linked_boundary_trim(a_entity, dir, link.trim_from)
+            } else {
+                link.trim_from
+            };
+            let trim_to = if link.auto_trim {
+                linked_boundary_trim(b_entity, -dir, link.trim_to)
+            } else {
+                link.trim_to
+            };
+            let from = a + dir * trim_from;
+            let to = b - dir * trim_to;
+            scene.entities[i].pos = from;
+            match &mut scene.entities[i].shape {
+                Shape::Line { to: t } | Shape::Arrow { to: t } => *t = to,
+                Shape::Curve { ctrl, to: t, .. } => {
+                    *t = to;
+                    let delta = to - from;
+                    let perp = Vec2::new(-delta.y, delta.x).normalize_or_zero();
+                    *ctrl = (from + to) * 0.5 + perp * link.bend;
+                }
+                _ => {}
             }
         }
 

@@ -49,6 +49,24 @@ fn eye_of(rig: &Entity3D) -> Vec3 {
     rig.pos + vec3(flat * az.cos(), flat * az.sin(), radius * el.sin())
 }
 
+/// A continuous orbit-camera frame with explicit roll around the view axis.
+///
+/// Building this from `forward × world_up` requires a discrete fallback at a
+/// pole. That fallback produced a visible snap as an orbit crossed its cutoff.
+/// The spherical azimuth/elevation tangents below are the same Z-up frame away
+/// from a pole, but they also have a deterministic finite limit at the pole.
+fn up_of(rig: &Entity3D, eye: Vec3) -> Vec3 {
+    let forward = (rig.pos - eye).normalize_or_zero();
+    let az = rig.rotation.x.to_radians();
+    let el = rig.rotation.y.to_radians();
+    let right = vec3(-az.sin(), az.cos(), 0.0);
+    let base_up = vec3(-az.cos() * el.sin(), -az.sin() * el.sin(), el.cos());
+    let (sn, cs) = rig.rotation.z.to_radians().sin_cos();
+    let up = (base_up * cs + right * sn).normalize_or_zero();
+    debug_assert!(up.dot(forward).abs() < 1e-3);
+    up
+}
+
 /// The world→clip matrix the 3D pass uses (render-target Y-flip included), or
 /// `None` when there's no camera. Screen X/Y derived from this are independent
 /// of the near/far planes, so those are fixed constants here.
@@ -57,7 +75,8 @@ pub fn view_proj(scene: &Scene, aspect: f32) -> Option<Mat4> {
     let Shape3D::Camera { fov, projection } = rig.shape else {
         return None;
     };
-    let view = Mat4::look_at_rh(eye_of(rig), rig.pos, Vec3::Z);
+    let eye = eye_of(rig);
+    let view = Mat4::look_at_rh(eye, rig.pos, up_of(rig, eye));
     let proj = match projection {
         Projection3D::Perspective => {
             Mat4::perspective_rh_gl(fov.to_radians(), aspect, 0.01, 1000.0)
@@ -96,6 +115,7 @@ pub fn camera(scene: &Scene, target: RenderTarget, aspect: f32) -> Option<Target
         return None;
     };
     let eye = eye_of(rig);
+    let up = up_of(rig, eye);
     let projection = match projection {
         Projection3D::Perspective => Projection::Perspective,
         Projection3D::Orthographic => Projection::Orthographics,
@@ -104,7 +124,7 @@ pub fn camera(scene: &Scene, target: RenderTarget, aspect: f32) -> Option<Target
         inner: Camera3D {
             position: eye,
             target: rig.pos,
-            up: Vec3::Z,
+            up,
             // Macroquad interprets this as radians for perspective, but as the
             // visible world height for orthographic projection.
             fovy: match projection {
@@ -553,6 +573,62 @@ mod tests {
         let px = project(&scene, 16.0 / 9.0, Vec3::ZERO, 1920.0, 1080.0).unwrap();
         assert!((px.x - 960.0).abs() < 0.5, "x={}", px.x);
         assert!((px.y - 540.0).abs() < 0.5, "y={}", px.y);
+    }
+
+    #[test]
+    fn overhead_camera_has_a_finite_up_and_rolls_around_view_axis() {
+        let mut rig = Entity3D::new(
+            CAMERA3_ID.to_string(),
+            Shape3D::Camera {
+                fov: 8.0,
+                projection: Projection3D::Orthographic,
+            },
+            Vec3::ZERO,
+            crate::style::CYAN,
+        );
+        rig.rotation = vec3(0.0, 90.0, 0.0);
+        rig.scale = 10.0;
+        let eye = eye_of(&rig);
+        let forward = (rig.pos - eye).normalize();
+        let up0 = up_of(&rig, eye);
+        assert!(up0.is_finite());
+        assert!(up0.dot(forward).abs() < 1e-5);
+
+        rig.rotation.z = -90.0;
+        let up1 = up_of(&rig, eye);
+        assert!(up1.is_finite());
+        assert!(up1.dot(forward).abs() < 1e-5);
+        assert!(up0.dot(up1).abs() < 1e-4);
+    }
+
+    #[test]
+    fn orbit_up_frame_is_continuous_through_the_old_pole_cutoff() {
+        let mut rig = Entity3D::new(
+            CAMERA3_ID.to_string(),
+            Shape3D::Camera {
+                fov: 8.0,
+                projection: Projection3D::Orthographic,
+            },
+            Vec3::ZERO,
+            crate::style::CYAN,
+        );
+        rig.rotation = vec3(-90.0, 90.0, 0.0);
+        rig.scale = 10.0;
+
+        let mut previous = up_of(&rig, eye_of(&rig));
+        for elevation in (0..=180).map(|i| 90.0 - i as f32) {
+            rig.rotation.y = elevation;
+            // Match the plane-flip choreography: roll changes continuously as
+            // elevation passes from +90 to -90 degrees.
+            rig.rotation.z = (90.0 - elevation) * 0.5;
+            let current = up_of(&rig, eye_of(&rig));
+            assert!(current.is_finite());
+            assert!(
+                previous.dot(current) > 0.998,
+                "camera up snapped around elevation {elevation}"
+            );
+            previous = current;
+        }
     }
 
     #[test]

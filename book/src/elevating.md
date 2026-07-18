@@ -78,6 +78,8 @@ construction, or an algorithm trace.
 | Kinetic type | `caption(id,"…",(x,y),size,color)` + `wordpop(id,dur)` / `karaoke(id,dur,color)` | words pop in, or a highlight sweeps across them |
 | Name the parts | `text`, leader `arrow`, `bracelabel`, reference `line` | say what each thing is |
 | Emphasize | `flash(id,color)`, `pulse(id)`, `recolor(id,color,dur)`, `glow(id,amt)`, `shake(id)`, `spin(id,deg,dur)` | move the eye to the part being discussed |
+| Add ambient life | `particles(id, circle_or_rect, count, radius, seed)` + `wander(id,dur)` | contained bubbles, dust, stars, data, or molecules without hand-animating dots |
+| Show a transfer | `link(id,a,b,bend)` + `flow(id,dur)` | a tracked curved connection and a travelling emphasis pulse for energy, signals, traffic, or attention |
 | Broadcast | `flash(id.parts, lime)` | hit **every** part of the sim at once |
 | State the law | a `text` with the formula | tie the motion to the equation |
 | Multiple readings | reveal `well` / `phase` / `timegraph` / `energygraph`, then `run` | one motion, several synchronized views |
