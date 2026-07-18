@@ -430,7 +430,10 @@ final card; reveal it with `show(profile.endcard)`. Example:
 `creator(me,"@anish2good name=Science_Lab yt=zarigatongy x=@anish2good web=8gwifi.org/manic footer=social accent=cyan"); quiz(q,"Which?","studio labels=letters layout=media-first pace=calm"); timerstyle(q,"look=segments position=media finish=pulse"); ...; socials(me); run(q,12);`.
 
 ### Brand kit
-`banner(id,(cx,cy),[scale])` · `watermark(id,(x,y),["text"])`.
+`banner(id,(cx,cy),[scale])` · `watermark(id,[(x,y)],["text"])`. A watermark
+without a point uses the responsive bottom-right default and the text
+`Made With Manic`; pass a point only when the composition or platform UI needs
+a safer location.
 **Don't add manic branding yourself** — no intro card, "Made With Manic", or
 `https://8gwifi.org/manic`. The engine injects a branded intro + watermark
 automatically on export (branded presets); branding is not part of the DSL.

@@ -854,14 +854,15 @@ manic's own logo and mark (à la `ManimBanner`).
 | call | makes |
 |---|---|
 | `banner(id, (cx,cy), [scale])` | the manic logo: a cyan circle + magenta square + lime triangle icon trio (`{id}.dot`/`{id}.sq`/`{id}.tri`, tag `{id}.icon`) and the "manic" wordmark (`{id}.word`) |
-| `watermark(id, (x,y), ["text"])` | a small, glowing, **screen-fixed** mark that ignores camera moves and persists |
+| `watermark(id, [(x,y)], ["text"])` | a small, glowing, **screen-fixed** mark that ignores camera moves and persists. With no point it responsively sits bottom-right; pass a point to protect important content or platform UI. Default text: `Made With Manic`. |
 
 Animate it `create → expand → unwrite` like the reference banner:
 
 ```
 banner(logo, (600, 360), 1.1);
 untraced(logo.icon);  hidden(logo.word);
-watermark(wm, (1120, 690), "manic // synthwave");
+watermark(autoMark);                              // responsive bottom-right
+watermark(wm, (150, 48), "manic // synthwave"); // exact composition control
 
 draw(logo.icon);      // create — trace the icons on (broadcasts over the trio)
 show(logo.word);      // expand — reveal the wordmark

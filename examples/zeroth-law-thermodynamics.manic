@@ -13,7 +13,9 @@
 title("Zeroth Law of Thermodynamics");
 canvas("9:16");
 template("mono");
-watermark(manicMark, (900, 1880), "Made With Manic");
+// Reels put controls down the right edge and captions near the bottom. Keep
+// identity in the upper-left safe area, clear of both UI and the three bodies.
+watermark(manicMark, (155, 145), "Made With Manic");
 
 // Shared palette expressed as hues so the example keeps its identity even
 // when somebody overrides the template from the CLI.

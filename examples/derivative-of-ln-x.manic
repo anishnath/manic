@@ -10,7 +10,9 @@
 title("Why the derivative of ln x is 1/x");
 canvas("16:9");
 template("plain");
-watermark(manicMark, (1130, 694), "Made With Manic");
+// Landscape proof: the upper-right stays clear while the algebra owns the
+// bottom and the vertical axis label owns the top-centre.
+watermark(manicMark, (1135, 30), "Made With Manic");
 
 // Orthographic overhead camera: the continuous pole-safe orbit frame keeps the
 // whole turn smooth, and roll3 controls which world direction is screen-up.

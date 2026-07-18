@@ -95,7 +95,8 @@ are occurrences across the `geometry/` samples.
   `circle2`; conics `ellipse`/`parabola`/`hyperbola`; `fullline` (infinite);
   `anglemark`, `rightangle`.
 - **brand** — `banner` (icon trio + "manic" wordmark, create→expand→unwrite)
-  and `watermark` (screen-fixed persistent mark).
+  and `watermark` (screen-fixed persistent mark with a responsive bottom-right
+  default and exact-position override).
 - **three** — hybrid depth-tested 3D under the normal 2D overlay: `camera3`
   (perspective/orthographic Z-up orbit camera), `point3`, `line3`, `arrow3`,
   `cube3`, `sphere3`, `grid3`, `axes3` (ticks + numbers), plus `pin3` (glue a 2D

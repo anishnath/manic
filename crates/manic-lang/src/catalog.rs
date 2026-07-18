@@ -1684,8 +1684,8 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "watermark",
             Ctor,
             "brand",
-            "a screen-fixed watermark",
-            &[("id", Name, R), ("at", Point, R), ("text", Str, O)],
+            "a screen-fixed watermark; omit the point for responsive bottom-right placement or pass an exact point",
+            &[("id", Name, R), ("at", Point, O), ("text", Str, O)],
         ),
         spec(
             "histogram",
