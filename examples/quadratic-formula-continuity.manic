@@ -1,0 +1,173 @@
+// ============================================================================
+// quadratic-formula-continuity.manic — engine-test-3 continuity benchmark
+// ----------------------------------------------------------------------------
+// The derivation deliberately keeps stable terms alive while only the changed
+// algebra enters, exits or moves. It is possible with today's generic Manic
+// vocabulary, but the amount of manual term layout documents the remaining
+// need for one generic matching-formula rewrite primitive.
+// ============================================================================
+
+title("The Quadratic Formula by Completing the Square");
+canvas("16:9");
+template("plain");
+watermark(manicMark, (1135, 30), "Made With Manic");
+
+// Semantic colours stay attached to coefficients through every rewrite:
+// a = orange, b = cyan, c = lime, and the changing structure = foreground.
+
+// ---------------------------------------------------------------------------
+// STAGE 1 · ax² + bx + c = 0
+// ---------------------------------------------------------------------------
+
+equation(ax2, (410, 360), `\textcolor{orange}{a}x^2`, 54); hidden(ax2);
+equation(x2, (340, 360), `x^2`, 54); hidden(x2);
+equation(plusOne, (515, 360), `+`, 52); hidden(plusOne);
+equation(bx, (610, 360), `\textcolor{cyan}{b}x`, 54); hidden(bx);
+equation(plusTwo, (705, 360), `+`, 52); hidden(plusTwo);
+equation(cPlain, (775, 360), `\textcolor{lime}{c}`, 54); hidden(cPlain);
+equation(equals, (850, 360), `=`, 52); hidden(equals);
+equation(zero, (920, 360), `0`, 54); hidden(zero);
+
+// ---------------------------------------------------------------------------
+// STAGE 2 · divide every coefficient by a
+// ---------------------------------------------------------------------------
+
+equation(bxOverA, (510, 360), `\frac{\textcolor{cyan}{b}}{\textcolor{orange}{a}}x`, 52); hidden(bxOverA);
+equation(cOverA, (720, 360), `\frac{\textcolor{lime}{c}}{\textcolor{orange}{a}}`, 52); hidden(cOverA);
+
+// STAGE 3 · move c/a across the equality
+equation(minusC, (800, 360), `-\frac{\textcolor{lime}{c}}{\textcolor{orange}{a}}`, 52); hidden(minusC);
+
+// ---------------------------------------------------------------------------
+// STAGE 4 · split b/a into two identical halves
+// ---------------------------------------------------------------------------
+
+equation(halfBxOne, (470, 360), `\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}x`, 50); hidden(halfBxOne);
+equation(plusMiddle, (580, 360), `+`, 50); hidden(plusMiddle);
+equation(halfBxTwo, (680, 360), `\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}x`, 50); hidden(halfBxTwo);
+
+// STAGE 5 · add (b/2a)² to both sides
+equation(squareLeft, (690, 360), `+\left(\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\right)^2`, 48); hidden(squareLeft);
+equation(squareRight, (955, 360), `\left(\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\right)^2`, 48); hidden(squareRight);
+
+// STAGE 6 · simplify only the right-hand side
+equation(rhsExpanded, (1020, 360), `\frac{\textcolor{cyan}{b}^2}{4\textcolor{orange}{a}^2}-\frac{\textcolor{lime}{c}}{\textcolor{orange}{a}}`, 48); hidden(rhsExpanded);
+equation(rhsCommon, (990, 360), `\frac{\textcolor{cyan}{b}^2-4\textcolor{orange}{a}\textcolor{lime}{c}}{4\textcolor{orange}{a}^2}`, 50); hidden(rhsCommon);
+
+// ---------------------------------------------------------------------------
+// STAGE 7 · make the common factor visible, then square it
+// ---------------------------------------------------------------------------
+
+equation(groupedLeft, (410, 360), `x\left(x+\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\right)+\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\left(x+\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\right)`, 46); hidden(groupedLeft);
+equation(squareForm, (430, 360), `\left(x+\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}\right)^2`, 52); hidden(squareForm);
+
+// ---------------------------------------------------------------------------
+// STAGE 8 · take square roots, then isolate x
+// ---------------------------------------------------------------------------
+
+equation(xRoot, (355, 360), `x`, 54); hidden(xRoot);
+equation(plusRoot, (420, 360), `+`, 52); hidden(plusRoot);
+equation(bRoot, (500, 360), `\frac{\textcolor{cyan}{b}}{2\textcolor{orange}{a}}`, 52); hidden(bRoot);
+equation(plusMinus, (665, 360), `\pm`, 54); hidden(plusMinus);
+equation(radical, (875, 360), `\frac{\sqrt{\textcolor{cyan}{b}^2-4\textcolor{orange}{a}\textcolor{lime}{c}}}{2\textcolor{orange}{a}}`, 52); hidden(radical);
+
+equation(minusOnly, (465, 360), `-`, 52); hidden(minusOnly);
+
+// ---------------------------------------------------------------------------
+// TIMELINE · every unchanged entity remains continuous
+// ---------------------------------------------------------------------------
+
+// The original equation assembles as one thought.
+par {
+  show(ax2, 0.55); show(plusOne, 0.55); show(bx, 0.55);
+  show(plusTwo, 0.55); show(cPlain, 0.55); show(equals, 0.55); show(zero, 0.55);
+}
+wait(1.80);
+
+// Divide by a. Operators survive and glide into the wider normalized layout.
+par {
+  fade(ax2, 0.45); show(x2, 0.55);
+  move(plusOne, (420, 360), 0.75, smooth);
+  fade(bx, 0.45); show(bxOverA, 0.65);
+  move(plusTwo, (635, 360), 0.75, smooth);
+  fade(cPlain, 0.45); show(cOverA, 0.65);
+  move(equals, (820, 360), 0.75, smooth);
+  move(zero, (885, 360), 0.75, smooth);
+}
+wait(1.55);
+
+// Move c/a to the right; the zero is the only term that disappears.
+par {
+  move(x2, (400, 360), 0.75, smooth);
+  move(plusOne, (480, 360), 0.75, smooth);
+  move(bxOverA, (570, 360), 0.75, smooth);
+  fade(plusTwo, 0.40); fade(cOverA, 0.45); fade(zero, 0.40);
+  move(equals, (690, 360), 0.75, smooth);
+  show(minusC, 0.65);
+}
+wait(1.55);
+
+// Split the middle coefficient into two equal halves.
+par {
+  move(x2, (300, 360), 0.75, smooth);
+  move(plusOne, (380, 360), 0.75, smooth);
+  fade(bxOverA, 0.45);
+  show(halfBxOne, 0.65); show(plusMiddle, 0.55); show(halfBxTwo, 0.65);
+  move(equals, (790, 360), 0.75, smooth);
+  move(minusC, (900, 360), 0.75, smooth);
+}
+wait(1.45);
+
+// Add the completing-square term on both sides.
+par {
+  move(x2, (150, 360), 0.80, smooth);
+  move(plusOne, (225, 360), 0.80, smooth);
+  move(halfBxOne, (320, 360), 0.80, smooth);
+  move(plusMiddle, (430, 360), 0.80, smooth);
+  move(halfBxTwo, (525, 360), 0.80, smooth);
+  show(squareLeft, 0.75);
+  move(equals, (820, 360), 0.80, smooth);
+  show(squareRight, 0.75);
+  move(minusC, (1130, 360), 0.80, smooth);
+}
+wait(1.65);
+
+// The left side stays fixed while only the right side simplifies.
+par { fade(squareRight, 0.45); fade(minusC, 0.45); show(rhsExpanded, 0.70); }
+wait(1.35);
+par { fade(rhsExpanded, 0.45); show(rhsCommon, 0.70); }
+wait(1.55);
+
+// Expose the repeated factor. The equality and discriminant remain untouched.
+par {
+  fade(x2, 0.45); fade(plusOne, 0.45); fade(halfBxOne, 0.45);
+  fade(plusMiddle, 0.45); fade(halfBxTwo, 0.45); fade(squareLeft, 0.45);
+  show(groupedLeft, 0.75);
+}
+wait(1.55);
+
+// The repeated factor contracts into one squared expression.
+par { fade(groupedLeft, 0.45); show(squareForm, 0.70); }
+wait(1.55);
+
+// Taking square roots changes both sides while the equality persists.
+par {
+  fade(squareForm, 0.45); fade(rhsCommon, 0.45);
+  show(xRoot, 0.60); show(plusRoot, 0.60); show(bRoot, 0.65);
+  move(equals, (590, 360), 0.75, smooth);
+  show(plusMinus, 0.60); show(radical, 0.80);
+}
+wait(1.75);
+
+// Isolate x. The radical and ± survive; only b/2a crosses the equality.
+par {
+  move(xRoot, (350, 360), 0.75, smooth);
+  fade(plusRoot, 0.40); show(minusOnly, 0.50);
+  move(bRoot, (535, 360), 0.75, smooth);
+  move(equals, (410, 360), 0.75, smooth);
+  move(plusMinus, (620, 360), 0.75, smooth);
+  move(radical, (850, 360), 0.75, smooth);
+}
+pulse(bRoot, 0.55);
+pulse(radical, 0.55);
+wait(2.60);

@@ -3,7 +3,7 @@
 Every animation in `examples/`, by topic — **the code and the clip for each**. Run any of them with `manic examples/<name>.manic`. Project: <https://8gwifi.org/manic>.
 
 - [Algorithms & data structures](ex-algorithms.md) — 6 examples
-- [Graphs](ex-graphs.md) — 4 examples
+- [Graphs](ex-graphs.md) — 5 examples
 - [Calculus & functions](ex-calculus.md) — 19 examples
 - [Linear algebra & tables](ex-linalg.md) — 12 examples
 - [Statistics & probability](ex-stats.md) — 13 examples

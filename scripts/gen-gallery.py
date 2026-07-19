@@ -36,6 +36,11 @@ SECTIONS = [
    ("graph_moving", "Drag a vertex and its incident edges follow."),
    ("bfs_dfs", "The same graph, queue vs stack, with live frontier readouts."),
    ("dijkstra", "Weighted edges, settling distances, a shortest-path tree."),
+   ("cubic-graphs",
+    "A hand-composed graph-theory plate: five 3-connected simple cubic graphs\n"
+    "(including the 6-spoke wheel from a `for` loop) drawn on in sequence, with\n"
+    "LaTeX node labels ($u_i$, $v_i$) and typeset names $G_1..G_5$ — a paper-style\n"
+    "figure straight from a theorem statement."),
  ]),
  dict(slug="calculus", title="Calculus & functions", intro="", sub=SUB, items=[
    ("calculus-demo",

@@ -379,8 +379,15 @@ color(nodeLabels, dim);
 hidden(nodeLabels);
 hidden(graphNames);
 
+// watermark
+text(watermark, (w - 96, h - 12), "Made with Manic");
+size(watermark, 15);
+color(watermark, dim);
+hidden(watermark);
+
 show(titleA, 0.5);
 show(titleB, 0.5);
+show(watermark, 0.6);
 draw(frame, 0.7);
 
 par {

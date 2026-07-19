@@ -51,6 +51,7 @@ ex-graph|pLvJblT7zwg|Draw a Graph in One Line — manic
 ex-graph_moving|kthOKyJndtg|Drag a Node, the Edges Follow — manic
 ex-bfs_dfs|GbNBlQd1fR0|BFS vs DFS in One Video — manic
 ex-dijkstra|UOjIHugt4o8|Dijkstra's Algorithm, Visualized — manic
+ex-cubic-graphs|Sl0AmT-PB0s|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
 
 # ---- examples: calculus & functions ----
 ex-sine_wave|HSC_hssuHd0|Plotting sin(x) From Scratch — manic

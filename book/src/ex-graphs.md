@@ -41,3 +41,16 @@ Weighted edges, settling distances, a shortest-path tree.
 ```
 
 <div class="manic-video" data-video="ex-dijkstra"></div>
+
+## cubic-graphs
+
+A hand-composed graph-theory plate: five 3-connected simple cubic graphs
+(including the 6-spoke wheel from a `for` loop) drawn on in sequence, with
+LaTeX node labels ($u_i$, $v_i$) and typeset names $G_1..G_5$ — a paper-style
+figure straight from a theorem statement.
+
+```manic
+{{#include ../../examples/cubic-graphs.manic}}
+```
+
+<div class="manic-video" data-video="ex-cubic-graphs"></div>
