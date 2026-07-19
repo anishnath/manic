@@ -2,9 +2,10 @@
 //! never authored in (or visible to) the DSL.
 //!
 //! Two pieces:
-//! - a short **pre-roll intro** (default: the beginning) — the neon `manic`
-//!   wordmark typed out over the project link, authored here *in manic* so it
-//!   reuses the same engine but stays completely separate from the user's file;
+//! - a short **branding clip** — placed at the end (outro, default) or, with
+//!   `--intro`, at the start — the neon `manic` wordmark typed out over the
+//!   project link, authored here *in manic* so it reuses the same engine but
+//!   stays completely separate from the user's file;
 //! - a pinned **"Made With Manic" watermark** for the whole DSL portion.
 //!
 //! The intro is built to match the target canvas, then composed ahead of the

@@ -21,6 +21,7 @@
 //! - `--png`           force PNG sequence instead of the ffmpeg pipe
 //! - `--gif`           pipe frames into out.gif instead of out.mp4
 //! - `--crt`           CRT scanline + bloom + vignette post-process
+//! - `--intro`         play the branding clip at the START (default is the END)
 
 use macroquad::prelude::*;
 
@@ -45,6 +46,9 @@ pub(crate) struct Opts {
     /// Apply branding (intro + watermark) — true only for a branded preset on a
     /// `--record`, and not disabled by `--no-brand`.
     pub branded: bool,
+    /// Place the branding clip at the END (outro, default) or the START (intro).
+    /// Default true = end; `--intro` puts it at the front.
+    pub brand_end: bool,
 }
 
 pub(crate) fn parse_opts() -> Opts {
@@ -87,6 +91,7 @@ pub(crate) fn parse_opts() -> Opts {
         crt: false,
         template: None,
         branded: false,
+        brand_end: true, // default: branding plays as an OUTRO (`--intro` for front)
     };
     let mut i = 1;
     let value = |args: &[String], i: usize, flag: &str| -> String {
@@ -140,6 +145,8 @@ pub(crate) fn parse_opts() -> Opts {
             "--png" => opts.png = true,
             "--gif" => opts.gif = true,
             "--crt" => opts.crt = true,
+            "--outro" | "--brand-end" => opts.brand_end = true,
+            "--intro" | "--brand-front" => opts.brand_end = false,
             "--template" | "--theme" => {
                 opts.template = Some(value(&args, i, "--template"));
                 i += 1;
@@ -485,9 +492,11 @@ pub async fn run_loop(mut movie: Movie) {
             opts.gif,
         )
         .expect("cannot create record dir");
-        // branded pre-roll: render the intro's frames first (trim the ~1s tail
-        // that `finalize` pads on, so it cuts cleanly to the content)
-        if let Some((ibase, itl)) = &intro {
+        // branding plays as an OUTRO (end) by default; `--intro` moves it to the
+        // front. As an intro we trim the ~1s hold tail that `finalize` pads on
+        // (clean cut to content); as an outro we play the full clip (it animates
+        // in and holds briefly before the video finishes).
+        if let (false, Some((ibase, itl))) = (opts.brand_end, &intro) {
             let idur = (itl.dur - 1.0).max(0.3);
             let iframes = (idur * opts.fps as f32).ceil() as u32;
             for f in 0..iframes {
@@ -507,6 +516,16 @@ pub async fn run_loop(mut movie: Movie) {
             let img = capture(&crt); // top-down already — correct for ffmpeg
             rec.capture(&img);
             next_frame().await;
+        }
+        if let (true, Some((ibase, itl))) = (opts.brand_end, &intro) {
+            let oframes = (itl.dur * opts.fps as f32).ceil() as u32;
+            for f in 0..oframes {
+                let t = f as f32 / opts.fps as f32;
+                render_at(ibase, itl, &intro_tpl, t);
+                let img = capture(&crt);
+                rec.capture(&img);
+                next_frame().await;
+            }
         }
         rec.finish(&movie.sections, &movie.marks);
         std::process::exit(0);

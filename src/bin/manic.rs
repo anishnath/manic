@@ -26,7 +26,7 @@ fn main() {
              manic check FILE.manic           parse + report errors\n  \
              manic FILE.manic --still 2.0     export one PNG at t=2s\n  \
              manic FILE.manic --record out    render out/out.mp4 (needs ffmpeg)\n\n\
-             flags: --fps N  --scale F  --from S --to S  --gif  --png  --alpha  --crt"
+             flags: --fps N  --scale F  --from S --to S  --gif  --png  --alpha  --crt  --intro"
         );
         exit(2);
     };
