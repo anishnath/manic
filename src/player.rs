@@ -325,7 +325,13 @@ pub async fn run_loop(mut movie: Movie) {
 
     let (w, h) = (movie.width as f32, movie.height as f32);
     let s = opts.scale;
-    let (pw, ph) = ((w * s).round(), (h * s).round());
+    // Output dimensions MUST be even — h264/yuv420p rejects odd width/height
+    // (an odd `--scale` like 0.6667 would otherwise make ffmpeg die → broken pipe).
+    let even = |x: f32| -> f32 {
+        let n = x.round().max(2.0) as u32;
+        (n + (n & 1)) as f32
+    };
+    let (pw, ph) = (even(w * s), even(h * s));
 
     let rt = render_target_ex(
         pw as u32,

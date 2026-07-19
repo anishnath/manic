@@ -56,6 +56,8 @@ impl Recorder {
                 .args(if gif {
                     vec![
                         "-y".into(),
+                        "-loglevel".into(),
+                        "error".into(),
                         "-f".into(),
                         "rawvideo".into(),
                         "-pixel_format".into(),
@@ -72,6 +74,8 @@ impl Recorder {
                 } else {
                     vec![
                         "-y".into(),
+                        "-loglevel".into(),
+                        "error".into(),
                         "-f".into(),
                         "rawvideo".into(),
                         "-pixel_format".into(),
@@ -95,7 +99,7 @@ impl Recorder {
                 .arg(&output)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(Stdio::inherit()) // let ffmpeg errors reach the terminal
                 .spawn()?;
             Sink::Pipe { child, output }
         } else {
@@ -121,12 +125,19 @@ impl Recorder {
                 im.export_png(path.to_str().expect("non-utf8 record path"));
             }
             Sink::Pipe { child, .. } => {
-                child
+                let w = child
                     .stdin
                     .as_mut()
                     .expect("ffmpeg stdin")
-                    .write_all(&img.bytes)
-                    .expect("write frame to ffmpeg");
+                    .write_all(&img.bytes);
+                if let Err(e) = w {
+                    // ffmpeg closed the pipe — its own error (dimensions, codec,
+                    // …) printed above via inherited stderr. Fail with a pointer.
+                    panic!(
+                        "ffmpeg stopped reading frames ({e}). See its error above; \
+                         try `--scale 1` or a `--preset test` render, or check ffmpeg is current."
+                    );
+                }
             }
         }
         self.frame += 1;
