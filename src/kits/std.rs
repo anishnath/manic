@@ -13,9 +13,9 @@ use crate::lang::ast::ExprKind;
 use crate::lang::diag::Error;
 use crate::lang::lower::{apply_dur_ease, resolve_color, resolve_easing, Args, Registry};
 use crate::primitives::{Entity, FontKind, Link, Shape, StrokeStyle};
-use crate::scene::{ParticleGroup, Scene};
+use crate::scene::{EquationState, ParticleGroup, PendingEquationPart, Scene};
 use crate::style;
-use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value};
+use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value, TimelineEvent};
 
 fn neon_stroke() -> StrokeStyle {
     StrokeStyle {
@@ -713,7 +713,16 @@ fn c_equation(s: &mut Scene, a: &Args) -> Result<(), Error> {
         .map_err(|e| Error::new(format!("equation: {e}"), a.span_of(2)))?;
     let path = crate::latex::eq_path(&latex, size);
     let tint = !crate::latex::has_explicit_color(&latex);
-    s.pending_eqs.push((path.clone(), latex, size));
+    s.pending_eqs.push((path.clone(), latex.clone(), size));
+    s.equation_states.insert(
+        id.clone(),
+        EquationState {
+            latex,
+            size,
+            visual_scale: 1.0,
+            rewrite_n: 0,
+        },
+    );
     s.add(Entity::new(
         id,
         Shape::Image { path, w, h, tint },
@@ -961,6 +970,41 @@ fn m_stroke(s: &mut Scene, a: &Args) -> Result<(), Error> {
     } else {
         return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
     }
+    Ok(())
+}
+
+/// `dashed(id, [dash], [gap])` — render a path-like entity with a repeating
+/// dash/gap pattern in logical pixels (defaults 16/10). This is deliberately a
+/// base Manic modifier: plots use it, but so do links, trajectories, arrows,
+/// curves, splines, coils, and plain arcs.
+fn m_dashed(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let dash = a.opt_num(1)?.unwrap_or(16.0);
+    let gap = a.opt_num(2)?.unwrap_or(10.0);
+    if dash <= 0.0 || gap <= 0.0 {
+        return Err(Error::new(
+            "dashed lengths must be positive",
+            a.span_of(if dash <= 0.0 { 1 } else { 2 }),
+        ));
+    }
+    let e = s
+        .get_mut(&id)
+        .ok_or_else(|| Error::new(format!("no entity named `{id}`"), a.span_of(0)))?;
+    if !matches!(
+        e.shape,
+        Shape::Line { .. }
+            | Shape::Arrow { .. }
+            | Shape::Curve { .. }
+            | Shape::Coil { .. }
+            | Shape::Polyline { .. }
+            | Shape::Arc { .. }
+    ) {
+        return Err(Error::new(
+            format!("`{id}` is not a path-like entity"),
+            a.span_of(0),
+        ));
+    }
+    e.dash = Some((dash, gap));
     Ok(())
 }
 
@@ -1311,6 +1355,375 @@ fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
         tracks,
         events: Vec::new(),
     })
+}
+
+fn rewrite_track(
+    id: impl Into<String>,
+    prop: Prop,
+    target: TargetValue,
+    start: f32,
+    dur: f32,
+    easing: Easing,
+) -> TrackSpec {
+    TrackSpec {
+        id: id.into(),
+        prop,
+        target,
+        start,
+        dur,
+        easing,
+    }
+}
+
+/// Pair equal RaTeX visual items deterministically. Repeated glyphs use global
+/// nearest matching with a small neighbouring-item context penalty, so `x+x`
+/// remains stable while still allowing terms to cross an equals sign.
+fn match_equation_parts(
+    from: &[crate::latex::EquationPart],
+    to: &[crate::latex::EquationPart],
+) -> Vec<(usize, usize)> {
+    let mut candidates = Vec::new();
+    for (si, source) in from.iter().enumerate() {
+        for (ti, target) in to.iter().enumerate() {
+            if source.key != target.key {
+                continue;
+            }
+            let mut cost = source.offset.distance_squared(target.offset);
+            if source.prev_key != target.prev_key {
+                cost += 24.0 * 24.0;
+            }
+            if source.next_key != target.next_key {
+                cost += 24.0 * 24.0;
+            }
+            candidates.push((cost, si, ti));
+        }
+    }
+    candidates.sort_by(|a, b| {
+        a.0.total_cmp(&b.0)
+            .then_with(|| a.1.cmp(&b.1))
+            .then_with(|| a.2.cmp(&b.2))
+    });
+    let mut used_from = vec![false; from.len()];
+    let mut used_to = vec![false; to.len()];
+    let mut out = Vec::new();
+    for (_, si, ti) in candidates {
+        if used_from[si] || used_to[ti] {
+            continue;
+        }
+        used_from[si] = true;
+        used_to[ti] = true;
+        out.push((si, ti));
+    }
+    out.sort_unstable();
+    out
+}
+
+fn queue_equation_part(
+    s: &mut Scene,
+    source: &Entity,
+    latex: &str,
+    size: f32,
+    part: &crate::latex::EquationPart,
+    id: String,
+    anchor: Vec2,
+    visual_scale: f32,
+) {
+    if !s.pending_eq_parts.iter().any(|p| p.path == part.path) {
+        s.pending_eq_parts.push(PendingEquationPart {
+            path: part.path.clone(),
+            latex: latex.to_string(),
+            size,
+            index: part.index,
+            crop: part.crop,
+        });
+    }
+    let tint = !crate::latex::has_explicit_color(latex);
+    let mut entity = Entity::new(
+        id,
+        Shape::Image {
+            path: part.path.clone(),
+            w: part.crop.w,
+            h: part.crop.h,
+            tint,
+        },
+        anchor + part.offset * visual_scale,
+        source.color,
+    );
+    entity.opacity = 0.0;
+    entity.scale = visual_scale;
+    entity.z = source.z + 1;
+    entity.sticky = source.sticky;
+    entity.rot = source.rot;
+    entity.glow = source.glow;
+    s.add(entity);
+}
+
+fn fallback_equation_rewrite(
+    id: String,
+    target_shape: Shape,
+    target_scale: f32,
+    dur: f32,
+    easing: Easing,
+) -> Clip {
+    let half = dur * 0.5;
+    Clip {
+        dur,
+        tracks: vec![
+            rewrite_track(
+                id.clone(),
+                Prop::Opacity,
+                TargetValue::Abs(Value::F(0.0)),
+                0.0,
+                half,
+                Easing::InQuad,
+            ),
+            rewrite_track(
+                id.clone(),
+                Prop::Opacity,
+                TargetValue::Abs(Value::F(1.0)),
+                half,
+                dur - half,
+                Easing::OutQuad,
+            ),
+            rewrite_track(
+                id.clone(),
+                Prop::Scale,
+                TargetValue::Abs(Value::F(target_scale)),
+                0.0,
+                dur,
+                easing,
+            ),
+        ],
+        events: vec![TimelineEvent::shape(id, target_shape, half)],
+    }
+}
+
+/// ``rewrite(id, `next latex`, [dur], [ease])`` — opt-in structured LaTeX
+/// transformation. The authored formulas remain the source of mathematical
+/// truth; Manic only animates the visual difference between two exact RaTeX
+/// layouts. Existing equation behavior is untouched when this verb is unused.
+fn v_rewrite(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let target_latex = a.text(1)?;
+    let dur = a.opt_num(2)?.unwrap_or(0.9).max(0.05);
+    let easing = if a.len() > 3 {
+        resolve_easing(&a.ident(3)?, a.span_of(3))?
+    } else {
+        Easing::InOutCubic
+    };
+    let state = s.equation_states.get(&id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("`rewrite` needs an equation id; `{id}` is not an equation"),
+            a.span_of(0),
+        )
+    })?;
+    let source = s
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| Error::new(format!("no equation named `{id}`"), a.span_of(0)))?;
+    if !matches!(source.shape, Shape::Image { .. }) {
+        return Err(Error::new(
+            format!("`{id}` is no longer an equation image"),
+            a.span_of(0),
+        ));
+    }
+
+    // Validate and queue the exact settled target first. A bad target is an
+    // authoring error; visual matching failure later is recoverable by fallback.
+    let (target_w, target_h, _) = crate::latex::layout_dims(&target_latex, state.size)
+        .map_err(|e| Error::new(format!("rewrite: {e}"), a.span_of(1)))?;
+    let target_path = crate::latex::eq_path(&target_latex, state.size);
+    if !s.pending_eqs.iter().any(|(p, _, _)| p == &target_path) {
+        s.pending_eqs
+            .push((target_path.clone(), target_latex.clone(), state.size));
+    }
+    let target_shape = Shape::Image {
+        path: target_path,
+        w: target_w,
+        h: target_h,
+        tint: !crate::latex::has_explicit_color(&target_latex),
+    };
+
+    // Keep the formula inside a conservative, format-independent equation
+    // region. Scale only ever stays fixed or shrinks across a chain, avoiding
+    // distracting size "breathing" between short and long steps.
+    let canvas = s.canvas();
+    let max_w = canvas.x * 0.90;
+    let max_h = canvas.y * 0.46;
+    let (source_w, source_h, _) = crate::latex::layout_dims(&state.latex, state.size)
+        .map_err(|e| Error::new(format!("rewrite source: {e}"), a.span_of(0)))?;
+    let target_scale = state
+        .visual_scale
+        .min(max_w / source_w.max(target_w).max(1.0))
+        .min(max_h / source_h.max(target_h).max(1.0))
+        .clamp(0.16, 1.0);
+
+    let source_layout = crate::latex::layout_parts(&state.latex, state.size);
+    let target_layout = crate::latex::layout_parts(&target_latex, state.size);
+    let serial = state.rewrite_n + 1;
+
+    let clip = match (source_layout, target_layout) {
+        (Ok(from), Ok(to)) if from.parts.len() + to.parts.len() <= 256 => {
+            let pairs = match_equation_parts(&from.parts, &to.parts);
+            let mut target_of = vec![None; from.parts.len()];
+            let mut target_used = vec![false; to.parts.len()];
+            for (si, ti) in pairs {
+                target_of[si] = Some(ti);
+                target_used[ti] = true;
+            }
+
+            let mut tracks = vec![
+                // Exact handoff: replace the whole formula with its parts at
+                // t=0, then restore the same public entity at the final frame.
+                rewrite_track(
+                    id.clone(),
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(0.0)),
+                    0.0,
+                    0.0,
+                    Easing::Linear,
+                ),
+                rewrite_track(
+                    id.clone(),
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(1.0)),
+                    dur,
+                    0.0,
+                    Easing::Linear,
+                ),
+                rewrite_track(
+                    id.clone(),
+                    Prop::Scale,
+                    TargetValue::Abs(Value::F(target_scale)),
+                    0.0,
+                    dur,
+                    easing,
+                ),
+            ];
+
+            for (si, part) in from.parts.iter().enumerate() {
+                let part_id = format!("__rewrite.{id}.{serial}.from.{si}");
+                queue_equation_part(
+                    s,
+                    &source,
+                    &state.latex,
+                    state.size,
+                    part,
+                    part_id.clone(),
+                    source.pos,
+                    state.visual_scale,
+                );
+                tracks.push(rewrite_track(
+                    part_id.clone(),
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(1.0)),
+                    0.0,
+                    0.0,
+                    Easing::Linear,
+                ));
+                if let Some(ti) = target_of[si] {
+                    let target = &to.parts[ti];
+                    let target_pos = source.pos + target.offset * target_scale;
+                    let intrinsic_scale = if part.crop.h > 0.0 {
+                        target.crop.h / part.crop.h
+                    } else {
+                        1.0
+                    };
+                    tracks.push(rewrite_track(
+                        part_id.clone(),
+                        Prop::Pos,
+                        TargetValue::Abs(Value::V(target_pos)),
+                        0.0,
+                        dur,
+                        easing,
+                    ));
+                    tracks.push(rewrite_track(
+                        part_id.clone(),
+                        Prop::Scale,
+                        TargetValue::Abs(Value::F(target_scale * intrinsic_scale)),
+                        0.0,
+                        dur,
+                        easing,
+                    ));
+                    tracks.push(rewrite_track(
+                        part_id,
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(0.0)),
+                        dur,
+                        0.0,
+                        Easing::Linear,
+                    ));
+                } else {
+                    tracks.push(rewrite_track(
+                        part_id,
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(0.0)),
+                        dur * 0.12,
+                        dur * 0.38,
+                        Easing::InQuad,
+                    ));
+                }
+            }
+
+            for (ti, part) in to.parts.iter().enumerate() {
+                if target_used[ti] {
+                    continue;
+                }
+                let part_id = format!("__rewrite.{id}.{serial}.to.{ti}");
+                queue_equation_part(
+                    s,
+                    &source,
+                    &target_latex,
+                    state.size,
+                    part,
+                    part_id.clone(),
+                    source.pos,
+                    target_scale,
+                );
+                tracks.push(rewrite_track(
+                    part_id.clone(),
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(1.0)),
+                    dur * 0.36,
+                    dur * 0.46,
+                    Easing::OutQuad,
+                ));
+                tracks.push(rewrite_track(
+                    part_id,
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(0.0)),
+                    dur,
+                    0.0,
+                    Easing::Linear,
+                ));
+            }
+
+            Clip {
+                dur,
+                tracks,
+                events: vec![TimelineEvent::shape(id.clone(), target_shape.clone(), dur)],
+            }
+        }
+        _ => fallback_equation_rewrite(
+            id.clone(),
+            target_shape.clone(),
+            target_scale,
+            dur,
+            easing,
+        ),
+    };
+
+    s.equation_states.insert(
+        id,
+        EquationState {
+            latex: target_latex,
+            size: state.size,
+            visual_scale: target_scale,
+            rewrite_n: serial,
+        },
+    );
+    Ok(clip)
 }
 
 /// `swap(a, b, [dur], [ease])` — animate two entities into each other's position.
@@ -1749,6 +2162,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("size", m_size);
     r.ctor("wrap", m_wrap);
     r.ctor("stroke", m_stroke);
+    r.ctor("dashed", m_dashed);
     r.ctor("glow", m_glow);
     r.ctor("z", m_z);
     r.ctor("tag", m_tag);
@@ -1785,6 +2199,7 @@ pub fn register(r: &mut Registry) {
     r.verb("cam", v_cam);
     r.verb("zoom", v_zoom);
     r.verb("transform", v_transform); // apply a 2x2 matrix (ApplyMatrix)
+    r.mut_verb("rewrite", v_rewrite); // matching LaTeX transformation, opt-in
     r.mut_verb("swap", v_swap); // two entities, or stateful array slot-swap
     r.mut_verb("cycle", v_cycle); // variadic CyclicReplace with an optional path arc
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
@@ -2017,6 +2432,212 @@ mod tests {
             "image + show should validate: {:?}",
             m2.validate().err()
         );
+    }
+
+    #[test]
+    fn rewrite_keeps_one_equation_id_and_exact_settled_latex() {
+        use crate::primitives::Shape;
+
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             equation(work,(cx,cy),`x+x=2`,64);\n\
+             rewrite(work,`2x=2`,0.8);\n\
+             rewrite(work,`x=1`,0.8);\n",
+        )
+        .unwrap();
+        assert!(
+            !movie.base().pending_eq_parts.is_empty(),
+            "opt-in rewrite should decompose RaTeX display items"
+        );
+        assert_eq!(
+            movie.base().entities.iter().filter(|e| e.id == "work").count(),
+            1,
+            "the public equation id stays stable"
+        );
+
+        let (base, timeline) = movie.finalize();
+        let moving = timeline.apply(&base, 0.4);
+        assert_eq!(moving.get("work").unwrap().opacity, 0.0);
+        assert!(
+            moving
+                .entities
+                .iter()
+                .filter(|e| e.id.starts_with("__rewrite.work.1.from."))
+                .any(|e| e.opacity > 0.0),
+            "matched source parts should be visible during the transition"
+        );
+
+        let final_frame = timeline.apply(&base, 1.6);
+        let work = final_frame.get("work").unwrap();
+        assert!((work.opacity - 1.0).abs() < 1e-6);
+        match &work.shape {
+            Shape::Image { path, .. } => {
+                assert_eq!(path, &crate::latex::eq_path("x=1", 64.0));
+            }
+            other => panic!("settled rewrite must be the exact equation image: {other:?}"),
+        }
+
+        // Stateless guarantee: querying an earlier time after the final frame
+        // reconstructs the same intermediate state.
+        let moving_again = timeline.apply(&base, 0.4);
+        assert_eq!(moving_again.get("work").unwrap().opacity, 0.0);
+    }
+
+    #[test]
+    fn rewrite_is_opt_in_and_rejects_non_equations_or_bad_latex() {
+        let ordinary = crate::parse("canvas(1280,720); equation(q,(cx,cy),`x^2`,48);")
+            .expect("ordinary equation remains unchanged");
+        assert!(ordinary.base().pending_eq_parts.is_empty());
+
+        let non_equation = crate::parse(
+            "canvas(1280,720); text(label,(cx,cy),\"x\"); rewrite(label,`x+1`);",
+        )
+        .err()
+        .expect("rewrite should require an equation")
+        .to_string();
+        assert!(non_equation.contains("needs an equation"), "{non_equation}");
+
+        let bad_latex = crate::parse(
+            "canvas(1280,720); equation(q,(cx,cy),`x`,48); rewrite(q,`\\frac{`);",
+        )
+        .err()
+        .expect("malformed target LaTeX should fail")
+        .to_string();
+        assert!(bad_latex.contains("rewrite"), "{bad_latex}");
+    }
+
+    #[test]
+    fn rewrite_chain_fits_portrait_without_scale_breathing() {
+        let long = r"\frac{a_1}{b_1}+\frac{a_2}{b_2}+\frac{a_3}{b_3}+\frac{a_4}{b_4}+\frac{a_5}{b_5}+\frac{a_6}{b_6}=0";
+        let src = format!(
+            "canvas(\"9:16\"); equation(q,(cx,cy),`x=0`,72); rewrite(q,`{long}`,0.8); rewrite(q,`x=1`,0.8);"
+        );
+        let movie = crate::parse(&src).unwrap();
+        let state = &movie.base().equation_states["q"];
+        assert!(state.visual_scale < 1.0, "portrait overflow should auto-fit");
+        let (long_w, _, _) = crate::latex::layout_dims(long, 72.0).unwrap();
+        assert!(
+            long_w * state.visual_scale <= movie.base().canvas().x * 0.90 + 0.1,
+            "the widest state must fit the equation-safe width"
+        );
+        let (_, timeline) = movie.finalize();
+        let final_scale = timeline.apply(movie.base(), 1.6).get("q").unwrap().scale;
+        assert!((final_scale - state.visual_scale).abs() < 1e-6);
+    }
+
+    #[test]
+    fn rewrite_latex_corpus_covers_creator_math_and_physics_notation() {
+        use crate::primitives::Shape;
+
+        // These are notation families, not special-cased domains. Every row
+        // travels through the same public equation/rewrite pipeline and must
+        // settle on the exact RaTeX-rendered target image.
+        let cases = [
+            ("algebraic rearrangement", r"2(x+3)=14", r"2x=8\quad\Rightarrow\quad x=4"),
+            (
+                "integrals and derivatives",
+                r"F(x)=\int_0^x t^2\,dt",
+                r"F'(x)=\frac{d}{dx}\int_0^x t^2\,dt=x^2",
+            ),
+            (
+                "fractions roots powers and limits",
+                r"x^2+\sqrt{x}+\frac{1}{x}",
+                r"\lim_{x\to0}\frac{\sqrt{1+x}-1}{x}=\frac{1}{2}",
+            ),
+            (
+                "trigonometric identities",
+                r"\sin^2\theta+\cos^2\theta",
+                r"\sin^2\theta+\cos^2\theta=1",
+            ),
+            (
+                "set notation and logic",
+                r"x\in A\cap B",
+                r"(x\in A)\land(x\in B)",
+            ),
+            (
+                "summations and products",
+                r"\sum_{k=1}^{n}k",
+                r"\prod_{k=1}^{n}k=n!",
+            ),
+            (
+                "physics formulas and units",
+                r"F=ma",
+                r"[F]=\mathrm{kg}\cdot\mathrm{m}\cdot\mathrm{s}^{-2}",
+            ),
+            (
+                "probability expressions",
+                r"P(A\mid B)",
+                r"P(A\mid B)=\frac{P(B\mid A)P(A)}{P(B)}",
+            ),
+            (
+                "matrices and vectors",
+                r"\vec v=\begin{bmatrix}1\\2\end{bmatrix}",
+                r"A\vec v=\begin{bmatrix}a&b\\c&d\end{bmatrix}\begin{bmatrix}1\\2\end{bmatrix}",
+            ),
+            (
+                "text mixed with mathematical notation",
+                r"\text{Area of a circle}=\pi r^2",
+                r"\text{when }r=2,\quad A=4\pi",
+            ),
+            (
+                "user-created notation",
+                r"\mathcal{R}_{\star}(x)\equiv x^2+1",
+                r"\mathcal{R}_{\star}(2)=5",
+            ),
+        ];
+
+        for (name, from, to) in cases {
+            let src = format!(
+                "canvas(1280,720); equation(work,(cx,cy),`{from}`,42); rewrite(work,`{to}`,0.2,smooth);"
+            );
+            let movie = crate::parse(&src)
+                .unwrap_or_else(|e| panic!("{name} should parse and lower through rewrite: {e}"));
+            assert!(
+                !movie.base().pending_eq_parts.is_empty(),
+                "{name} should use structured equation parts"
+            );
+            let (base, timeline) = movie.finalize();
+            let settled = timeline.apply(&base, 0.2);
+            let work = settled.get("work").expect("persistent equation id");
+            match &work.shape {
+                Shape::Image { path, .. } => assert_eq!(
+                    path,
+                    &crate::latex::eq_path(to, 42.0),
+                    "{name} must settle on the exact target equation"
+                ),
+                other => panic!("{name} settled as {other:?}, not an equation image"),
+            }
+            assert!((work.opacity - 1.0).abs() < 1e-6, "{name} must settle visible");
+        }
+
+        let mixed = crate::parse(
+            "canvas(1280,720); text(note,(cx,cy),`Energy $E=mc^2$ uses mass $m$.`);",
+        )
+        .expect("ordinary prose with multiple inline formulas should typeset");
+        assert!(
+            matches!(mixed.base().get("note").unwrap().shape, Shape::RichText { .. }),
+            "mixed prose/math should remain a rich-text entity"
+        );
+    }
+
+    #[test]
+    fn dashed_is_a_generic_path_modifier() {
+        let movie = crate::parse(
+            "canvas(1280,720);\
+             line(guide,(100,100),(500,100)); dashed(guide);\
+             plot(curve,(640,360),80,80,\"sin(x)\",(-3,3)); dashed(curve,20,7);",
+        )
+        .expect("line and plot should share the same dashed modifier");
+        assert_eq!(movie.base().get("guide").unwrap().dash, Some((16.0, 10.0)));
+        assert_eq!(movie.base().get("curve").unwrap().dash, Some((20.0, 7.0)));
+
+        let bad = crate::parse(
+            "canvas(1280,720); circle(c,(cx,cy),80); dashed(c);",
+        )
+        .err()
+        .expect("filled shapes are not path-like")
+        .to_string();
+        assert!(bad.contains("path-like"), "{bad}");
     }
 
     /// Holistic inline LaTeX: a whole-`$…$` string in ANY text (plain `text`, a

@@ -107,13 +107,53 @@ pub struct TrackSpec {
     pub easing: Easing,
 }
 
-/// An instantaneous text-content swap (`set_text` mid-crossfade).
+/// An instantaneous, stateless scene change. Shape replacement is used by the
+/// final frame of `rewrite`: moving pieces disappear and the exact RaTeX image
+/// becomes the entity's new settled shape while retaining the same public id.
 #[derive(Debug, Clone)]
-pub struct TextEvent {
-    pub id: String,
-    pub content: String,
-    pub at: f32,
+pub enum TimelineEvent {
+    Text {
+        id: String,
+        content: String,
+        at: f32,
+    },
+    Shape {
+        id: String,
+        shape: Shape,
+        at: f32,
+    },
 }
+
+impl TimelineEvent {
+    pub fn text(id: String, content: String, at: f32) -> Self {
+        Self::Text { id, content, at }
+    }
+
+    pub fn shape(id: String, shape: Shape, at: f32) -> Self {
+        Self::Shape { id, shape, at }
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Text { id, .. } | Self::Shape { id, .. } => id,
+        }
+    }
+
+    pub fn at(&self) -> f32 {
+        match self {
+            Self::Text { at, .. } | Self::Shape { at, .. } => *at,
+        }
+    }
+
+    pub fn shift(&mut self, dt: f32) {
+        match self {
+            Self::Text { at, .. } | Self::Shape { at, .. } => *at += dt,
+        }
+    }
+}
+
+/// Backwards-compatible internal name used by existing text-producing kits.
+pub type TextEvent = TimelineEvent;
 
 /// A composable bundle of tracks/events with a known duration. Times inside
 /// are relative to clip start; `seq!`/`par!` build on these.
@@ -139,7 +179,7 @@ impl Clip {
             t.start += dt;
         }
         for e in &mut self.events {
-            e.at += dt;
+            e.shift(dt);
         }
         self.dur += dt;
         self
@@ -155,7 +195,7 @@ impl Clip {
                 out.tracks.push(t);
             }
             for mut e in c.events {
-                e.at += offset;
+                e.shift(offset);
                 out.events.push(e);
             }
             out.dur += c.dur;
@@ -443,6 +483,35 @@ fn linked_boundary_trim(e: &Entity, dir_world: Vec2, fallback: f32) -> f32 {
 }
 
 impl Timeline {
+    /// Replace a cached image path in future shape events after the player has
+    /// resolved semantic LaTeX colours through the selected template.
+    pub fn remap_image_path(&mut self, from: &str, to: &str) {
+        for event in &mut self.events {
+            let TimelineEvent::Shape { shape, .. } = event else {
+                continue;
+            };
+            if let Shape::Image { path, .. } = shape {
+                if path == from {
+                    *path = to.to_string();
+                }
+            }
+        }
+    }
+
+    /// Image paths introduced by future shape events, for texture preloading.
+    pub fn event_image_paths(&self) -> Vec<String> {
+        self.events
+            .iter()
+            .filter_map(|event| match event {
+                TimelineEvent::Shape {
+                    shape: Shape::Image { path, .. },
+                    ..
+                } => Some(path.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Resolve absolute-time track specs against the base scene.
     ///
     /// One chronological pass per (entity, property) pins each track's `from`
@@ -496,7 +565,7 @@ impl Timeline {
             tracks.insert((id, prop), resolved);
         }
 
-        events.sort_by(|a, b| a.at.total_cmp(&b.at));
+        events.sort_by(|a, b| a.at().total_cmp(&b.at()));
         Timeline {
             tracks,
             events,
@@ -536,12 +605,21 @@ impl Timeline {
         }
 
         for ev in &self.events {
-            if ev.at > t {
+            if ev.at() > t {
                 break;
             }
-            if let Some(e) = scene.get_mut(&ev.id) {
-                if let Shape::Text { content, .. } = &mut e.shape {
-                    *content = ev.content.clone();
+            match ev {
+                TimelineEvent::Text { id, content, .. } => {
+                    if let Some(e) = scene.get_mut(id) {
+                        if let Shape::Text { content: text, .. } = &mut e.shape {
+                            *text = content.clone();
+                        }
+                    }
+                }
+                TimelineEvent::Shape { id, shape, .. } => {
+                    if let Some(e) = scene.get_mut(id) {
+                        e.shape = shape.clone();
+                    }
                 }
             }
         }

@@ -42,7 +42,8 @@ are occurrences across the `geometry/` samples.
   `caption` (word-by-word text row + `karaoke`/`wordpop` verbs);
   modifiers (`hidden`, `untraced`, `cursor` (typewriter `_` on text), `color`,
   `hue` (HSL, computable per-entity), `outline`/`outlined`/`filled`, `size`,
-  `stroke`, `glow`, `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
+  `stroke`, `dashed` (generic dash/gap pattern for path-like entities), `glow`,
+  `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
   `tag`); verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
   `type`, `say`, `recolor`, `flash`, `pulse`, `shake`, `scale`, `rotate`,
   `spin`, `swap`, `transform` (2×2 matrix / ApplyMatrix), `to`/`set`, `cam`,
@@ -212,8 +213,41 @@ below are roadmap candidates, not promised builtins:
 1. **Matching transforms for equation/text parts (highest leverage).** Official
    Manim examples use `TransformMatchingStrings` and `TransformMatchingShapes`
    so symbols can visibly retain identity through an algebraic rewrite. Manic's
-   LaTeX remains a single raster entity, so arbitrary formula matching is still
-   open. The common positional subset is now covered by generic
+   Ordinary LaTeX remains a fast single raster entity. **Creator-reactive v1
+   SHIPPED ✅ (2026-07):** one opt-in, domain-neutral verb,
+   `` rewrite(equation, `next latex`, [duration], [ease]) ``. The author supplies
+   each mathematically correct state—Manic is not a CAS—and the engine matches
+   RaTeX display items so unchanged glyphs retain identity, moved terms travel
+   smoothly, new items enter locally, and removed items leave locally. Repeated
+   symbols are paired deterministically by structural/render context and nearest
+   position; rules, radicals, and delimiters are matched as visual items. When a
+   safe match is unavailable, only that local item crossfades; a whole-equation
+   crossfade remains the correctness fallback.
+
+   The shipped feature is deliberately regression-contained: existing `equation`,
+   `show`, `fade`, `move`, `scale`, and LaTeX rendering do not change unless
+   `rewrite` is used. Rewrites expand at build time into ordinary stateless
+   position/scale/opacity tracks, preserving deterministic recording, seeking,
+   and scrubbing. A chain remembers its authored LaTeX state while keeping one
+   stable equation id. The first release holds a common scale and anchor across
+   each transition, respects the existing canvas/safe-region layout, keeps
+   semantic `\\textcolor` styling, and supports composition with plots,
+   diagrams, captions, and `par` without adding `integral`, `quadratic`, `react`,
+   `watch`, or CAS-specific vocabulary. A table-driven creator corpus now covers
+   algebraic rearrangement; integrals/derivatives; fractions, radicals, powers,
+   and limits; trigonometric identities; sets/logic; sums/products; physics and
+   units; probability; matrices/vectors; mixed prose/math; and creator-defined
+   notation composed from renderer-supported LaTeX. It also retains the
+   repeated-symbol, portrait-fit, exact-settled-image, out-of-order seeking, and
+   malformed-LaTeX regressions. Reference scenes:
+   `examples/quadratic-formula-continuity.manic` (completing-square acceptance
+   benchmark) and `examples/reactive-integral.manic` (the same equation rewrite
+   composed with plots, numerical differentiation, a moving tangent, a generic
+   dashed antiderivative, and `+C`), plus
+   `examples/reactive-math-notation.manic` (a 9:16 creator showcase spanning the
+   full notation corpus plus chemistry and biology on one persistent stage).
+
+   The common positional subset is already covered by generic
    `cycle(a,b,c,…,[duration],[arc],[ease])`: independently declared symbols move
    cyclically into one another's positions along an optional arc, matching
    Manim's `CyclicReplace` without adding algebra-specific vocabulary. See the

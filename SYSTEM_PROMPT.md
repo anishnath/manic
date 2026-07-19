@@ -188,7 +188,8 @@ or `hidden(id)` then `wordpop(id,[delay])` = pop each in) ·
 ### Modifiers (t=0; first arg = target id or a tag)
 `hidden` · `untraced` · `cursor(id)` (typewriter `_` on text) · `sticky(id)` (pin to screen so it stays fixed through `cam`/`zoom` — HUD captions/counters) · `opacity(id,n)` · `color(id,name)` ·
 `hue(id,deg,[sat],[light])` · `outlined` · `filled` · `outline(id,name)` ·
-`size(id,n)` (text) · `stroke(id,n)` · `glow(id,n)` · `z(id,n)` · `rot(id,deg)`
+`size(id,n)` (text) · `stroke(id,n)` · `dashed(id,[dash],[gap])` (path-like
+entities; 16/10 px defaults) · `glow(id,n)` · `z(id,n)` · `rot(id,deg)`
 · `bold` · `display` · `tag(id,name)` · `label(id,"s",[(dx,dy)])`.
 
 ### Verbs (timeline)
@@ -196,6 +197,9 @@ or `hidden(id)` then `wordpop(id,[delay])` = pop each in) ·
 `move(id,target,[d],[ease])` · `shift(id,(dx,dy),[d],[ease])` ·
 `grow(id,target,[d],[ease])` (line/arrow endpoint) · `draw(id,[d])` ·
 `erase(id,[d])` · `type(id,[d])` · `say(id,"s",[d])` · `recolor(id,name,[d])` ·
+`` rewrite(id, `latex`, [d], [ease]) `` (existing `equation` only: smoothly match
+unchanged RaTeX parts into the next author-supplied formula; Manic animates the
+states but does not solve/verify them; chain calls on the same id) ·
 `flash(id,[name])` · `pulse(id,[d])` · `shake(id,[d])` ·
 `scale(id,f,[d],[ease])` · `rotate(id,deg,[d],[ease])` · `spin(id,deg,[d],[ease])`
 · `cam((x,y),[d],[ease])` · `zoom(f,[d],[ease])` ·

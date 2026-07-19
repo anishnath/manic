@@ -347,11 +347,8 @@ fn build_clip(b: ActBuilder) -> Clip {
                 d * 0.4,
                 Easing::InQuad,
             ));
-            clip.events.push(TextEvent {
-                id: id.clone(),
-                content: text,
-                at: d * 0.5,
-            });
+            clip.events
+                .push(TextEvent::text(id.clone(), text, d * 0.5));
             clip.tracks.push(track(
                 &id,
                 Prop::Opacity,

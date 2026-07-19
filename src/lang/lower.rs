@@ -649,8 +649,8 @@ fn check_clip_targets(scene: &Scene, clip: &Clip, s: &Stmt) -> Result<(), Error>
     for id in clip
         .tracks
         .iter()
-        .map(|t| &t.id)
-        .chain(clip.events.iter().map(|e| &e.id))
+        .map(|t| t.id.as_str())
+        .chain(clip.events.iter().map(|e| e.id()))
     {
         if !scene.contains(id) {
             return Err(unknown_id_error(scene, id, s));

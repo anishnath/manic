@@ -10,6 +10,27 @@ use crate::primitives3d::Entity3D;
 use crate::style;
 use crate::timeline::Prop;
 
+/// Build-time authored state for an equation that may be rewritten. The
+/// renderer still sees ordinary image entities; this metadata only lets a
+/// chain of `rewrite(id, ...)` calls start from the preceding LaTeX state.
+#[derive(Debug, Clone)]
+pub struct EquationState {
+    pub latex: String,
+    pub size: f32,
+    pub visual_scale: f32,
+    pub rewrite_n: usize,
+}
+
+/// A cropped RaTeX display item queued for sharp render-scale rasterisation.
+#[derive(Debug, Clone)]
+pub struct PendingEquationPart {
+    pub path: String,
+    pub latex: String,
+    pub size: f32,
+    pub index: usize,
+    pub crop: crate::latex::EquationPartCrop,
+}
+
 /// One pre-simulated playback track: an entity sub-id, the property to drive
 /// (`Pos`/`To`), and its per-frame screen positions. Physics ctors build these
 /// and store them in [`Scene::sims`]; the playback verb (`swing`) replays each as
@@ -139,6 +160,11 @@ pub struct Scene {
     /// not up/down-scaled). Layout/size are fixed at build; the player renders the
     /// PNG at `dpr = render scale` before the frame loop. `(cache path, latex, em size)`.
     pub pending_eqs: Vec<(String, String, f32)>,
+    /// Cropped display items used only while an opt-in equation `rewrite` is in
+    /// flight. They are ordinary image entities after rasterisation.
+    pub pending_eq_parts: Vec<PendingEquationPart>,
+    /// Current authored LaTeX for rewrite-capable equations. Build-time only.
+    pub equation_states: HashMap<String, EquationState>,
 }
 
 /// How a creator identity is presented at the bottom of a format.

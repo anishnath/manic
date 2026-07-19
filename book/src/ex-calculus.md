@@ -14,6 +14,18 @@ integral climbs to its true value — on properly numbered, scaled axes.
 
 <div class="manic-video" data-video="ex-calculus-demo"></div>
 
+## reactive-integral
+
+The reactive-math gold example: integration by parts stays one continuous equation,
+then a plot verifies that the antiderivative's slope is the integrand and `+C` is a
+family of vertical translations. Uses `rewrite`, not hand-positioned formula pieces.
+
+```manic
+{{#include ../../examples/reactive-integral.manic}}
+```
+
+<div class="manic-video" data-video="ex-reactive-integral"></div>
+
 ## sine_wave
 
 `axes` + `plot`, a curve traced on, then vectors.

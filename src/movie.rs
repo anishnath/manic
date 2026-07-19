@@ -346,7 +346,7 @@ impl Movie {
             }
             for e in &clip.events {
                 let mut e = e.clone();
-                e.at += start;
+                e.shift(*start);
                 events.push(e);
             }
         }
@@ -373,8 +373,8 @@ impl Movie {
                 }
             }
             for e in &clip.events {
-                if !self.scene.contains(&e.id) {
-                    unknown.insert(e.id.clone());
+                if !self.scene.contains(e.id()) {
+                    unknown.insert(e.id().to_string());
                 }
             }
         }

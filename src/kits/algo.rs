@@ -1645,11 +1645,7 @@ fn traverse(s: &mut Scene, a: &Args, use_stack: bool) -> Result<Clip, Error> {
         } else {
             format!("{prefix}: {}", items.join(" "))
         };
-        ev.push(TextEvent {
-            id: id.into(),
-            content,
-            at,
-        });
+        ev.push(TextEvent::text(id.into(), content, at));
     };
 
     // iterative traversal; discovered-at-enqueue so each node joins the frontier once
@@ -1856,11 +1852,11 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                     parent_edge.insert(v.clone(), eid.clone());
                     recolor(&mut tracks, &eid, C_FRONTIER, sub);
                     recolor(&mut tracks, &v, C_FRONTIER, sub + 0.1);
-                    events.push(TextEvent {
-                        id: format!("{v}.d"),
-                        content: fmt_num(nd),
-                        at: sub + 0.15,
-                    });
+                    events.push(TextEvent::text(
+                        format!("{v}.d"),
+                        fmt_num(nd),
+                        sub + 0.15,
+                    ));
                     sub += 0.26;
                 }
             }

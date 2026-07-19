@@ -183,6 +183,11 @@ pub struct Entity {
     /// Draw order: higher `z` draws on top.
     pub z: i32,
     pub stroke: StrokeStyle,
+    /// Optional `(dash, gap)` lengths in logical pixels for path-like shapes.
+    /// `None` keeps the normal solid stroke. Kept on the entity (rather than a
+    /// calculus/plot primitive) so the same visual language works for plots,
+    /// lines, links, arrows, curves, splines, coils, and arcs.
+    pub dash: Option<(f32, f32)>,
     /// Font for `Shape::Text`.
     pub font: FontKind,
     /// Horizontal anchoring for `Shape::Text`.
@@ -656,6 +661,7 @@ impl Entity {
             flow: 0.0,
             z: 0,
             stroke: StrokeStyle::default(),
+            dash: None,
             font: FontKind::default(),
             align: Align::default(),
             rot: 0.0,

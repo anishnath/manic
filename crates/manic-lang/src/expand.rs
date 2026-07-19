@@ -280,7 +280,7 @@ fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
         }
         ExprKind::Call(name, arg) => {
             let x = eval_expr(arg, env)?;
-            call_fn(name, x).ok_or_else(|| Error::new(format!("unknown function `{name}`"), e.span))
+            call_fn(name, x).ok_or_else(|| unknown_fn_error(name, env, e.span))
         }
         ExprKind::Reduce {
             op,
@@ -355,6 +355,40 @@ fn unknown_var_error(name: &str, env: &Env, span: Span) -> Error {
             .with_fix(format!("Change to `{sugg}`"), sugg);
     }
     Error::new(base, span)
+}
+
+/// Build a helpful "unknown function" error. Catches the two classic glue slips
+/// in a `name(args)` call: a variable run into a function (`g3rcos(x)` →
+/// `g3r * cos(x)`) and a constant used as a function (`tau(x)` → `tau * (x)`).
+/// The fix targets only the NAME (so the `(args)` is preserved).
+fn unknown_fn_error(name: &str, env: &Env, span: Span) -> Error {
+    // just the name portion of `name(args)` (the call span starts at the name)
+    let name_span = Span::new(span.line, span.col, name.chars().count() as u32);
+    let is_fn = |s: &str| call_fn(s, 1.0).is_some();
+    // 1. `<var><fn>` glued — `g3rcos` = `g3r` (var) + `cos` (fn)
+    for k in 1..name.len() {
+        if !name.is_char_boundary(k) {
+            continue;
+        }
+        let (a, b) = name.split_at(k);
+        if is_known_var(a, env) && is_fn(b) {
+            let repl = format!("{a} * {b}");
+            return Error::new(
+                format!("unknown function `{name}` — did you mean `{repl}(…)`? (use `*` between a variable and a function)"),
+                name_span,
+            )
+            .with_fix(format!("Change to `{repl}`"), repl);
+        }
+    }
+    // 2. a CONSTANT used as a function — `tau(x)` → `tau * (x)`
+    if constant(name).is_some() {
+        return Error::new(
+            format!("`{name}` is a constant, not a function — did you mean `{name} * (…)`? (a number/constant before `(` must have an explicit `*`)"),
+            name_span,
+        )
+        .with_fix(format!("Change to `{name} *`"), format!("{name} * "));
+    }
+    Error::new(format!("unknown function `{name}`"), span)
 }
 
 fn nearest_var(name: &str, env: &Env) -> Option<String> {

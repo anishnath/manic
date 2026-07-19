@@ -38,6 +38,24 @@ Prefer direct wording. Move supporting context into `explain`; do not make the
 viewer read a paragraph before the timer starts. Use LaTeX for mathematical
 notation so formulas stay crisp and compact.
 
+### Gold pattern: let one equation evolve
+
+For a solution Reel, do not stack five complete formulas or cut to a blank
+screen between steps. Declare one equation and rewrite it in place:
+
+```manic
+equation(work, (cx, 520), `x^2+2x=3`, 54);
+rewrite(work, `x^2+2x+1=4`, 0.85, smooth);
+wait(0.8);
+rewrite(work, `(x+1)^2=4`, 0.85, smooth);
+```
+
+The viewer's eye can follow the terms that move while unchanged symbols stay
+put. Manic matches the rendered LaTeX; you still supply and own every correct
+step. For phone video, use one meaningful rewrite per narration beat, keep the
+equation in the media safe region, pause after the important result, and place
+any related plot or diagram motion beside the rewrite in `par`.
+
 ## 2. Let the format own layout
 
 ```manic

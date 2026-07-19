@@ -54,6 +54,17 @@ equation(step, (cx, 620),
 Leave a term uncolored to use the template foreground. A single-color equation
 can still be styled as one entity with `color` and animated with `recolor`.
 
+For a derivation, keep that same equation id and animate only the change:
+
+```manic
+rewrite(step, `\mathrm{slope}=\frac{\mathrm{rise}}{\mathrm{run}}`, 0.9, smooth);
+rewrite(step, `\mathrm{slope}=\frac{x}{1}`, 0.9, smooth);
+```
+
+Manic matches the rendered LaTeX parts; it does not perform algebra. This makes
+the verb generic across algebra, calculus, physics, sums, fractions, radicals,
+and creator scenes while keeping each settled formula exact.
+
 ```manic
 {{#include ../samples/shapes.manic}}
 ```
@@ -71,6 +82,7 @@ begins. They take the entity name first, then a value:
 |---|---|---|
 | `color(id, c)` | fill / stroke colour | `color(sun, cyan);` |
 | `stroke(id, w)` | line thickness | `stroke(sun, 4);` |
+| `dashed(id, [dash], [gap])` | dashed path (defaults 16/10 px) | `dashed(curve, 18, 10);` |
 | `size(id, n)` | text size | `size(cap, 30);` |
 | `glow(id, n)` | neon halo strength | `glow(sun, 8);` |
 | `opacity(id, 0..1)` | transparency | `opacity(sun, 0.5);` |

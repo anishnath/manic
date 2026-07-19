@@ -120,6 +120,71 @@ fn draw_path(pts: &[Vec2], frac: f32, width: f32, color: Color) {
     }
 }
 
+/// Draw the traced portion of a polyline with a repeating dash/gap pattern.
+/// Pattern state flows continuously across segment boundaries, so a sampled
+/// plot reads as one dashed curve instead of restarting at every sample.
+fn draw_dashed_path(
+    pts: &[Vec2],
+    frac: f32,
+    width: f32,
+    color: Color,
+    dash: f32,
+    gap: f32,
+) {
+    if pts.len() < 2 || frac <= 0.0 || dash <= 0.0 || gap <= 0.0 {
+        return;
+    }
+    let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+    let mut budget = total * frac.min(1.0);
+    let mut drawing = true;
+    let mut pattern_left = dash;
+
+    for w in pts.windows(2) {
+        if budget <= 0.0 {
+            break;
+        }
+        let delta = w[1] - w[0];
+        let seg_len = delta.length();
+        if seg_len <= 0.0 {
+            continue;
+        }
+        let dir = delta / seg_len;
+        let mut at = w[0];
+        let mut seg_left = seg_len.min(budget);
+
+        while seg_left > 1e-4 {
+            let step = seg_left.min(pattern_left);
+            let next = at + dir * step;
+            if drawing {
+                draw_line(at.x, at.y, next.x, next.y, width, color);
+            }
+            at = next;
+            seg_left -= step;
+            pattern_left -= step;
+            if pattern_left <= 1e-4 {
+                drawing = !drawing;
+                pattern_left = if drawing { dash } else { gap };
+            }
+        }
+        budget -= seg_len.min(budget);
+    }
+}
+
+#[inline]
+fn draw_styled_path(
+    pts: &[Vec2],
+    frac: f32,
+    width: f32,
+    color: Color,
+    dash: Option<(f32, f32)>,
+) {
+    if let Some((on, off)) = dash {
+        draw_dashed_path(pts, frac, width, color, on, off);
+    } else {
+        draw_path(pts, frac, width, color);
+    }
+}
+
 /// Point and unit tangent at `frac` of a polyline's arc length.
 fn path_point(pts: &[Vec2], frac: f32) -> (Vec2, Vec2) {
     let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
@@ -204,9 +269,16 @@ fn draw_head(tip: Vec2, dir: Vec2, width: f32, color: Color) {
 
 /// Path with an optional arrowhead riding its traced tip. The stroke stops
 /// short of the tip so the head doesn't overlap it.
-fn draw_stroke_path(pts: &[Vec2], frac: f32, width: f32, color: Color, arrow: bool) {
+fn draw_stroke_path(
+    pts: &[Vec2],
+    frac: f32,
+    width: f32,
+    color: Color,
+    arrow: bool,
+    dash: Option<(f32, f32)>,
+) {
     if !arrow {
-        draw_path(pts, frac, width, color);
+        draw_styled_path(pts, frac, width, color, dash);
         return;
     }
     let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
@@ -217,7 +289,7 @@ fn draw_stroke_path(pts: &[Vec2], frac: f32, width: f32, color: Color, arrow: bo
     let (tip, dir) = path_point(pts, frac);
     let head_len = (10.0 + width * 2.5).min(drawn);
     let body_frac = frac * (1.0 - head_len / drawn.max(1e-3)).max(0.0);
-    draw_path(pts, body_frac, width, color);
+    draw_styled_path(pts, body_frac, width, color, dash);
     draw_head(tip, dir, width, color);
 }
 
@@ -542,6 +614,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
     let stroke_c = style::with_opacity(base, e.opacity);
     let outline = style::with_opacity(outline_base, e.opacity);
     let k = view.k();
+    let dash = e.dash.map(|(on, off)| (on * k, off * k));
     let p = view.xform(e.pos);
     let width = e.stroke.width * k;
     let rad = e.rot.to_radians();
@@ -645,14 +718,15 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
         Shape::Line { to } => {
             let q = rot_pt(view.xform(*to), p, rad);
             if glow_on {
-                draw_path(
+                draw_styled_path(
                     &[p, q],
                     trace,
                     width * e.scale * 3.0,
                     halo(stroke_c, e.opacity, glow),
+                    dash,
                 );
             }
-            draw_path(&[p, q], trace, width * e.scale, stroke_c);
+            draw_styled_path(&[p, q], trace, width * e.scale, stroke_c, dash);
             // a tangent/normal carries a contact dot at the touch point (the
             // segment's midpoint, since the segment is centred on it)
             if matches!(
@@ -672,14 +746,15 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let q = rot_pt(view.xform(*to), p, rad);
             let pts = coil_points(p, q, *turns);
             if glow_on {
-                draw_path(
+                draw_styled_path(
                     &pts,
                     trace,
                     width * e.scale * 3.0,
                     halo(stroke_c, e.opacity, glow),
+                    dash,
                 );
             }
-            draw_path(&pts, trace, width * e.scale, stroke_c);
+            draw_styled_path(&pts, trace, width * e.scale, stroke_c, dash);
         }
         Shape::Arrow { to } => {
             let pts = [p, rot_pt(view.xform(*to), p, rad)];
@@ -690,9 +765,10 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     width * e.scale * 3.0,
                     halo(stroke_c, e.opacity, glow),
                     true,
+                    dash,
                 );
             }
-            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, true);
+            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, true, dash);
         }
         Shape::Curve { ctrl, to, arrow } => {
             let ctrl_p = rot_pt(view.xform(*ctrl), p, rad);
@@ -705,9 +781,10 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     width * e.scale * 3.0,
                     halo(stroke_c, e.opacity, glow),
                     *arrow,
+                    dash,
                 );
             }
-            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, *arrow);
+            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, *arrow, dash);
         }
         Shape::Polygon { pts } => {
             if pts.len() < 3 {
@@ -746,14 +823,15 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 }
             }
             if glow_on {
-                draw_path(
+                draw_styled_path(
                     &phys,
                     trace,
                     width * e.scale * 3.0,
                     halo(stroke_c, e.opacity, glow),
+                    dash,
                 );
             }
-            draw_path(&phys, trace, width * e.scale, stroke_c);
+            draw_styled_path(&phys, trace, width * e.scale, stroke_c, dash);
         }
         Shape::Arc {
             r,
@@ -821,14 +899,15 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             } else {
                 // plain arc: just the outer curve, no radii
                 if glow_on {
-                    draw_path(
+                    draw_styled_path(
                         &outer,
                         trace,
                         width * e.scale * 3.0,
                         halo(stroke_c, e.opacity, glow),
+                        dash,
                     );
                 }
-                draw_path(&outer, trace, width * e.scale, stroke_c);
+                draw_styled_path(&outer, trace, width * e.scale, stroke_c, dash);
             }
         }
         Shape::Region { tris, rings } => {

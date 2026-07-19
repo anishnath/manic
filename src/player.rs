@@ -256,7 +256,7 @@ pub async fn run_loop(mut movie: Movie) {
     if opts.branded {
         crate::branding::add_watermark(&mut movie);
     }
-    let (mut base, timeline) = movie.finalize();
+    let (mut base, mut timeline) = movie.finalize();
     let title = movie.title.clone();
     let intro_tpl = crate::style::Template::plain();
     let intro: Option<(crate::scene::Scene, crate::timeline::Timeline)> = if opts.branded {
@@ -294,6 +294,42 @@ pub async fn run_loop(mut movie: Movie) {
                         }
                     }
                 }
+                timeline.remap_image_path(&path, &styled_path);
+            }
+        }
+        let pending_parts = base.pending_eq_parts.clone();
+        for part in pending_parts {
+            let _ = crate::latex::render_part_to_path(
+                &part.latex,
+                part.size,
+                dpr,
+                part.index,
+                part.crop,
+                false,
+                &part.path,
+            );
+            if crate::latex::has_explicit_color(&part.latex) {
+                let styled =
+                    crate::latex::with_palette_colors(&part.latex, &movie.template.palette);
+                let styled_path = crate::latex::eq_part_path(&styled, part.size, part.index);
+                let _ = crate::latex::render_part_to_path(
+                    &styled,
+                    part.size,
+                    dpr,
+                    part.index,
+                    part.crop,
+                    true,
+                    &styled_path,
+                );
+                for e in &mut base.entities {
+                    if let crate::primitives::Shape::Image { path, tint, .. } = &mut e.shape {
+                        if *path == part.path {
+                            *path = styled_path.clone();
+                            *tint = false;
+                        }
+                    }
+                }
+                timeline.remap_image_path(&part.path, &styled_path);
             }
         }
     }
@@ -320,6 +356,7 @@ pub async fn run_loop(mut movie: Movie) {
         if let Some((ib, _)) = &intro {
             collect(ib);
         }
+        paths.extend(timeline.event_image_paths());
         render::preload_textures(paths).await;
     }
 

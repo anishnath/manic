@@ -75,12 +75,40 @@ duration you give it, so run it in `par` with the story it should accompany.
 arc, or tracked `link`; it is useful for a signal, energy, traffic, or simply
 directing attention.
 
+For a persistent comparison style, use `dashed(id, [dash], [gap])` before the
+timeline. It is a base Manic modifier—not a calculus feature—so the same
+16/10-pixel default pattern works on a plot, guide line, link, arrow, curve,
+spline, coil, or plain arc. Increase both values for a calmer large-format dash;
+keep the gap smaller than the dash when the curve must remain easy to follow.
+
 ## Content & colour
 
 ```manic
 say(cap, "next step");     // -> crossfade a text entity to new words
 recolor(sun, lime, 0.5);   // -> permanently animate the colour
 ```
+
+### Rewrite an equation without rebuilding it
+
+Declare one real LaTeX equation, then supply each mathematically correct state:
+
+```manic
+equation(work, (cx, 300), `x^2+2x=3`, 54);
+rewrite(work, `x^2+2x+1=4`, 0.9, smooth);
+rewrite(work, `(x+1)^2=4`, 0.9, smooth);
+rewrite(work, `x=-1\pm2`, 0.9, smooth);
+```
+
+`rewrite` is visual, not a computer-algebra system: it never invents or verifies
+a step. Equal RaTeX parts retain identity and travel smoothly; only additions and
+removals fade locally. Repeated symbols are paired deterministically, semantic
+`\textcolor` roles follow the template, and the final frame is always the exact
+target LaTeX. Keep one `equation` id for the whole derivation, write readable
+steps, and use `wait` between them when the viewer needs time to absorb a result.
+
+For a plot or diagram that changes with the same step, place `rewrite` and the
+related motion in `par`. Existing equations are unaffected unless this verb is
+used.
 
 <div class="watch">▶ Watch: text</div>
 <div class="manic-video" data-video="text"></div>

@@ -47,6 +47,10 @@ SECTIONS = [
     "The flagship: two big ideas on one curve. A tangent slides along a bell curve\n"
     "with a live slope readout (flat at the peak), then the area sweeps open while the\n"
     "integral climbs to its true value — on properly numbered, scaled axes."),
+   ("reactive-integral",
+    "The reactive-math gold example: integration by parts stays one continuous equation,\n"
+    "then a plot verifies that the antiderivative's slope is the integrand and `+C` is a\n"
+    "family of vertical translations. Uses `rewrite`, not hand-positioned formula pieces."),
    ("sine_wave", "`axes` + `plot`, a curve traced on, then vectors."),
    ("function_graph", "Plot an expression straight from a formula string."),
    ("area_under_curve", "Riemann rectangles sweeping to the integral."),
@@ -480,6 +484,18 @@ SECTIONS = [
    ("conics", "Ellipse, parabola, hyperbola."),
  ]),
  dict(slug="transforms", title="Transforms & morphing", intro="", sub=SUB, items=[
+   ("reactive-math-journey",
+    "A playful vertical journey from `1+1` in Class 1 through fractions, algebra,\n"
+    "geometry, calculus, linear algebra, probability and Fourier analysis to a PhD-level\n"
+    "functional integral — then back to the curiosity that started it all."),
+   ("reactive-math-notation",
+    "One Reels-ready stage exercises structured LaTeX across thirteen notation worlds:\n"
+    "algebra, calculus, limits, trigonometry, logic, sums/products, physics, chemistry,\n"
+    "biology, probability, matrices/vectors, mixed prose/math, and creator notation."),
+   ("quadratic-formula-continuity",
+    "The quadratic formula by completing the square with one persistent LaTeX equation.\n"
+    "Each authored `rewrite` retains unchanged symbols, moves reused terms, and introduces\n"
+    "only the new notation — the acceptance benchmark for structured formula motion."),
    ("transforms", "Apply a 2x2 matrix (ApplyMatrix) to a group."),
    ("transform_copy", "Duplicate an entity, then transform the copy."),
    ("morph", "A sampled-point shape morph from A to B."),

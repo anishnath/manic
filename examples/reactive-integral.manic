@@ -1,8 +1,8 @@
 // ============================================================================
 // reactive-integral.manic — one calculation, one continuous visual world
 // ----------------------------------------------------------------------------
-// Integration by parts is built from persistent equation pieces. Unchanged
-// terms stay on screen while only the mathematical difference moves or enters.
+// Integration by parts uses one structured equation. `rewrite` keeps unchanged
+// RaTeX parts alive while only the mathematical difference moves or enters.
 // The graph then verifies the result: the slope of F is the height of f, and
 // +C becomes a visible family of vertical translations.
 // ============================================================================
@@ -21,31 +21,22 @@ text(headline, (430, 72), "Watch only the mathematics that changes");
 size(headline, 28); color(headline, fg); bold(headline); hidden(headline);
 
 // ---------------------------------------------------------------------------
-// PERSISTENT EQUATION PIECES
+// ONE PERSISTENT EQUATION
 // ---------------------------------------------------------------------------
 
-equation(intSign, (430, 145), `\int`, 58); color(intSign, fg); hidden(intSign);
-equation(xTerm, (485, 145), `x`, 46); color(xTerm, magenta); hidden(xTerm);
-equation(cosTerm, (560, 145), `\cos(x)`, 46); color(cosTerm, cyan); hidden(cosTerm);
-equation(dxTerm, (660, 145), `\,dx`, 42); color(dxTerm, dim); hidden(dxTerm);
+equation(
+  work,
+  (cx, 145),
+  `\int \textcolor{magenta}{x}\,\textcolor{cyan}{\cos(x)}\,dx`,
+  46
+);
+hidden(work);
 
 // The by-parts roles remain visible while the expression changes above them.
 equation(uChoice, (330, 225), `u=x`, 28); color(uChoice, magenta); hidden(uChoice);
 equation(dvChoice, (525, 225), `dv=\cos(x)\,dx`, 28); color(dvChoice, cyan); hidden(dvChoice);
 equation(duChoice, (760, 225), `du=dx`, 28); color(duChoice, magenta); hidden(duChoice);
 equation(vChoice, (950, 225), `v=\sin(x)`, 28); color(vChoice, cyan); hidden(vChoice);
-
-// New pieces for x sin(x) - integral sin(x) dx. xTerm, intSign and dxTerm are
-// reused from the original line instead of replacing the complete equation.
-equation(sinProduct, (520, 145), `\sin(x)`, 46); color(sinProduct, cyan); hidden(sinProduct);
-equation(minusTerm, (600, 145), `-`, 46); color(minusTerm, fg); hidden(minusTerm);
-equation(sinInner, (705, 145), `\sin(x)`, 46); color(sinInner, cyan); hidden(sinInner);
-
-// Final pieces. xTerm and sinProduct stay exactly where they landed.
-equation(plusOne, (600, 145), `+`, 46); color(plusOne, fg); hidden(plusOne);
-equation(cosFinal, (690, 145), `\cos(x)`, 46); color(cosFinal, cyan); hidden(cosFinal);
-equation(plusTwo, (785, 145), `+`, 46); color(plusTwo, fg); hidden(plusTwo);
-equation(cTerm, (835, 145), `C`, 46); color(cTerm, gold); hidden(cTerm);
 
 text(method, (cx, 278), "INTEGRATION BY PARTS");
 size(method, 16); color(method, dim); bold(method); hidden(method);
@@ -67,7 +58,8 @@ plot(f, (ox, oy), sx, sy, "x*cos(x)", (-5, 5));
 color(f, cyan); stroke(f, 5); glow(f, 0.8); untraced(f);
 
 plot(bigF, (ox, oy), sx, sy, "x*sin(x)+cos(x)", (-5, 5));
-color(bigF, lime); stroke(bigF, 5); glow(bigF, 0.8); untraced(bigF);
+color(bigF, lime); stroke(bigF, 5); dashed(bigF, 18, 11);
+glow(bigF, 0.8); untraced(bigF);
 
 // Numerical derivative of F: drawing it lands directly on f.
 deriv(dF, bigF);
@@ -86,6 +78,7 @@ plot(Fup, (ox, oy), sx, sy, "x*sin(x)+cos(x)+1.5", (-5, 5));
 plot(Fdown, (ox, oy), sx, sy, "x*sin(x)+cos(x)-1.5", (-5, 5));
 color(Fup, magenta); color(Fdown, magenta);
 stroke(Fup, 3); stroke(Fdown, 3); opacity(Fup, 0.55); opacity(Fdown, 0.55);
+dashed(Fup, 14, 9); dashed(Fdown, 14, 9);
 untraced(Fup); untraced(Fdown);
 
 equation(familyLabel, (cx, 280), `F(x)+C\quad\text{changes height, not slope}`, 32);
@@ -104,12 +97,7 @@ size(caption, 19); color(caption, dim); bold(caption);
 show(kicker, 0.45);
 show(headline, 0.55);
 say(caption, "Start with the question. Keep the stage — change only its state.");
-par {
-  show(intSign, 0.45);
-  show(xTerm, 0.45);
-  show(cosTerm, 0.45);
-  show(dxTerm, 0.45);
-}
+show(work, 0.65);
 wait(1.60);
 
 // Choose u and dv by reusing the same semantic colours.
@@ -120,32 +108,25 @@ wait(1.20);
 par { show(duChoice, 0.50); show(vChoice, 0.50); }
 wait(1.50);
 
-// Build x sin(x) - integral sin(x) dx. The reusable tokens travel to their new
-// jobs while the obsolete cosine is the only original factor that fades.
+// Build x sin(x) - integral sin(x) dx. Reusable glyphs travel to their new
+// jobs while the obsolete cosine is the only original factor that leaves.
 say(caption, "Apply integration by parts: persistent pieces move; new pieces arrive.");
-par {
-  move(xTerm, (430, 145), 0.85, smooth);
-  move(intSign, (650, 145), 0.85, smooth);
-  move(dxTerm, (790, 145), 0.85, smooth);
-  fade(cosTerm, 0.55);
-  show(sinProduct, 0.70);
-  show(minusTerm, 0.55);
-  show(sinInner, 0.70);
-}
+rewrite(
+  work,
+  `\textcolor{magenta}{x}\textcolor{cyan}{\sin(x)}-\int\textcolor{cyan}{\sin(x)}\,dx`,
+  1.05,
+  smooth
+);
 wait(2.00);
 
 // Only the remaining integral changes. x sin(x) stays untouched.
 say(caption, "Resolve the remaining integral. The stable product never blinks.");
-par {
-  fade(minusTerm, 0.45);
-  fade(intSign, 0.45);
-  fade(sinInner, 0.45);
-  fade(dxTerm, 0.45);
-  show(plusOne, 0.50);
-  show(cosFinal, 0.65);
-  show(plusTwo, 0.50);
-  show(cTerm, 0.65);
-}
+rewrite(
+  work,
+  `\textcolor{magenta}{x}\textcolor{cyan}{\sin(x)}+\textcolor{cyan}{\cos(x)}+\textcolor{gold}{C}`,
+  1.00,
+  smooth
+);
 wait(2.00);
 
 // Move attention from symbolic manipulation into the same idea as geometry.
@@ -183,8 +164,9 @@ wait(1.40);
 say(caption, "+C creates a family of answers — same shape, same slope.");
 par {
   fade(tan, 0.45); fade(slopeValue, 0.45); fade(dF, 0.45);
-  fade(proofLabel, 0.45); show(familyLabel, 0.55);
-  pulse(cTerm, 0.70);
+  fade(proofLabel, 0.45); fade(fLabel, 0.45); fade(FLabel, 0.45);
+  show(familyLabel, 0.55);
+  pulse(work, 0.70);
 }
 par { draw(Fup, 1.50); draw(Fdown, 1.50); }
 wait(2.80);

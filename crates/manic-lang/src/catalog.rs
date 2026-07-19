@@ -285,6 +285,17 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             &[("id", Ident, R), ("width", Num, R)],
         ),
         spec(
+            "dashed",
+            Ctor,
+            "std",
+            "use a repeating dash/gap stroke on a path-like entity",
+            &[
+                ("id", Ident, R),
+                ("dash", Num, O),
+                ("gap", Num, O),
+            ],
+        ),
+        spec(
             "glow",
             Ctor,
             "std",
@@ -524,6 +535,18 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "crossfade text to new content",
             &[("id", Ident, R), ("text", Str, R), ("dur", Num, O)],
+        ),
+        spec(
+            "rewrite",
+            MutVerb,
+            "std",
+            "smoothly transform one authored LaTeX equation state into the next while matching unchanged visual parts; this animates supplied math and does not solve it",
+            &[
+                ("equation", Ident, R),
+                ("latex", Str, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
         ),
         spec(
             "type",

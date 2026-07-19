@@ -609,6 +609,22 @@ mod tests {
     }
 
     #[test]
+    fn glued_var_function_suggests_a_star() {
+        // `g3rcos(x)` = `g3r` (var) × `cos` (fn) run together — the wheel-graph slip.
+        let d = check("let g3r = 5;\ndot(p, (g3rcos(0), 0), 3);");
+        let v = d.iter().find(|x| x.message.contains("g3rcos")).expect("flagged");
+        assert_eq!(v.fix.as_ref().unwrap().replacement, "g3r * cos");
+    }
+
+    #[test]
+    fn constant_used_as_function_suggests_a_star() {
+        // `tau(x)` — tau is a constant, not a function.
+        let d = check("dot(p, (tau(1), 0), 3);");
+        let v = d.iter().find(|x| x.message.contains("constant")).expect("flagged");
+        assert_eq!(v.fix.as_ref().unwrap().replacement, "tau * ");
+    }
+
+    #[test]
     fn check_too_few_args() {
         let d = check("circle(sun);");
         assert!(d.iter().any(|x| x.message.contains("argument")));
