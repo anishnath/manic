@@ -372,6 +372,12 @@ pub fn lex(src: &str) -> Result<Vec<Token>, Error> {
                     start,
                 ))
             }
+            '$' => {
+                return Err(Error::new(
+                    "unexpected `$` — inline math `$…$` lives inside a quoted STRING. Did you forget the quotes? e.g. text(id,(x,y),\"area is $\\pi r^2$\")",
+                    start,
+                ))
+            }
             other => return Err(Error::new(format!("unexpected character `{other}`"), start)),
         };
 

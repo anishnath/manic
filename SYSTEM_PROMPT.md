@@ -100,10 +100,12 @@ Constructors and timeline may be written in any order.
    To emphasize individual terms, use standard LaTeX with Manic palette names:
    `` `\textcolor{magenta}{\mathrm{slope}}=\textcolor{cyan}{x}` ``. These semantic
    colors follow the active template; uncolored terms use its foreground.
-   **Inline `$…$` in ANY text is auto-typeset — whole OR mixed.** Use a backtick
-   raw string and wrap math in `$…$`; it works in `text`/`caption`/`say` and every
-   kit label (geo points, quiz options, …), takes the entity colour, no `equation`
-   call:
+   **Inline `$…$` in ANY text is auto-typeset — whole OR mixed.** ⚠️ The text is
+   ALWAYS a QUOTED string (`"…"` or backticks) — NEVER bare: `text(t,(x,y),the area
+   is $\pi r^2$)` fails (unexpected `$`); it must be `text(t,(x,y),"the area is
+   $\pi r^2$")`. Wrap math in `$…$` inside the string; it works in
+   `text`/`caption`/`say` and every kit label (geo points, quiz options, …), takes
+   the entity colour, no `equation` call:
    - whole label: `` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`,correct) ``,
      `` point(A,(x,y),`$\alpha$`) ``.
    - **MIXED text + math on one line** (this is the common case for questions/
