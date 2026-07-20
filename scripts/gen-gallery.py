@@ -116,6 +116,11 @@ SECTIONS = [
     "(`diagonalise`) — then it moves on to solving `Ax = b` (`linsolve` → `rref`) and\n"
     "projection / least-squares (`project`). Start here.",
     "linear-algebra — the whole subject in five ideas"),
+   ("textbook-matrix-inverses",
+    "Two exam-style inverse proofs animated through structure rather than row reduction.\n"
+    "The first scales to an integer matrix, proves its columns are orthogonal, and gets\n"
+    "`A⁻¹ = Aᵀ` from `AᵀA = I`; the second computes `A²`, observes `A³ = I`, and\n"
+    "concludes `A⁻¹ = A²`. One persistent proof stage keeps every unchanged expression."),
    ("linear-map",
     "What a 2×2 matrix does to space: the grid deforms and the basis lands on its\n"
     "columns (`linmap`), the unit square's area becomes the determinant\n"

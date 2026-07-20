@@ -82,6 +82,7 @@ ex-taylor|5_W8DHKCI88|Taylor Series: Watch Polynomials Become sin(x) — manic
 
 # ---- examples: linear algebra & tables ----
 ex-linear-algebra|qjMYJQqvwCg|Linear Algebra in Five Ideas — A Complete Visual Lesson — manic
+ex-textbook-matrix-inverses|PLACEHOLDER|Two Matrix Inverse Proofs — Orthogonality and Finite Order
 ex-matrix|aT4DHaAfrIk|Matrices, Animated — manic
 ex-matrix_addition|aEphi9Qv_sY|Adding Matrices, Cell by Cell — manic
 ex-matrix_addition_plane|sfp4_kIdCyc|Matrix Addition on the Plane — manic

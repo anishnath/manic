@@ -17,6 +17,19 @@ projection / least-squares (`project`). Start here.
 
 <div class="manic-video" data-video="ex-linear-algebra"></div>
 
+## textbook-matrix-inverses
+
+Two exam-style inverse proofs animated through structure rather than row reduction.
+The first scales to an integer matrix, proves its columns are orthogonal, and gets
+`A⁻¹ = Aᵀ` from `AᵀA = I`; the second computes `A²`, observes `A³ = I`, and
+concludes `A⁻¹ = A²`. One persistent proof stage keeps every unchanged expression.
+
+```manic
+{{#include ../../examples/textbook-matrix-inverses.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-matrix-inverses"></div>
+
 ## linear-map
 
 What a 2×2 matrix does to space: the grid deforms and the basis lands on its
