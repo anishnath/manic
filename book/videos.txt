@@ -51,7 +51,7 @@ ex-graph|pLvJblT7zwg|Draw a Graph in One Line — manic
 ex-graph_moving|kthOKyJndtg|Drag a Node, the Edges Follow — manic
 ex-bfs_dfs|GbNBlQd1fR0|BFS vs DFS in One Video — manic
 ex-dijkstra|UOjIHugt4o8|Dijkstra's Algorithm, Visualized — manic
-ex-cubic-graphs|Sl0AmT-PB0s|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
+ex-cubic-graphs|PLACEHOLDER|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
 
 # ---- examples: calculus & functions ----
 ex-sine_wave|HSC_hssuHd0|Plotting sin(x) From Scratch — manic
@@ -65,7 +65,7 @@ ex-newton|R7wwwW-_tP4|Newton's Method, Chasing a Root — manic
 ex-spline|luCo9NmmbaA|A Smooth Curve Through Any Points — manic
 ex-trajectory|-QeYAZ2GHVQ|Phase Portrait: Flowing Into a Spiral — manic
 ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integral — manic
-ex-reactive-integral|PLACEHOLDER|Integration by Parts as One Continuous Equation — manic
+ex-reactive-integral|MRq5QHnHQxI|Integration by Parts as One Continuous Equation — manic
 ex-reactive-world|PLACEHOLDER|One World, Five Reactive Steps — The Derivative Lives on the Curve — manic
 ex-inverse-derivatives|-HEjdSVXdXc|Why Inverse Functions Have Reciprocal Slopes — manic
 ex-derivative-of-ln-x|kFUnbvkE4m4|Why d/dx ln(x) = 1/x — Turn the Coordinate Plane Over — manic
@@ -123,7 +123,7 @@ ex-conics|x3vqdu40MTc|Ellipse, Parabola, Hyperbola — manic
 # ---- examples: transforms & morphing ----
 ex-reactive-math-journey|PLACEHOLDER|From 1 + 1 to a PhD — The Journey of Mathematics — manic
 ex-reactive-math-notation|PLACEHOLDER|13 Scientific Worlds, One Reactive Equation — manic
-ex-quadratic-formula-continuity|PLACEHOLDER|The Quadratic Formula, Rewritten Without Cuts — manic
+ex-quadratic-formula-continuity|sAsTXoN0OaQ|The Quadratic Formula, Rewritten Without Cuts — manic
 ex-transforms|PnUfeUvkYHM|Apply a Matrix to Anything — manic
 ex-transform_copy|KSnLLXpooo0|Copy + Transform — manic
 ex-morph|Y6kpE-ZT-T8|Morph One Shape Into Another — manic
@@ -139,7 +139,7 @@ ex-inline-math|I0Bl6rCHH5M|Mix LaTeX Math Inside Any Sentence — manic
 
 # ---- examples: generative & recursive ----
 ex-fractal_tree|nYiPEEQEmIs|One Rule → a Fractal Tree — manic
-ex-particles-flow|tBSEq6d9ZYg|Tiny Particles, Curved Links & Flow — Four Generic Words in manic
+ex-particles-flow|kP9NDdzwoSA|Tiny Particles, Curved Links & Flow — Four Generic Words in manic
 ex-hue_wave|OxZUBYYEtAk|A Wave of Colour — manic
 ex-hill_run|pzRBP1qbncc|A Tiny Animated Scene — manic
 ex-equal_cuts|AThpTutdcbE|Halving a Circle, Again & Again — manic
@@ -166,7 +166,7 @@ ex-volume3|EvgfZJTtcAE|A Double Integral Made Solid — Volume Under a Surface �
 
 # ---- examples: physics — simulations ----
 ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
-ex-timing-v2-scene|oihH-HyPOSI|One Clock Controls an Entire Physics Scene — Timing v2
+ex-timing-v2-scene|qM3LzG82fIE|One Clock Controls an Entire Physics Scene — Timing v2
 ex-zeroth-law-thermodynamics|rdI9jDMdJSw|Zeroth Law of Thermodynamics — Three Bodies Find One Temperature — manic
 ex-pendulum-damped|KhANpUmTPtc|Damped Pendulum — Watch Energy Bleed Away — manic
 ex-pendulum-annotated|IcW5DCpAGaw|Anatomy of a Pendulum — Physics + Base manic — manic
@@ -245,15 +245,15 @@ ex-quiz-geometry-2|MbKmHFeF7Ks|Geometry Quiz: When Is the Circumcentre OUTSIDE? 
 ex-image|3h0wTYGzHTU|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
 ex-quiz-euler|N8vC0qFYcHA|I Built This Geometry Quiz Short in 12 Lines — manic
 ex-quiz-skins|zXoo9_IWEiI|4 Quiz-Short Designs From ONE Line of Code — manic
-ex-creator-v2|6DP_6tPfspA|Creator Kit v2 — One Responsive Quiz Across Every Social Format
-ex-perfect-reel|-AcCbVbv7qI|Make a Perfect Math Reel From One Script — manic
+ex-creator-v2|cmcE91c2O18|Creator Kit v2 — One Responsive Quiz Across Every Social Format
+ex-perfect-reel|_FAxmFXPEbU|Make a Perfect Math Reel From One Script — manic
 ex-reactive-multiformat|PLACEHOLDER|One Story, Four Formats — Reframe a Reactive Manic Video
 ex-parameter-journeys|PLACEHOLDER|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
-ex-creator-v2-options-socials|KHFV5y7NE5Q|Professional Quiz Options + Native Social Icons — manic
-ex-creator-v2-timing|JqLTda9s5-M|Control Every Beat of a Quiz Reel — Creator Timing v2
-ex-creator-v2-timers|05c2EgQiM-Y|Six Professional Countdown Designs, One Timing System — manic
-ex-creator-v2-timing-square|LJ9MGGycSGc|One Quiz, Perfectly Reflowed for a Square Feed — manic
-ex-creator-v2-olympiad-geometry|hOqmIKif6Zw|Olympiad Geometry Reel — Pause, Predict, Prove — manic
-ex-creator-v2-latex-calculus|5DvQz4-o2PE|A Calculus Reel With Real LaTeX — manic
-ex-creator-v2-latex-algebra|cAiE56lF6ho|A LaTeX Algebra Quiz, Perfectly Typeset — manic
-ex-creator-v2-latex-physics|EMS6jlHhXk0|Physics Equations on a Responsive Creator Canvas — manic
+ex-creator-v2-options-socials|Q32jTgInMrk|Professional Quiz Options + Native Social Icons — manic
+ex-creator-v2-timing|Web996n1Dn4|Control Every Beat of a Quiz Reel — Creator Timing v2
+ex-creator-v2-timers|3fyL67oDgZA|Six Professional Countdown Designs, One Timing System — manic
+ex-creator-v2-timing-square|G0oQ5tFbSuE|One Quiz, Perfectly Reflowed for a Square Feed — manic
+ex-creator-v2-olympiad-geometry|oHrtCNCl5gI|Olympiad Geometry Reel — Pause, Predict, Prove — manic
+ex-creator-v2-latex-calculus|0YZZjx5XSd4|A Calculus Reel With Real LaTeX — manic
+ex-creator-v2-latex-algebra|aX9akkjnZfA|A LaTeX Algebra Quiz, Perfectly Typeset — manic
+ex-creator-v2-latex-physics|6Z-k1kg5KSo|Physics Equations on a Responsive Creator Canvas — manic
