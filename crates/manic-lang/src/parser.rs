@@ -131,13 +131,29 @@ impl Parser {
                     ctrl: None,
                 })
             }
-            other => Err(Error::new(
-                format!(
-                    "expected `;` or `{{` after `{name}(...)`, found {}",
-                    describe(other)
-                ),
-                self.span(),
-            )),
+            other => {
+                // A bare identifier with no `(...)` and no terminator is almost
+                // always a stray token — a garbled paste or a half-typed line.
+                // Point the error at the token itself and offer to delete it. The
+                // auto-fixer treats an empty replacement as a *destructive* fix,
+                // so this only lands on an explicit request, never a silent pass.
+                if args.is_empty() {
+                    return Err(Error::new(
+                        format!(
+                            "stray `{name}` — a statement must be a call like `{name}(...)`, an assignment, or a control block"
+                        ),
+                        name_span,
+                    )
+                    .with_fix(format!("remove stray `{name}`"), ""));
+                }
+                Err(Error::new(
+                    format!(
+                        "expected `;` or `{{` after `{name}(...)`, found {}",
+                        describe(other)
+                    ),
+                    self.span(),
+                ))
+            }
         }
     }
 
@@ -706,6 +722,18 @@ mod tests {
     fn missing_semicolon_is_a_clear_error() {
         let e = parse("circle(A, (0,0), 40)").unwrap_err();
         assert!(e.msg.contains("expected `;` or `{`"), "{}", e.msg);
+    }
+
+    #[test]
+    fn stray_bare_identifier_is_removable() {
+        // a dangling garbage word (no `(...)`, no `;`) → clear error + remove-fix
+        let e = parse("circle(A, (0,0), 5);\nsadas\nlet x = 1;").unwrap_err();
+        assert!(e.msg.contains("stray `sadas`"), "{}", e.msg);
+        let (label, replacement) = e.fix.expect("stray token should carry a fix");
+        assert!(label.contains("remove stray `sadas`"), "{}", label);
+        assert_eq!(replacement, ""); // empty replacement = destructive removal
+        // the fix targets the token itself (line 2), not the following statement
+        assert_eq!(e.span.line, 2);
     }
 
     #[test]
