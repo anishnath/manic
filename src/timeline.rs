@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use macroquad::prelude::{Color, Vec2, Vec3};
+use macroquad::prelude::{Color, EulerRot, Quat, Vec2, Vec3};
 
 use crate::easing::Easing;
 use crate::primitives::{
@@ -20,6 +20,7 @@ pub enum Value {
     F(f32),
     V(Vec2),
     V3(Vec3),
+    Q(Quat),
     C(Color),
 }
 
@@ -38,6 +39,7 @@ impl Value {
             (Value::F(x), Value::F(y)) => Value::F(x + (y - x) * u),
             (Value::V(x), Value::V(y)) => Value::V(x + (y - x) * u),
             (Value::V3(x), Value::V3(y)) => Value::V3(x + (y - x) * u),
+            (Value::Q(x), Value::Q(y)) => Value::Q(x.slerp(y, u).normalize()),
             (Value::C(x), Value::C(y)) => Value::C(Color::new(
                 x.r + (y.r - x.r) * u,
                 x.g + (y.g - x.g) * u,
@@ -64,11 +66,15 @@ pub enum Prop {
     Rot,
     /// Euler rotation in degrees for a 3D entity.
     Rot3,
+    /// Stable additional quaternion orientation for V2 axis turns.
+    Orient3,
     /// Camera azimuth/elevation. Kept separate from roll so `orbit3` and
     /// `roll3` can run concurrently without overwriting each other.
     Orbit3,
     /// Camera roll in degrees around the viewing direction.
     Roll3,
+    /// Camera vertical field of view, or visible height in orthographic mode.
+    Fov3,
     /// Draw-on / typewriter progress ([`crate::primitives::Entity::trace`]).
     Trace,
     /// Monotonic path-flow phase; the renderer uses its fractional part for a
@@ -101,6 +107,12 @@ pub enum TargetValue {
     /// constructor-position snap.
     RotateAround {
         pivot: Vec2,
+        degrees: f32,
+    },
+    /// Rotate the current 3-D point about a world-space pivot and axis.
+    RotateAround3 {
+        pivot: Vec3,
+        axis: Vec3,
         degrees: f32,
     },
     /// The value the property had before the previous track started
@@ -155,6 +167,38 @@ pub enum TimelineEvent {
         easing: Easing,
         crossfade: bool,
     },
+    /// Time-scoped 3-D relationship. Release is paired with an exact authored
+    /// position track just like the 2-D attachment surface.
+    Attachment3 {
+        id: String,
+        target: Option<String>,
+        offset: Vec3,
+        rigid: bool,
+        relative_orientation: Quat,
+        at: f32,
+    },
+    /// Runtime-sampled travel along another 3D entity's transformed path. The
+    /// path is read every frame during the move, then sampled once at the end
+    /// so later path motion does not drag the traveller with it.
+    Travel3 {
+        id: String,
+        path: String,
+        at: f32,
+        dur: f32,
+        easing: Easing,
+    },
+    /// Identity-preserving 3-D blueprint transition. `morph` is precomputed at
+    /// build time for compatible families; `None` is the safe local crossfade.
+    Become3 {
+        id: String,
+        from: Box<crate::primitives3d::Entity3D>,
+        to: Box<crate::primitives3d::Entity3D>,
+        morph: Option<crate::primitives3d::Morph3>,
+        at: f32,
+        dur: f32,
+        easing: Easing,
+        crossfade: bool,
+    },
 }
 
 impl TimelineEvent {
@@ -194,12 +238,64 @@ impl TimelineEvent {
         }
     }
 
+    pub fn attachment3(
+        id: String,
+        target: Option<String>,
+        offset: Vec3,
+        rigid: bool,
+        relative_orientation: Quat,
+        at: f32,
+    ) -> Self {
+        Self::Attachment3 {
+            id,
+            target,
+            offset,
+            rigid,
+            relative_orientation,
+            at,
+        }
+    }
+
+    pub fn visual_transition3(
+        id: String,
+        from: crate::primitives3d::Entity3D,
+        to: crate::primitives3d::Entity3D,
+        morph: Option<crate::primitives3d::Morph3>,
+        dur: f32,
+        easing: Easing,
+        crossfade: bool,
+    ) -> Self {
+        Self::Become3 {
+            id,
+            from: Box::new(from),
+            to: Box::new(to),
+            morph,
+            at: 0.0,
+            dur,
+            easing,
+            crossfade,
+        }
+    }
+
+    pub fn travel3(id: String, path: String, dur: f32, easing: Easing) -> Self {
+        Self::Travel3 {
+            id,
+            path,
+            at: 0.0,
+            dur,
+            easing,
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
             Self::Text { id, .. }
             | Self::Shape { id, .. }
             | Self::Attachment { id, .. }
-            | Self::Become { id, .. } => id,
+            | Self::Become { id, .. }
+            | Self::Attachment3 { id, .. }
+            | Self::Travel3 { id, .. }
+            | Self::Become3 { id, .. } => id,
         }
     }
 
@@ -208,7 +304,10 @@ impl TimelineEvent {
             Self::Text { at, .. }
             | Self::Shape { at, .. }
             | Self::Attachment { at, .. }
-            | Self::Become { at, .. } => *at,
+            | Self::Become { at, .. }
+            | Self::Attachment3 { at, .. }
+            | Self::Travel3 { at, .. }
+            | Self::Become3 { at, .. } => *at,
         }
     }
 
@@ -217,7 +316,10 @@ impl TimelineEvent {
             Self::Text { at, .. }
             | Self::Shape { at, .. }
             | Self::Attachment { at, .. }
-            | Self::Become { at, .. } => *at += dt,
+            | Self::Become { at, .. }
+            | Self::Attachment3 { at, .. }
+            | Self::Travel3 { at, .. }
+            | Self::Become3 { at, .. } => *at += dt,
         }
     }
 }
@@ -338,9 +440,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
                 Some(gv) => Value::F(gv.x()),
                 None => return None,
             },
-            Prop::Rot3 => return None,
-            Prop::Orbit3 => return None,
-            Prop::Roll3 => return None,
+            Prop::Rot3 | Prop::Orient3 | Prop::Orbit3 | Prop::Roll3 | Prop::Fov3 => return None,
         });
     }
     let e = scene.get_3d(id)?;
@@ -350,8 +450,13 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
         Prop::Opacity => Value::F(e.opacity),
         Prop::Scale => Value::F(e.scale),
         Prop::Rot3 => Value::V3(e.rotation),
+        Prop::Orient3 => Value::Q(e.orientation),
         Prop::Orbit3 => Value::V3(e.rotation),
         Prop::Roll3 => Value::F(e.rotation.z),
+        Prop::Fov3 => match e.shape {
+            crate::primitives3d::Shape3D::Camera { fov, .. } => Value::F(fov),
+            _ => return None,
+        },
         Prop::Trace => Value::F(e.trace),
         Prop::To => match &e.shape {
             crate::primitives3d::Shape3D::Line { to }
@@ -455,11 +560,17 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
         (Prop::Opacity, Value::F(o)) => e.opacity = o,
         (Prop::Scale, Value::F(s)) => e.scale = s,
         (Prop::Rot3, Value::V3(r)) => e.rotation = r,
+        (Prop::Orient3, Value::Q(q)) => e.orientation = q.normalize(),
         (Prop::Orbit3, Value::V3(r)) => {
             e.rotation.x = r.x;
             e.rotation.y = r.y;
         }
         (Prop::Roll3, Value::F(r)) => e.rotation.z = r,
+        (Prop::Fov3, Value::F(value)) => {
+            if let crate::primitives3d::Shape3D::Camera { fov, .. } = &mut e.shape {
+                *fov = value.max(0.01);
+            }
+        }
         (Prop::Trace, Value::F(f)) => e.trace = f,
         (Prop::To, Value::V3(p)) => {
             if let crate::primitives3d::Shape3D::Line { to }
@@ -899,7 +1010,65 @@ fn apply_become_visual(entity: &mut Entity, from: &Entity, to: &Entity, u: f32, 
     }
 }
 
+fn apply_become3_visual(
+    entity: &mut crate::primitives3d::Entity3D,
+    from: &crate::primitives3d::Entity3D,
+    to: &crate::primitives3d::Entity3D,
+    morph: Option<&crate::primitives3d::Morph3>,
+    u: f32,
+    crossfade: bool,
+) {
+    use crate::primitives3d::{Morph3Kind, Shape3D};
+    if u >= 1.0 {
+        entity.shape = to.shape.clone();
+        entity.thickness = to.thickness;
+        entity.surf = to.surf.clone();
+        entity.morph3 = to.morph3.clone();
+        return;
+    }
+    if let Some(morph) = morph {
+        let pts = morph
+            .from
+            .iter()
+            .zip(&morph.to)
+            .map(|(a, b)| *a + (*b - *a) * u)
+            .collect();
+        entity.shape = match morph.kind {
+            Morph3Kind::Path => Shape3D::Path { points: pts },
+            Morph3Kind::Surface { nu, nv } => Shape3D::Surface { pts, nu, nv },
+        };
+    } else if crossfade {
+        entity.shape = if u < 0.5 {
+            from.shape.clone()
+        } else {
+            to.shape.clone()
+        };
+    }
+    entity.thickness = from.thickness + (to.thickness - from.thickness) * u;
+    entity.finish = if u < 0.5 { from.finish } else { to.finish };
+}
+
 impl Timeline {
+    fn entity3_at_tracks(
+        &self,
+        base: &Scene,
+        id: &str,
+        t: f32,
+    ) -> Option<crate::primitives3d::Entity3D> {
+        let mut entity = base.get_3d(id)?.clone();
+        for prop in [Prop::Pos, Prop::Scale, Prop::Rot3, Prop::Orient3] {
+            let Some(base_value) = get_prop(base, id, prop) else {
+                continue;
+            };
+            let value = self.value_at(id, prop, base_value, t);
+            let mut scratch = Scene::new();
+            scratch.add_3d(entity);
+            set_prop(&mut scratch, id, prop, value);
+            entity = scratch.entities_3d.remove(0);
+        }
+        Some(entity)
+    }
+
     /// Replace a cached image path in future shape events after the player has
     /// resolved semantic LaTeX colours through the selected template.
     pub fn remap_image_path(&mut self, from: &str, to: &str) {
@@ -987,6 +1156,20 @@ impl Timeline {
                             let (sn, cs) = degrees.to_radians().sin_cos();
                             let d = point - pivot;
                             Value::V(pivot + Vec2::new(d.x * cs - d.y * sn, d.x * sn + d.y * cs))
+                        }
+                        _ => from,
+                    },
+                    TargetValue::RotateAround3 {
+                        pivot,
+                        axis,
+                        degrees,
+                    } => match from {
+                        Value::V3(point) => {
+                            let q = Quat::from_axis_angle(
+                                axis.normalize_or_zero(),
+                                degrees.to_radians(),
+                            );
+                            Value::V3(pivot + q * (point - pivot))
                         }
                         _ => from,
                     },
@@ -1084,6 +1267,108 @@ impl Timeline {
                     };
                     if let Some(e) = scene.get_mut(id) {
                         apply_become_visual(e, from, to, u, *crossfade);
+                    }
+                }
+                TimelineEvent::Attachment3 {
+                    id,
+                    target,
+                    offset,
+                    rigid,
+                    relative_orientation,
+                    ..
+                } => {
+                    if let Some(e) = scene.get_3d_mut(id) {
+                        e.follow = target.clone().map(|target| (target, *offset));
+                        e.follow_local = target.is_some() && *rigid;
+                        e.follow_orientation = if target.is_some() && *rigid {
+                            *relative_orientation
+                        } else {
+                            Quat::IDENTITY
+                        };
+                    }
+                }
+                TimelineEvent::Travel3 {
+                    id,
+                    path,
+                    at,
+                    dur,
+                    easing,
+                } => {
+                    let later_position_track =
+                        self.tracks
+                            .get(&(id.clone(), Prop::Pos))
+                            .and_then(|tracks| {
+                                tracks.iter().find(|track| track.start + 1e-5 >= *at + *dur)
+                            });
+                    if let Some(track) = later_position_track {
+                        if t >= track.start + track.dur {
+                            continue;
+                        }
+                    }
+                    let u = if *dur <= 0.0 {
+                        1.0
+                    } else {
+                        easing.apply(((t - *at) / *dur).clamp(0.0, 1.0))
+                    };
+                    let path_entity = if t < *at + *dur {
+                        scene.get_3d(path).cloned()
+                    } else {
+                        self.entity3_at_tracks(base, path, *at + *dur)
+                    };
+                    if let Some(path_entity) = path_entity {
+                        let points: Option<Vec<Vec3>> = match &path_entity.shape {
+                            crate::primitives3d::Shape3D::Line { to }
+                            | crate::primitives3d::Shape3D::Arrow { to } => Some(vec![
+                                path_entity.world_point(Vec3::ZERO),
+                                path_entity.world_point(*to),
+                            ]),
+                            crate::primitives3d::Shape3D::Path { points } => Some(
+                                points
+                                    .iter()
+                                    .map(|point| path_entity.world_point(*point))
+                                    .collect(),
+                            ),
+                            _ => None,
+                        };
+                        if let (Some(points), Some(entity)) = (points, scene.get_3d_mut(id)) {
+                            let endpoint = point_along_runtime3(&points, u);
+                            entity.pos = if let Some(track) =
+                                later_position_track.filter(|track| t >= track.start)
+                            {
+                                let tu = if track.dur <= 0.0 {
+                                    1.0
+                                } else {
+                                    track
+                                        .easing
+                                        .apply(((t - track.start) / track.dur).clamp(0.0, 1.0))
+                                };
+                                match track.to {
+                                    Value::V3(target) => endpoint.lerp(target, tu),
+                                    _ => endpoint,
+                                }
+                            } else {
+                                endpoint
+                            };
+                        }
+                    }
+                }
+                TimelineEvent::Become3 {
+                    id,
+                    from,
+                    to,
+                    morph,
+                    at,
+                    dur,
+                    easing,
+                    crossfade,
+                } => {
+                    let u = if *dur <= 0.0 {
+                        1.0
+                    } else {
+                        easing.apply(((t - *at) / *dur).clamp(0.0, 1.0))
+                    };
+                    if let Some(e) = scene.get_3d_mut(id) {
+                        apply_become3_visual(e, from, to, morph.as_ref(), u, *crossfade);
                     }
                 }
             }
@@ -1217,16 +1502,83 @@ impl Timeline {
                 let Some((target, offset)) = scene.entities_3d[i].follow.clone() else {
                     continue;
                 };
-                let Some((tp, to)) = scene.get_3d(&target).map(|e| (e.pos, e.opacity)) else {
+                let Some(te) = scene.get_3d(&target).cloned() else {
                     continue;
                 };
-                scene.entities_3d[i].pos = tp + offset;
-                scene.entities_3d[i].opacity *= to;
+                if scene.entities_3d[i].follow_local {
+                    scene.entities_3d[i].pos = te.pos + te.rotation_quat() * offset;
+                    let child = &mut scene.entities_3d[i];
+                    let r = Vec3::new(
+                        child.rotation.x.to_radians(),
+                        child.rotation.y.to_radians(),
+                        child.rotation.z.to_radians(),
+                    );
+                    let authored_euler = Quat::from_euler(EulerRot::ZYX, r.z, r.y, r.x);
+                    child.orientation =
+                        te.rotation_quat() * child.follow_orientation * authored_euler.inverse();
+                } else {
+                    scene.entities_3d[i].pos = te.pos + offset;
+                }
+                scene.entities_3d[i].opacity *= te.opacity;
             }
+        }
+
+        // Live 3D projections and edges resolve after followers so they see
+        // the final relationship positions for this frame.
+        for i in 0..scene.entities_3d.len() {
+            if let Some((source, plane)) = scene.entities_3d[i].projection.clone() {
+                if let Some(source) = scene.get_3d(&source) {
+                    let p = source.pos;
+                    scene.entities_3d[i].pos = match plane {
+                        crate::primitives3d::ProjectionPlane3::Xy => Vec3::new(p.x, p.y, 0.0),
+                        crate::primitives3d::ProjectionPlane3::Xz => Vec3::new(p.x, 0.0, p.z),
+                        crate::primitives3d::ProjectionPlane3::Yz => Vec3::new(0.0, p.y, p.z),
+                    };
+                }
+            }
+        }
+        for i in 0..scene.entities_3d.len() {
+            let Some(link) = scene.entities_3d[i].link.clone() else {
+                continue;
+            };
+            let Some(a) = scene.get_3d(&link.from).map(|entity| entity.pos) else {
+                continue;
+            };
+            let Some(b) = scene.get_3d(&link.to).map(|entity| entity.pos) else {
+                continue;
+            };
+            let direction = (b - a).normalize_or_zero();
+            let from = a + direction * link.trim;
+            let to = b - direction * link.trim;
+            scene.entities_3d[i].pos = from;
+            scene.entities_3d[i].shape = crate::primitives3d::Shape3D::Line { to: to - from };
         }
 
         scene
     }
+}
+
+fn point_along_runtime3(points: &[Vec3], u: f32) -> Vec3 {
+    if points.len() <= 1 {
+        return points.first().copied().unwrap_or(Vec3::ZERO);
+    }
+    let lengths: Vec<f32> = std::iter::once(0.0)
+        .chain(points.windows(2).scan(0.0, |total, pair| {
+            *total += pair[0].distance(pair[1]);
+            Some(*total)
+        }))
+        .collect();
+    let total = *lengths.last().unwrap_or(&0.0);
+    if total <= 1e-6 {
+        return points[0];
+    }
+    let distance = total * u.clamp(0.0, 1.0);
+    let segment = lengths
+        .windows(2)
+        .position(|span| distance <= span[1])
+        .unwrap_or(points.len() - 2);
+    let span = (lengths[segment + 1] - lengths[segment]).max(1e-6);
+    points[segment].lerp(points[segment + 1], (distance - lengths[segment]) / span)
 }
 
 #[cfg(test)]

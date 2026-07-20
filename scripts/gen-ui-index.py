@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # Publish the manic examples to the crypto-tool playground: regenerate its
 # `examples/index.json` (grouped like the mdBook gallery) and copy every example
-# `.manic` file. Single source of truth = the SECTIONS table in gen-gallery.py, so
-# the playground list always matches the book gallery. Run after gen-gallery.py:
+# `.manic` file plus the production asset catalog. Single source of truth = the
+# SECTIONS table in gen-gallery.py, so the playground list always matches the
+# book gallery. Run after gen-gallery.py:
 #     python3 scripts/gen-ui-index.py
 import importlib.util
 import json
@@ -12,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEST = Path("/Users/anish/git/crypto-tool/src/main/webapp/manic/examples")
+ASSET_DEST = DEST.parent / "assets"
 
 # load gen-gallery.py by path (hyphenated name isn't importable directly)
 spec = importlib.util.spec_from_file_location("gengallery", ROOT / "scripts" / "gen-gallery.py")
@@ -61,6 +63,9 @@ for sec in gg.SECTIONS:
     })
 
 (DEST / "index.json").write_text(json.dumps({"count": count, "categories": cats}, indent=2) + "\n")
+shutil.copytree(ROOT / "assets", ASSET_DEST, dirs_exist_ok=True)
+asset_count = sum(path.is_file() for path in ASSET_DEST.rglob("*"))
 print(f"published {count} examples across {len(cats)} categories; copied {copied} .manic files")
+print(f"published {asset_count} bundled asset files to {ASSET_DEST}")
 if missing:
     print(f"  WARNING: {len(missing)} gallery entries have no .manic file: {missing}")

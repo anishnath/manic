@@ -76,9 +76,9 @@ standalone display equation.
 
 ## image
 
-Embed a raster image (PNG/JPG) with `image(id, (x,y), "path", w, h)` — a real file drawn
-into the scene and animated like any entity (shown, spun, pulsed, moved). Unlocks logos,
-avatars and photo backdrops (e.g. a creator's brand in a template).
+Embed a raster image (PNG/JPG) with `image(id, (x,y), "asset:name.png"|"path", w, h)` —
+a bundled or user-provisioned file animated like any entity (shown, spun, pulsed, moved).
+Unlocks logos, avatars and photo backdrops (e.g. a creator's brand in a template).
 
 ```manic
 {{#include ../../examples/image.manic}}

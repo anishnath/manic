@@ -57,6 +57,8 @@ cargo run --release --bin manic -- examples/sine_wave.manic --record out
 ```
 
 After `cargo install --path .` the binary is just `manic examples/sine_wave.manic …`.
+Examples that use `asset:` also need the repository `assets/` directory (or
+`MANIC_ASSETS_DIR`) unless installed through the Docker/Linux production bundle.
 
 Any file in [`examples/`](examples) runs the same way — e.g.
 `cargo run --bin manic -- examples/bfs_dfs.manic` or `examples/hashmap.manic`.
@@ -180,11 +182,14 @@ ffmpeg; **`check`** (parsing) needs none of that.
   container output is byte-identical to a desktop run.
 - **Prebuilt binary on a box:** cross-build both Linux arches into `dist/` with
   [`scripts/build-linux.sh`](scripts/build-linux.sh) (`arm64` for Graviton,
-  `amd64` for Intel/AMD — match `uname -m`), scp the arch-matched binary over,
-  then run [`scripts/ec2-setup.sh`](scripts/ec2-setup.sh) (installs xvfb + mesa +
-  ffmpeg and a `manic-render` wrapper). Fonts are embedded, so only the `.manic`
-  file is needed. (Binaries are built on glibc 2.36 → Ubuntu 24.04; for 22.04,
-  rebuild on an older base.)
+  `amd64` for Intel/AMD — match `uname -m`). The build also writes
+  `dist/manic-assets.tar.gz`; install it under
+  `/usr/local/share/manic/assets`, then run
+  [`scripts/ec2-setup.sh`](scripts/ec2-setup.sh) (installs xvfb + mesa + ffmpeg
+  and a `manic-render` wrapper). The GitHub deploy workflow performs both
+  installs automatically. Fonts remain embedded; the asset catalog supplies
+  optional stable `asset:` resources. (Binaries are built on glibc 2.36 →
+  Ubuntu 24.04; for 22.04, rebuild on an older base.)
 
 ## License
 

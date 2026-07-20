@@ -1,6 +1,139 @@
 # 3D scenes
 
-Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video). See the [Going 3D](3d.md) chapter for the words used here.
+Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video). See the [Going 3D](3d.md) chapter for the words used here. `three-d-v2-lab` uses the bundled geometry-only asset `asset:models/manic-pyramid.obj`; production packages install it automatically, or you can replace its `model3` call with a built-in solid.
+
+## three-d-v2
+
+The compact 3D V2 reference: frame a tagged craft, attach its parts, travel one
+persistent subject along a spatial route, deploy the rig with a rigid turn, and
+become the final blueprint — five creator words in one continuous scene.
+
+```manic
+{{#include ../../examples/three-d-v2.manic}}
+```
+
+<div class="manic-video" data-video="ex-three-d-v2"></div>
+
+## three-d-v2-story
+
+A vertical creator story about a satellite finding orbit. The same mission survives
+assembly, launch, transformation, deployment, and screen-aware camera composition
+without a scene reset.
+
+```manic
+{{#include ../../examples/three-d-v2-story.manic}}
+```
+
+<div class="manic-video" data-video="ex-three-d-v2-story"></div>
+
+## three-d-v2-lab
+
+A creator-first spatial lab: safe-aware framing, rigid assembly, a live projection
+and edge, a moving route, surface contour, depth-scaled label, bounded finishes,
+variable tube, and controlled OBJ geometry in one continuous story.
+
+```manic
+{{#include ../../examples/three-d-v2-lab.manic}}
+```
+
+<div class="manic-video" data-video="ex-three-d-v2-lab"></div>
+
+## trapped-light-dimensions
+
+A photon escapes one dimension at a time: first a 5-unit line, then the 5–12–13
+diagonal of a plane, and finally the 13–84–85 diagonal through a volume. One
+persistent light beam makes the generalized Pythagorean idea visible.
+
+```manic
+{{#include ../../examples/trapped-light-dimensions.manic}}
+```
+
+<div class="manic-video" data-video="ex-trapped-light-dimensions"></div>
+
+## dimensions-unfold
+
+A point stretches into a line, the line sweeps sideways into a plane, and the plane
+lifts into a room. The geometry grows continuously instead of resetting between
+1D, 2D, and 3D.
+
+```manic
+{{#include ../../examples/dimensions-unfold.manic}}
+```
+
+<div class="manic-video" data-video="ex-dimensions-unfold"></div>
+
+## textbook-length-area-volume
+
+Why units become cm, cm², and cm³: one measured segment sweeps out a rectangle,
+then the rectangle rises into a cuboid. A textbook measurement story built from
+extrusion rather than three disconnected formulas.
+
+```manic
+{{#include ../../examples/textbook-length-area-volume.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-length-area-volume"></div>
+
+## textbook-coordinate-worlds
+
+A point earns a longer address as dimensions unlock: x on a line, (x,y) on a
+plane, then (x,y,z) in space. Coordinates remain attached to the same idea while
+the world expands around it.
+
+```manic
+{{#include ../../examples/textbook-coordinate-worlds.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-coordinate-worlds"></div>
+
+## textbook-function-to-solid
+
+A diameter becomes a semicircle and the semicircle revolves into a sphere. The
+story links a 1D domain, a 2D graph, and a 3D solid through one continuous
+generating motion.
+
+```manic
+{{#include ../../examples/textbook-function-to-solid.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-function-to-solid"></div>
+
+## textbook-statistical-dimensions
+
+Data grows from a one-variable number line to a two-variable scatter plot and a
+three-variable point cloud. The axes and observations evolve together so statistical
+dimension reads as information, not decoration.
+
+```manic
+{{#include ../../examples/textbook-statistical-dimensions.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-statistical-dimensions"></div>
+
+## textbook-geometry-dimension-reduction
+
+The reverse journey: a sphere reveals a great-circle section, then that circle
+collapses to its diameter. A 3D→2D→1D geometry lesson that makes section and
+projection relationships explicit.
+
+```manic
+{{#include ../../examples/textbook-geometry-dimension-reduction.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-geometry-dimension-reduction"></div>
+
+## textbook-watermelon-sections
+
+A paper-style spatial lesson that turns sphere sections into a continuous story:
+horizontal and vertical great-circle cuts make two halves, then perpendicular cuts
+separate one quarter from the three-quarter remainder. The section faces are bounded
+parametric surfaces, so the authored geometry is exact rather than a flat overlay.
+
+```manic
+{{#include ../../examples/textbook-watermelon-sections.manic}}
+```
+
+<div class="manic-video" data-video="ex-textbook-watermelon-sections"></div>
 
 ## three_d
 

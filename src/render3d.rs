@@ -1,9 +1,13 @@
 //! Depth-tested 3D render pass, composited beneath Manic's 2D entities.
 
+use std::collections::HashMap;
+
 use macroquad::prelude::*;
 
 use crate::movie::CAMERA3_ID;
-use crate::primitives3d::{Entity3D, Projection3D, Shape3D};
+use crate::primitives3d::{
+    Entity3D, Finish3, Material3, Projection3D, Shading3, Shape3D, Texture3,
+};
 use crate::scene::Scene;
 use crate::style;
 
@@ -41,7 +45,7 @@ impl Camera for TargetCamera3D {
 
 /// Eye position of the orbit-camera rig (azimuth/elevation/radius packed into
 /// its `rotation`/`scale`). Shared by the render camera and `project`.
-fn eye_of(rig: &Entity3D) -> Vec3 {
+pub(crate) fn eye_of(rig: &Entity3D) -> Vec3 {
     let az = rig.rotation.x.to_radians();
     let el = rig.rotation.y.to_radians();
     let radius = rig.scale.max(0.01);
@@ -105,6 +109,23 @@ pub fn project(scene: &Scene, aspect: f32, world: Vec3, pw: f32, ph: f32) -> Opt
     Some(vec2((ndc.x * 0.5 + 0.5) * pw, (ndc.y * 0.5 + 0.5) * ph))
 }
 
+/// Pixel height of a camera-facing segment with the given world-space height.
+pub fn projected_world_height(
+    scene: &Scene,
+    aspect: f32,
+    world: Vec3,
+    height: f32,
+    pw: f32,
+    ph: f32,
+) -> Option<f32> {
+    let rig = scene.get_3d(CAMERA3_ID)?;
+    let eye = eye_of(rig);
+    let up = up_of(rig, eye);
+    let a = project(scene, aspect, world, pw, ph)?;
+    let b = project(scene, aspect, world + up * height, pw, ph)?;
+    Some(a.distance(b))
+}
+
 /// Build Macroquad's camera from the deterministic camera entity in `scene`.
 pub fn camera(scene: &Scene, target: RenderTarget, aspect: f32) -> Option<TargetCamera3D> {
     let rig = scene.get_3d(CAMERA3_ID)?;
@@ -137,16 +158,7 @@ pub fn camera(scene: &Scene, target: RenderTarget, aspect: f32) -> Option<Target
 }
 
 fn entity_matrix(e: &Entity3D) -> Mat4 {
-    let r = vec3(
-        e.rotation.x.to_radians(),
-        e.rotation.y.to_radians(),
-        e.rotation.z.to_radians(),
-    );
-    Mat4::from_scale_rotation_translation(
-        Vec3::splat(e.scale),
-        Quat::from_euler(EulerRot::ZYX, r.z, r.y, r.x),
-        e.pos,
-    )
+    Mat4::from_scale_rotation_translation(Vec3::splat(e.scale), e.rotation_quat(), e.pos)
 }
 
 fn draw_arrow_head(tip: Vec3, dir: Vec3, color: Color) {
@@ -379,18 +391,105 @@ fn cone_tris(base: Vec3, tip: Vec3, radius: f32, sides: usize) -> Vec<[Vec3; 3]>
     tris
 }
 
-/// Fill triangles with flat lambert shading baked into per-face vertex colours
-/// (Macroquad has no GPU lighting). A fixed key light; `abs(n·l)` so both faces
-/// are lit (no black back-faces), plus ambient. Chunked to stay under the u16
-/// index limit for large meshes. When `base` is translucent, triangles are
-/// drawn back-to-front (painter's order, using the model-local eye) so blending
-/// is correct; opaque meshes lean on the depth buffer and skip the sort.
-fn fill_tris(tris: &[[Vec3; 3]], base: Color, local_eye: Option<Vec3>) {
+/// Fill triangles with flat studio shading baked into per-face vertex colours
+/// (Macroquad has no GPU lighting). Template-selected ambient/key/fill values
+/// preserve readable back faces without losing directional depth. Chunked to
+/// stay under the u16 index limit for large meshes. When `base` is translucent,
+/// triangles are drawn back-to-front (painter's order, using the model-local
+/// eye) so blending is correct; opaque meshes lean on the depth buffer.
+#[derive(Clone, Copy)]
+struct LightRig3 {
+    key: Vec3,
+    fill: Vec3,
+    ambient: f32,
+    key_power: f32,
+    fill_power: f32,
+}
+
+/// A small, deterministic studio rig chosen by the page template. This keeps
+/// 3D material-free and repeatable while letting monochrome, paper, blueprint,
+/// and creator scenes retain their own contrast character.
+fn light_rig3(tpl: &style::Template) -> LightRig3 {
+    let (ambient, key_power, fill_power) = match tpl.name.as_str() {
+        "paper" => (0.58, 0.34, 0.08),
+        "mono" => (0.42, 0.48, 0.10),
+        "blueprint" => (0.32, 0.55, 0.13),
+        "shorts" => (0.34, 0.56, 0.10),
+        _ => (0.35, 0.55, 0.10),
+    };
+    LightRig3 {
+        key: vec3(0.4, -0.55, 0.72).normalize(),
+        fill: vec3(-0.65, 0.25, 0.38).normalize(),
+        ambient,
+        key_power,
+        fill_power,
+    }
+}
+
+fn shaded_face(
+    base: Color,
+    normal: Vec3,
+    point: Vec3,
+    local_eye: Option<Vec3>,
+    light: LightRig3,
+    finish: Finish3,
+) -> Color {
+    let n = normal.normalize_or_zero();
+    let mut lam = (light.ambient
+        + light.key_power * n.dot(light.key).max(0.0)
+        + light.fill_power * n.dot(light.fill).max(0.0))
+    .clamp(0.0, 1.0);
+    if finish.material == Material3::Metal {
+        let spec = local_eye
+            .map(|eye| {
+                let view = (eye - point).normalize_or_zero();
+                let half = (view + light.key).normalize_or_zero();
+                n.dot(half).max(0.0).powf(22.0) * 0.55
+            })
+            .unwrap_or(0.0);
+        lam = (lam * 0.78 + spec).clamp(0.0, 1.25);
+    }
+    if let Some(eye) = local_eye {
+        let fog = 1.0 / (1.0 + finish.depth * eye.distance(point) * 0.035);
+        lam *= 1.0 - finish.depth * 0.15 + finish.depth * 0.15 * fog;
+    }
+    lam *= 1.0 - finish.shadow * (1.0 - n.z.max(0.0)) * 0.22;
+    let tex = match finish.texture {
+        Texture3::Solid => 1.0,
+        Texture3::Checker => {
+            let p = point * finish.texture_scale;
+            if (p.x.floor() as i32 + p.y.floor() as i32 + p.z.floor() as i32) & 1 == 0 {
+                1.0
+            } else {
+                0.68
+            }
+        }
+        Texture3::Stripes => {
+            if (point.x * finish.texture_scale).floor() as i32 & 1 == 0 {
+                1.0
+            } else {
+                0.66
+            }
+        }
+    };
+    Color::new(
+        base.r * lam * tex,
+        base.g * lam * tex,
+        base.b * lam * tex,
+        base.a,
+    )
+}
+
+fn fill_tris(
+    tris: &[[Vec3; 3]],
+    base: Color,
+    local_eye: Option<Vec3>,
+    light: LightRig3,
+    finish: Finish3,
+) {
     if tris.is_empty() {
         return;
     }
-    let light = vec3(0.4, -0.55, 0.72).normalize();
-
     // Draw order: far→near for translucent fills, natural order otherwise.
     let mut order: Vec<usize> = (0..tris.len()).collect();
     if base.a < 0.999 {
@@ -403,18 +502,36 @@ fn fill_tris(tris: &[[Vec3; 3]], base: Color, local_eye: Option<Vec3>) {
     // macroquad batches each `draw_mesh` into a shared buffer capped at ~10k
     // vertices / 5k indices per drawcall; over that it silently clamps (drops
     // triangles → holes). 1000 tris = 3000 verts / 3000 indices leaves margin.
+    let key = |point: Vec3| (point.x.to_bits(), point.y.to_bits(), point.z.to_bits());
+    let mut smooth_normals: HashMap<(u32, u32, u32), Vec3> = HashMap::new();
+    if finish.shading == Shading3::Smooth {
+        for triangle in tris {
+            let normal = (triangle[1] - triangle[0]).cross(triangle[2] - triangle[0]);
+            for point in triangle {
+                *smooth_normals.entry(key(*point)).or_insert(Vec3::ZERO) += normal;
+            }
+        }
+    }
     for chunk in order.chunks(1000) {
         let mut vertices = Vec::with_capacity(chunk.len() * 3);
         let mut indices: Vec<u16> = Vec::with_capacity(chunk.len() * 3);
         for &ti in chunk {
             let t = &tris[ti];
             let n = (t[1] - t[0]).cross(t[2] - t[0]).normalize_or_zero();
-            let lam = 0.35 + 0.65 * n.dot(light).abs();
-            let c = Color::new(base.r * lam, base.g * lam, base.b * lam, base.a);
             let i0 = vertices.len() as u16;
-            vertices.push(Vertex::new2(t[0], Vec2::ZERO, c));
-            vertices.push(Vertex::new2(t[1], Vec2::ZERO, c));
-            vertices.push(Vertex::new2(t[2], Vec2::ZERO, c));
+            for point in t {
+                let vertex_normal = if finish.shading == Shading3::Smooth {
+                    smooth_normals
+                        .get(&key(*point))
+                        .copied()
+                        .unwrap_or(n)
+                        .normalize_or_zero()
+                } else {
+                    n
+                };
+                let c = shaded_face(base, vertex_normal, *point, local_eye, light, finish);
+                vertices.push(Vertex::new2(*point, Vec2::ZERO, c));
+            }
             indices.push(i0);
             indices.push(i0 + 1);
             indices.push(i0 + 2);
@@ -432,8 +549,14 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
         return;
     }
     let base = tpl.palette.remap(e.color);
-    let color = Color::new(base.r, base.g, base.b, base.a * e.opacity);
+    let material_alpha = if e.finish.material == Material3::Glass {
+        0.38
+    } else {
+        1.0
+    };
+    let color = Color::new(base.r, base.g, base.b, base.a * e.opacity * material_alpha);
     let trace = e.trace.clamp(0.0, 1.0);
+    let light = light_rig3(tpl);
     let matrix = entity_matrix(e);
     // Eye in this entity's local frame (fill triangles live in local space, so
     // sort them there). Uniform scale preserves the depth ordering.
@@ -455,6 +578,8 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                     &tube_tris(&[Vec3::ZERO, end], e.thickness, 8),
                     color,
                     local_eye,
+                    light,
+                    e.finish,
                 );
             } else {
                 draw_line_3d(Vec3::ZERO, end, color);
@@ -476,9 +601,17 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                             &tube_tris(&[Vec3::ZERO, base], e.thickness, 8),
                             color,
                             local_eye,
+                            light,
+                            e.finish,
                         );
                     }
-                    fill_tris(&cone_tris(base, tip, head_r, 12), color, local_eye);
+                    fill_tris(
+                        &cone_tris(base, tip, head_r, 12),
+                        color,
+                        local_eye,
+                        light,
+                        e.finish,
+                    );
                 }
             } else {
                 draw_line_3d(Vec3::ZERO, tip, color);
@@ -489,13 +622,17 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
         }
         Shape3D::Cube { size } => {
             let size = *size * trace.max(0.001);
-            fill_tris(&box_tris(size), color, local_eye);
+            fill_tris(&box_tris(size), color, local_eye, light, e.finish);
             // A crisp edge overlay keeps the neon-diagram look over the fill.
             draw_cube_wires(Vec3::ZERO, size, color);
         }
-        Shape3D::Sphere { radius } => {
-            fill_tris(&sphere_tris(radius * trace.max(0.001)), color, local_eye)
-        }
+        Shape3D::Sphere { radius } => fill_tris(
+            &sphere_tris(radius * trace.max(0.001)),
+            color,
+            local_eye,
+            light,
+            e.finish,
+        ),
         Shape3D::Grid { half, spacing } => {
             let extent = *half as f32 * *spacing;
             for i in -*half..=*half {
@@ -526,7 +663,13 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                 }
                 if pts.len() >= 2 {
                     if e.thickness > 0.0 {
-                        fill_tris(&tube_tris(&pts, e.thickness, 8), color, local_eye);
+                        fill_tris(
+                            &tube_tris(&pts, e.thickness, 8),
+                            color,
+                            local_eye,
+                            light,
+                            e.finish,
+                        );
                     } else {
                         for w in pts.windows(2) {
                             draw_line_3d(w[0], w[1], color);
@@ -540,7 +683,30 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                 &surface_grid_tris(pts, *nu, *nv),
                 faded(color, trace),
                 local_eye,
+                light,
+                e.finish,
             );
+            if e.finish.mesh > 0.001 && *nu >= 2 && *nv >= 2 {
+                let mesh_color = Color::new(color.r, color.g, color.b, color.a * e.finish.mesh);
+                for v in 0..*nv as usize {
+                    for u in 0..nu.saturating_sub(1) as usize {
+                        draw_line_3d(
+                            pts[v * *nu as usize + u],
+                            pts[v * *nu as usize + u + 1],
+                            mesh_color,
+                        );
+                    }
+                }
+                for u in 0..*nu as usize {
+                    for v in 0..nv.saturating_sub(1) as usize {
+                        draw_line_3d(
+                            pts[v * *nu as usize + u],
+                            pts[(v + 1) * *nu as usize + u],
+                            mesh_color,
+                        );
+                    }
+                }
+            }
         }
         Shape3D::Mesh {
             verts,
@@ -559,7 +725,16 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                         ])
                     })
                     .collect();
-                fill_tris(&tris, c, local_eye);
+                fill_tris(&tris, c, local_eye, light, e.finish);
+                if e.finish.mesh > 0.001 {
+                    let edge_color = Color::new(c.r, c.g, c.b, c.a * e.finish.mesh);
+                    for &(a, b) in edges {
+                        if let (Some(pa), Some(pb)) = (verts.get(a as usize), verts.get(b as usize))
+                        {
+                            draw_line_3d(*pa, *pb, edge_color);
+                        }
+                    }
+                }
             } else {
                 for &(a, b) in edges {
                     if let (Some(pa), Some(pb)) = (verts.get(a as usize), verts.get(b as usize)) {
@@ -584,7 +759,15 @@ pub fn draw_scene(scene: &Scene, tpl: &style::Template) {
     // entities back-to-front so their blending composites correctly. `trace`
     // (draw-on) is an animation fade, not an ordering concern, so ordering keys
     // off the resolved fill alpha only.
-    let alpha = |e: &Entity3D| tpl.palette.remap(e.color).a * e.opacity;
+    let alpha = |e: &Entity3D| {
+        tpl.palette.remap(e.color).a
+            * e.opacity
+            * if e.finish.material == Material3::Glass {
+                0.38
+            } else {
+                1.0
+            }
+    };
     let (opaque, mut translucent): (Vec<&Entity3D>, Vec<&Entity3D>) =
         scene.entities_3d.iter().partition(|e| alpha(e) >= 0.999);
     if let Some(eye) = eye {
@@ -602,6 +785,34 @@ pub fn draw_scene(scene: &Scene, tpl: &style::Template) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn template_light_rigs_keep_back_faces_readable_and_change_contrast() {
+        let white = Color::new(1.0, 1.0, 1.0, 0.6);
+        let normal = vec3(-0.4, 0.55, -0.72).normalize();
+        let mono = shaded_face(
+            white,
+            normal,
+            Vec3::ZERO,
+            None,
+            light_rig3(&style::Template::mono()),
+            Finish3::default(),
+        );
+        let paper = shaded_face(
+            white,
+            normal,
+            Vec3::ZERO,
+            None,
+            light_rig3(&style::Template::paper()),
+            Finish3::default(),
+        );
+        assert!(mono.r >= 0.4, "mono back face became unreadably dark");
+        assert!(
+            paper.r > mono.r,
+            "paper should use the softer, brighter rig"
+        );
+        assert_eq!(paper.a, white.a);
+    }
 
     #[test]
     fn camera_target_projects_to_screen_centre() {

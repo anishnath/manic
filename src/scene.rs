@@ -3,10 +3,10 @@
 
 use std::collections::HashMap;
 
-use macroquad::prelude::{Color, Vec2, Vec3};
+use macroquad::prelude::{Color, Quat, Vec2, Vec3};
 
 use crate::primitives::{Align, Entity, FontKind, ParameterBinding, Shape, StrokeStyle};
-use crate::primitives3d::Entity3D;
+use crate::primitives3d::{Entity3D, Shape3D};
 use crate::style;
 use crate::timeline::{Clip, Prop, TargetValue, TimelineEvent, Value};
 
@@ -98,6 +98,18 @@ pub struct Pin3 {
     /// they reappear as the orbit spreads that axis out. User `pin3`s never
     /// declutter — they're always drawn where asked.
     pub declutter: bool,
+    /// Optional label height in world units. `None` preserves pin3's stable
+    /// screen-space text; `Some` makes label3 scale naturally with depth.
+    pub world_height: Option<f32>,
+}
+
+/// Build-time copy of a timed 3D attachment relationship.
+#[derive(Debug, Clone)]
+pub struct Attachment3State {
+    pub target: String,
+    pub offset: Vec3,
+    pub rigid: bool,
+    pub relative_orientation: macroquad::prelude::Quat,
 }
 
 #[derive(Debug, Clone)]
@@ -146,6 +158,12 @@ pub struct Scene {
     /// receive the same changes as timeline events; this copy is only for
     /// cycle detection and exact build-time release positions.
     pub authored_attachments: HashMap<String, Option<(String, macroquad::prelude::Vec2)>>,
+    /// Latest authored 3-D blueprint. This mirrors `authored_entities` without
+    /// mutating the immutable base scene used for stateless playback.
+    pub authored_entities_3d: HashMap<String, Entity3D>,
+    /// Latest timed 3-D relationship for build-time cycle detection and exact
+    /// release positions.
+    pub authored_attachments_3d: HashMap<String, Option<Attachment3State>>,
     /// Generic contained particle groups (`particles`/`wander`). Build-time
     /// only; frames contain ordinary entities and deterministic timeline tracks.
     pub particle_groups: HashMap<String, ParticleGroup>,
@@ -228,6 +246,47 @@ pub struct CreatorProfile {
 pub struct CreatorRect {
     pub center: macroquad::prelude::Vec2,
     pub size: macroquad::prelude::Vec2,
+}
+
+impl CreatorRect {
+    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self {
+            center: Vec2::new((left + right) * 0.5, (top + bottom) * 0.5),
+            size: Vec2::new((right - left).max(1.0), (bottom - top).max(1.0)),
+        }
+    }
+
+    pub fn edges(self) -> (Vec2, Vec2) {
+        (self.center - self.size * 0.5, self.center + self.size * 0.5)
+    }
+
+    pub fn intersection(self, other: Self) -> Option<Self> {
+        let (a0, a1) = self.edges();
+        let (b0, b1) = other.edges();
+        let lo = a0.max(b0);
+        let hi = a1.min(b1);
+        (hi.x > lo.x && hi.y > lo.y).then(|| Self::from_edges(lo.x, lo.y, hi.x, hi.y))
+    }
+}
+
+impl CreatorSafe {
+    /// Shared platform-safe rectangle. Creator layout, view3 composition, and
+    /// visual audit all consume this one definition so their advice cannot
+    /// drift from the rendered result.
+    pub fn rect(self, canvas: Vec2) -> CreatorRect {
+        let (l, r, t, b) = match self {
+            CreatorSafe::Shorts => (0.060, 0.090, 0.055, 0.110),
+            CreatorSafe::Reels => (0.065, 0.105, 0.075, 0.135),
+            CreatorSafe::Tiktok => (0.065, 0.145, 0.075, 0.155),
+            CreatorSafe::Clean => (0.045, 0.045, 0.045, 0.045),
+        };
+        CreatorRect::from_edges(
+            canvas.x * l,
+            canvas.y * t,
+            canvas.x * (1.0 - r),
+            canvas.y * (1.0 - b),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -551,6 +610,46 @@ impl Scene {
         }
     }
 
+    /// Preferred screen rectangle for automatically composed 3-D subjects.
+    /// Quiz media regions are exact. A generic Creator profile reserves a
+    /// modest heading band and, when present, its footer band. Scenes without
+    /// Creator metadata intentionally return `None` and retain full-canvas 3D.
+    pub fn creator_media_rect(&self) -> Option<CreatorRect> {
+        let mut quiz_regions = self.quizzes.values().map(|quiz| quiz.media);
+        if let Some(first) = quiz_regions.next() {
+            return quiz_regions.try_fold(first, CreatorRect::intersection);
+        }
+
+        let mut profiles = self.creators.values();
+        let first = profiles.next()?;
+        let mut safe = first.safe.rect(self.canvas());
+        let mut has_footer = first.footer != CreatorFooter::None;
+        for profile in profiles {
+            safe = safe.intersection(profile.safe.rect(self.canvas()))?;
+            has_footer |= profile.footer != CreatorFooter::None;
+        }
+        let (lo, hi) = safe.edges();
+        let tall = self.canvas().y / self.canvas().x >= 1.34;
+        let top = if tall { 0.14 } else { 0.06 };
+        let bottom = if has_footer {
+            if tall {
+                0.18
+            } else {
+                0.14
+            }
+        } else if tall {
+            0.07
+        } else {
+            0.05
+        };
+        Some(CreatorRect::from_edges(
+            lo.x,
+            lo.y + safe.size.y * top,
+            hi.x,
+            hi.y - safe.size.y * bottom,
+        ))
+    }
+
     /// Add an entity. Panics on duplicate id.
     pub fn add(&mut self, e: Entity) -> usize {
         assert!(
@@ -587,6 +686,98 @@ impl Scene {
             .or_else(|| self.get(id).cloned())
     }
 
+    pub fn authored_entity_3d(&self, id: &str) -> Option<Entity3D> {
+        self.authored_entities_3d
+            .get(id)
+            .cloned()
+            .or_else(|| self.get_3d(id).cloned())
+    }
+
+    /// Latest authored 3-D entity with a timed/permanent follow chain resolved
+    /// to its world position. This is build-time state only; playback remains a
+    /// pure evaluation from the immutable base scene.
+    pub fn authored_world_entity_3d(&self, id: &str) -> Option<Entity3D> {
+        fn resolve(scene: &Scene, id: &str, visiting: &mut Vec<String>) -> Option<Entity3D> {
+            if visiting.iter().any(|item| item == id) {
+                return None;
+            }
+            visiting.push(id.to_string());
+            let mut entity = scene.authored_entity_3d(id)?;
+            let relation = match scene.authored_attachments_3d.get(id) {
+                Some(value) => value.clone(),
+                None => entity
+                    .follow
+                    .clone()
+                    .map(|(target, offset)| Attachment3State {
+                        target,
+                        offset,
+                        rigid: entity.follow_local,
+                        relative_orientation: entity.follow_orientation,
+                    }),
+            };
+            if let Some(relation) = relation {
+                let target = resolve(scene, &relation.target, visiting)?;
+                entity.pos = if relation.rigid {
+                    target.pos + target.rotation_quat() * relation.offset
+                } else {
+                    target.pos + relation.offset
+                };
+                if relation.rigid {
+                    let r = Vec3::new(
+                        entity.rotation.x.to_radians(),
+                        entity.rotation.y.to_radians(),
+                        entity.rotation.z.to_radians(),
+                    );
+                    let authored_euler = macroquad::prelude::Quat::from_euler(
+                        macroquad::prelude::EulerRot::ZYX,
+                        r.z,
+                        r.y,
+                        r.x,
+                    );
+                    entity.orientation = target.rotation_quat()
+                        * relation.relative_orientation
+                        * authored_euler.inverse();
+                }
+            }
+            visiting.pop();
+            Some(entity)
+        }
+        resolve(self, id, &mut Vec::new())
+    }
+
+    /// World-space bounds for one authored 3-D entity or every member of a tag.
+    pub fn authored_bounds_3d(&self, id_or_tag: &str) -> Option<(Vec3, Vec3)> {
+        let mut bounds = Vec::new();
+        if let Some(entity) = self.authored_world_entity_3d(id_or_tag) {
+            if let Some(bound) = entity.world_bounds() {
+                bounds.push(bound);
+            }
+        } else {
+            for base in &self.entities_3d {
+                if base.tags.iter().any(|tag| tag == id_or_tag) {
+                    if let Some(bound) = self.authored_world_entity_3d(&base.id)?.world_bounds() {
+                        bounds.push(bound);
+                    }
+                }
+            }
+        }
+        let mut iter = bounds.into_iter();
+        let (mut lo, mut hi) = iter.next()?;
+        for (next_lo, next_hi) in iter {
+            lo = Vec3::new(
+                lo.x.min(next_lo.x),
+                lo.y.min(next_lo.y),
+                lo.z.min(next_lo.z),
+            );
+            hi = Vec3::new(
+                hi.x.max(next_hi.x),
+                hi.y.max(next_hi.y),
+                hi.z.max(next_hi.z),
+            );
+        }
+        Some((lo, hi))
+    }
+
     /// Record the settled authored result of a lowered clip. This does not
     /// mutate the t=0 entities. It gives later V2 verbs an exact starting state
     /// even when the preceding call was an ordinary non-mutating verb.
@@ -596,30 +787,34 @@ impl Scene {
         let mut previous_from: HashMap<(String, Prop), Value> = HashMap::new();
 
         for track in tracks {
-            let Some(mut entity) = self.authored_entity(&track.id) else {
-                continue;
-            };
-            let Some(from) = authored_value(&entity, track.prop) else {
-                continue;
-            };
             let key = (track.id.clone(), track.prop);
-            let to = match track.target {
-                TargetValue::Abs(value) => value,
-                TargetValue::Rel(value) => add_authored_value(from, value),
-                TargetValue::RotateAround { pivot, degrees } => match from {
-                    Value::V(point) => Value::V(rotate_about(point, pivot, degrees)),
-                    _ => from,
-                },
-                TargetValue::Revert => previous_from.get(&key).copied().unwrap_or(from),
-            };
-            previous_from.insert(key, from);
-            set_authored_value(&mut entity, track.prop, to);
-            if let Value::V(pos) = to {
-                if track.prop == Prop::Pos {
-                    self.motion_pos.insert(track.id.clone(), pos);
+            if let Some(mut entity) = self.authored_entity(&track.id) {
+                let Some(from) = authored_value(&entity, track.prop) else {
+                    continue;
+                };
+                let to =
+                    resolve_authored_target(from, track.target, previous_from.get(&key).copied());
+                previous_from.insert(key, from);
+                set_authored_value(&mut entity, track.prop, to);
+                if let Value::V(pos) = to {
+                    if track.prop == Prop::Pos {
+                        self.motion_pos.insert(track.id.clone(), pos);
+                    }
                 }
+                self.authored_entities.insert(track.id.clone(), entity);
+                continue;
             }
-            self.authored_entities.insert(track.id.clone(), entity);
+
+            let Some(mut entity) = self.authored_entity_3d(&track.id) else {
+                continue;
+            };
+            let Some(from) = authored_value3(&entity, track.prop) else {
+                continue;
+            };
+            let to = resolve_authored_target(from, track.target, previous_from.get(&key).copied());
+            previous_from.insert(key, from);
+            set_authored_value3(&mut entity, track.prop, to);
+            self.authored_entities_3d.insert(track.id.clone(), entity);
         }
 
         let mut events: Vec<_> = clip.events.iter().collect();
@@ -650,6 +845,48 @@ impl Scene {
                     if let Some(mut entity) = self.authored_entity(id) {
                         copy_visual_blueprint(&mut entity, to);
                         self.authored_entities.insert(id.clone(), entity);
+                    }
+                }
+                TimelineEvent::Attachment3 {
+                    id,
+                    target,
+                    offset,
+                    rigid,
+                    relative_orientation,
+                    ..
+                } => {
+                    self.authored_attachments_3d.insert(
+                        id.clone(),
+                        target.clone().map(|target| Attachment3State {
+                            target,
+                            offset: *offset,
+                            rigid: *rigid,
+                            relative_orientation: *relative_orientation,
+                        }),
+                    );
+                }
+                TimelineEvent::Travel3 { id, path, .. } => {
+                    let Some(path) = self.authored_world_entity_3d(path) else {
+                        continue;
+                    };
+                    let endpoint = match &path.shape {
+                        Shape3D::Line { to } | Shape3D::Arrow { to } => path.world_point(*to),
+                        Shape3D::Path { points } => points
+                            .last()
+                            .copied()
+                            .map(|point| path.world_point(point))
+                            .unwrap_or(path.pos),
+                        _ => continue,
+                    };
+                    if let Some(mut entity) = self.authored_entity_3d(id) {
+                        entity.pos = endpoint;
+                        self.authored_entities_3d.insert(id.clone(), entity);
+                    }
+                }
+                TimelineEvent::Become3 { id, to, .. } => {
+                    if let Some(mut entity) = self.authored_entity_3d(id) {
+                        copy_visual_blueprint3(&mut entity, to);
+                        self.authored_entities_3d.insert(id.clone(), entity);
                     }
                 }
             }
@@ -695,6 +932,29 @@ fn rotate_about(point: Vec2, pivot: Vec2, degrees: f32) -> Vec2 {
     pivot + Vec2::new(d.x * cs - d.y * sn, d.x * sn + d.y * cs)
 }
 
+fn resolve_authored_target(from: Value, target: TargetValue, revert: Option<Value>) -> Value {
+    match target {
+        TargetValue::Abs(value) => value,
+        TargetValue::Rel(value) => add_authored_value(from, value),
+        TargetValue::RotateAround { pivot, degrees } => match from {
+            Value::V(point) => Value::V(rotate_about(point, pivot, degrees)),
+            _ => from,
+        },
+        TargetValue::RotateAround3 {
+            pivot,
+            axis,
+            degrees,
+        } => match from {
+            Value::V3(point) => {
+                let q = Quat::from_axis_angle(axis.normalize_or_zero(), degrees.to_radians());
+                Value::V3(pivot + q * (point - pivot))
+            }
+            _ => from,
+        },
+        TargetValue::Revert => revert.unwrap_or(from),
+    }
+}
+
 fn add_authored_value(from: Value, delta: Value) -> Value {
     match (from, delta) {
         (Value::F(a), Value::F(b)) => Value::F(a + b),
@@ -728,7 +988,31 @@ fn authored_value(entity: &Entity, prop: Prop) -> Option<Value> {
         Prop::Value => Value::F(entity.counter.as_ref()?.value),
         Prop::Morph => Value::F(0.0),
         Prop::PlotX => Value::F(entity.graph_view.as_ref()?.x()),
-        Prop::Rot3 | Prop::Orbit3 | Prop::Roll3 => return None,
+        Prop::Rot3 | Prop::Orient3 | Prop::Orbit3 | Prop::Roll3 | Prop::Fov3 => return None,
+    })
+}
+
+fn authored_value3(entity: &Entity3D, prop: Prop) -> Option<Value> {
+    use crate::primitives3d::Shape3D;
+    Some(match prop {
+        Prop::Pos => Value::V3(entity.pos),
+        Prop::To => match entity.shape {
+            Shape3D::Line { to } | Shape3D::Arrow { to } => Value::V3(to),
+            _ => return None,
+        },
+        Prop::Color => Value::C(entity.color),
+        Prop::Opacity => Value::F(entity.opacity),
+        Prop::Scale => Value::F(entity.scale),
+        Prop::Rot3 | Prop::Orbit3 => Value::V3(entity.rotation),
+        Prop::Orient3 => Value::Q(entity.orientation),
+        Prop::Roll3 => Value::F(entity.rotation.z),
+        Prop::Fov3 => match entity.shape {
+            Shape3D::Camera { fov, .. } => Value::F(fov),
+            _ => return None,
+        },
+        Prop::Trace => Value::F(entity.trace),
+        Prop::Morph => Value::F(0.0),
+        Prop::Ctrl | Prop::Rot | Prop::Flow | Prop::Hue | Prop::Value | Prop::PlotX => return None,
     })
 }
 
@@ -768,6 +1052,34 @@ fn set_authored_value(entity: &mut Entity, prop: Prop, value: Value) {
     }
 }
 
+fn set_authored_value3(entity: &mut Entity3D, prop: Prop, value: Value) {
+    use crate::primitives3d::Shape3D;
+    match (prop, value) {
+        (Prop::Pos, Value::V3(value)) => entity.pos = value,
+        (Prop::To, Value::V3(value)) => match &mut entity.shape {
+            Shape3D::Line { to } | Shape3D::Arrow { to } => *to = value,
+            _ => {}
+        },
+        (Prop::Color, Value::C(value)) => entity.color = value,
+        (Prop::Opacity, Value::F(value)) => entity.opacity = value,
+        (Prop::Scale, Value::F(value)) => entity.scale = value,
+        (Prop::Rot3, Value::V3(value)) => entity.rotation = value,
+        (Prop::Orient3, Value::Q(value)) => entity.orientation = value.normalize(),
+        (Prop::Orbit3, Value::V3(value)) => {
+            entity.rotation.x = value.x;
+            entity.rotation.y = value.y;
+        }
+        (Prop::Roll3, Value::F(value)) => entity.rotation.z = value,
+        (Prop::Fov3, Value::F(value)) => {
+            if let Shape3D::Camera { fov, .. } = &mut entity.shape {
+                *fov = value.max(0.01);
+            }
+        }
+        (Prop::Trace, Value::F(value)) => entity.trace = value,
+        _ => {}
+    }
+}
+
 fn copy_visual_blueprint(entity: &mut Entity, target: &Entity) {
     entity.shape = target.shape.clone();
     entity.stroke = target.stroke;
@@ -780,6 +1092,14 @@ fn copy_visual_blueprint(entity: &mut Entity, target: &Entity) {
     entity.glow = target.glow;
     entity.hue = target.hue;
     entity.type_cursor = target.type_cursor;
+}
+
+fn copy_visual_blueprint3(entity: &mut Entity3D, target: &Entity3D) {
+    entity.shape = target.shape.clone();
+    entity.thickness = target.thickness;
+    entity.surf = target.surf.clone();
+    entity.morph3 = target.morph3.clone();
+    entity.finish = target.finish;
 }
 
 /// Chainable builder for declaring entities. Obtained from

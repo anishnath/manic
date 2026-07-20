@@ -7,10 +7,11 @@
 
 use std::collections::BTreeSet;
 
-use macroquad::prelude::Vec2;
+use macroquad::prelude::{Vec2, Vec3};
 
 use crate::movie::Movie;
 use crate::primitives::{Align, Entity, Shape, TextRun};
+use crate::primitives3d::Shape3D;
 use crate::scene::{CreatorSafe, Scene};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,6 +35,15 @@ pub enum VisualIssue {
     SafeArea,
     Overlap,
     Readability,
+    /// Projected 3D content leaves its creator media rectangle while a camera
+    /// transition is active.
+    CameraBounds,
+    /// An orbit/zoom/target transition is fast enough to read as a cut or jolt.
+    CameraMotion,
+    /// The camera eye enters drawable geometry.
+    CameraPenetration,
+    /// A live 3D relationship references a source that is no longer present.
+    SpatialRelationship,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -259,16 +269,8 @@ fn content(e: &Entity) -> bool {
 }
 
 fn safe_rect(canvas: Vec2, safe: CreatorSafe) -> Bounds {
-    let (l, r, t, b) = match safe {
-        CreatorSafe::Shorts => (0.060, 0.090, 0.055, 0.110),
-        CreatorSafe::Reels => (0.065, 0.105, 0.075, 0.135),
-        CreatorSafe::Tiktok => (0.065, 0.145, 0.075, 0.155),
-        CreatorSafe::Clean => (0.045, 0.045, 0.045, 0.045),
-    };
-    Bounds {
-        lo: Vec2::new(canvas.x * l, canvas.y * t),
-        hi: Vec2::new(canvas.x * (1.0 - r), canvas.y * (1.0 - b)),
-    }
+    let (lo, hi) = safe.rect(canvas).edges();
+    Bounds { lo, hi }
 }
 
 fn safe_bounds_for(scene: &Scene, e: &Entity) -> Option<Bounds> {
@@ -322,6 +324,196 @@ fn settled_checkpoints(movie: &Movie, authored_end: f32) -> Vec<(f32, String)> {
         .collect()
 }
 
+fn stage_ranges(movie: &Movie, authored_end: f32) -> Vec<(f32, f32, String)> {
+    let mut marks = movie.marks.clone();
+    marks.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    marks.dedup();
+    if marks.is_empty() {
+        return vec![(0.0, authored_end.max(0.0), "story".into())];
+    }
+    marks
+        .iter()
+        .enumerate()
+        .map(|(index, (start, name))| {
+            let end = marks
+                .get(index + 1)
+                .map(|(next, _)| *next)
+                .unwrap_or(authored_end.max(*start));
+            (*start, end.max(*start), name.clone())
+        })
+        .collect()
+}
+
+fn bounds_corners(lo: Vec3, hi: Vec3) -> [Vec3; 8] {
+    [
+        Vec3::new(lo.x, lo.y, lo.z),
+        Vec3::new(hi.x, lo.y, lo.z),
+        Vec3::new(lo.x, hi.y, lo.z),
+        Vec3::new(hi.x, hi.y, lo.z),
+        Vec3::new(lo.x, lo.y, hi.z),
+        Vec3::new(hi.x, lo.y, hi.z),
+        Vec3::new(lo.x, hi.y, hi.z),
+        Vec3::new(hi.x, hi.y, hi.z),
+    ]
+}
+
+/// Unlike the settled 2D checks, camera checks deliberately sample the active
+/// transitions. A camera can start and end safely while crossing through a
+/// solid or producing a one-frame visual jolt between those endpoints.
+fn audit_camera_transitions(
+    movie: &Movie,
+    format: &str,
+    base: &Scene,
+    timeline: &crate::timeline::Timeline,
+    authored_end: f32,
+    diagnostics: &mut Vec<VisualDiagnostic>,
+    seen: &mut BTreeSet<(VisualIssue, String, Option<String>)>,
+) {
+    if base.get_3d(crate::movie::CAMERA3_ID).is_none() {
+        return;
+    }
+    let pw = movie.width as f32;
+    let ph = movie.height as f32;
+    let aspect = pw / ph.max(1.0);
+
+    for (start, end, stage) in stage_ranges(movie, authored_end) {
+        let span = (end - start).max(0.0);
+        let samples = ((span * 12.0).ceil() as usize).clamp(2, 48);
+        let mut previous: Option<(f32, Vec3, Vec3, f32)> = None;
+        for index in 0..=samples {
+            let at = if samples == 0 {
+                start
+            } else {
+                start + span * index as f32 / samples as f32
+            };
+            let scene = timeline.apply(base, at);
+            let Some(camera) = scene.get_3d(crate::movie::CAMERA3_ID) else {
+                continue;
+            };
+            let eye = crate::render3d::eye_of(camera);
+            let target = camera.pos;
+            let radius = camera.scale.max(0.01);
+
+            let camera_active = previous.is_some_and(|(_, pe, ptarget, pradius)| {
+                eye.distance(pe) > 1e-4
+                    || target.distance(ptarget) > 1e-4
+                    || (radius - pradius).abs() > 1e-4
+            });
+            if let Some((pt, pe, ptarget, pradius)) = previous {
+                let dt = (at - pt).max(1.0 / 120.0);
+                let view_a = (ptarget - pe).normalize_or_zero();
+                let view_b = (target - eye).normalize_or_zero();
+                let angular = view_a.dot(view_b).clamp(-1.0, 1.0).acos().to_degrees() / dt;
+                let zoom = (radius / pradius.max(0.01)).abs().ln().abs() / dt;
+                let target_speed = target.distance(ptarget) / radius.max(pradius).max(0.1) / dt;
+                if angular > 300.0 || zoom > 4.0 || target_speed > 3.5 {
+                    push_unique(
+                        diagnostics,
+                        seen,
+                        VisualDiagnostic {
+                            severity: VisualSeverity::Warning,
+                            issue: VisualIssue::CameraMotion,
+                            format: format.into(),
+                            stage: stage.clone(),
+                            at,
+                            entity: crate::movie::CAMERA3_ID.into(),
+                            other: None,
+                            message: format!(
+                                "3D camera changes too abruptly ({angular:.0}°/s orbit, {zoom:.1}/s zoom)"
+                            ),
+                            suggestion: "lengthen orbit3/view3, use smooth, or split the camera move into two readable beats"
+                                .into(),
+                        },
+                    );
+                }
+            }
+            previous = Some((at, eye, target, radius));
+
+            if !camera_active {
+                continue;
+            }
+
+            let media = scene
+                .creator_media_rect()
+                .map(|rect| {
+                    let (lo, hi) = rect.edges();
+                    Bounds { lo, hi }
+                })
+                .unwrap_or(Bounds {
+                    lo: Vec2::ZERO,
+                    hi: Vec2::new(pw, ph),
+                });
+            for entity in scene.entities_3d.iter().filter(|entity| {
+                entity.id != crate::movie::CAMERA3_ID
+                    && entity.opacity > 0.05
+                    && !matches!(entity.shape, Shape3D::Grid { .. })
+            }) {
+                let Some((lo, hi)) = entity.world_bounds() else {
+                    continue;
+                };
+                if eye.x >= lo.x
+                    && eye.x <= hi.x
+                    && eye.y >= lo.y
+                    && eye.y <= hi.y
+                    && eye.z >= lo.z
+                    && eye.z <= hi.z
+                {
+                    push_unique(
+                        diagnostics,
+                        seen,
+                        VisualDiagnostic {
+                            severity: VisualSeverity::Error,
+                            issue: VisualIssue::CameraPenetration,
+                            format: format.into(),
+                            stage: stage.clone(),
+                            at,
+                            entity: crate::movie::CAMERA3_ID.into(),
+                            other: Some(entity.id.clone()),
+                            message: format!("camera enters `{}`", entity.id),
+                            suggestion: "increase camera radius or use view3 to refit the subject before orbiting"
+                                .into(),
+                        },
+                    );
+                }
+
+                let projected: Vec<_> = bounds_corners(lo, hi)
+                    .into_iter()
+                    .filter_map(|point| crate::render3d::project(&scene, aspect, point, pw, ph))
+                    .collect();
+                if projected.len() < 4 {
+                    continue;
+                }
+                let projected_bounds = Bounds {
+                    lo: projected
+                        .iter()
+                        .fold(Vec2::splat(f32::MAX), |acc, p| acc.min(*p)),
+                    hi: projected
+                        .iter()
+                        .fold(Vec2::splat(f32::MIN), |acc, p| acc.max(*p)),
+                };
+                if !media.contains(projected_bounds, 3.0) {
+                    push_unique(
+                        diagnostics,
+                        seen,
+                        VisualDiagnostic {
+                            severity: VisualSeverity::Warning,
+                            issue: VisualIssue::CameraBounds,
+                            format: format.into(),
+                            stage: stage.clone(),
+                            at,
+                            entity: entity.id.clone(),
+                            other: None,
+                            message: "leaves the creator media area during a 3D camera transition".into(),
+                            suggestion: "use view3 after changing the subject, increase its duration, or reduce the orbit radius change"
+                                .into(),
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// Audit settled story checkpoints for one already-lowered format.
 pub fn visual_diagnostics(movie: &Movie, format: &str) -> Vec<VisualDiagnostic> {
     let (base, timeline) = movie.finalize();
@@ -340,7 +532,142 @@ pub fn visual_diagnostics(movie: &Movie, format: &str) -> Vec<VisualDiagnostic> 
     let mut diagnostics = Vec::new();
 
     for (at, stage) in checkpoints {
-        let scene = timeline.apply(&base, at);
+        let mut scene = timeline.apply(&base, at);
+        // pin3/label3 positions are player-time projections. Resolve the same
+        // hook here before auditing their 2D text boxes; their authored (0,0)
+        // placeholder is intentionally not a screen position.
+        let pins = scene.pins.clone();
+        let aspect = movie.width as f32 / movie.height.max(1) as f32;
+        for pin in pins {
+            let world = match pin.target {
+                crate::scene::Pin3Target::Point(point) => Some(point),
+                crate::scene::Pin3Target::Entity(id) => scene.get_3d(&id).map(|entity| entity.pos),
+            };
+            let Some(world) = world else { continue };
+            let Some(position) = crate::render3d::project(
+                &scene,
+                aspect,
+                world,
+                movie.width as f32,
+                movie.height as f32,
+            ) else {
+                continue;
+            };
+            let world_scale = pin.world_height.and_then(|height| {
+                let pixels = crate::render3d::projected_world_height(
+                    &scene,
+                    aspect,
+                    world,
+                    height,
+                    movie.width as f32,
+                    movie.height as f32,
+                )?;
+                let entity = scene.get(&pin.label)?;
+                let em = match entity.shape {
+                    Shape::Text { size, .. } | Shape::RichText { size, .. } => size,
+                    _ => return None,
+                };
+                Some((pixels / em.max(1.0)).clamp(0.15, 8.0))
+            });
+            if let Some(entity) = scene.get_mut(&pin.label) {
+                entity.pos = position + pin.offset;
+                if let Some(scale) = world_scale {
+                    entity.scale = scale;
+                }
+            }
+        }
+        for entity in &scene.entities_3d {
+            let missing = if let Some((target, _)) = &entity.follow {
+                scene.get_3d(target).is_none().then(|| target.clone())
+            } else if let Some(link) = &entity.link {
+                [link.from.as_str(), link.to.as_str()]
+                    .into_iter()
+                    .find(|id| scene.get_3d(id).is_none())
+                    .map(str::to_string)
+            } else if let Some((source, _)) = &entity.projection {
+                scene.get_3d(source).is_none().then(|| source.clone())
+            } else {
+                None
+            };
+            if let Some(missing) = missing {
+                push_unique(
+                    &mut diagnostics,
+                    &mut seen,
+                    VisualDiagnostic {
+                        severity: VisualSeverity::Error,
+                        issue: VisualIssue::SpatialRelationship,
+                        format: format.into(),
+                        stage: stage.clone(),
+                        at,
+                        entity: entity.id.clone(),
+                        other: Some(missing.clone()),
+                        message: format!("references missing 3D source `{missing}`"),
+                        suggestion: "keep relationship sources in the scene, or release the relationship before replacing them"
+                            .into(),
+                    },
+                );
+            }
+
+            if entity.id == crate::movie::CAMERA3_ID
+                || entity.opacity <= 0.05
+                || matches!(entity.shape, Shape3D::Grid { .. })
+            {
+                continue;
+            }
+            let Some((lo, hi)) = entity.world_bounds() else {
+                continue;
+            };
+            let projected: Vec<_> = bounds_corners(lo, hi)
+                .into_iter()
+                .filter_map(|point| {
+                    crate::render3d::project(
+                        &scene,
+                        aspect,
+                        point,
+                        movie.width as f32,
+                        movie.height as f32,
+                    )
+                })
+                .collect();
+            if projected.len() < 4 {
+                continue;
+            }
+            let projected_bounds = Bounds {
+                lo: projected
+                    .iter()
+                    .fold(Vec2::splat(f32::MAX), |acc, point| acc.min(*point)),
+                hi: projected
+                    .iter()
+                    .fold(Vec2::splat(f32::MIN), |acc, point| acc.max(*point)),
+            };
+            let media = scene
+                .creator_media_rect()
+                .map(|rect| {
+                    let (lo, hi) = rect.edges();
+                    Bounds { lo, hi }
+                })
+                .unwrap_or(canvas);
+            if !media.contains(projected_bounds, 3.0) {
+                push_unique(
+                    &mut diagnostics,
+                    &mut seen,
+                    VisualDiagnostic {
+                        severity: VisualSeverity::Warning,
+                        issue: VisualIssue::CameraBounds,
+                        format: format.into(),
+                        stage: stage.clone(),
+                        at,
+                        entity: entity.id.clone(),
+                        other: None,
+                        message: "is outside the 3D creator media area at the settled checkpoint"
+                            .into(),
+                        suggestion:
+                            "use view3 on this object or its tag after the preceding spatial change"
+                                .into(),
+                    },
+                );
+            }
+        }
         let candidates: Vec<_> = scene
             .entities
             .iter()
@@ -461,6 +788,16 @@ pub fn visual_diagnostics(movie: &Movie, format: &str) -> Vec<VisualDiagnostic> 
         }
     }
 
+    audit_camera_transitions(
+        movie,
+        format,
+        &base,
+        &timeline,
+        authored_end,
+        &mut diagnostics,
+        &mut seen,
+    );
+
     diagnostics.sort_by(|a, b| {
         a.format
             .cmp(&b.format)
@@ -535,5 +872,23 @@ mod tests {
                 "{name} should be visually clean: {diagnostics:#?}"
             );
         }
+    }
+
+    #[test]
+    fn camera_audit_samples_transitions_not_only_settled_frames() {
+        let movie = crate::parse(
+            "canvas(1080,1920); camera3((0,0,0),(0,20,3),35); \
+             cube3(box,(0,0,0),(4,4,4),\"blue\"); \
+             step(\"shock\") { orbit3(180,20,0.5,0.08,linear); }",
+        )
+        .unwrap();
+        let diagnostics = visual_diagnostics(&movie, "portrait");
+        assert!(
+            diagnostics.iter().any(|d| matches!(
+                d.issue,
+                VisualIssue::CameraMotion | VisualIssue::CameraPenetration
+            )),
+            "{diagnostics:#?}"
+        );
     }
 }

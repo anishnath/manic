@@ -95,12 +95,14 @@ not an instruction to implement everything.
 |---|---|---|---|
 | P0 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
 | P1 | 🟡 | **Motion Graphics V2Core** — ✅ authored endpoint/blueprint state plus `attach` / `become` / `turn` and shared pivots have shipped locally; normalized live path progress, general group bounds, and velocity-continuous generated motion remain. Existing `travel`, `flow`, `wander`, and `arrange` calls stay unchanged. | Lets non-programmers describe continuity and relationships instead of intermediate coordinates, while preserving deterministic playback and existing files. |
+| P1 | ✅ | **3D V2Core** — creator-first authored 3D state and bounds, automatic camera composition, spatial path travel, timed attachment/release, exact-blueprint transformation, rigid axis turns, template-aware diagram lighting, tests, and creator examples ship. Surface: `view3`, `travel3`, `attach3`, `become3`, `turn3`; existing precise 3D calls remain unchanged. | Makes spatial explainers readable and cinematic without asking creators to calculate camera distance, Euler choreography, or intermediate coordinates. |
 | P1 | 🟡 | **Visual audit layers** — transition-path collisions, detached dynamic links, reading speed, camera/3D bounds, and equation/plot semantic agreement. | Prevents bad exports, not merely bad settled frames. |
 | P1 | 🟡 | **Multi-format composition** — reusable layout policies, format-specific pacing, thumbnail/still framing, and UI-controlled output variants. | Turns one semantic story into a dependable publishing system. |
 | P2 | ⬜ | **General bounds + relative placement** — reusable entity/group bounding boxes, framing, edge origins, and `next_to`-style layout. | Removes manual coordinates and unlocks reliable automatic composition. |
 | P2 | ⬜ | **Live geometry measurements** — bind derived lengths, angles, positions, and areas into counters/labels. | Makes olympiad, engineering, and interactive diagrams numerically truthful. |
 | P2 | ⬜ | **Nonlinear remapping** — `travel(entity,path,…)` now ships for move-along-path; the remaining work is deforming grids/curves through a general authored map. | Extends the shipped path motion into advanced transformation stories without multiplying vocabulary. |
 | P3 | ⬜ | **Typography/look extensions** — selectable bundled fonts, then an optional chalkboard/sketch renderer. | Broadens creator identity without changing story semantics. |
+| P3 | ⬜ | **3D V3 solid sections** — one generic solid-section/projection bridge that creates cut pieces and exposed faces while preserving their identities; V2 continues to use exact authored `param3` sections. | Extends textbook cutaway and cross-section stories beyond authored spheres without adding a boolean-node vocabulary. |
 
 ### Future creator support
 
@@ -340,6 +342,169 @@ ordinary file-only production path with no flags. A marker following a
 simultaneously changing path remains the acceptance test for the planned
 normalized live-path foundation.
 
+## 3D V2Core — ✅ shipped
+
+**Status: ✅ V2.0–V2.5 implemented, documented, visually reviewed, and verified.**
+The existing 3D engine already provides depth-tested primitives, curves,
+surfaces, solids, extrusion, morphing, projected labels, deterministic camera
+tracks, and stable pole-crossing orbits. V2 is therefore an authoring and
+composition layer, not a second mesh engine.
+
+The product promise is:
+
+> Describe what travels, follows, transforms, turns, and deserves focus. Manic
+> preserves the spatial world and composes the shot.
+
+### Simplicity and compatibility rules
+
+1. Every new spatial creator word keeps the existing `3` suffix convention.
+2. Existing `camera3`, `move3`, `shift3`, `rotate3`, `orbit3`, `roll3`,
+   `look3`, `follow3`, and `morph3` keep their signatures and settled frames.
+3. V2 words are high-level compositions over shared authored state; they do not
+   create a second timeline or require a mode/renderer flag.
+4. Camera fitting uses real group bounds and a creator margin, not guessed
+   object-type constants.
+5. Spatial rotation follows one stable axis interpolation and must not shock,
+   flip, or take a surprising Euler route.
+6. Rendering polish comes from templates/defaults. V2Core does not expose a
+   material graph, arbitrary light rig, texture system, or node editor.
+
+### The five creator words
+
+- **`view3(target_or_tag,"front|side|top|isometric|fit",[duration],[ease],[margin])`**
+  aims the camera at the resolved target bounds and chooses a distance that
+  keeps the subject framed. `fit` preserves the current viewing direction;
+  named views select a familiar direction. Existing `look3` and `orbit3`
+  remain the exact camera controls.
+- **`travel3(entity,path3,[duration],[ease])`** moves one persistent 3D entity
+  along a `line3`, `arrow3`, or `curve3` and leaves it at the exact endpoint.
+- **`attach3(child,target,[(dx,dy,dz)])`** establishes a timed spatial
+  relationship. **`attach3(child,none)`** releases at the resolved position
+  without snapping. Constructor-time `follow3` remains useful for relationships
+  that last for the entire movie.
+- **`become3(source,blueprint,[duration],[ease])`** retains the source id and
+  adopts the target geometry, transform, and style. Compatible families use
+  the existing 3D morph machinery; unsupported pairs crossfade locally and
+  still settle on the exact blueprint.
+- **`turn3(id_or_tag,pivot,axis,degrees,[duration],[ease])`** rotates a spatial
+  entity or group rigidly around one world-space pivot and axis, preserving
+  member distances and orientations.
+
+### V2Core engine foundation — no extra creator vocabulary
+
+1. **Authored 3D endpoint/blueprint state.** Track the latest authored position,
+   rotation, scale, endpoints, mesh/shape blueprint, style, and visibility
+   without mutating the immutable `t=0` scene.
+2. **Stable spatial rotation.** Use axis/quaternion interpolation internally for
+   relational turns and camera transitions; keep existing Euler constructor and
+   `rotate3` input compatibility.
+3. **World/group bounds.** Resolve bounds after authored transforms for points,
+   paths, surfaces, meshes, solids, and tag groups. Camera composition and later
+   audit layers consume the same calculation.
+4. **Deterministic 3D path sampling.** Convert supported authored paths into
+   ordinary absolute-time position tracks so reverse scrubbing and recording
+   produce identical frames.
+5. **Exact visual transitions.** Reuse the shipped `morph3` resampling for
+   compatible families and install the exact target blueprint at completion;
+   use a bounded source-local crossfade otherwise.
+
+### Delivery priority
+
+1. **✅ V2.0:** authored 3D state, quaternion-backed stable axis rotation, and
+   transformed world/group bounds.
+2. **✅ V2.1:** `view3` camera composition and aspect-aware fit tests, including
+   portrait bounds containment.
+3. **✅ V2.2:** deterministic `travel3` plus timed `attach3`/release.
+4. **✅ V2.3:** rigid `turn3` plus compatible morph and safe-crossfade
+   exact-blueprint `become3`.
+5. **✅ V2.4 core polish:** conservative template-aware ambient/key/fill diagram
+   lighting with readable back faces. The follow-on creator roadmap adds smooth
+   normals, mesh emphasis, depth/shadow cues, and bounded finishes through the
+   single opt-in `finish3` modifier.
+6. **✅ V2.5:** `examples/three-d-v2.manic` is the compact acceptance scene and
+   `examples/three-d-v2-story.manic` is the continuous vertical creator story;
+   mdBook/system-prompt/editor/publishing parity is complete. The full workspace
+   suite passes 304 tests (258 engine/library, 2 CLI, 44 language/editor), and
+   the engine suite validates every shipped example through the editor catalog.
+7. **✅ V2 textbook dimension-story series:** eight approved portrait examples
+   cover continuous 1D→2D→3D construction, nested distance, changing units,
+   coordinate addresses, revolution into a solid, statistical dimensions, the
+   reverse 3D→2D→1D journey, and curved-solid sections. The final
+   `textbook-watermelon-sections.manic` uses bounded `param3` shells and section
+   faces for horizontal/vertical halves and a quarter/three-quarter construction.
+   Together they are the accepted V2 composition path for textbook spatial
+   stories and mathematically exact authored curved sections; they add no new
+   DSL word.
+
+### Deferred to 3D V3 — generic solid sections
+
+V2 deliberately stops at authored parametric sections. A future V3 may add one
+engine-level solid-section or projection bridge that can cut an arbitrary solid,
+generate the exposed faces, preserve the resulting piece identities, and move
+smoothly between the 3D construction and its 2D textbook projection. That work
+must reuse the current timeline, bounds, camera, and audit contracts; it must not
+introduce a boolean-node vocabulary or change the settled output of V2 files.
+
+### Regression contract
+
+1. All existing 3D examples parse unchanged and retain their duration and
+   authored final states.
+2. Repeated or reverse-order `Timeline::apply(base,t)` remains deterministic.
+3. `view3` always contains the requested bounds at its settled frame and never
+   jumps through a pole or invalid camera basis.
+4. `travel3` settles exactly on the path endpoint; `attach3` release preserves
+   the last resolved world position.
+5. `turn3` preserves pairwise distances and rotates member orientation around
+   the same axis; `become3` installs the exact target blueprint.
+6. Missing targets, attachment cycles, zero axes, unsupported paths,
+   non-positive durations, and empty bounds fail during build with source spans.
+7. Native and editor catalogs, the system prompt, mdBook, examples, and the full
+   Rust workspace suite ship together before V2Core is marked complete.
+
+## 3D creator roadmap 1–6 — ✅ shipped
+
+**Status: 🟢 implemented.** The existing spatial language is now production-safe
+and extensible without turning Manic into a material/node editor.
+
+1. **✅ Production-safe camera composition.** `view3` automatically uses the
+   active Creator/quiz media-safe rectangle, including its asymmetric platform
+   insets, while files without Creator metadata retain full-canvas framing.
+   Transition audits sample camera motion and projected 3D bounds between
+   stages—not only at settled frames.
+2. **✅ Stronger relationships.** `attach3` has an optional `rigid` mode
+   that carries local offset and orientation; ordinary position-only attachment
+   remains the default. `travel3` samples the path's resolved transform at
+   playback time so a simultaneously moving/turning authored path stays live.
+3. **✅ Spatial production audit.** Diagnostics cover 3D clipping, safe-region
+   escape, camera speed/zoom shock, camera penetration, and broken spatial
+   relationships. These reuse the same bounds/projection/attachment state as
+   the engine rather than estimating a second world.
+4. **✅ Rendering refinement through one modifier.** Added
+   **`finish3(id,"...")`** for the small set of creator decisions that cannot be
+   inferred: `shading=flat|smooth`, `mesh=0..1`, `material=matte|metal|glass`,
+   `texture=solid|checker|stripes`, `depth=0..1`, and `shadow=0..1`. Templates
+   continue to provide restrained defaults; there is no light graph.
+5. **✅ Spatial explanation.** Added only four irreducible concepts:
+   **`link3(id,a,b,[trim])`** for a live edge, **`project3(id,source,"xy|xz|yz")`**
+   for a live orthogonal projection, **`contour3(id,surface,level)`** for a
+   level curve, and **`label3(label,target,[world_height])`** for a projected
+   label whose apparent size follows world depth.
+6. **✅ Controlled asset/solid extension.**
+   **`model3(id,"asset:models/name.obj"|"file.obj",center,[scale])`** imports
+   deterministic OBJ geometry (vertices/faces/lines; no scripts). Documented
+   `asset:` URIs resolve through the packaged production catalog independently
+   of the working directory; ordinary paths remain available for backend-
+   provisioned user models. Linux, Docker, EC2, and playground pipelines copy
+   the complete `assets/` tree so future catalog entries need no one-off deploy
+   rule. Meanwhile,
+   **`tube3(id,path,"radius(t)",[sides])`** builds a variable-radius tube around
+   an authored 3D path. `finish3` supplies the bounded material/texture treatment
+   for both, avoiding separate shader vocabulary.
+
+Native/editor catalog parity, precise invalid-input errors, headless Rust
+coverage, the `three-d-v2-lab` creator example, mdBook/system-prompt/publishing
+updates, and the full shipped-example regression are part of this release.
+
 ## Capabilities (implemented)
 
 ### Engine & language
@@ -454,8 +619,9 @@ normalized live-path foundation.
   label to a 3D point), `follow3` (track another entity), `midpoint3` (derived
   point), `curve3` (parametric 3D curve), `surface3` (z=f(x,y) filled mesh), `param3` (parametric surface — tori/Möbius), `prism3`/`pyramid3`/`revolve3`
   (filled, flat-shaded solids), `extrude3` (extrude a 2D shape/boolean-region → CSG solids),
-  `thick` (tube strokes); verbs `move3`, `shift3`, `rotate3`,
-  `grow3`, `orbit3`, `roll3`, `look3`. Shared modifiers/verbs (`color`, `opacity`,
+  `thick` (tube strokes); creator verbs `view3`, `travel3`, `attach3`, `become3`,
+  `turn3`; precise verbs `move3`, `shift3`, `rotate3`, `grow3`, `orbit3`,
+  `roll3`, `look3`. Shared modifiers/verbs (`color`, `opacity`,
   `hidden`, `untraced`, `tag`, `show`, `fade`, `draw`, `recolor`, `flash`,
   `pulse`, `scale`) also address 3D entities. See **3D foundation** below.
 
@@ -1486,8 +1652,9 @@ existing manic primitive — the same "the diagram is true, not drawn" thesis, n
 light. Follows the manic-builtin-checklist for each ctor (catalog + LANGUAGE +
 SYSTEM_PROMPT + CAPABILITIES + test + example + WASM/system-prompt snapshots).
 
-### 3D — status (roadmap #1–#6 all shipped)
-The foundation and the full 3D roadmap below have shipped. Coverage against the
+### 3D foundation — status (legacy roadmap #1–#6 all shipped)
+The foundation roadmap below has shipped; the newer creator roadmap above adds
+the production and vocabulary layer. Coverage against the
 ~96 Asymptote `graph3` / `three` / `solids` / `tube` examples is:
 - **Geometry** — parametric **curves** (`curve3`), height-field **surfaces**
   (`surface3`), **general parametric surfaces** (`param3` — `x/y/z(u,v)`, so
@@ -1496,23 +1663,24 @@ The foundation and the full 3D roadmap below have shipped. Coverage against the
   and solids render **filled + flat-shaded**, not wireframe), arbitrary 2D
   shapes / boolean regions **extrude** into solids (`extrude3` — this doubles as
   **CSG solids**: extrude a `union`/`difference`/`intersect`/`xor` region), and
-  `curve3`/`line3`/`arrow3` can be drawn as shaded **tubes** (`thick`). Still
-  pending: imported 3D models, variable-radius tubes (the Asymptote `tube`
-  corpus — `thick` is constant-radius), contour/level curves on surfaces.
-- **Rendering** — a single baked light + flat per-face shading ship for
+  `curve3`/`line3`/`arrow3` can be drawn as constant-radius shaded **tubes**
+  (`thick`); `tube3` adds variable radius, `contour3` extracts height-field
+  levels, and `model3` imports controlled geometry-only OBJ meshes from either
+  documented production-bundled `asset:` URIs or provisioned ordinary paths.
+- **Rendering** — template-aware ambient/key/fill diagram lighting + flat
+  per-face shading ship for
   surfaces/meshes/`cube3`/`sphere3`, tube-style thick strokes ship for paths
   (`thick`), and intersecting translucent geometry is depth-sorted (opaque
-  first, then translucent back-to-front). Still pending: **adjustable/multiple
-  lights** (direction + intensity; today it's one hard-coded light), smooth
-  (Gouraud) shading, **visible surface mesh/grid lines** on filled surfaces,
-  **depth cueing / fog**, material/texture shaders, and shadows.
+  first, then translucent back-to-front). `finish3` adds opt-in smooth shading,
+  mesh emphasis, bounded depth/shadow cues, matte/metal/glass treatments, and
+  deterministic checker/stripe procedures. Arbitrary light/shader graphs and
+  image textures intentionally remain out of scope.
 - **Labels & graphing** — depth-aware projected labels (`pin3`) and fully
-  ticked/labelled, auto-decluttering 3D axes (`axes3`) ship. Still pending:
-  **true 3D-embedded text** that lives in the scene and scales with distance
-  (today's labels are screen-space, constant size).
-- **Dynamic constructions** — `follow3` + `midpoint3` (3D `follow`/`derive`) ship;
-  still to come: `link3` (reflowing 3D edges) and richer derived/constrained
-  geometry that recomputes as source points move.
+  ticked/labelled, auto-decluttering 3D axes (`axes3`) ship. `label3` adds
+  natural depth scaling while remaining a crisp camera-facing projected label;
+  extruded glyph geometry intentionally remains out of scope.
+- **Dynamic constructions** — `follow3` + `midpoint3`, live `link3` edges, and
+  `project3` principal-plane projections recompute as their sources move.
 - **Animation breadth** — `morph3` blends curves, surfaces, and solids (solids
   reparameterised spherically), and `to` now animates 3D `morph`/`opacity`/
   `scale`/`trace`/`color`; the dedicated verbs (move3/rotate3/grow3/…) cover
@@ -1530,15 +1698,17 @@ point) and a **`Vec3` `derive`/updater** (mirror the 2D dependent-point path).
 | 2 | **`Vec3` dynamic constructions** ✅ **shipped** | Added a 3D `derive`/`follow` resolve pass; `follow3` (track another entity + offset) and `midpoint3` (derived point) recompute each frame. `link3`/projections extend the same hook. | Medium | Live 3D geometry: dependent points + tracking that recompute as sources move. |
 | 3 | **Parametric curve & surface** ✅ **shipped** | `curve3(id,"x(t)","y(t)","z(t)")` → drawn-on `Shape3D::Path`; `surface3(id,"z(x,y)",…)` → filled, flat-shaded `Shape3D::Surface`; `param3(id,"x(u,v)","y(u,v)","z(u,v)",…)` → a **general** parametric surface (tori/Möbius/shells — can wrap/close). The `plot` expr engine was widened to **two variables** (`x`/`y`, `u`/`v`). | Medium | Helices/Lissajous, `z=f(x,y)` surfaces, and closed/parametric surfaces (the full `graph3` corpus). |
 | 4 | **Indexed meshes & solids** ✅ **shipped** | `Shape3D::Mesh` (verts + tri `faces` + wireframe fallback) + `prism3`/`pyramid3` (n-gon extrusion/apex) + `revolve3` (solids of revolution) + `extrude3` (extrude any 2D fillable shape or boolean `Region`). `extrude3` reuses `geom.rs` (`entity_to_multipolygon` + `earcutr`), so extruding a `union`/`difference`/`intersect`/`xor` region **is** boolean CSG (plate-with-hole, L-beams, …). | Large | Prisms/pyramids/cylinders/cones, vases/spheres/lathes, arbitrary/concave extrusions, and CSG solids. |
-| 5 | **3D rendering upgrades** ✅ **shipped** | Surfaces/meshes/`cube3`/`sphere3` render **filled** with a single baked light and flat per-face lambert shading (`abs(n·l)`, no black back-faces; chunked under the u16 index cap). `curve3`/`line3`/`arrow3` draw as shaded **tubes** via `thick(id,radius)` (rotation-minimising frame; arrows get a solid cone head). Translucent geometry is **depth-sorted** (opaque first, then translucent entities + their triangles back-to-front). **Remaining (moved out of scope):** material/texture shaders and shadows. | Large | Solid-looking 3D, correct translucent overlaps, publication-quality output. |
+| 5 | **3D rendering upgrades** ✅ **shipped** | Surfaces/meshes/`cube3`/`sphere3` render **filled** with deterministic template-aware ambient/key/fill diagram lighting and readable back faces (chunked under the u16 index cap). `curve3`/`line3`/`arrow3` draw as shaded **tubes** via `thick(id,radius)` (rotation-minimising frame; arrows get a solid cone head). Translucent geometry is **depth-sorted** (opaque first, then translucent entities + their triangles back-to-front). The newer `finish3` layer supplies bounded materials/procedural textures and depth/shadow cues; arbitrary shader/light graphs remain out of scope. | Large | Solid-looking 3D, correct translucent overlaps, publication-quality output. |
 | 6 | **3D morph / general `to`** ✅ **shipped** | `morph3(a,b,[spin])` samples both shapes to a shared form — curves→polyline, surfaces & solids→a filled/shaded grid (solids reparameterised onto a spherical `(θ,φ)` grid via bbox-centre raycasting, so cube↔sphere works). `to` extended to animate 3D `morph`/`opacity`/`scale`/`trace`/`color`. | Large | 3D `Transform` / `ReplacementTransform`, mesh/path morphing. |
 
 Planned order (agreed): **1 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 6 ✅** — the full
 3D roadmap has shipped. #4 shipped `Shape3D::Mesh` + `prism3`/`pyramid3`/`revolve3` + `extrude3`
 (arbitrary/concave extrude **and** boolean CSG, both via `geom.rs`); #5 shipped
-filled + flat-shaded faces (surfaces/meshes/`cube3`/`sphere3`), tube strokes
-(`thick`), and depth-sorted translucency (de-scoped: texture/material shaders +
-shadows). #1 and #2 are mostly *reuse* (the projection hook + a `Vec3` updater)
+filled + flat-shaded faces with deterministic template-aware studio lighting
+(surfaces/meshes/`cube3`/`sphere3`), tube strokes
+(`thick`), and depth-sorted translucency. The creator roadmap later adds the
+bounded `finish3` layer while keeping arbitrary shader/light graphs de-scoped.
+#1 and #2 are mostly *reuse* (the projection hook + a `Vec3` updater)
 and together make 3D genuinely usable for explainers; #3 brings the `graph3`
 corpus within reach off the existing `plot` sampler. #4/#5 are the orthogonal
 "real 3D engine" work — big, and only needed once the legible-diagram cases land.
@@ -1915,11 +2085,14 @@ the physics sims followed.
    `magenta`/`lime`/`dim`/`panel`, which the template remaps) and outline-only
    chrome, so it renders with correct contrast on `paper` (light) AND `terminal`
    (dark); the fixed consts (`gold`/`red`/…) are avoided for contrast-critical bits.
-2. **✅ Raster image embedding SHIPPED** — `image(id, (x,y), "path", [w], [h])`
+2. **✅ Raster image embedding SHIPPED** —
+   `image(id, (x,y), "asset:name.png"|"path", [w], [h])`
    (`Shape::Image` + a thread-local macroquad texture cache preloaded in
    `player::run_loop`, drawn in `render::draw_entity`; missing file → a crossed
    placeholder box). Loads real **logos / avatars / photo backdrops**, animates
-   like any entity, `examples/image.manic` + bundled `assets/manic-logo.png`.
+   like any entity, `examples/image.manic` + bundled
+   `asset:manic-logo.png`. A bundled URI resolves independently of the working
+   directory; ordinary paths remain available for caller-provisioned files.
    Engine-only (no browser preview — the WASM front-end has no macroquad). The
    quiz POC keeps its *drawn* vector social icons (no trademark PNGs bundled),
    but a creator can now drop their own real logo/avatar in via `image(...)`.

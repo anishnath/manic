@@ -11,7 +11,7 @@ categories = ["graphics", "multimedia::video", "visualization"]
 include = [
     "src/**",
     "examples/**",
-    "assets/fonts/*",
+    "assets/**",
     "README.md",
     "ARCHITECTURE.md",
     "LICENSE",

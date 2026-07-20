@@ -65,18 +65,7 @@ fn parse_safe(name: &str) -> Option<CreatorSafe> {
 /// Platform-safe rectangle in logical canvas coordinates. Insets are ratios so
 /// the guide scales consistently across portrait, feed, square and landscape.
 fn safe_rect(canvas: Vec2, safe: CreatorSafe) -> CreatorRect {
-    let (l, r, t, b) = match safe {
-        CreatorSafe::Shorts => (0.060, 0.090, 0.055, 0.110),
-        CreatorSafe::Reels => (0.065, 0.105, 0.075, 0.135),
-        CreatorSafe::Tiktok => (0.065, 0.145, 0.075, 0.155),
-        CreatorSafe::Clean => (0.045, 0.045, 0.045, 0.045),
-    };
-    rect_edges(
-        canvas.x * l,
-        canvas.y * t,
-        canvas.x * (1.0 - r),
-        canvas.y * (1.0 - b),
-    )
+    safe.rect(canvas)
 }
 
 fn creator_regions(canvas: Vec2, safe: CreatorSafe, layout: QuizLayout) -> CreatorRegions {
@@ -796,10 +785,14 @@ pub fn c_socials(s: &mut Scene, a: &Args) -> Result<(), Error> {
             let name_size = (if signature { 30.0 } else { 25.0 } * ui).clamp(18.0, 38.0);
             let x0 = at.x - regions.footer.size.x * 0.34;
             if !prof.logo.is_empty() {
+                let logo_path = crate::assets::resolve(&prof.logo)
+                    .map_err(|message| Error::new(message, a.span_of(0)))?
+                    .to_string_lossy()
+                    .into_owned();
                 let mut logo = Entity::new(
                     format!("{id}.logo"),
                     Shape::Image {
-                        path: prof.logo.clone(),
+                        path: logo_path,
                         w: logo_size,
                         h: logo_size,
                         tint: false,
@@ -4286,7 +4279,7 @@ mod tests {
     fn creator_v2_profile_footer_and_endcard() {
         let m = crate::parse(
             "canvas(1080,1920); template(\"shorts\");\n\
-             creator(me, \"@optics name=Optics_Lab tagline=Physics_made_visible logo=assets/manic-logo.png accent=cyan secondary=magenta footer=signature cta=Watch_the_next_one safe=reels\");\n\
+             creator(me, \"@optics name=Optics_Lab tagline=Physics_made_visible logo=asset:manic-logo.png accent=cyan secondary=magenta footer=signature cta=Watch_the_next_one safe=reels\");\n\
              socials(me); endcard(me, \"cta=Follow_for_more\"); show(me.endcard, 0.5);"
         ).unwrap();
         let p = m.base().creators.get("me").unwrap();
@@ -4295,6 +4288,10 @@ mod tests {
         assert_eq!(p.footer, super::CreatorFooter::Signature);
         assert_eq!(p.safe, super::CreatorSafe::Reels);
         assert!(m.base().contains("me.logo"));
+        assert!(matches!(
+            &m.base().get("me.logo").unwrap().shape,
+            Shape::Image { path, .. } if path.ends_with("assets/manic-logo.png")
+        ));
         assert!(m.base().contains("me.end.panel"));
         assert_eq!(m.base().get("me.end.panel").unwrap().opacity, 0.0);
         assert!(

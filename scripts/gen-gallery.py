@@ -16,7 +16,10 @@ SRC = Path("book/src")
 SUB = ("Each block is the whole file — copy it into `x.manic` and run "
        "`manic x.manic` (live) or `--record out` (video).")
 # The 3D page points readers at the Going 3D chapter for its vocabulary.
-SUB_3D = SUB + " See the [Going 3D](3d.md) chapter for the words used here."
+SUB_3D = (SUB + " See the [Going 3D](3d.md) chapter for the words used here. "
+          "`three-d-v2-lab` uses the bundled geometry-only asset "
+          "`asset:models/manic-pyramid.obj`; production packages install it "
+          "automatically, or you can replace its `model3` call with a built-in solid.")
 
 SECTIONS = [
  dict(slug="algorithms", title="Algorithms & data structures", intro="", sub=SUB, items=[
@@ -535,9 +538,9 @@ SECTIONS = [
     "Inline LaTeX mixed with ordinary prose, including wrapped explanatory text and a\n"
     "standalone display equation."),
    ("image",
-    "Embed a raster image (PNG/JPG) with `image(id, (x,y), \"path\", w, h)` — a real file drawn\n"
-    "into the scene and animated like any entity (shown, spun, pulsed, moved). Unlocks logos,\n"
-    "avatars and photo backdrops (e.g. a creator's brand in a template)."),
+    "Embed a raster image (PNG/JPG) with `image(id, (x,y), \"asset:name.png\"|\"path\", w, h)` —\n"
+    "a bundled or user-provisioned file animated like any entity (shown, spun, pulsed, moved).\n"
+    "Unlocks logos, avatars and photo backdrops (e.g. a creator's brand in a template)."),
  ]),
  dict(slug="generative", title="Generative & recursive", intro="", sub=SUB, items=[
    ("gun-shot",
@@ -633,6 +636,51 @@ SECTIONS = [
    ("boolean", "Union / intersection / difference of shapes."),
  ]),
  dict(slug="3d", title="3D scenes", intro="", sub=SUB_3D, items=[
+   ("three-d-v2",
+    "The compact 3D V2 reference: frame a tagged craft, attach its parts, travel one\n"
+    "persistent subject along a spatial route, deploy the rig with a rigid turn, and\n"
+    "become the final blueprint — five creator words in one continuous scene."),
+   ("three-d-v2-story",
+    "A vertical creator story about a satellite finding orbit. The same mission survives\n"
+    "assembly, launch, transformation, deployment, and screen-aware camera composition\n"
+    "without a scene reset."),
+   ("three-d-v2-lab",
+    "A creator-first spatial lab: safe-aware framing, rigid assembly, a live projection\n"
+    "and edge, a moving route, surface contour, depth-scaled label, bounded finishes,\n"
+    "variable tube, and controlled OBJ geometry in one continuous story."),
+   ("trapped-light-dimensions",
+    "A photon escapes one dimension at a time: first a 5-unit line, then the 5–12–13\n"
+    "diagonal of a plane, and finally the 13–84–85 diagonal through a volume. One\n"
+    "persistent light beam makes the generalized Pythagorean idea visible."),
+   ("dimensions-unfold",
+    "A point stretches into a line, the line sweeps sideways into a plane, and the plane\n"
+    "lifts into a room. The geometry grows continuously instead of resetting between\n"
+    "1D, 2D, and 3D."),
+   ("textbook-length-area-volume",
+    "Why units become cm, cm², and cm³: one measured segment sweeps out a rectangle,\n"
+    "then the rectangle rises into a cuboid. A textbook measurement story built from\n"
+    "extrusion rather than three disconnected formulas."),
+   ("textbook-coordinate-worlds",
+    "A point earns a longer address as dimensions unlock: x on a line, (x,y) on a\n"
+    "plane, then (x,y,z) in space. Coordinates remain attached to the same idea while\n"
+    "the world expands around it."),
+   ("textbook-function-to-solid",
+    "A diameter becomes a semicircle and the semicircle revolves into a sphere. The\n"
+    "story links a 1D domain, a 2D graph, and a 3D solid through one continuous\n"
+    "generating motion."),
+   ("textbook-statistical-dimensions",
+    "Data grows from a one-variable number line to a two-variable scatter plot and a\n"
+    "three-variable point cloud. The axes and observations evolve together so statistical\n"
+    "dimension reads as information, not decoration."),
+   ("textbook-geometry-dimension-reduction",
+    "The reverse journey: a sphere reveals a great-circle section, then that circle\n"
+    "collapses to its diameter. A 3D→2D→1D geometry lesson that makes section and\n"
+    "projection relationships explicit."),
+   ("textbook-watermelon-sections",
+    "A paper-style spatial lesson that turns sphere sections into a continuous story:\n"
+    "horizontal and vertical great-circle cuts make two halves, then perpendicular cuts\n"
+    "separate one quarter from the three-quarter remainder. The section faces are bounded\n"
+    "parametric surfaces, so the authored geometry is exact rather than a flat overlay."),
    ("three_d", "Cubes, spheres, arrows, a curve, a surface and solids together — the 3D basics on one stage."),
    ("solids3", "Filled, shaded solids: a prism, a cone, and a lathed vase."),
    ("param3", "Parametric surfaces a height field can't make — a torus, a sphere, and a Möbius strip."),
@@ -684,6 +732,7 @@ SUMMARY_PRE = [
  "- [Colour & style](colour.md)",
  "- [The language layer](language-layer.md)",
  "- [Kits — math, geometry, algorithms](kits.md)",
+ "- [Bundled assets — portable files](assets.md)",
  "- [Elevating a scene](elevating.md)",
  "- [Going 3D](3d.md)",
  "- [Examples gallery](examples.md)",

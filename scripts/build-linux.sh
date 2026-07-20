@@ -8,9 +8,9 @@
 #   ./scripts/build-linux.sh arm64      # just one (arm64 | amd64)
 #
 # Then, on the target box:
-#   scp dist/manic-linux-<arch> ubuntu@host:/tmp/manic
+#   scp dist/manic-linux-<arch> dist/manic-assets.tar.gz ubuntu@host:/tmp/
 #   scp scripts/ec2-setup.sh    ubuntu@host:/tmp/
-#   ssh ubuntu@host 'sudo mv /tmp/manic /usr/local/bin/manic && sudo chmod +x /usr/local/bin/manic && bash /tmp/ec2-setup.sh'
+#   ssh ubuntu@host 'sudo install -m 0755 /tmp/manic-linux-<arch> /usr/local/bin/manic && sudo install -d /usr/local/share/manic/assets && sudo tar -xzf /tmp/manic-assets.tar.gz -C /usr/local/share/manic/assets && bash /tmp/ec2-setup.sh'
 #   ssh ubuntu@host manic-render yourfile.manic --record out --fps 30
 #
 # Match the arch to `uname -m` on the box (aarch64 -> arm64, x86_64 -> amd64).
@@ -21,6 +21,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p dist
+tar -C assets -czf dist/manic-assets.tar.gz .
 
 build() {
   local arch="$1" platform="linux/$1" out="dist/manic-linux-$1" img="manic-build-$1"
@@ -33,6 +34,10 @@ build() {
   # smoke-test: the binary executes + `check` works on a bare Linux image
   docker run --platform "$platform" --rm -v "$PWD/dist:/d" -v "$PWD/examples:/ex" \
     debian:bookworm-slim "/d/manic-linux-$arch" check /ex/hashmap.manic
+  # production-style asset smoke-test: no checkout-relative model path
+  docker run --platform "$platform" --rm -v "$PWD/dist:/d" -v "$PWD/examples:/ex" \
+    -v "$PWD/assets:/usr/local/share/manic/assets:ro" \
+    debian:bookworm-slim "/d/manic-linux-$arch" check /ex/three-d-v2-lab.manic
 }
 
 case "${1:-both}" in

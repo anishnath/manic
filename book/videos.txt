@@ -154,6 +154,17 @@ ex-pieday|2sCPIyi1MB8|Happy Pi Day — a Generative π Card in manic
 ex-boolean|EtcPd8VUa5Y|Union, Intersection, Difference — manic
 
 # ---- 3D scenes ----
+ex-three-d-v2|0KszWIcjz0s|3D V2 — Five Words for Spatial Motion
+ex-three-d-v2-story|gK30w7RgvYg|How a Satellite Finds Its Orbit — A 3D Motion Story
+ex-three-d-v2-lab|qjfpKwnn7Go|3D Relationships, Not Keyframes — Manic Spatial Lab
+ex-trapped-light-dimensions|j3d11yhvw-o|The Trapped Light Beam — From 1D to 3D
+ex-dimensions-unfold|wlnoatVTnGg|How Space Learned to Grow — 1D to 3D
+ex-textbook-length-area-volume|KQZgmp2YzbM|Length, Area, Volume — Why the Units Change
+ex-textbook-coordinate-worlds|4xu4WqyS4zs|A Point Gets an Address — From 1D to 3D
+ex-textbook-function-to-solid|MwgL9dO2jhs|The Revolving Semicircle — From 1D to 3D
+ex-textbook-statistical-dimensions|mT1K2GKB0ok|Statistical Dimensions — From a List to a Data Cloud
+ex-textbook-geometry-dimension-reduction|-9BjTydHNIg|Dimension Reduction — From Sphere to Diameter
+ex-textbook-watermelon-sections|F0EVT7FlxIE|Watermelon Sections — Halves, Quarters, and Great-Circle Cuts
 ex-linear-algebra-3d|tgpmiaNCm5g|Linear Algebra in 3D — Transformations & Eigenvectors, Animated — manic
 threed|SHzotXyfJVY|manic Goes 3D — Cubes, Spheres & a Spinning Camera
 ex-three_d|O-XeXhzSyZo|The 3D Basics on One Stage — manic
@@ -247,7 +258,7 @@ ex-walk|WCtQngDtvEM|A Figure Walking Down the Road — manic
 ex-two_person_walk|VE7PPnPAufE|Two Figures Meet, Shake Hands & Walk On — manic
 ex-quiz-geometry|zWaFgGU2Gn4|Only 1% Get This Geometry Quiz Right — manic
 ex-quiz-geometry-2|MbKmHFeF7Ks|Geometry Quiz: When Is the Circumcentre OUTSIDE? — manic
-ex-image|3h0wTYGzHTU|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
+ex-image|yniFJ-gKFu4|Embed Any Image in manic — Logos, Avatars & Photos, Animated — manic
 ex-quiz-euler|N8vC0qFYcHA|I Built This Geometry Quiz Short in 12 Lines — manic
 ex-quiz-skins|zXoo9_IWEiI|4 Quiz-Short Designs From ONE Line of Code — manic
 ex-creator-v2|cmcE91c2O18|Creator Kit v2 — One Responsive Quiz Across Every Social Format

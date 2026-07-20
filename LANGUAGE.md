@@ -189,7 +189,7 @@ address.
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
 | `particles(id, container, count, [radius], [seed], ["layout"])` | a deterministic group of small dots inside a `circle` or `rect`; `layout` is `"random"` (default), `"grid"` (rectangle), or `"ring"` (circle). Children are `{id}.p0…` and the bare id addresses the group. The id supplies the meaning—`bubbles`, `dust`, `stars`, `data`, etc. |
-| `image(id, (x,y), "path", [w], [h])` | a **raster image** (PNG/JPG) from a file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing file draws a crossed placeholder box. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
+| `image(id, (x,y), "asset:name.png" \| "path", [w], [h])` | a **raster image** (PNG/JPG) from a documented production-bundled `asset:` URI or provisioned file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing ordinary file draws a crossed placeholder; a missing bundled URI is an error. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
 | `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Color individual terms with standard LaTeX and Manic palette names: `` `\textcolor{magenta}{\mathrm{slope}}=\textcolor{cyan}{x}` ``; semantic colors follow the active template and uncolored terms use its foreground. Ordinary single-color equations still follow `color`/`recolor`. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace); use `rewrite` below for a continuous step-by-step derivation. Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
 | `link(id, from, to, [bend])` | a line that stays attached to two moving entities; it meets circle/rectangle boundaries automatically. `bend=0` is straight, positive/negative values bow to opposite sides. |
@@ -885,8 +885,12 @@ scrubbable like every other Manic track.
 | `grid3(id, center, half, [spacing])` | XY ground grid from `-half` to `half` |
 | `axes3(id, origin, length, [step])` | cyan x, magenta y, lime z arrows **with tick marks + numbers** every `step` (default 1; `step ≤ 0` = plain arrows), tagged as `id`. Tick numbers sit off each axis in a distinct direction and auto-declutter per frame (a number is hidden while it would collide with another), so a foreshortened or short axis stays readable and the numbers reappear as the orbit spreads it out |
 | `pin3(label, (x,y,z) \| entity3)` | glue an existing 2D `text`/`label` to a 3D point (or a 3D entity); reprojected each frame so it tracks the camera |
+| `label3(label, (x,y,z) \| entity3, [world_height])` | projected label like `pin3`; when `world_height` is present it scales with camera depth like scene geometry |
 | `follow3(id, target, [(dx,dy,dz)])` | make a 3D entity track another's position (+ offset), recomputed each frame |
 | `midpoint3(id, a, b)` | a point at the midpoint of two 3D entities, recomputed as they move |
+| `link3(id, a, b, [trim])` | live line between two 3D entities; endpoints reflow every frame, with optional world-unit trimming at both ends |
+| `project3(id, source, "xy"\|"xz"\|"yz")` | live orthogonal projection point on a principal plane; pair with `link3` for a moving projection guide |
+| `contour3(id, surface, level)` | level curve `z=level` sampled on a `surface3` height field |
 | `curve3(id, "x(t)", "y(t)", "z(t)", [(t0,t1)])` | parametric 3D curve sampled from three formulas of `t` (default range `0..2π`), drawn as a polyline (thin by default; give it body with `thick`) |
 | `surface3(id, "z(x,y)", (x0,x1), (y0,y1), [res])` | height-field surface `z = f(x,y)` sampled over the x/y rectangle into a `(res+1)²` filled, flat-shaded mesh (default `res` 20) |
 | `param3(id, "x(u,v)", "y(u,v)", "z(u,v)", (u0,u1), (v0,v1), [res])` | **general parametric surface** — three formulas of `u`,`v` sampled into a `(res+1)²` filled, flat-shaded mesh (default `res` 24). Unlike `surface3` it can wrap and close: **tori** (`(R+r·cos v)·cos u`, …), parametric **spheres**, **Möbius strips**, shells |
@@ -899,6 +903,9 @@ scrubbable like every other Manic track.
 | `extrude3(id, source, height, [(cx,cy,cz)])` | **extrude** a 2D fillable shape (`rect`/`circle`/`sector`/`annulus`/`polygon`) or a boolean `Region` (`union`/`difference`/`intersect`/`xor`) straight up into a solid of `height`, centred on `(cx,cy,cz)`. Extruding a boolean region gives **CSG solids** (e.g. plate `difference` hole → a plate with a hole; concave `union` → an L-beam). The 2D `source` is auto-hidden — it's only the cross-section recipe (its own boolean operands are not, so `hidden(…)` them if unwanted) |
 | `morph3(a, b, [spin])` | set 3D entity `a` up to **morph** into `b`'s shape, then animate with `to(a, morph, 1, dur)`. Both are sampled now to a shared form: two **curves** blend as a polyline; two **surfaces** (`surface3`/`revolve3`) or two **solids** (`cube3`/`sphere3`/`prism3`/`pyramid3`/`extrude3`) blend as a filled, shaded grid — solids are reparameterised spherically so e.g. a cube can become a sphere (approximate near sharp corners). `spin` adds a winding rotation about the vertical axis. Both operands must be the same family |
 | `thick(id, radius)` | give a 3D `curve3`/`line3`/`arrow3` real thickness — renders it as a shaded **tube** of the given world-space radius (arrows get a solid cone head) instead of a 1px line; `0` restores the thin line. (`stroke` is the 2D equivalent and only works on 2D shapes) |
+| `tube3(id, path, "radius(t)", [sides])` | variable-radius mesh tube around a line/arrow/curve; normalized `t` runs from 0 at the start to 1 at the end |
+| `model3(id, "asset:models/name.obj" \| "file.obj", center, [scale])` | geometry-only OBJ import (vertices, faces, and lines; polygon faces triangulate); `asset:` resolves a documented production-bundled model independent of the working directory, while ordinary paths remain available for provisioned user files; file and geometry safety limits apply |
+| `finish3(id, "...")` | optional render finish: `shading=flat\|smooth material=matte\|metal\|glass texture=solid\|checker\|stripes scale=N mesh=0..1 depth=0..1 shadow=0..1`; unspecified values preserve current defaults |
 
 | verb | animation |
 |---|---|
@@ -909,6 +916,11 @@ scrubbable like every other Manic track.
 | `orbit3(azimuth, elevation, radius, [dur], [ease])` | animate the camera orbit |
 | `roll3(degrees, [dur], [ease])` | roll the camera around its viewing direction; compose with `orbit3` in `par` for turning-plane and cinematic banking shots |
 | `look3(target, [dur], [ease])` | animate the camera target |
+| `view3(id_or_tag, "front"\|"side"\|"top"\|"isometric"\|"fit", [dur], [ease], [margin])` | aim at the authored transformed bounds and fit them to the current canvas; `fit` preserves the current view direction while named views choose one; `margin ≥ 1` (default `1.18`) |
+| `travel3(id, path, [dur], [ease])` | move one persistent 3D entity along a `line3`, `arrow3`, or sampled `curve3`; path transforms are sampled live during concurrent motion and the traveller settles exactly |
+| `attach3(child, target, [(dx,dy,dz)], [position\|rigid])` / `attach3(child, none)` | position-only remains default; `rigid` interprets the offset in the target frame and inherits orientation. Release preserves the exact resolved world pose; cycles are rejected |
+| `become3(source, blueprint, [dur], [ease])` | retain `source` while adopting the blueprint's geometry, transform, and style; compatible curves/surfaces/solids morph, other pairs crossfade locally and still settle exactly |
+| `turn3(id_or_tag, pivot, axis, degrees, [dur], [ease])` | rigid world-space turn around a point or 3D entity; `axis` is `x`, `y`, `z`, or a non-zero `(x,y,z)` vector |
 
 ### What works on 3D entities (and what doesn't)
 
@@ -918,10 +930,12 @@ says so and lists the alternatives).
 
 | Applies to 3D | 2D-only (errors on a 3D id → use the alt) |
 |---|---|
-| **modifiers:** `color`, `opacity`, `hidden`, `untraced`, `tag`, `thick` | `hue` → use `color` with a palette name · `stroke` → use `thick` · `glow`, `z`, `size`, `bold`, `outlined`/`filled`/`outline` |
+| **modifiers:** `color`, `opacity`, `hidden`, `untraced`, `tag`, `thick`, `finish3` | `hue` → use `color` with a palette name · `stroke` → use `thick` · `glow`, `z`, `size`, `bold`, `outlined`/`filled`/`outline` |
 | **verbs:** `show`, `fade`, `draw`, `flash`, `pulse`, `recolor`, `scale`, and `to(id, morph\|opacity\|scale\|trace\|color, …)` | `move`/`shift`/`rotate`/`spin` → use `move3`/`shift3`/`rotate3` · `cam`/`zoom` → use `camera3`/`orbit3`/`roll3`/`look3` · `transform` (2D matrix) · `morph` → use `morph3` · `to(x/y)` (no 3D single-axis form) |
 
-Spatial tracks always go through the explicit `move3`/`rotate3`/`grow3` family.
+Use `view3`/`travel3`/`attach3`/`become3`/`turn3` for creator intent. Spatial
+tracks can still go through the explicit `move3`/`rotate3`/`grow3` family when
+exact coordinates are the point of the explanation.
 
 ```
 camera3((8,-10,6), (0,0,1), 45);
@@ -931,8 +945,15 @@ cube3(box, (0,0,1), (2,2,2)); color(box, magenta);
 par { rotate3(box, (0,0,360), 4, linear); orbit3(70,28,11,4,smooth); }
 ```
 
-Current limits: no parametric surfaces/arbitrary meshes, lighting, model
-loading, projected 3D labels, or robust intersecting-transparency sorting yet.
+Current limits: `model3` is deliberately OBJ-only (no material scripts);
+bundled `asset:` names must come from the documented catalog rather than a
+remote URL, and ordinary paths must be provisioned by the caller. `finish3`
+provides bounded procedural finishes rather than arbitrary shader or
+light graphs/image textures. `label3` is a projected camera-facing label rather
+than extruded glyph geometry. Depth sorting is entity/triangle based rather than
+full order-independent transparency. Surfaces, contours, variable tubes,
+extrusions, morphing, and deterministic template-aware diagram lighting are
+supported.
 
 ## Banner & watermark (brand kit)
 

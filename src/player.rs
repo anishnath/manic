@@ -669,7 +669,7 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
         // positions first (immutable borrows), then apply (mutable).
         if !scene.pins.is_empty() {
             let aspect = pw / ph;
-            let mut updates: Vec<(String, Vec2)> = Vec::new();
+            let mut updates: Vec<(String, Vec2, Option<f32>)> = Vec::new();
             let mut hide: Vec<String> = Vec::new();
             // Screen positions of decluttering labels already placed this frame.
             let mut placed: Vec<Vec2> = Vec::new();
@@ -692,12 +692,27 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
                     }
                     // invert View::xform so the overlay lands exactly on `px`
                     let sp = (px / view.ss - view.center) / view.zoom + view.cam;
-                    updates.push((pin.label.clone(), sp));
+                    let scale = pin.world_height.and_then(|height| {
+                        let pixels = crate::render3d::projected_world_height(
+                            &scene, aspect, world, height, pw, ph,
+                        )?;
+                        let entity = scene.get(&pin.label)?;
+                        let em = match entity.shape {
+                            crate::primitives::Shape::Text { size, .. }
+                            | crate::primitives::Shape::RichText { size, .. } => size,
+                            _ => return None,
+                        };
+                        Some((pixels / (em * view.ss).max(1.0)).clamp(0.15, 8.0))
+                    });
+                    updates.push((pin.label.clone(), sp, scale));
                 }
             }
-            for (id, sp) in updates {
+            for (id, sp, scale) in updates {
                 if let Some(e) = scene.get_mut(&id) {
                     e.pos = sp;
+                    if let Some(scale) = scale {
+                        e.scale = scale;
+                    }
                 }
             }
             // Suppress colliding declutter labels for this frame only.

@@ -16,6 +16,7 @@
 - [Colour & style](colour.md)
 - [The language layer](language-layer.md)
 - [Kits — math, geometry, algorithms](kits.md)
+- [Bundled assets — portable files](assets.md)
 - [Elevating a scene](elevating.md)
 - [Going 3D](3d.md)
 - [Examples gallery](examples.md)

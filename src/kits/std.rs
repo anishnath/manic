@@ -1047,14 +1047,18 @@ fn c_line(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
-/// `image(id, (x,y), "path", [w], [h])` — a raster image (PNG/JPG) centred on
-/// `(x,y)`, drawn `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded
-/// once at render start; animate it like any entity (`show`/`move`/`fade`/…). A
-/// missing file draws a crossed placeholder box.
+/// `image(id, (x,y), "asset:name.png"|"path", [w], [h])` — a raster image
+/// (PNG/JPG) centred on `(x,y)`, drawn `w`×`h` px (default 300 square; `h`
+/// defaults to `w`). Loaded once at render start; animate it like any entity
+/// (`show`/`move`/`fade`/…). A missing ordinary file draws a crossed placeholder.
 fn c_image(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let pos = a.pair(1)?;
     let path = a.text(2)?;
+    let path = crate::assets::resolve(&path)
+        .map_err(|message| Error::new(message, a.span_of(2)))?
+        .to_string_lossy()
+        .into_owned();
     let w = a.opt_num(3)?.unwrap_or(300.0).max(1.0);
     let h = a.opt_num(4)?.unwrap_or(w).max(1.0);
     s.add(Entity::new(
@@ -3712,6 +3716,13 @@ mod tests {
             }
             other => panic!("expected Shape::Image, got {other:?}"),
         }
+        let bundled =
+            crate::parse("canvas(320,180); image(logo,(160,90),\"asset:manic-logo.png\",64,64);")
+                .unwrap();
+        assert!(matches!(
+            &bundled.base().get("logo").unwrap().shape,
+            Shape::Image { path, .. } if path.ends_with("assets/manic-logo.png")
+        ));
         // an equation renders (via RaTeX) to a tinted Shape::Image with real px dims
         let e = crate::parse(
             "canvas(\"16:9\");\nequation(q, (640, 360), `\\frac{1}{2}+\\sqrt{x}`, 48);\n",

@@ -1,8 +1,8 @@
 name: Build & Deploy manic
 
 # Manual trigger only. Pick the target arch/host from the dropdown (default AARCH).
-# Builds the manic binary for that architecture and installs it to /usr/local/bin
-# on the chosen EC2 box over SSH.
+# Builds the manic binary for that architecture, installs it to /usr/local/bin,
+# and installs the bundled asset catalog to /usr/local/share/manic/assets.
 #
 # Required repo config (Settings → Secrets and variables → Actions):
 #   Variables:  SSH_HOST_A1_AARCH = 13.223.205.115
@@ -67,7 +67,9 @@ jobs:
             exit 1
           fi
           BIN="dist/manic-linux-${ARCH}"
+          ASSETS="dist/manic-assets.tar.gz"
           test -f "$BIN" || { echo "::error::build output $BIN missing"; exit 1; }
+          test -f "$ASSETS" || { echo "::error::asset bundle $ASSETS missing"; exit 1; }
 
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
@@ -77,9 +79,11 @@ jobs:
           SSHOPTS="-i $HOME/.ssh/id_deploy -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
           echo ">> copying $BIN to $SSH_USER@$HOST"
           scp $SSHOPTS "$BIN" "$SSH_USER@$HOST:/tmp/manic.new"
-          echo ">> installing to /usr/local/bin/manic (sudo)"
+          echo ">> copying bundled assets"
+          scp $SSHOPTS "$ASSETS" "$SSH_USER@$HOST:/tmp/manic-assets.tar.gz"
+          echo ">> installing binary and asset catalog (sudo)"
           ssh $SSHOPTS "$SSH_USER@$HOST" \
-            'sudo install -m 0755 /tmp/manic.new /usr/local/bin/manic && rm -f /tmp/manic.new && echo installed: && file /usr/local/bin/manic'
+            'sudo install -m 0755 /tmp/manic.new /usr/local/bin/manic && sudo install -d -m 0755 /usr/local/share/manic/assets && sudo tar -xzf /tmp/manic-assets.tar.gz -C /usr/local/share/manic/assets && rm -f /tmp/manic.new /tmp/manic-assets.tar.gz && echo installed: && file /usr/local/bin/manic && find /usr/local/share/manic/assets -maxdepth 3 -type f -print'
 
       - name: Summary
         if: always()
@@ -93,5 +97,6 @@ jobs:
             echo "| arch | \`${{ steps.t.outputs.arch }}\` |"
             echo "| host | \`${{ steps.t.outputs.host }}\` |"
             echo "| path | \`/usr/local/bin/manic\` |"
+            echo "| assets | \`/usr/local/share/manic/assets\` |"
             echo "| runner | \`${{ runner.os }}/${{ runner.arch }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"

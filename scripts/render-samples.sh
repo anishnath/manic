@@ -10,6 +10,7 @@
 # (or run under xvfb on a server — see scripts/ec2-setup.sh).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export MANIC_ASSETS_DIR="${MANIC_ASSETS_DIR:-$PWD/assets}"
 
 MANIC="${MANIC:-target/release/manic}"
 [ -x "$MANIC" ] || MANIC="$(command -v manic || echo target/debug/manic)"

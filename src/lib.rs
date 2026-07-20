@@ -39,6 +39,7 @@
 //!   and rings.
 
 pub mod animate;
+mod assets;
 pub mod audit;
 pub mod branding;
 pub mod easing;

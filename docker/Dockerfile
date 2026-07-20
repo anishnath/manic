@@ -3,7 +3,7 @@
 # macroquad needs OpenGL, so we render on a virtual display (Xvfb) with Mesa's
 # software GL (llvmpipe) and pipe frames to ffmpeg. Recording is deterministic
 # (fixed timestep), so output is identical to a desktop run. Fonts are embedded
-# in the binary (include_bytes!), so nothing but the .manic files is needed.
+# in the binary; the optional production asset catalog is installed alongside it.
 #
 #   docker build -t manic -f docker/Dockerfile .
 #   # render a built-in example to ./out/out.mp4
@@ -29,11 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app/target/release/manic /usr/local/bin/manic
+COPY assets /usr/local/share/manic/assets
 COPY examples /work/examples
 WORKDIR /work
 
 # force software OpenGL (no GPU in the container)
-ENV LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe
+ENV LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \
+    MANIC_ASSETS_DIR=/usr/local/share/manic/assets
 
 # wrap every command in a virtual X display
 ENTRYPOINT ["xvfb-run", "-a", "-s", "-screen 0 1920x1080x24"]

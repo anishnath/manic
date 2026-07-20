@@ -3,7 +3,8 @@
 #
 # macroquad loads OpenGL/X11 at runtime, so even the prebuilt binary needs these
 # .so's present; rendering also needs a virtual display (Xvfb) + Mesa software GL
-# + ffmpeg. Fonts are baked into the binary, so nothing else is required.
+# + ffmpeg. Fonts are baked into the binary. Optional `asset:` resources belong
+# under /usr/local/share/manic/assets (the deploy workflow installs them).
 #
 #   scp target/release/manic ubuntu@<host>:/usr/local/bin/manic   # arch-matched!
 #   ssh ubuntu@<host> 'bash -s' < scripts/ec2-setup.sh
@@ -35,3 +36,6 @@ echo "✓ ready. Ensure the manic binary is on PATH (e.g. /usr/local/bin/manic),
 echo "    manic-render yourfile.manic --record out --fps 30      # -> out/out.mp4"
 echo "    manic-render yourfile.manic --still 2.0                 # -> a PNG"
 echo "  (plain 'manic ... check' needs no display; rendering uses manic-render)"
+if [ ! -d /usr/local/share/manic/assets ]; then
+  echo "  note: install manic-assets.tar.gz under /usr/local/share/manic/assets for bundled asset: URIs"
+fi

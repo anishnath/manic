@@ -17,6 +17,34 @@ cargo build --release                # the manic renderer → target/release/man
 # ffmpeg on PATH (render → mp4);  youtube venv set up per youtube/README.md
 ```
 
+## Production bundled assets
+
+Manic keeps optional reusable files under `assets/`. A DSL reference such as
+`asset:models/manic-pyramid.obj` is resolved independently of the process
+working directory. Production installs the catalog at
+`/usr/local/share/manic/assets`; `MANIC_ASSETS_DIR` can override that root for a
+custom deployment. Ordinary `model3` filesystem paths remain supported for
+backend-provisioned user files.
+
+All packaging routes copy the complete tree, so adding a future asset requires
+updating the catalog and tests—not another one-off pipeline rule:
+
+- `docker/Dockerfile` installs `assets/` in the runtime image.
+- `scripts/build-linux.sh` produces `dist/manic-assets.tar.gz` and smoke-tests a
+  bundled model.
+- `.github/workflows/deploy-manic.yml` installs that archive beside the binary.
+- `scripts/gen-ui-index.py` copies the catalog into the playground snapshot.
+
+For a manual Linux deployment:
+
+```sh
+scp dist/manic-linux-arm64 dist/manic-assets.tar.gz ubuntu@host:/tmp/
+ssh ubuntu@host 'sudo install -m 0755 /tmp/manic-linux-arm64 /usr/local/bin/manic && sudo install -d -m 0755 /usr/local/share/manic/assets && sudo tar -xzf /tmp/manic-assets.tar.gz -C /usr/local/share/manic/assets'
+```
+
+The available asset list and contribution checklist live in `assets/README.md`
+and the mdBook [Going 3D](book/src/3d.md) chapter.
+
 ## 1. (Re)generate the examples gallery — only if examples changed
 
 Regenerates `book/src/ex-*.md`, `examples.md`, and `SUMMARY.md` from the
@@ -149,11 +177,12 @@ cp crates/manic-lang/pkg/manic_lang.js \
 cp SYSTEM_PROMPT.md "$CT/system-prompt.md"
 ```
 
-**c) Examples** — the gallery `.manic` files used as playground templates. One
-script reuses the same `SECTIONS` table as `gen-gallery.py` (so the playground
-list can't drift from the book gallery): it copies every `examples/*.manic` into
-`$CT/examples/` and writes `$CT/examples/index.json` (grouped by category, 3d→
-`threed`). Run it after `gen-gallery.py`:
+**c) Examples + bundled assets** — the gallery `.manic` files used as playground
+templates and the stable `asset:` catalog. One script reuses the same `SECTIONS`
+table as `gen-gallery.py` (so the playground list can't drift from the book
+gallery): it copies every `examples/*.manic` into `$CT/examples/`, writes
+`$CT/examples/index.json` (grouped by category, 3d→`threed`), and mirrors
+`assets/` to `$CT/assets/`. Run it after `gen-gallery.py`:
 
 ```sh
 python3 scripts/gen-ui-index.py
@@ -174,7 +203,7 @@ python youtube/manic_youtube.py --all --privacy public # 4–6 render + upload +
 cp -R book/book/. "$CT/docs/"                           # 7  deploy the book
 
 # sibling playground assets (rebuild + copy when their sources change):
-python3 scripts/gen-ui-index.py                         # c  examples/*.manic + index.json
+python3 scripts/gen-ui-index.py                         # c  examples + index.json + bundled assets
 export PATH="$(dirname "$(rustup which rustc)"):$HOME/.cargo/bin:$PATH"
 wasm-pack build crates/manic-lang --target web --out-dir pkg --features wasm  # a
 cp crates/manic-lang/pkg/manic_lang.js crates/manic-lang/pkg/manic_lang_bg.wasm "$CT/wasm/"

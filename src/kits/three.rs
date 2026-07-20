@@ -1,16 +1,21 @@
 //! The 3D kit: Z-up primitives, an orbit camera, and deterministic 3D verbs.
 
-use macroquad::prelude::{vec2, vec3, Vec2, Vec3};
+use macroquad::prelude::{vec2, vec3, Quat, Vec2, Vec3};
+use std::collections::BTreeSet;
 
 use crate::easing::Easing;
+use crate::lang::ast::ExprKind;
 use crate::lang::diag::Error;
 use crate::lang::lower::{resolve_color, resolve_easing, Args, Registry};
 use crate::movie::CAMERA3_ID;
 use crate::primitives::{Entity, Shape};
-use crate::primitives3d::{Entity3D, Morph3, Morph3Kind, Projection3D, Shape3D, SurfaceFn};
+use crate::primitives3d::{
+    Entity3D, Link3, Material3, Morph3, Morph3Kind, Projection3D, ProjectionPlane3, Shading3,
+    Shape3D, SurfaceFn, Texture3,
+};
 use crate::scene::{Pin3, Pin3Target, Scene};
 use crate::style;
-use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value};
+use crate::timeline::{Clip, Prop, TargetValue, TimelineEvent, TrackSpec, Value};
 
 fn track(id: &str, prop: Prop, target: TargetValue, dur: f32, easing: Easing) -> TrackSpec {
     TrackSpec {
@@ -250,6 +255,7 @@ fn c_axes(s: &mut Scene, a: &Args) -> Result<(), Error> {
                 target: Pin3Target::Point(at),
                 offset: lbl_off,
                 declutter: true,
+                world_height: None,
             });
             v += step;
             n += 1;
@@ -284,6 +290,7 @@ fn c_pin(s: &mut Scene, a: &Args) -> Result<(), Error> {
         target,
         offset: Vec2::ZERO,
         declutter: false,
+        world_height: None,
     });
     Ok(())
 }
@@ -682,6 +689,12 @@ fn c_param3(s: &mut Scene, a: &Args) -> Result<(), Error> {
 fn c_follow3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let target = a.ident(1)?;
+    if s.get_3d(&target).is_none() {
+        return Err(Error::new(
+            format!("no 3D entity named `{target}`"),
+            a.span_of(1),
+        ));
+    }
     let offset = a.triple(2).unwrap_or(Vec3::ZERO);
     let e = s
         .get_3d_mut(&id)
@@ -711,6 +724,376 @@ fn c_midpoint3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `link3(id,a,b,[trim])` — a live edge recomputed from its endpoints.
+fn c_link3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let from = a.ident(1)?;
+    let to = a.ident(2)?;
+    let trim = a.opt_num(3)?.unwrap_or(0.0).max(0.0);
+    let pa = s
+        .get_3d(&from)
+        .ok_or_else(|| Error::new(format!("no 3D entity named `{from}`"), a.span_of(1)))?
+        .pos;
+    let pb = s
+        .get_3d(&to)
+        .ok_or_else(|| Error::new(format!("no 3D entity named `{to}`"), a.span_of(2)))?
+        .pos;
+    let mut entity = Entity3D::new(id, Shape3D::Line { to: pb - pa }, pa, style::FG);
+    entity.link = Some(Link3 { from, to, trim });
+    s.add_3d(entity);
+    Ok(())
+}
+
+/// `project3(id,source,"xy|xz|yz")` — live orthogonal projection point.
+fn c_project3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(3)?;
+    let id = a.ident(0)?;
+    let source = a.ident(1)?;
+    let source_pos = s
+        .get_3d(&source)
+        .ok_or_else(|| Error::new(format!("no 3D entity named `{source}`"), a.span_of(1)))?
+        .pos;
+    let plane = match a.text(2)?.as_str() {
+        "xy" => ProjectionPlane3::Xy,
+        "xz" => ProjectionPlane3::Xz,
+        "yz" => ProjectionPlane3::Yz,
+        _ => {
+            return Err(Error::new(
+                "project3 plane is \"xy\", \"xz\", or \"yz\"",
+                a.span_of(2),
+            ))
+        }
+    };
+    let pos = match plane {
+        ProjectionPlane3::Xy => vec3(source_pos.x, source_pos.y, 0.0),
+        ProjectionPlane3::Xz => vec3(source_pos.x, 0.0, source_pos.z),
+        ProjectionPlane3::Yz => vec3(0.0, source_pos.y, source_pos.z),
+    };
+    let mut entity = Entity3D::new(id, Shape3D::Point { radius: 0.1 }, pos, style::CYAN);
+    entity.projection = Some((source, plane));
+    s.add_3d(entity);
+    Ok(())
+}
+
+fn contour_edge(a: Vec3, av: f32, b: Vec3, bv: f32) -> Option<Vec3> {
+    if (av < 0.0) == (bv < 0.0) || (av - bv).abs() < 1e-8 {
+        return None;
+    }
+    Some(a.lerp(b, av / (av - bv)))
+}
+
+/// `contour3(id,surface,level)` — level curve generated from a height field.
+fn c_contour3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(3)?;
+    let id = a.ident(0)?;
+    let surface_id = a.ident(1)?;
+    let level = a.num(2)?;
+    let surface = s
+        .authored_world_entity_3d(&surface_id)
+        .ok_or_else(|| Error::new(format!("no 3D surface named `{surface_id}`"), a.span_of(1)))?;
+    let sf = surface.surf.clone().ok_or_else(|| {
+        Error::new(
+            format!("`{surface_id}` is not a surface3 height field"),
+            a.span_of(1),
+        )
+    })?;
+    const N: usize = 48;
+    let mut verts = Vec::new();
+    let mut edges = Vec::new();
+    for j in 0..N {
+        let y0 = sf.y0 + (sf.y1 - sf.y0) * j as f32 / N as f32;
+        let y1 = sf.y0 + (sf.y1 - sf.y0) * (j + 1) as f32 / N as f32;
+        for i in 0..N {
+            let x0 = sf.x0 + (sf.x1 - sf.x0) * i as f32 / N as f32;
+            let x1 = sf.x0 + (sf.x1 - sf.x0) * (i + 1) as f32 / N as f32;
+            let p = [
+                sf.point(x0, y0),
+                sf.point(x1, y0),
+                sf.point(x1, y1),
+                sf.point(x0, y1),
+            ];
+            let v = [
+                p[0].z - level,
+                p[1].z - level,
+                p[2].z - level,
+                p[3].z - level,
+            ];
+            let mut hits = Vec::new();
+            for (ea, eb) in [(0, 1), (1, 2), (2, 3), (3, 0)] {
+                if let Some(hit) = contour_edge(p[ea], v[ea], p[eb], v[eb]) {
+                    hits.push(surface.world_point(hit));
+                }
+            }
+            for pair in hits.chunks_exact(2) {
+                let index = verts.len() as u32;
+                verts.extend_from_slice(pair);
+                edges.push((index, index + 1));
+            }
+        }
+    }
+    s.add_3d(Entity3D::new(
+        id,
+        Shape3D::Mesh {
+            verts,
+            edges,
+            faces: Vec::new(),
+        },
+        Vec3::ZERO,
+        style::GOLD,
+    ));
+    Ok(())
+}
+
+/// `label3(label,target,[world_height])` — pin3 plus optional depth scaling.
+fn c_label3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(3)?;
+    let label = a.ident(0)?;
+    if s.get(&label).is_none() {
+        return Err(Error::new(
+            format!("no 2D label named `{label}`"),
+            a.span_of(0),
+        ));
+    }
+    let target = match a.triple(1) {
+        Ok(point) => Pin3Target::Point(point),
+        Err(_) => Pin3Target::Entity(a.ident(1)?),
+    };
+    let world_height = a.opt_num(2)?.map(|height| height.max(0.001));
+    s.pins.push(Pin3 {
+        label,
+        target,
+        offset: Vec2::ZERO,
+        declutter: false,
+        world_height,
+    });
+    Ok(())
+}
+
+fn obj_index(token: &str, len: usize) -> Option<usize> {
+    let raw = token.split('/').next()?.parse::<isize>().ok()?;
+    let index = if raw < 0 { len as isize + raw } else { raw - 1 };
+    (index >= 0 && (index as usize) < len).then_some(index as usize)
+}
+
+/// `model3(id,"asset:models/name.obj"|"file.obj",center,[scale])` —
+/// deterministic geometry-only OBJ from the bundled catalog or a supplied path.
+fn c_model3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let path = a.text(1)?;
+    let source_path =
+        crate::assets::resolve(&path).map_err(|message| Error::new(message, a.span_of(1)))?;
+    if source_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        != Some("obj")
+    {
+        return Err(Error::new(
+            "model3 currently accepts only .obj geometry",
+            a.span_of(1),
+        ));
+    }
+    let metadata = std::fs::metadata(&source_path).map_err(|error| {
+        Error::new(
+            format!("cannot read model3 `{path}`: {error}"),
+            a.span_of(1),
+        )
+    })?;
+    if metadata.len() > 16 * 1024 * 1024 {
+        return Err(Error::new(
+            "model3 OBJ is larger than the 16 MB safety limit",
+            a.span_of(1),
+        ));
+    }
+    let source = std::fs::read_to_string(&source_path).map_err(|error| {
+        Error::new(
+            format!("cannot read model3 `{path}`: {error}"),
+            a.span_of(1),
+        )
+    })?;
+    let mut verts = Vec::new();
+    let mut faces = Vec::new();
+    let mut edge_set = BTreeSet::new();
+    for (line_number, line) in source.lines().enumerate() {
+        let mut fields = line.split_whitespace();
+        match fields.next() {
+            Some("v") => {
+                let values: Vec<_> = fields.take(3).collect();
+                if values.len() != 3 {
+                    return Err(Error::new(
+                        format!("invalid OBJ vertex on line {}", line_number + 1),
+                        a.span_of(1),
+                    ));
+                }
+                let parse =
+                    |value: &str| value.parse::<f32>().ok().filter(|value| value.is_finite());
+                let Some((x, y, z)) = parse(values[0])
+                    .zip(parse(values[1]))
+                    .zip(parse(values[2]))
+                    .map(|((x, y), z)| (x, y, z))
+                else {
+                    return Err(Error::new(
+                        format!("invalid OBJ number on line {}", line_number + 1),
+                        a.span_of(1),
+                    ));
+                };
+                verts.push(vec3(x, y, z));
+            }
+            Some("f") => {
+                let polygon: Vec<_> = fields
+                    .filter_map(|field| obj_index(field, verts.len()))
+                    .collect();
+                if polygon.len() < 3 {
+                    return Err(Error::new(
+                        format!("invalid OBJ face on line {}", line_number + 1),
+                        a.span_of(1),
+                    ));
+                }
+                for i in 1..polygon.len() - 1 {
+                    faces.push([polygon[0] as u32, polygon[i] as u32, polygon[i + 1] as u32]);
+                }
+                for i in 0..polygon.len() {
+                    let pair = (polygon[i] as u32, polygon[(i + 1) % polygon.len()] as u32);
+                    edge_set.insert(if pair.0 < pair.1 {
+                        pair
+                    } else {
+                        (pair.1, pair.0)
+                    });
+                }
+            }
+            Some("l") => {
+                let line: Vec<_> = fields
+                    .filter_map(|field| obj_index(field, verts.len()))
+                    .collect();
+                for pair in line.windows(2) {
+                    let pair = (pair[0] as u32, pair[1] as u32);
+                    edge_set.insert(if pair.0 < pair.1 {
+                        pair
+                    } else {
+                        (pair.1, pair.0)
+                    });
+                }
+            }
+            _ => {}
+        }
+        if verts.len() > 500_000 || faces.len() > 1_000_000 {
+            return Err(Error::new(
+                "model3 OBJ exceeds the geometry safety limit",
+                a.span_of(1),
+            ));
+        }
+    }
+    if verts.is_empty() {
+        return Err(Error::new("model3 OBJ has no vertices", a.span_of(1)));
+    }
+    let mut entity = Entity3D::new(
+        id,
+        Shape3D::Mesh {
+            verts,
+            edges: edge_set.into_iter().collect(),
+            faces,
+        },
+        a.triple(2)?,
+        style::FG,
+    );
+    entity.scale = a.opt_num(3)?.unwrap_or(1.0);
+    s.add_3d(entity);
+    Ok(())
+}
+
+/// `tube3(id,path,"radius(t)",[sides])` — variable-radius tube along a 3D path.
+fn c_tube3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    use crate::kits::math::expr;
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let path_id = a.ident(1)?;
+    let profile = expr::compile(&a.text(2)?).map_err(|message| {
+        Error::new(format!("in tube3 radius profile: {message}"), a.span_of(2))
+    })?;
+    let sides = (a.opt_num(3)?.unwrap_or(12.0).round() as usize).clamp(3, 64);
+    let path = s
+        .authored_world_entity_3d(&path_id)
+        .ok_or_else(|| Error::new(format!("no 3D path named `{path_id}`"), a.span_of(1)))?;
+    let points = path_points3(&path).ok_or_else(|| {
+        Error::new(
+            format!("`{path_id}` is not a line3, arrow3, or curve3"),
+            a.span_of(1),
+        )
+    })?;
+    if points.len() < 2 {
+        return Err(Error::new(
+            "tube3 path needs at least two points",
+            a.span_of(1),
+        ));
+    }
+    let tangents: Vec<Vec3> = (0..points.len())
+        .map(|index| {
+            let tangent = if index == 0 {
+                points[1] - points[0]
+            } else if index + 1 == points.len() {
+                points[index] - points[index - 1]
+            } else {
+                points[index + 1] - points[index - 1]
+            };
+            tangent.normalize_or_zero()
+        })
+        .collect();
+    let helper = if tangents[0].z.abs() < 0.9 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
+    let mut normal = tangents[0].cross(helper).normalize_or_zero();
+    let mut verts = Vec::with_capacity(points.len() * sides);
+    for (index, point) in points.iter().enumerate() {
+        if index > 0 {
+            let axis = tangents[index - 1].cross(tangents[index]);
+            let axis_len = axis.length();
+            if axis_len > 1e-6 {
+                let angle = tangents[index - 1]
+                    .dot(tangents[index])
+                    .clamp(-1.0, 1.0)
+                    .acos();
+                normal =
+                    (Quat::from_axis_angle(axis / axis_len, angle) * normal).normalize_or_zero();
+            }
+            normal = (normal - tangents[index] * normal.dot(tangents[index])).normalize_or_zero();
+        }
+        let binormal = tangents[index].cross(normal).normalize_or_zero();
+        let t = index as f32 / (points.len() - 1) as f32;
+        let radius = profile.eval(t, 0.0).abs().clamp(0.0001, 1000.0);
+        for side in 0..sides {
+            let angle = std::f32::consts::TAU * side as f32 / sides as f32;
+            verts.push(*point + (normal * angle.cos() + binormal * angle.sin()) * radius);
+        }
+    }
+    let mut faces = Vec::new();
+    let mut edges = Vec::new();
+    for ring in 0..points.len() - 1 {
+        for side in 0..sides {
+            let next = (side + 1) % sides;
+            let a0 = (ring * sides + side) as u32;
+            let a1 = (ring * sides + next) as u32;
+            let b0 = ((ring + 1) * sides + side) as u32;
+            let b1 = ((ring + 1) * sides + next) as u32;
+            faces.extend([[a0, b0, b1], [a0, b1, a1]]);
+            edges.extend([(a0, a1), (a0, b0)]);
+        }
+    }
+    s.add_3d(Entity3D::new(
+        id,
+        Shape3D::Mesh {
+            verts,
+            edges,
+            faces,
+        },
+        Vec3::ZERO,
+        style::CYAN,
+    ));
+    Ok(())
+}
+
 /// `thick(id, radius)` — render a 3D path (`curve3`) as a solid tube of the
 /// given world-space radius instead of a 1px line. `0` restores the thin line.
 fn c_thick(s: &mut Scene, a: &Args) -> Result<(), Error> {
@@ -720,6 +1103,67 @@ fn c_thick(s: &mut Scene, a: &Args) -> Result<(), Error> {
         .get_3d_mut(&id)
         .ok_or_else(|| Error::new(format!("no 3D entity named `{id}`"), a.span_of(0)))?;
     e.thickness = w.max(0.0);
+    Ok(())
+}
+
+/// `finish3(id,"...")` — one bounded surface for the optional 3D render look.
+fn c_finish3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(2)?;
+    let id = a.ident(0)?;
+    let spec = a.text(1)?;
+    let e = s
+        .get_3d_mut(&id)
+        .ok_or_else(|| Error::new(format!("no 3D entity named `{id}`"), a.span_of(0)))?;
+    for token in spec.split_whitespace() {
+        let (key, value) = token.split_once('=').ok_or_else(|| {
+            Error::new(
+                format!("finish3 option `{token}` needs key=value"),
+                a.span_of(1),
+            )
+        })?;
+        let unit = |value: &str| -> Result<f32, Error> {
+            value
+                .parse::<f32>()
+                .map(|v| v.clamp(0.0, 1.0))
+                .map_err(|_| {
+                    Error::new(
+                        format!("finish3 `{key}` needs a number from 0 to 1"),
+                        a.span_of(1),
+                    )
+                })
+        };
+        match key {
+            "shading" => e.finish.shading = match value {
+                "flat" => Shading3::Flat,
+                "smooth" => Shading3::Smooth,
+                _ => return Err(Error::new("finish3 shading is flat or smooth", a.span_of(1))),
+            },
+            "material" => e.finish.material = match value {
+                "matte" => Material3::Matte,
+                "metal" => Material3::Metal,
+                "glass" => Material3::Glass,
+                _ => return Err(Error::new("finish3 material is matte, metal, or glass", a.span_of(1))),
+            },
+            "texture" => e.finish.texture = match value {
+                "solid" => Texture3::Solid,
+                "checker" => Texture3::Checker,
+                "stripes" => Texture3::Stripes,
+                _ => return Err(Error::new("finish3 texture is solid, checker, or stripes", a.span_of(1))),
+            },
+            "scale" => {
+                e.finish.texture_scale = value.parse::<f32>().map_err(|_| {
+                    Error::new("finish3 scale needs a number", a.span_of(1))
+                })?.clamp(0.25, 32.0)
+            }
+            "mesh" => e.finish.mesh = unit(value)?,
+            "depth" => e.finish.depth = unit(value)?,
+            "shadow" => e.finish.shadow = unit(value)?,
+            _ => return Err(Error::new(
+                format!("unknown finish3 option `{key}` — use shading, material, texture, scale, mesh, depth, or shadow"),
+                a.span_of(1),
+            )),
+        }
+    }
     Ok(())
 }
 
@@ -857,7 +1301,10 @@ fn is_solid3(sh: &Shape3D) -> bool {
 
 /// Sample two 3D shapes to a common representation for morphing. Both must be
 /// the same family: curves, surfaces, or solids.
-fn build_morph3(sa: Shape3D, sb: Shape3D) -> Result<(Vec<Vec3>, Vec<Vec3>, Morph3Kind), String> {
+pub(crate) fn build_morph3(
+    sa: Shape3D,
+    sb: Shape3D,
+) -> Result<(Vec<Vec3>, Vec<Vec3>, Morph3Kind), String> {
     const NCURVE: usize = 160;
     const RU: u32 = 44; // common surface grid
     const RV: u32 = 44;
@@ -1032,6 +1479,601 @@ fn c_extrude3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+fn v2_timing(a: &Args, at: usize, default: f32) -> Result<(f32, Easing), Error> {
+    let (dur, easing) = timing(a, at, default)?;
+    if dur <= 0.0 || !dur.is_finite() {
+        return Err(Error::new(
+            format!("{} duration must be positive", a.name),
+            a.span_of(at),
+        ));
+    }
+    Ok((dur, easing))
+}
+
+fn authored_attachment3(s: &Scene, id: &str) -> Option<(String, Vec3)> {
+    match s.authored_attachments_3d.get(id) {
+        Some(value) => value
+            .as_ref()
+            .map(|value| (value.target.clone(), value.offset)),
+        None => s.authored_entity_3d(id).and_then(|entity| entity.follow),
+    }
+}
+
+fn authored_attached_position3(s: &Scene, id: &str) -> Option<Vec3> {
+    s.authored_world_entity_3d(id).map(|entity| entity.pos)
+}
+
+fn targets3(s: &Scene, id_or_tag: &str) -> Vec<String> {
+    if s.get_3d(id_or_tag).is_some() && id_or_tag != CAMERA3_ID {
+        return vec![id_or_tag.to_string()];
+    }
+    s.entities_3d
+        .iter()
+        .filter(|entity| entity.id != CAMERA3_ID && entity.tags.iter().any(|tag| tag == id_or_tag))
+        .map(|entity| entity.id.clone())
+        .collect()
+}
+
+fn path_points3(path: &Entity3D) -> Option<Vec<Vec3>> {
+    Some(match &path.shape {
+        Shape3D::Line { to } | Shape3D::Arrow { to } => {
+            vec![path.world_point(Vec3::ZERO), path.world_point(*to)]
+        }
+        Shape3D::Path { points } => points
+            .iter()
+            .copied()
+            .map(|point| path.world_point(point))
+            .collect(),
+        _ => return None,
+    })
+}
+
+/// `travel3(entity,path,[duration],[ease])` — move one persistent 3-D entity
+/// along a line, arrow, or sampled curve and hold its exact endpoint.
+fn v_travel3(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let path_id = a.ident(1)?;
+    if id == path_id {
+        return Err(Error::new(
+            "travel3 needs different entity and path ids",
+            a.span_of(1),
+        ));
+    }
+    if s.authored_entity_3d(&id).is_none() {
+        return Err(Error::new(
+            format!("no 3D entity named `{id}`"),
+            a.span_of(0),
+        ));
+    }
+    let path = s
+        .authored_entity_3d(&path_id)
+        .ok_or_else(|| Error::new(format!("no 3D path named `{path_id}`"), a.span_of(1)))?;
+    let points = path_points3(&path).ok_or_else(|| {
+        Error::new(
+            format!("`{path_id}` is not a line3, arrow3, or curve3"),
+            a.span_of(1),
+        )
+    })?;
+    if points.len() < 2 {
+        return Err(Error::new(
+            format!("path `{path_id}` has fewer than two points"),
+            a.span_of(1),
+        ));
+    }
+    let (dur, easing) = v2_timing(a, 2, 1.0)?;
+    Ok(Clip {
+        tracks: Vec::new(),
+        events: vec![TimelineEvent::travel3(id, path_id, dur, easing)],
+        dur,
+    })
+}
+
+/// `attach3(child,target,[(dx,dy,dz)],[mode])`; `mode=rigid` inherits rotation.
+fn v_attach3(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let child = a.ident(0)?;
+    let target = a.ident(1)?;
+    let offset = if a.len() > 2 {
+        a.triple(2)?
+    } else {
+        Vec3::ZERO
+    };
+    let rigid = if a.len() > 3 {
+        match a.ident(3)?.as_str() {
+            "rigid" => true,
+            "position" => false,
+            other => {
+                return Err(Error::new(
+                    format!("unknown attach3 mode `{other}`; use `position` or `rigid`"),
+                    a.span_of(3),
+                ))
+            }
+        }
+    } else {
+        false
+    };
+    if s.authored_entity_3d(&child).is_none() || child == CAMERA3_ID {
+        return Err(Error::new(
+            format!("no attachable 3D entity named `{child}`"),
+            a.span_of(0),
+        ));
+    }
+    if target == "none" {
+        let world = s.authored_world_entity_3d(&child).ok_or_else(|| {
+            Error::new(
+                format!("cannot release `{child}` because its attachment chain is cyclic"),
+                a.span_of(0),
+            )
+        })?;
+        return Ok(Clip {
+            tracks: vec![
+                track(
+                    &child,
+                    Prop::Pos,
+                    TargetValue::Abs(Value::V3(world.pos)),
+                    0.0,
+                    Easing::Linear,
+                ),
+                track(
+                    &child,
+                    Prop::Orient3,
+                    TargetValue::Abs(Value::Q(world.orientation)),
+                    0.0,
+                    Easing::Linear,
+                ),
+            ],
+            events: vec![TimelineEvent::attachment3(
+                child,
+                None,
+                Vec3::ZERO,
+                false,
+                Quat::IDENTITY,
+                0.0,
+            )],
+            dur: 0.0,
+        });
+    }
+    if child == target {
+        return Err(Error::new(
+            "a 3D entity cannot attach to itself",
+            a.span_of(1),
+        ));
+    }
+    if s.authored_entity_3d(&target).is_none() || target == CAMERA3_ID {
+        return Err(Error::new(
+            format!("no attachable 3D target named `{target}`"),
+            a.span_of(1),
+        ));
+    }
+    let mut cursor = target.clone();
+    let mut visited = vec![child.clone()];
+    loop {
+        if visited.iter().any(|id| id == &cursor) {
+            return Err(Error::new(
+                format!("attaching `{child}` to `{target}` would create a cycle"),
+                a.span_of(1),
+            ));
+        }
+        visited.push(cursor.clone());
+        let Some((next, _)) = authored_attachment3(s, &cursor) else {
+            break;
+        };
+        cursor = next;
+    }
+    let relative_orientation = if rigid {
+        let child_world = s
+            .authored_world_entity_3d(&child)
+            .ok_or_else(|| Error::new(format!("cannot resolve `{child}`"), a.span_of(0)))?;
+        let target_world = s
+            .authored_world_entity_3d(&target)
+            .ok_or_else(|| Error::new(format!("cannot resolve `{target}`"), a.span_of(1)))?;
+        target_world.rotation_quat().inverse() * child_world.rotation_quat()
+    } else {
+        Quat::IDENTITY
+    };
+    Ok(Clip {
+        tracks: Vec::new(),
+        events: vec![TimelineEvent::attachment3(
+            child,
+            Some(target),
+            offset,
+            rigid,
+            relative_orientation,
+            0.0,
+        )],
+        dur: 0.0,
+    })
+}
+
+/// `become3(source,blueprint,[duration],[ease])` — retain identity and settle
+/// on the exact target transform, geometry, and style.
+fn v_become3(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let target_id = a.ident(1)?;
+    if id == target_id {
+        return Err(Error::new(
+            "become3 needs different source and target ids",
+            a.span_of(1),
+        ));
+    }
+    let from = s
+        .authored_entity_3d(&id)
+        .ok_or_else(|| Error::new(format!("no 3D entity named `{id}`"), a.span_of(0)))?;
+    let mut target = s.authored_entity_3d(&target_id).ok_or_else(|| {
+        Error::new(
+            format!("no 3D target blueprint named `{target_id}`"),
+            a.span_of(1),
+        )
+    })?;
+    if matches!(from.shape, Shape3D::Camera { .. })
+        || matches!(target.shape, Shape3D::Camera { .. })
+    {
+        return Err(Error::new(
+            "become3 transforms drawable 3D entities, not camera3",
+            a.span_of(1),
+        ));
+    }
+    let (dur, easing) = v2_timing(a, 2, 1.0)?;
+    if target.opacity <= 1e-6 && from.opacity > 1e-6 {
+        target.opacity = from.opacity;
+    }
+    let morph = build_morph3(from.shape.clone(), target.shape.clone())
+        .ok()
+        .map(|(from, to, kind)| Morph3 {
+            from,
+            to,
+            kind,
+            spin: 0.0,
+        });
+    let crossfade = morph.is_none();
+    let mut tracks = vec![
+        track(
+            &id,
+            Prop::Pos,
+            TargetValue::Abs(Value::V3(target.pos)),
+            dur,
+            easing,
+        ),
+        track(
+            &id,
+            Prop::Color,
+            TargetValue::Abs(Value::C(target.color)),
+            dur,
+            easing,
+        ),
+        track(
+            &id,
+            Prop::Scale,
+            TargetValue::Abs(Value::F(target.scale)),
+            dur,
+            easing,
+        ),
+        track(
+            &id,
+            Prop::Rot3,
+            TargetValue::Abs(Value::V3(target.rotation)),
+            dur,
+            easing,
+        ),
+        track(
+            &id,
+            Prop::Orient3,
+            TargetValue::Abs(Value::Q(target.orientation)),
+            dur,
+            easing,
+        ),
+        track(
+            &id,
+            Prop::Trace,
+            TargetValue::Abs(Value::F(target.trace)),
+            dur,
+            easing,
+        ),
+    ];
+    if crossfade {
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(0.0)),
+            start: 0.0,
+            dur: dur * 0.5,
+            easing: Easing::InQuad,
+        });
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(target.opacity)),
+            start: dur * 0.5,
+            dur: dur * 0.5,
+            easing: Easing::OutQuad,
+        });
+    } else {
+        tracks.push(track(
+            &id,
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(target.opacity)),
+            dur,
+            easing,
+        ));
+    }
+    Ok(Clip {
+        tracks,
+        events: vec![TimelineEvent::visual_transition3(
+            id, from, target, morph, dur, easing, crossfade,
+        )],
+        dur,
+    })
+}
+
+fn point_arg3(s: &Scene, a: &Args, index: usize, what: &str) -> Result<Vec3, Error> {
+    match a.exprs.get(index).map(|expr| &expr.kind) {
+        Some(ExprKind::Triple(x, y, z)) => Ok(Vec3::new(*x, *y, *z)),
+        Some(ExprKind::Ident(id)) => authored_attached_position3(s, id)
+            .ok_or_else(|| Error::new(format!("no 3D {what} named `{id}`"), a.span_of(index))),
+        _ => Err(Error::new(
+            format!("{what} should be a `(x, y, z)` point or 3D entity name"),
+            a.span_of(index),
+        )),
+    }
+}
+
+fn axis_arg3(a: &Args, index: usize) -> Result<Vec3, Error> {
+    let axis = match a.exprs.get(index).map(|expr| &expr.kind) {
+        Some(ExprKind::Triple(x, y, z)) => Vec3::new(*x, *y, *z),
+        Some(ExprKind::Ident(name)) => match name.as_str() {
+            "x" => Vec3::X,
+            "y" => Vec3::Y,
+            "z" => Vec3::Z,
+            _ => {
+                return Err(Error::new(
+                    "turn3 axis should be x, y, z, or a `(x, y, z)` vector",
+                    a.span_of(index),
+                ))
+            }
+        },
+        _ => {
+            return Err(Error::new(
+                "turn3 axis should be x, y, z, or a `(x, y, z)` vector",
+                a.span_of(index),
+            ))
+        }
+    };
+    if !axis.is_finite() || axis.length_squared() <= 1e-10 {
+        return Err(Error::new(
+            "turn3 axis must be a finite non-zero vector",
+            a.span_of(index),
+        ));
+    }
+    Ok(axis.normalize())
+}
+
+/// `turn3(id_or_tag,pivot,axis,degrees,[duration],[ease])` — rigidly rotate a
+/// spatial arrangement around one world-space axis.
+fn v_turn3(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(6)?;
+    let id_or_tag = a.ident(0)?;
+    let pivot = point_arg3(s, a, 1, "pivot")?;
+    let axis = axis_arg3(a, 2)?;
+    let degrees = a.num(3)?;
+    if !degrees.is_finite() {
+        return Err(Error::new("turn3 degrees must be finite", a.span_of(3)));
+    }
+    let (dur, easing) = v2_timing(a, 4, 0.9)?;
+    let targets = targets3(s, &id_or_tag);
+    if targets.is_empty() {
+        return Err(Error::new(
+            format!("no 3D entity or tag named `{id_or_tag}`"),
+            a.span_of(0),
+        ));
+    }
+    let segments = ((degrees.abs() / 5.0).ceil() as usize).clamp(1, 96);
+    let segment_dur = dur / segments as f32;
+    let rotation = Quat::from_axis_angle(axis, degrees.to_radians());
+    let mut tracks = Vec::new();
+    for id in targets {
+        let entity = s
+            .authored_entity_3d(&id)
+            .expect("turn3 target was validated");
+        let mut previous_angle = 0.0;
+        for segment in 1..=segments {
+            let angle = degrees * easing.apply(segment as f32 / segments as f32);
+            let delta = angle - previous_angle;
+            tracks.push(TrackSpec {
+                id: id.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::RotateAround3 {
+                    pivot,
+                    axis,
+                    degrees: delta,
+                },
+                start: segment_dur * (segment - 1) as f32,
+                dur: segment_dur,
+                easing: Easing::Linear,
+            });
+            previous_angle = angle;
+        }
+        tracks.push(track(
+            &id,
+            Prop::Orient3,
+            TargetValue::Abs(Value::Q(rotation * entity.orientation)),
+            dur,
+            easing,
+        ));
+    }
+    Ok(Clip {
+        tracks,
+        events: Vec::new(),
+        dur,
+    })
+}
+
+fn camera_direction(azimuth: f32, elevation: f32) -> Vec3 {
+    let (sa, ca) = azimuth.to_radians().sin_cos();
+    let (se, ce) = elevation.to_radians().sin_cos();
+    Vec3::new(ce * ca, ce * sa, se)
+}
+
+fn direction_angles(direction: Vec3) -> Vec2 {
+    let direction = direction.normalize_or_zero();
+    let flat = direction.x.hypot(direction.y);
+    let azimuth = if flat <= 1e-6 {
+        if direction.z >= 0.0 {
+            -90.0
+        } else {
+            90.0
+        }
+    } else {
+        direction.y.atan2(direction.x).to_degrees()
+    };
+    Vec2::new(azimuth, direction.z.atan2(flat).to_degrees())
+}
+
+fn bounds_corners(lo: Vec3, hi: Vec3) -> [Vec3; 8] {
+    [
+        Vec3::new(lo.x, lo.y, lo.z),
+        Vec3::new(hi.x, lo.y, lo.z),
+        Vec3::new(lo.x, hi.y, lo.z),
+        Vec3::new(hi.x, hi.y, lo.z),
+        Vec3::new(lo.x, lo.y, hi.z),
+        Vec3::new(hi.x, lo.y, hi.z),
+        Vec3::new(lo.x, hi.y, hi.z),
+        Vec3::new(hi.x, hi.y, hi.z),
+    ]
+}
+
+/// `view3(target_or_tag,"front|side|top|isometric|fit",[dur],[ease],[margin])`
+/// — aim and frame the authored spatial bounds in one camera move.
+fn v_view3(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(5)?;
+    let target = a.ident(0)?;
+    let view = a.text(1)?;
+    let cam = s
+        .authored_entity_3d(CAMERA3_ID)
+        .ok_or_else(|| Error::new("view3 needs camera3(...) first", a.name_span))?;
+    let Shape3D::Camera { fov, projection } = cam.shape else {
+        return Err(Error::new("view3 needs camera3(...) first", a.name_span));
+    };
+    let (lo, hi) = s.authored_bounds_3d(&target).ok_or_else(|| {
+        Error::new(
+            format!("no bounded 3D entity or tag named `{target}`"),
+            a.span_of(0),
+        )
+    })?;
+    let (dur, easing) = v2_timing(a, 2, 1.0)?;
+    let margin = a.opt_num(4)?.unwrap_or(1.18);
+    if !margin.is_finite() || margin < 1.0 {
+        return Err(Error::new(
+            "view3 margin must be a finite number at least 1",
+            a.span_of(4),
+        ));
+    }
+    let direction = match view.as_str() {
+        "fit" => camera_direction(cam.rotation.x, cam.rotation.y),
+        "front" => Vec3::new(0.0, -1.0, 0.0),
+        "side" | "right" => Vec3::X,
+        "left" => -Vec3::X,
+        "top" => Vec3::Z,
+        "isometric" | "iso" => Vec3::new(1.0, -1.0, 0.82).normalize(),
+        other => {
+            return Err(Error::new(
+                format!("unknown view3 shot `{other}` (try: front, side, top, isometric, fit)"),
+                a.span_of(1),
+            ))
+        }
+    };
+    let angles = direction_angles(direction);
+    let az = angles.x.to_radians();
+    let el = angles.y.to_radians();
+    let right = Vec3::new(-az.sin(), az.cos(), 0.0);
+    let up = Vec3::new(-az.cos() * el.sin(), -az.sin() * el.sin(), el.cos());
+    let center = (lo + hi) * 0.5;
+    let mut half_w: f32 = 0.0;
+    let mut half_h: f32 = 0.0;
+    let mut half_depth: f32 = 0.0;
+    for corner in bounds_corners(lo, hi) {
+        let delta = corner - center;
+        half_w = half_w.max(delta.dot(right).abs());
+        half_h = half_h.max(delta.dot(up).abs());
+        half_depth = half_depth.max(delta.dot(direction).abs());
+    }
+    let canvas = s.canvas();
+    let aspect = (canvas.x / canvas.y).max(0.01);
+    let region = s.creator_media_rect().unwrap_or(crate::scene::CreatorRect {
+        center: canvas * 0.5,
+        size: canvas,
+    });
+    let fraction = Vec2::new(
+        (region.size.x / canvas.x).clamp(0.05, 1.0),
+        (region.size.y / canvas.y).clamp(0.05, 1.0),
+    );
+    let ndc_center = Vec2::new(
+        region.center.x / canvas.x * 2.0 - 1.0,
+        region.center.y / canvas.y * 2.0 - 1.0,
+    );
+    let mut radius = cam.scale.max(0.01);
+    let mut fitted_fov = fov;
+    let look_target;
+    match projection {
+        Projection3D::Perspective => {
+            let vhalf = (fov.to_radians() * 0.5).clamp(0.01, 1.55);
+            let hhalf = (vhalf.tan() * aspect).atan();
+            let available_v = vhalf.tan() * fraction.y;
+            let available_h = hhalf.tan() * fraction.x;
+            radius =
+                ((half_h / available_v).max(half_w / available_h) + half_depth).max(0.05) * margin;
+            look_target = center - right * (ndc_center.x * radius * hhalf.tan())
+                + up * (ndc_center.y * radius * vhalf.tan());
+        }
+        Projection3D::Orthographic => {
+            fitted_fov = (2.0 * (half_h / fraction.y).max(half_w / (aspect * fraction.x)))
+                .max(0.05)
+                * margin;
+            radius = radius.max(half_depth + 1.0);
+            look_target = center - right * (ndc_center.x * fitted_fov * aspect * 0.5)
+                + up * (ndc_center.y * fitted_fov * 0.5);
+        }
+    }
+    let mut tracks = vec![
+        track(
+            CAMERA3_ID,
+            Prop::Pos,
+            TargetValue::Abs(Value::V3(look_target)),
+            dur,
+            easing,
+        ),
+        track(
+            CAMERA3_ID,
+            Prop::Orbit3,
+            TargetValue::Abs(Value::V3(Vec3::new(angles.x, angles.y, cam.rotation.z))),
+            dur,
+            easing,
+        ),
+        track(
+            CAMERA3_ID,
+            Prop::Scale,
+            TargetValue::Abs(Value::F(radius)),
+            dur,
+            easing,
+        ),
+    ];
+    if matches!(projection, Projection3D::Orthographic) {
+        tracks.push(track(
+            CAMERA3_ID,
+            Prop::Fov3,
+            TargetValue::Abs(Value::F(fitted_fov)),
+            dur,
+            easing,
+        ));
+    }
+    Ok(Clip {
+        tracks,
+        events: Vec::new(),
+        dur,
+    })
+}
+
 fn require_3d<'a>(s: &'a Scene, a: &Args) -> Result<(&'a Entity3D, String), Error> {
     let id = a.ident(0)?;
     let e = s
@@ -1089,7 +2131,10 @@ fn v_rotate(s: &Scene, a: &Args) -> Result<Clip, Error> {
 }
 
 fn v_grow(s: &Scene, a: &Args) -> Result<Clip, Error> {
-    let (e, id) = require_3d(s, a)?;
+    let (_, id) = require_3d(s, a)?;
+    let e = s
+        .authored_entity_3d(&id)
+        .expect("grow3 target was validated");
     if !matches!(e.shape, Shape3D::Line { .. } | Shape3D::Arrow { .. }) {
         return Err(Error::new("`grow3` needs a line3 or arrow3", a.span_of(0)));
     }
@@ -1111,7 +2156,7 @@ fn v_grow(s: &Scene, a: &Args) -> Result<Clip, Error> {
 /// `orbit3(azimuth, elevation, radius, [dur], [ease])`.
 fn v_orbit(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let cam = s
-        .get_3d(CAMERA3_ID)
+        .authored_entity_3d(CAMERA3_ID)
         .ok_or_else(|| Error::new("`orbit3` needs `camera3(...)`", a.name_span))?;
     let rot = vec3(a.num(0)?, a.num(1)?, cam.rotation.z);
     let radius = a.num(2)?.max(0.01);
@@ -1315,6 +2360,7 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
             target: Pin3Target::Point(o + col),
             offset: vec2(10.0, -10.0),
             declutter: true,
+            world_height: None,
         });
     }
     // det = signed volume, pinned to the parallelepiped's centroid
@@ -1336,6 +2382,7 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         target: Pin3Target::Point(centroid),
         offset: vec2(0.0, 0.0),
         declutter: false,
+        world_height: None,
     });
     Ok(())
 }
@@ -1461,6 +2508,7 @@ fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
             target: Pin3Target::Point(o + *v * ext),
             offset: vec2(10.0, -10.0),
             declutter: true,
+            world_height: None,
         });
     }
     if n_complex > 0 {
@@ -1481,6 +2529,7 @@ fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
             target: Pin3Target::Point(o),
             offset: vec2(0.0, 44.0),
             declutter: false,
+            world_height: None,
         });
     }
     Ok(())
@@ -1504,9 +2553,20 @@ pub fn register(r: &mut Registry) {
     r.verb("orbit3", v_orbit);
     r.verb("roll3", v_roll);
     r.verb("look3", v_look);
+    r.mut_verb("view3", v_view3);
+    r.mut_verb("travel3", v_travel3);
+    r.mut_verb("attach3", v_attach3);
+    r.mut_verb("become3", v_become3);
+    r.mut_verb("turn3", v_turn3);
     r.ctor("pin3", c_pin);
     r.ctor("follow3", c_follow3);
     r.ctor("midpoint3", c_midpoint3);
+    r.ctor("link3", c_link3);
+    r.ctor("project3", c_project3);
+    r.ctor("contour3", c_contour3);
+    r.ctor("label3", c_label3);
+    r.ctor("model3", c_model3);
+    r.ctor("tube3", c_tube3);
     r.ctor("curve3", c_curve3);
     r.ctor("surface3", c_surface3);
     r.ctor("param3", c_param3);
@@ -1519,6 +2579,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("extrude3", c_extrude3);
     r.ctor("morph3", c_morph3);
     r.ctor("thick", c_thick);
+    r.ctor("finish3", c_finish3);
 }
 
 #[cfg(test)]
@@ -1631,6 +2692,388 @@ mod tests {
             (frame.get_3d(CAMERA3_ID).unwrap().rotation.x - (start_az + 60.0) / 2.0).abs() < 0.01
         );
         assert!((frame.get_3d(CAMERA3_ID).unwrap().rotation.z + 45.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn view3_fits_authored_group_bounds_inside_the_canvas() {
+        let src = r#"
+            canvas(1080, 1920);
+            camera3((8, -10, 6), (0, 0, 0), 45);
+            cube3(a, (-3, 0, 1), (2, 2, 2)); tag(a, subject);
+            sphere3(b, (3, 1, 2), 1.5); tag(b, subject);
+            move3(b, (4, 2, 2), 0.4, linear);
+            view3(subject, "isometric", 1, linear, 1.2);
+        "#;
+        let movie = crate::parse(src).unwrap();
+        let authored = movie.scene.authored_bounds_3d("subject").unwrap();
+        assert!((authored.0 - vec3(-4.0, -1.0, 0.0)).length() < 1e-3);
+        assert!((authored.1 - vec3(5.5, 3.5, 3.5)).length() < 1e-3);
+        let (base, timeline) = movie.finalize();
+        let frame = timeline.apply(&base, timeline.dur);
+        let cam = frame.get_3d(CAMERA3_ID).unwrap();
+        assert!((cam.pos - (authored.0 + authored.1) * 0.5).length() < 1e-3);
+        for corner in bounds_corners(authored.0, authored.1) {
+            let pixel = crate::render3d::project(&frame, 1080.0 / 1920.0, corner, 1080.0, 1920.0)
+                .expect("fitted bound should remain in front of the camera");
+            assert!(
+                (0.0..=1080.0).contains(&pixel.x) && (0.0..=1920.0).contains(&pixel.y),
+                "corner {corner:?} projected outside: {pixel:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn view3_uses_the_creator_media_safe_rectangle() {
+        let src = r#"
+            canvas(1080,1920);
+            creator(me,"@a footer=social safe=reels");
+            camera3((8,-10,6),(0,0,0),45);
+            cube3(subject,(0,0,1),(4,2,2));
+            view3(subject,"front",1,linear,1.05);
+        "#;
+        let movie = crate::parse(src).unwrap();
+        let region = movie.scene.creator_media_rect().unwrap();
+        let bounds = movie.scene.authored_bounds_3d("subject").unwrap();
+        let (base, timeline) = movie.finalize();
+        let frame = timeline.apply(&base, timeline.dur);
+        let (safe_lo, safe_hi) = region.edges();
+        for corner in bounds_corners(bounds.0, bounds.1) {
+            let pixel = crate::render3d::project(&frame, 1080.0 / 1920.0, corner, 1080.0, 1920.0)
+                .expect("safe-framed bound should remain in front of the camera");
+            assert!(
+                pixel.x >= safe_lo.x - 1.0
+                    && pixel.x <= safe_hi.x + 1.0
+                    && pixel.y >= safe_lo.y - 1.0
+                    && pixel.y <= safe_hi.y + 1.0,
+                "corner {corner:?} projected outside creator media {safe_lo:?}..{safe_hi:?}: {pixel:?}"
+            );
+        }
+        let projected_center = crate::render3d::project(
+            &frame,
+            1080.0 / 1920.0,
+            (bounds.0 + bounds.1) * 0.5,
+            1080.0,
+            1920.0,
+        )
+        .unwrap();
+        assert!(
+            projected_center.distance(region.center) < 2.0,
+            "projected {projected_center:?}, expected {:?}",
+            region.center
+        );
+    }
+
+    #[test]
+    fn travel3_attach3_and_release_are_exact_and_scrubbable() {
+        let src = r#"
+            camera3((8,-10,6),(0,0,0),45);
+            point3(ship,(0,0,0),0.2);
+            point3(badge,(0,0,1),0.1);
+            line3(route,(0,0,0),(4,2,1));
+            attach3(badge,ship,(0,0,1));
+            travel3(ship,route,1,linear);
+            attach3(badge,none);
+            move3(ship,(8,0,0),1,linear);
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let arrival = timeline.apply(&base, 1.0);
+        assert!((arrival.get_3d("ship").unwrap().pos - vec3(4.0, 2.0, 1.0)).length() < 1e-4);
+        assert!((arrival.get_3d("badge").unwrap().pos - vec3(4.0, 2.0, 2.0)).length() < 1e-4);
+        let settled = timeline.apply(&base, 2.0);
+        assert!((settled.get_3d("ship").unwrap().pos - vec3(8.0, 0.0, 0.0)).length() < 1e-4);
+        assert!((settled.get_3d("badge").unwrap().pos - vec3(4.0, 2.0, 2.0)).length() < 1e-4);
+        let backwards = timeline.apply(&base, 0.5);
+        let forwards = timeline.apply(&base, 0.5);
+        assert_eq!(
+            backwards.get_3d("ship").unwrap().pos,
+            forwards.get_3d("ship").unwrap().pos
+        );
+        assert_eq!(
+            backwards.get_3d("badge").unwrap().pos,
+            forwards.get_3d("badge").unwrap().pos
+        );
+    }
+
+    #[test]
+    fn travel3_samples_a_path_while_the_path_transforms() {
+        let src = r#"
+            camera3((8,-10,6),(0,0,0),45);
+            point3(ship,(0,0,0),0.2);
+            line3(route,(0,0,0),(4,0,0));
+            par {
+                travel3(ship,route,1,linear);
+                rotate3(route,(0,0,90),1,linear);
+            }
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let halfway = timeline.apply(&base, 0.5).get_3d("ship").unwrap().pos;
+        assert!(
+            (halfway - vec3(2.0_f32.sqrt(), 2.0_f32.sqrt(), 0.0)).length() < 1e-3,
+            "{halfway:?}"
+        );
+        let end = timeline.apply(&base, 1.0).get_3d("ship").unwrap().pos;
+        assert!((end - vec3(0.0, 4.0, 0.0)).length() < 1e-3, "{end:?}");
+    }
+
+    #[test]
+    fn rigid_attach3_inherits_orientation_and_release_freezes_world_pose() {
+        let src = r#"
+            camera3((8,-10,6),(0,0,0),45);
+            cube3(parent,(0,0,0),(1,1,1));
+            cube3(child,(1,0,0),(0.4,0.4,0.4));
+            attach3(child,parent,(1,0,0),rigid);
+            turn3(parent,(0,0,0),z,90,1,linear);
+            attach3(child,none);
+            turn3(parent,(0,0,0),z,90,1,linear);
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let attached = timeline.apply(&base, 1.0);
+        let child = attached.get_3d("child").unwrap();
+        assert!(
+            (child.pos - vec3(0.0, 1.0, 0.0)).length() < 1e-3,
+            "{:?}",
+            child.pos
+        );
+        let attached_orientation = child.rotation_quat();
+        let released = timeline.apply(&base, 2.0);
+        let child = released.get_3d("child").unwrap();
+        assert!(
+            (child.pos - vec3(0.0, 1.0, 0.0)).length() < 1e-3,
+            "{:?}",
+            child.pos
+        );
+        assert!(child.rotation_quat().dot(attached_orientation).abs() > 0.999);
+    }
+
+    #[test]
+    fn finish3_is_one_bounded_opt_in_render_surface() {
+        let movie = crate::parse(
+            "camera3((6,-6,4),(0,0,0),45); sphere3(globe,(0,0,0),1); \
+             finish3(globe,\"shading=smooth material=metal texture=checker scale=3 mesh=0.2 depth=0.4 shadow=0.5\");",
+        ).unwrap();
+        let globe = movie.base().get_3d("globe").unwrap();
+        assert_eq!(globe.finish.shading, Shading3::Smooth);
+        assert_eq!(globe.finish.material, Material3::Metal);
+        assert_eq!(globe.finish.texture, Texture3::Checker);
+        assert!((globe.finish.shadow - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn spatial_explanations_recompute_and_contours_are_geometry() {
+        let src = r#"
+            camera3((7,-8,5),(0,0,0),45);
+            point3(source,(1,2,3),0.1);
+            point3(anchor,(-1,0,0),0.1);
+            project3(shadow,source,"xy");
+            link3(drop,source,shadow,0.05);
+            surface3(bowl,"x^2+y^2",(-2,2),(-2,2),16);
+            contour3(ring,bowl,1);
+            text(note,(0,0),"P"); label3(note,source,0.4);
+            move3(source,(3,4,5),1,linear);
+        "#;
+        let movie = crate::parse(src).unwrap();
+        let ring = movie.base().get_3d("ring").unwrap();
+        assert!(matches!(&ring.shape, Shape3D::Mesh { edges, .. } if !edges.is_empty()));
+        assert_eq!(movie.base().pins.last().unwrap().world_height, Some(0.4));
+        let (base, timeline) = movie.finalize();
+        let frame = timeline.apply(&base, 1.0);
+        assert!((frame.get_3d("shadow").unwrap().pos - vec3(3.0, 4.0, 0.0)).length() < 1e-4);
+        let drop = frame.get_3d("drop").unwrap();
+        assert!(matches!(drop.shape, Shape3D::Line { .. }));
+    }
+
+    #[test]
+    fn tube3_builds_a_variable_radius_mesh() {
+        let movie = crate::parse(
+            "camera3((7,-8,5),(0,0,0),45); \
+             curve3(spine,\"4*t-2\",\"0\",\"0\",(0,1)); \
+             tube3(horn,spine,\"0.08+0.35*t\",10);",
+        )
+        .unwrap();
+        let horn = movie.base().get_3d("horn").unwrap();
+        assert!(
+            matches!(&horn.shape, Shape3D::Mesh { verts, faces, .. } if verts.len() > 20 && !faces.is_empty())
+        );
+    }
+
+    #[test]
+    fn model3_loads_geometry_only_obj() {
+        let path = std::env::temp_dir().join(format!("manic-model3-{}.obj", std::process::id()));
+        std::fs::write(&path, "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n").unwrap();
+        let src = format!(
+            "camera3((5,-5,4),(0,0,0),45); model3(mark,\"{}\",(0,0,0),2);",
+            path.display()
+        );
+        let movie = crate::parse(&src).unwrap();
+        let mark = movie.base().get_3d("mark").unwrap();
+        assert!(
+            matches!(&mark.shape, Shape3D::Mesh { verts, faces, .. } if verts.len() == 3 && faces.len() == 1)
+        );
+        assert_eq!(mark.scale, 2.0);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn model3_resolves_a_bundled_asset_without_a_cwd_relative_path() {
+        let movie = crate::parse(
+            "camera3((5,-5,4),(0,0,0),45); \
+             model3(mark,\"asset:models/manic-pyramid.obj\",(0,0,0),1);",
+        )
+        .unwrap();
+        let mark = movie.base().get_3d("mark").unwrap();
+        assert!(
+            matches!(&mark.shape, Shape3D::Mesh { verts, faces, .. } if verts.len() == 5 && faces.len() == 6)
+        );
+    }
+
+    #[test]
+    fn model3_rejects_bundled_asset_traversal() {
+        let err = match crate::parse(
+            "camera3((5,-5,4),(0,0,0),45); \
+             model3(mark,\"asset:../Cargo.toml\",(0,0,0),1);",
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("expected bundled asset traversal to fail"),
+        };
+        assert!(err.msg.contains("without `..`"));
+    }
+
+    #[test]
+    fn view3_bounds_resolve_an_active_attachment_chain() {
+        let src = r#"
+            canvas(1080,1920);
+            camera3((8,-10,6),(0,0,0),45);
+            cube3(ship,(0,0,0),(2,2,2)); tag(ship,rig);
+            sphere3(sensor,(0,0,0),0.5); tag(sensor,rig);
+            attach3(sensor,ship,(0,0,2));
+            move3(ship,(4,3,1),1,linear);
+            view3(rig,"fit",1,linear,1.2);
+        "#;
+        let movie = crate::parse(src).unwrap();
+        let sensor = movie.scene.authored_world_entity_3d("sensor").unwrap();
+        assert!((sensor.pos - vec3(4.0, 3.0, 3.0)).length() < 1e-4);
+        let (lo, hi) = movie.scene.authored_bounds_3d("rig").unwrap();
+        assert!(lo.x <= 3.0 && lo.y <= 2.0 && lo.z <= 0.0);
+        assert!(hi.x >= 4.5 && hi.y >= 3.5 && hi.z >= 3.5);
+    }
+
+    #[test]
+    fn attach3_rejects_relationship_cycles() {
+        let err = match crate::parse(
+            "camera3((5,-5,4),(0,0,0),45);\n\
+             point3(a,(0,0,0)); point3(b,(1,0,0));\n\
+             attach3(a,b); attach3(b,a);",
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("expected attach3 cycle to fail"),
+        };
+        assert!(err.msg.contains("cycle"), "{}", err.msg);
+    }
+
+    #[test]
+    fn turn3_preserves_a_rigid_group_and_rotates_orientation() {
+        let src = r#"
+            camera3((6,-6,4),(0,0,0),45);
+            cube3(a,(1,0,0),(1,1,1)); tag(a,rig);
+            cube3(b,(0,1,0),(1,1,1)); tag(b,rig);
+            turn3(rig,(0,0,0),z,90,1,linear);
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let before = timeline.apply(&base, 0.0);
+        let after = timeline.apply(&base, 1.0);
+        let pa = after.get_3d("a").unwrap().pos;
+        let pb = after.get_3d("b").unwrap().pos;
+        assert!((pa - vec3(0.0, 1.0, 0.0)).length() < 1e-3, "{pa:?}");
+        assert!((pb - vec3(-1.0, 0.0, 0.0)).length() < 1e-3, "{pb:?}");
+        let d0 = before
+            .get_3d("a")
+            .unwrap()
+            .pos
+            .distance(before.get_3d("b").unwrap().pos);
+        assert!((pa.distance(pb) - d0).abs() < 1e-4);
+        let facing = after.get_3d("a").unwrap().orientation * Vec3::X;
+        assert!((facing - Vec3::Y).length() < 1e-3, "{facing:?}");
+        assert_eq!(
+            timeline.apply(&base, 0.37).get_3d("a").unwrap().pos,
+            timeline.apply(&base, 0.37).get_3d("a").unwrap().pos
+        );
+    }
+
+    #[test]
+    fn become3_morphs_compatible_solids_and_settles_on_exact_blueprint() {
+        let src = r#"
+            camera3((6,-6,4),(0,0,0),45);
+            cube3(seed,(0,0,0),(2,2,2)); color(seed,cyan);
+            sphere3(goal,(3,2,1),1.4); color(goal,magenta); hidden(goal);
+            become3(seed,goal,1,linear);
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let mid = timeline.apply(&base, 0.5);
+        assert!(matches!(
+            mid.get_3d("seed").unwrap().shape,
+            Shape3D::Surface { .. }
+        ));
+        let end = timeline.apply(&base, 1.0);
+        let seed = end.get_3d("seed").unwrap();
+        assert_eq!(seed.shape, Shape3D::Sphere { radius: 1.4 });
+        assert!((seed.pos - vec3(3.0, 2.0, 1.0)).length() < 1e-4);
+        assert!((seed.color.r - style::MAGENTA.r).abs() < 1e-4);
+        assert!(
+            seed.opacity > 0.99,
+            "hidden blueprint should not hide the source"
+        );
+    }
+
+    #[test]
+    fn become3_crossfade_fallback_still_installs_the_exact_blueprint() {
+        let src = r#"
+            camera3((6,-6,4),(0,0,0),45);
+            line3(seed,(0,0,0),(2,0,0)); color(seed,cyan);
+            cube3(goal,(3,2,1),(2,1,3)); color(goal,gold); hidden(goal);
+            become3(seed,goal,1,linear);
+        "#;
+        let (base, timeline) = crate::parse(src).unwrap().finalize();
+        let halfway = timeline.apply(&base, 0.5);
+        assert!(halfway.get_3d("seed").unwrap().opacity <= 1e-4);
+        let seed = timeline.apply(&base, 1.0).get_3d("seed").unwrap().clone();
+        assert_eq!(
+            seed.shape,
+            Shape3D::Cube {
+                size: vec3(2.0, 1.0, 3.0)
+            }
+        );
+        assert!((seed.pos - vec3(3.0, 2.0, 1.0)).length() < 1e-4);
+        assert!((seed.color.r - style::GOLD.r).abs() < 1e-4);
+        assert!(seed.opacity > 0.99);
+    }
+
+    #[test]
+    fn creator_3d_verbs_reject_ambiguous_or_degenerate_inputs() {
+        let cases = [
+            (
+                "camera3((5,-5,4),(0,0,0),45); cube3(a,(0,0,0),(1,1,1)); turn3(a,(0,0,0),(0,0,0),45);",
+                "non-zero",
+            ),
+            (
+                "camera3((5,-5,4),(0,0,0),45); point3(a,(0,0,0)); sphere3(path,(0,0,0),1); travel3(a,path);",
+                "not a line3, arrow3, or curve3",
+            ),
+            (
+                "camera3((5,-5,4),(0,0,0),45); cube3(a,(0,0,0),(1,1,1)); view3(a,\"isometric\",1,smooth,0.8);",
+                "at least 1",
+            ),
+        ];
+        for (source, expected) in cases {
+            let error = match crate::parse(source) {
+                Err(error) => error,
+                Ok(_) => panic!("invalid 3D V2 input should fail"),
+            };
+            assert!(
+                error.msg.contains(expected),
+                "expected {expected:?} in {:?}",
+                error.msg
+            );
+        }
     }
 
     #[test]
