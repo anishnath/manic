@@ -39,6 +39,8 @@ timing|sP61cl_PJj4|par · seq · stagger: Timing in manic
 loop|m-l37juylp8|One Loop → a Full Rainbow (manic)
 template-mono|8R1BOiFmzJo|Black & White by Default — manic's Mono Template
 ex-motion-graphics|40ZtagTNqBw|Move Ideas, Not Layers — Motion Graphics in manic
+ex-motion-graphics-v2|uxFWySBtMzE|Attach, Become, Turn — Professional Motion Graphics With Three Words
+ex-motion-graphics-v2-story|pIUTnqTfyWo|The Journey of an Idea — Advanced Motion Graphics Story
 
 # ---- examples: algorithms & data structures ----
 ex-bubble_sort|kA4gDkjwsRQ|Bubble Sort, ACTUALLY Animated — manic

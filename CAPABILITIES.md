@@ -94,7 +94,7 @@ not an instruction to implement everything.
 | Priority | Status | Work | Creator value |
 |---|---|---|---|
 | P0 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
-| P1 | ⬜ | **Motion Graphics V2Core** — one authored-state model, live path progress, group pivots, and the small `attach` / `become` / `turn` creator surface. Existing `travel`, `flow`, `wander`, and `arrange` calls stay unchanged. | Lets non-programmers describe continuity and relationships instead of intermediate coordinates, while preserving deterministic playback and existing files. |
+| P1 | 🟡 | **Motion Graphics V2Core** — ✅ authored endpoint/blueprint state plus `attach` / `become` / `turn` and shared pivots have shipped locally; normalized live path progress, general group bounds, and velocity-continuous generated motion remain. Existing `travel`, `flow`, `wander`, and `arrange` calls stay unchanged. | Lets non-programmers describe continuity and relationships instead of intermediate coordinates, while preserving deterministic playback and existing files. |
 | P1 | 🟡 | **Visual audit layers** — transition-path collisions, detached dynamic links, reading speed, camera/3D bounds, and equation/plot semantic agreement. | Prevents bad exports, not merely bad settled frames. |
 | P1 | 🟡 | **Multi-format composition** — reusable layout policies, format-specific pacing, thumbnail/still framing, and UI-controlled output variants. | Turns one semantic story into a dependable publishing system. |
 | P2 | ⬜ | **General bounds + relative placement** — reusable entity/group bounding boxes, framing, edge origins, and `next_to`-style layout. | Removes manual coordinates and unlocks reliable automatic composition. |
@@ -113,10 +113,12 @@ split-screen comparisons; a timeline/entity visual debugger; community remix
 inputs; and a consistent product promise—**describe how an idea changes, and
 Manic keeps the visual world continuous**.
 
-## Motion Graphics V2 — planned design
+## Motion Graphics V2 — active implementation
 
-**Status: ⬜ planned; the new calls below are not valid DSL until the engine,
-catalog, tests, examples, and documentation ship together.**
+**Status: 🟡 V2 relationship surface implemented locally.** `attach`, `become`,
+and `turn` are valid DSL with native/editor catalog parity, focused Rust tests,
+a generic example, system-prompt guidance, and mdBook documentation. The live
+moving-path and generated-motion foundation described below remains active work.
 
 Motion Graphics V2 is continuity infrastructure, not an effects catalogue. Its
 product promise is:
@@ -151,8 +153,8 @@ surface.
 
 #### 1. Unified authored state
 
-Replace the partial position-only bookkeeping used by some stateful verbs with
-one build-time authored-state record per entity. It tracks the endpoint needed
+**✅ Implemented.** The partial position-only bookkeeping is now complemented by
+one build-time authored-state record per 2-D entity. It tracks the endpoint needed
 to compose subsequent actions: position, path endpoint, rotation, scale,
 opacity, colour/hue, trace/morph state, and the current geometry blueprint.
 
@@ -166,7 +168,7 @@ move → travel       arrange → turn       transform → transform
 grow → become      become → move        scale → attach
 ```
 
-#### 2. Shared runtime path progress
+#### 2. Shared runtime path progress — planned
 
 Give path-like entities one normalized arclength evaluator shared by `draw`,
 `flow`, and `travel`. `travel(entity,path,dur,ease)` keeps its current syntax and
@@ -179,13 +181,14 @@ unambiguous. A marker can follow a path while that path moves or morphs in the
 same `par` block. Tangent-facing, partial ranges, reverse travel, and looping
 remain later extensions unless a concrete example proves they need syntax.
 
-#### 3. Group bounds and pivots
+#### 3. Group bounds and pivots — partial
 
-Tags already provide group addressing. V2 adds deterministic bounds, centre,
-and local offsets so a whole layout can move as a rigid visual system. This
-foundation is also reusable by relative placement and future visual audits.
+**✅ Shared pivots shipped:** `turn` resolves one entity or every 2-D member of a
+tag and moves positions, path endpoints, and curve controls along the same
+circular turn. General deterministic group bounds/centre APIs remain planned
+for relative placement and future visual audits.
 
-#### 4. Velocity-continuous generated motion
+#### 4. Velocity-continuous generated motion — planned
 
 `wander` and unordered `arrange` remain seeded and scrubbable, but their sampled
 paths must have continuous position and direction at segment boundaries.
@@ -207,9 +210,9 @@ travel(marker, curve, 2, smooth);
 The child follows the target after ordinary tracks, derived geometry, links,
 path travel, particle layout changes, and parameter bindings resolve. It also
 inherits the target's visibility/opacity, matching the proven internal behavior
-already used by labels. Attachment is a persistent scene relationship; fade or
-hide the child when it is no longer part of the story rather than adding a
-second `detach` word in V2Core.
+already used by labels. Attachment is a persistent scene relationship.
+`attach(child, none)` releases it at the current authored position, avoiding a
+second `detach` word while letting the child move, fade, or attach elsewhere.
 
 #### `become(source, target, [duration], [ease])`
 
@@ -223,12 +226,12 @@ become(curve, guide, 0.8, smooth);
 
 - compatible shapes interpolate geometry and style;
 - open paths remain open and closed outlines remain closed;
-- the settled source matches the target geometry, colour, stroke, opacity, and
-  relevant shape styling exactly;
+- the settled source matches the target geometry, colour, stroke, and relevant
+  shape styling exactly;
 - unsupported pairs use a deterministic local crossfade instead of malformed
   geometry;
 - the target's authored visibility is not changed—use a hidden target when it
-  is only a blueprint;
+  is only a blueprint; hidden blueprint opacity does not hide the source;
 - equations continue to prefer `rewrite`, which preserves matching LaTeX parts;
   `become` may safely crossfade text/image content but does not pretend to
   understand mathematical semantics.
@@ -255,9 +258,9 @@ and endpoints; entity orientation rotates with the group. Existing `spin` and
 
 | Intent | Call | V2 behavior |
 |---|---|---|
-| Move once along a path | `travel(entity,path,dur,ease)` | same DSL; live normalized path progress and exact endpoint |
-| Temporary path emphasis | `flow(path,dur)` | same DSL; shared path evaluator, no object identity change |
-| Ambient contained motion | `wander(group,dur)` | same DSL; seeded velocity-continuous movement |
+| Move once along a path | `travel(entity,path,dur,ease)` | unchanged DSL and exact endpoint; live moving-path progress remains planned |
+| Temporary path emphasis | `flow(path,dur)` | unchanged DSL and no object identity change |
+| Ambient contained motion | `wander(group,dur)` | unchanged seeded, deterministic contained movement |
 | Change particle layout | `arrange(group,container,"random|grid|ring",dur,ease)` | same DSL; persistent ids and exact final layout |
 | Change an ordinary property | `to(id,property,value,dur,ease)` | remains the general escape hatch |
 | Mathematical linear map | `transform(id,pivot,a,b,c,d,dur,ease)` | unchanged; still the precise matrix tool |
@@ -309,26 +312,33 @@ Motion Graphics V2 cannot ship unless all of these hold:
 
 ### Delivery plan
 
-1. **V2.0 state foundation:** authored-state record, shared verb helpers,
-   conflict diagnostics, and chain-composition tests. No new syntax yet.
-2. **V2.1 path + group foundation:** normalized path evaluator, moving-path
-   dependency, deterministic group bounds/pivots, and smoother generated motion.
-3. **V2.2 creator surface:** ship `attach`, `become`, and `turn` together with
+1. **✅ V2.0 state foundation:** authored endpoint/blueprint record and
+   chain-composition tests; incompatible/cyclic relationship diagnostics ship.
+2. **🟡 V2.1 path + group foundation:** shared pivots ship; normalized live path
+   dependency, general group bounds, and smoother generated motion remain.
+3. **✅ V2.2 creator surface:** `attach`, `become`, and `turn` ship together with
    editor catalog/system-prompt parity and clear errors.
-4. **V2.3 proof examples:** add `examples/motion-graphics-v2.manic`, upgrade the
-   second-law benchmark without subject-specific words, and extend the mdBook
-   Motion Graphics chapter from intent → syntax → timing → settling tips.
+4. **✅ V2.3 proof examples:** `examples/motion-graphics-v2.manic` remains the
+   compact three-verb acceptance scene, while
+   `examples/motion-graphics-v2-story.manic` composes the relationship surface
+   with `to`, `travel`, `flow`, `spin`, `arrange`, `wander`, `rewrite`, `seq`,
+   `par`, and `stagger` in one continuous three-act creator story. Both ship in
+   the gallery, publishing metadata, and the mdBook Motion Graphics chapter.
 5. **V2.4 professional polish:** evaluate `gradient`, `trail`, and opt-in motion
    profiles independently; each must ship with its own tests and generic example.
 6. **V2.5 publishing safety:** add transition-path collision, detached
    attachment, excessive speed/jerk, group-bound, and moving-camera checks to
    the visual audit.
 
-The acceptance example for V2Core must demonstrate, in one generic file, a
-marker travelling on a simultaneously changing path, a label remaining
-attached, one path becoming another, particles arranging into a ring, the ring
-turning briefly, and every element holding a clean final frame. The same file
-must render through the ordinary file-only production path with no flags.
+The shipped relationship-surface acceptance example demonstrates, in one
+generic file, a marker travelling along a path, a label remaining attached and
+then releasing, the marker becoming a declared blueprint, particles arranging
+into a ring, the ring turning briefly, and every element holding a clean final
+frame. The advanced companion carries one question through attention, notation,
+model, and coordinated-system acts without resetting the scene. Both use the
+ordinary file-only production path with no flags. A marker following a
+simultaneously changing path remains the acceptance test for the planned
+normalized live-path foundation.
 
 ## Capabilities (implemented)
 
@@ -360,6 +370,12 @@ must render through the ordinary file-only production path with no flags.
   scale, angle, trace, color, **hue** — cycles around the colour wheel, and
   **value** — a live `counter`'s number); `rotate`/`spin`; camera `cam`/`zoom`;
   friendly easings; per-act duration.
+- Motion Graphics V2 relationship surface: `attach(child,target,[offset])`
+  with `attach(child,none)` release, exact-blueprint
+  `become(source,target,[duration],[ease])` with safe crossfade fallback, and
+  rigid shared-pivot `turn(id_or_tag,pivot,degrees,[duration],[ease])`. A
+  build-time authored blueprint lets these compose after ordinary clips while
+  `Timeline::apply(base,t)` stays pure.
 - Updaters (pure functions of `t`): `follow` (ride a target), `link`
   (edge tracks two entities), and the general `derive` hook (dynamic
   constructions — drag a vertex and dependents recompute). Creator parameters
@@ -379,7 +395,8 @@ must render through the ordinary file-only production path with no flags.
   `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
   `tag`); verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
   `type`, `say`, `recolor`, `flash`, `pulse`, `shake`, `scale`, `rotate`,
-  `spin`, `swap`, `transform` (2×2 matrix / ApplyMatrix), `to`/`set`, `cam`,
+  `spin`, `attach`, `become`, `turn`, `swap`, `transform` (2×2 matrix /
+  ApplyMatrix), `to`/`set`, `cam`,
   `zoom`); boolean ops `union`/`intersect`/`difference`/`exclusion`.
 - **math** — `axes` (optional ticks + labels), `plane`/`numberplane`,
   `complexplane`, `polarplane`, `plot` (named functions **or a formula string**

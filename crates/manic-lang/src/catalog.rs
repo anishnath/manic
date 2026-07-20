@@ -546,6 +546,42 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "attach",
+            MutVerb,
+            "std",
+            "keep an entity pinned to another entity plus an optional offset; use target `none` to release",
+            &[
+                ("child", Ident, R),
+                ("target", Ident, R),
+                ("offset", Point, O),
+            ],
+        ),
+        spec(
+            "become",
+            MutVerb,
+            "std",
+            "transform one entity into a declared visual blueprint while retaining the source id",
+            &[
+                ("source", Ident, R),
+                ("target", Ident, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
+        ),
+        spec(
+            "turn",
+            MutVerb,
+            "std",
+            "rotate one entity or tagged arrangement rigidly around a shared pivot",
+            &[
+                ("id_or_tag", Ident, R),
+                ("pivot", Point, R),
+                ("degrees", Num, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
+        ),
+        spec(
             "shift",
             Verb,
             "std",

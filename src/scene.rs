@@ -8,7 +8,7 @@ use macroquad::prelude::{Color, Vec2, Vec3};
 use crate::primitives::{Align, Entity, FontKind, ParameterBinding, Shape, StrokeStyle};
 use crate::primitives3d::Entity3D;
 use crate::style;
-use crate::timeline::Prop;
+use crate::timeline::{Clip, Prop, TargetValue, TimelineEvent, Value};
 
 /// Build-time authored state for an equation that may be rewritten. The
 /// renderer still sees ordinary image entities; this metadata only lets a
@@ -136,6 +136,16 @@ pub struct Scene {
     /// verbs carry their authored end positions separately when repeated.
     /// Frame rendering never reads this map.
     pub motion_pos: HashMap<String, macroquad::prelude::Vec2>,
+    /// The latest authored 2-D blueprint after every lowered clip. This is
+    /// build-time only: V2 relationship verbs consult it so they compose with
+    /// earlier ordinary verbs, while frame rendering continues to start from
+    /// the immutable t=0 entities and the resolved timeline.
+    pub authored_entities: HashMap<String, Entity>,
+    /// Latest authored attachment for each child. `Some(target, offset)` is an
+    /// active relationship and `None` is an explicit release. Runtime frames
+    /// receive the same changes as timeline events; this copy is only for
+    /// cycle detection and exact build-time release positions.
+    pub authored_attachments: HashMap<String, Option<(String, macroquad::prelude::Vec2)>>,
     /// Generic contained particle groups (`particles`/`wander`). Build-time
     /// only; frames contain ordinary entities and deterministic timeline tracks.
     pub particle_groups: HashMap<String, ParticleGroup>,
@@ -567,6 +577,85 @@ impl Scene {
         i
     }
 
+    /// Latest authored 2-D state for a relationship verb. The returned value
+    /// is a build-time blueprint only; rendering still evaluates the immutable
+    /// base scene plus timeline at an absolute time.
+    pub fn authored_entity(&self, id: &str) -> Option<Entity> {
+        self.authored_entities
+            .get(id)
+            .cloned()
+            .or_else(|| self.get(id).cloned())
+    }
+
+    /// Record the settled authored result of a lowered clip. This does not
+    /// mutate the t=0 entities. It gives later V2 verbs an exact starting state
+    /// even when the preceding call was an ordinary non-mutating verb.
+    pub fn record_authored_clip(&mut self, clip: &Clip) {
+        let mut tracks: Vec<_> = clip.tracks.iter().collect();
+        tracks.sort_by(|a, b| a.start.total_cmp(&b.start));
+        let mut previous_from: HashMap<(String, Prop), Value> = HashMap::new();
+
+        for track in tracks {
+            let Some(mut entity) = self.authored_entity(&track.id) else {
+                continue;
+            };
+            let Some(from) = authored_value(&entity, track.prop) else {
+                continue;
+            };
+            let key = (track.id.clone(), track.prop);
+            let to = match track.target {
+                TargetValue::Abs(value) => value,
+                TargetValue::Rel(value) => add_authored_value(from, value),
+                TargetValue::RotateAround { pivot, degrees } => match from {
+                    Value::V(point) => Value::V(rotate_about(point, pivot, degrees)),
+                    _ => from,
+                },
+                TargetValue::Revert => previous_from.get(&key).copied().unwrap_or(from),
+            };
+            previous_from.insert(key, from);
+            set_authored_value(&mut entity, track.prop, to);
+            if let Value::V(pos) = to {
+                if track.prop == Prop::Pos {
+                    self.motion_pos.insert(track.id.clone(), pos);
+                }
+            }
+            self.authored_entities.insert(track.id.clone(), entity);
+        }
+
+        let mut events: Vec<_> = clip.events.iter().collect();
+        events.sort_by(|a, b| a.at().total_cmp(&b.at()));
+        for event in events {
+            match event {
+                TimelineEvent::Text { id, content, .. } => {
+                    if let Some(mut entity) = self.authored_entity(id) {
+                        if let Shape::Text { content: text, .. } = &mut entity.shape {
+                            *text = content.clone();
+                        }
+                        self.authored_entities.insert(id.clone(), entity);
+                    }
+                }
+                TimelineEvent::Shape { id, shape, .. } => {
+                    if let Some(mut entity) = self.authored_entity(id) {
+                        entity.shape = shape.clone();
+                        self.authored_entities.insert(id.clone(), entity);
+                    }
+                }
+                TimelineEvent::Attachment {
+                    id, target, offset, ..
+                } => {
+                    self.authored_attachments
+                        .insert(id.clone(), target.clone().map(|target| (target, *offset)));
+                }
+                TimelineEvent::Become { id, to, .. } => {
+                    if let Some(mut entity) = self.authored_entity(id) {
+                        copy_visual_blueprint(&mut entity, to);
+                        self.authored_entities.insert(id.clone(), entity);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get(&self, id: &str) -> Option<&Entity> {
         match self.index.get(id) {
             Some(EntitySlot::D2(i)) => Some(&self.entities[*i]),
@@ -598,6 +687,99 @@ impl Scene {
     pub fn contains(&self, id: &str) -> bool {
         self.index.contains_key(id)
     }
+}
+
+fn rotate_about(point: Vec2, pivot: Vec2, degrees: f32) -> Vec2 {
+    let (sn, cs) = degrees.to_radians().sin_cos();
+    let d = point - pivot;
+    pivot + Vec2::new(d.x * cs - d.y * sn, d.x * sn + d.y * cs)
+}
+
+fn add_authored_value(from: Value, delta: Value) -> Value {
+    match (from, delta) {
+        (Value::F(a), Value::F(b)) => Value::F(a + b),
+        (Value::V(a), Value::V(b)) => Value::V(a + b),
+        (Value::V3(a), Value::V3(b)) => Value::V3(a + b),
+        (_, value) => value,
+    }
+}
+
+fn authored_value(entity: &Entity, prop: Prop) -> Option<Value> {
+    Some(match prop {
+        Prop::Pos => Value::V(entity.pos),
+        Prop::To => match &entity.shape {
+            Shape::Line { to }
+            | Shape::Arrow { to }
+            | Shape::Curve { to, .. }
+            | Shape::Coil { to, .. } => Value::V(*to),
+            _ => return None,
+        },
+        Prop::Ctrl => match &entity.shape {
+            Shape::Curve { ctrl, .. } => Value::V(*ctrl),
+            _ => return None,
+        },
+        Prop::Color => Value::C(entity.color),
+        Prop::Opacity => Value::F(entity.opacity),
+        Prop::Scale => Value::F(entity.scale),
+        Prop::Rot => Value::F(entity.rot),
+        Prop::Trace => Value::F(entity.trace),
+        Prop::Flow => Value::F(entity.flow),
+        Prop::Hue => Value::F(entity.hue.unwrap_or(0.0)),
+        Prop::Value => Value::F(entity.counter.as_ref()?.value),
+        Prop::Morph => Value::F(0.0),
+        Prop::PlotX => Value::F(entity.graph_view.as_ref()?.x()),
+        Prop::Rot3 | Prop::Orbit3 | Prop::Roll3 => return None,
+    })
+}
+
+fn set_authored_value(entity: &mut Entity, prop: Prop, value: Value) {
+    match (prop, value) {
+        (Prop::Pos, Value::V(value)) => entity.pos = value,
+        (Prop::To, Value::V(value)) => match &mut entity.shape {
+            Shape::Line { to }
+            | Shape::Arrow { to }
+            | Shape::Curve { to, .. }
+            | Shape::Coil { to, .. } => *to = value,
+            _ => {}
+        },
+        (Prop::Ctrl, Value::V(value)) => {
+            if let Shape::Curve { ctrl, .. } = &mut entity.shape {
+                *ctrl = value;
+            }
+        }
+        (Prop::Color, Value::C(value)) => entity.color = value,
+        (Prop::Opacity, Value::F(value)) => entity.opacity = value,
+        (Prop::Scale, Value::F(value)) => entity.scale = value,
+        (Prop::Rot, Value::F(value)) => entity.rot = value,
+        (Prop::Trace, Value::F(value)) => entity.trace = value,
+        (Prop::Flow, Value::F(value)) => entity.flow = value,
+        (Prop::Hue, Value::F(value)) => entity.hue = Some(value),
+        (Prop::Value, Value::F(value)) => {
+            if let Some(counter) = &mut entity.counter {
+                counter.value = value;
+            }
+        }
+        (Prop::PlotX, Value::F(value)) => {
+            if let Some(view) = &mut entity.graph_view {
+                view.set_x(value);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn copy_visual_blueprint(entity: &mut Entity, target: &Entity) {
+    entity.shape = target.shape.clone();
+    entity.stroke = target.stroke;
+    entity.dash = target.dash;
+    entity.font = target.font;
+    entity.align = target.align;
+    entity.z = target.z;
+    entity.corner_radius = target.corner_radius;
+    entity.wrap = target.wrap;
+    entity.glow = target.glow;
+    entity.hue = target.hue;
+    entity.type_cursor = target.type_cursor;
 }
 
 /// Chainable builder for declaring entities. Obtained from

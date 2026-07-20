@@ -11,7 +11,7 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Optics — light as geometry](ex-optics.md) — 14 examples
 - [Vectors, fields & coordinates](ex-vectors.md) — 3 examples
 - [Geometry (olympiad)](ex-geometry.md) — 8 examples
-- [Transforms & morphing](ex-transforms.md) — 6 examples
+- [Transforms & morphing](ex-transforms.md) — 8 examples
 - [Text & UI](ex-text.md) — 8 examples
 - [Generative & recursive](ex-generative.md) — 10 examples
 - [Creator formats — responsive social video](ex-creator.md) — 16 examples

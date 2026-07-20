@@ -52,6 +52,25 @@ one's position and the last into the first. The path arc is in degrees and
 defaults to 90; pass `0` for straight paths. Repeated calls compose, making it
 useful for symbol rearrangements, card carousels, and CyclicReplace-style moves.
 
+### Relationship motion
+
+Three verbs cover motion that would otherwise require many coordinated
+keyframes:
+
+```manic
+attach(label, marker, (0,-36));       // label follows marker
+travel(marker, route, 2, smooth);
+become(marker, nodeBlueprint, 0.8);   // same id, new visual state
+attach(label, none);                  // release at the settled position
+turn(nodeGroup, marker, 20, 0.6, out);// shared group pivot
+```
+
+`attach` is persistent until released. `become` interpolates compatible shapes
+and safely crossfades other pairs, always settling on the exact declared
+blueprint. `turn` accepts one entity or a tag and rotates its members around a
+point or entity pivot. See [Motion graphics](motion-graphics.md) for the full
+design rules and a copyable V2 Reel.
+
 <div class="watch">▶ Watch: motion</div>
 <div class="manic-video" data-video="motion"></div>
 

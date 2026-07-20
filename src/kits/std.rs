@@ -101,6 +101,30 @@ fn rot_local(v: Vec2, deg: f32) -> Vec2 {
     Vec2::new(v.x * cs - v.y * sn, v.x * sn + v.y * cs)
 }
 
+fn authored_point(a: &Args, index: usize, scene: &Scene) -> Result<Vec2, Error> {
+    let expr = a.exprs.get(index).ok_or_else(|| {
+        Error::new(
+            format!("`{}` needs at least {} argument(s)", a.name, index + 1),
+            a.name_span,
+        )
+    })?;
+    match &expr.kind {
+        ExprKind::Pair(x, y) => Ok(Vec2::new(*x, *y)),
+        ExprKind::Ident(id) => scene
+            .authored_entity(id)
+            .map(|entity| entity.pos)
+            .ok_or_else(|| Error::new(format!("no entity named `{id}` to point at"), expr.span)),
+        _ => Err(Error::new(
+            format!(
+                "argument {} of `{}` should be a `(x, y)` point or an entity name",
+                index + 1,
+                a.name
+            ),
+            expr.span,
+        )),
+    }
+}
+
 /// Deterministically sample inset points inside a circle or rectangle. Both
 /// shapes are convex, so tweening between any two samples also stays contained.
 /// Supporting arbitrary concave regions would require path planning rather
@@ -1489,7 +1513,7 @@ fn v_fade(_s: &Scene, a: &Args) -> Result<Clip, Error> {
 
 fn v_move(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let id = a.ident(0)?;
-    let to = a.point(1, s)?;
+    let to = authored_point(a, 1, s)?;
     Ok(apply_dur_ease(act().move_to(&id, to), a, 2)?.into())
 }
 
@@ -1501,7 +1525,7 @@ fn v_shift(_s: &Scene, a: &Args) -> Result<Clip, Error> {
 
 fn v_grow(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let id = a.ident(0)?;
-    let to = a.point(1, s)?;
+    let to = authored_point(a, 1, s)?;
     Ok(apply_dur_ease(act().grow_to(&id, to), a, 2)?.into())
 }
 
@@ -1589,7 +1613,7 @@ fn v_to(s: &Scene, a: &Args) -> Result<Clip, Error> {
     // (property track, target value) — resolved against the 2D scene, or the
     // 3D scene for the shared properties (`move3`/`rotate3`/`grow3` cover 3D
     // position, rotation, and size).
-    let (prop, target) = if let Some(cur) = s.get(&id) {
+    let (prop, target) = if let Some(cur) = s.authored_entity(&id) {
         match prop_name.as_str() {
             // for a graph view (tangent/normal/slope/area), `x` is the moving
             // parameter in the curve's own units — slide it, everything follows
@@ -1683,7 +1707,7 @@ fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
         Easing::InOutCubic
     };
     let e = s
-        .get(&id)
+        .authored_entity(&id)
         .ok_or_else(|| Error::new(format!("no entity named `{id}`"), a.span_of(0)))?;
     let apply = |v: Vec2| {
         let w = v - o;
@@ -1697,14 +1721,18 @@ fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
         dur,
         easing,
     };
-    // Stateful position verbs such as `arrange`, `cycle`, and `swap` keep their
-    // authored endpoint in `motion_pos` while the base scene stays at t=0.
-    // Transform that current endpoint, not the constructor position, so a ring
-    // can arrive first and then receive a short group turn without snapping.
-    let current_pos = s.motion_pos.get(&id).copied().unwrap_or(e.pos);
-    let mut tracks = vec![track(Prop::Pos, current_pos)];
-    if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &e.shape {
+    // Transform the current authored endpoint, not the constructor position,
+    // so ordinary movement and stateful layouts compose without snapping.
+    let mut tracks = vec![track(Prop::Pos, e.pos)];
+    if let Shape::Line { to }
+    | Shape::Arrow { to }
+    | Shape::Curve { to, .. }
+    | Shape::Coil { to, .. } = &e.shape
+    {
         tracks.push(track(Prop::To, *to));
+    }
+    if let Shape::Curve { ctrl, .. } = &e.shape {
+        tracks.push(track(Prop::Ctrl, *ctrl));
     }
     Ok(Clip {
         dur,
@@ -2424,9 +2452,9 @@ fn v_travel(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
         ));
     }
     let path = s
-        .get(&path_id)
+        .authored_entity(&path_id)
         .ok_or_else(|| Error::new(format!("no path named `{path_id}`"), a.span_of(1)))?;
-    let points = travel_path_points(path).ok_or_else(|| {
+    let points = travel_path_points(&path).ok_or_else(|| {
         Error::new(
             format!("`{path_id}` is not a line, arrow, curve, plot, spline, or arc"),
             a.span_of(1),
@@ -2498,7 +2526,7 @@ fn v_arrange(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
             a.span_of(0),
         )
     })?;
-    let container = s.get(&container_id).cloned().ok_or_else(|| {
+    let container = s.authored_entity(&container_id).ok_or_else(|| {
         Error::new(
             format!("no 2-D container named `{container_id}`"),
             a.span_of(1),
@@ -2555,7 +2583,7 @@ fn v_arrange(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                 .motion_pos
                 .get(child)
                 .copied()
-                .or_else(|| s.get(child).map(|entity| entity.pos))
+                .or_else(|| s.authored_entity(child).map(|entity| entity.pos))
                 .unwrap_or(target);
             let control = controls[index];
             for segment in 1..=route_segments {
@@ -2607,7 +2635,7 @@ fn v_wander(s: &Scene, a: &Args) -> Result<Clip, Error> {
             a.span_of(0),
         )
     })?;
-    let container = s.get(&group.container).ok_or_else(|| {
+    let container = s.authored_entity(&group.container).ok_or_else(|| {
         Error::new(
             format!("particle container `{}` no longer exists", group.container),
             a.span_of(0),
@@ -2616,7 +2644,7 @@ fn v_wander(s: &Scene, a: &Args) -> Result<Clip, Error> {
     let segments = ((duration / 0.85).ceil() as usize).clamp(1, 32);
     let step = duration / segments as f32;
     let targets = particle_points(
-        container,
+        &container,
         group.children.len() * segments,
         group.radius,
         group.seed ^ 0x9e37_79b9_7f4a_7c15,
@@ -2682,6 +2710,346 @@ fn v_flow(s: &Scene, a: &Args) -> Result<Clip, Error> {
             dur,
             easing: Easing::Linear,
         }],
+        events: Vec::new(),
+        dur,
+    })
+}
+
+fn authored_attachment(s: &Scene, id: &str) -> Option<(String, Vec2)> {
+    match s.authored_attachments.get(id) {
+        Some(value) => value.clone(),
+        None => s.authored_entity(id).and_then(|entity| entity.follow),
+    }
+}
+
+fn authored_attached_position(s: &Scene, id: &str, visiting: &mut Vec<String>) -> Option<Vec2> {
+    if visiting.iter().any(|item| item == id) {
+        return None;
+    }
+    visiting.push(id.to_string());
+    let entity = s.authored_entity(id)?;
+    let position = match authored_attachment(s, id) {
+        Some((target, offset)) => {
+            authored_attached_position(s, &target, visiting).map(|position| position + offset)?
+        }
+        None => entity.pos,
+    };
+    visiting.pop();
+    Some(position)
+}
+
+/// `attach(child, target, [(dx,dy)])` — create a persistent, pure per-frame
+/// relationship. `attach(child, none)` releases it at the current authored
+/// position; no second vocabulary word is needed.
+fn v_attach(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(3)?;
+    let child = a.ident(0)?;
+    let target = a.ident(1)?;
+    let offset = if a.len() > 2 { a.pair(2)? } else { Vec2::ZERO };
+    if s.get(&child).is_none() {
+        return Err(Error::new(
+            format!("no 2-D entity named `{child}` to attach"),
+            a.span_of(0),
+        ));
+    }
+
+    if target == "none" {
+        let position = authored_attached_position(s, &child, &mut Vec::new()).ok_or_else(|| {
+            Error::new(
+                format!("cannot release `{child}` because its attachment chain is cyclic"),
+                a.span_of(0),
+            )
+        })?;
+        return Ok(Clip {
+            tracks: vec![TrackSpec {
+                id: child.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::Abs(Value::V(position)),
+                start: 0.0,
+                dur: 0.0,
+                easing: Easing::Linear,
+            }],
+            events: vec![TimelineEvent::attachment(child, None, Vec2::ZERO, 0.0)],
+            dur: 0.0,
+        });
+    }
+
+    if child == target {
+        return Err(Error::new(
+            "an entity cannot attach to itself",
+            a.span_of(1),
+        ));
+    }
+    if s.get(&target).is_none() {
+        return Err(Error::new(
+            format!("no 2-D entity named `{target}` to attach to"),
+            a.span_of(1),
+        ));
+    }
+
+    // Follow the proposed target chain before accepting the new edge. This is
+    // a build-time diagnostic; runtime evaluation never has to recover from a
+    // relationship cycle.
+    let mut cursor = target.clone();
+    let mut visited = vec![child.clone()];
+    loop {
+        if visited.iter().any(|id| id == &cursor) {
+            return Err(Error::new(
+                format!("attaching `{child}` to `{target}` would create a cycle"),
+                a.span_of(1),
+            ));
+        }
+        visited.push(cursor.clone());
+        let Some((next, _)) = authored_attachment(s, &cursor) else {
+            break;
+        };
+        cursor = next;
+    }
+
+    Ok(Clip {
+        tracks: Vec::new(),
+        events: vec![TimelineEvent::attachment(child, Some(target), offset, 0.0)],
+        dur: 0.0,
+    })
+}
+
+/// `become(source, target, [duration], [ease])` — retain the source identity
+/// while moving it to the target's visual blueprint. Compatible shapes blend
+/// directly; every other pair gets a deterministic local crossfade and the
+/// same exact settled target.
+fn v_become(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let target_id = a.ident(1)?;
+    if id == target_id {
+        return Err(Error::new(
+            "`become` needs different source and target ids",
+            a.span_of(1),
+        ));
+    }
+    let from = s.authored_entity(&id).ok_or_else(|| {
+        Error::new(
+            format!("no 2-D entity named `{id}` to transform"),
+            a.span_of(0),
+        )
+    })?;
+    let mut target = s.authored_entity(&target_id).ok_or_else(|| {
+        Error::new(
+            format!("no 2-D target blueprint named `{target_id}`"),
+            a.span_of(1),
+        )
+    })?;
+    let dur = a.opt_num(2)?.unwrap_or(0.8);
+    if dur <= 0.0 || !dur.is_finite() {
+        return Err(Error::new("become duration must be positive", a.span_of(2)));
+    }
+    let easing = if a.len() > 3 {
+        resolve_easing(&a.ident(3)?, a.span_of(3))?
+    } else {
+        Easing::InOutCubic
+    };
+
+    // `hidden(target)` is the natural blueprint pattern. Hidden is a property
+    // of the target entity's authored visibility, not a request to make the
+    // transformed source disappear at the end.
+    if target.opacity <= 1e-6 && from.opacity > 1e-6 {
+        target.opacity = from.opacity;
+    }
+    let crossfade = !crate::timeline::shape_transition_compatible(&from.shape, &target.shape);
+    let mut tracks = vec![
+        TrackSpec {
+            id: id.clone(),
+            prop: Prop::Pos,
+            target: TargetValue::Abs(Value::V(target.pos)),
+            start: 0.0,
+            dur,
+            easing,
+        },
+        TrackSpec {
+            id: id.clone(),
+            prop: Prop::Color,
+            target: TargetValue::Abs(Value::C(target.color)),
+            start: 0.0,
+            dur,
+            easing,
+        },
+        TrackSpec {
+            id: id.clone(),
+            prop: Prop::Scale,
+            target: TargetValue::Abs(Value::F(target.scale)),
+            start: 0.0,
+            dur,
+            easing,
+        },
+        TrackSpec {
+            id: id.clone(),
+            prop: Prop::Rot,
+            target: TargetValue::Abs(Value::F(target.rot)),
+            start: 0.0,
+            dur,
+            easing,
+        },
+        TrackSpec {
+            id: id.clone(),
+            prop: Prop::Trace,
+            target: TargetValue::Abs(Value::F(target.trace)),
+            start: 0.0,
+            dur,
+            easing,
+        },
+    ];
+    if crossfade {
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(0.0)),
+            start: 0.0,
+            dur: dur * 0.5,
+            easing: Easing::InQuad,
+        });
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(target.opacity)),
+            start: dur * 0.5,
+            dur: dur * 0.5,
+            easing: Easing::OutQuad,
+        });
+    } else {
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Opacity,
+            target: TargetValue::Abs(Value::F(target.opacity)),
+            start: 0.0,
+            dur,
+            easing,
+        });
+    }
+
+    Ok(Clip {
+        tracks,
+        events: vec![TimelineEvent::visual_transition(
+            id, from, target, dur, easing, crossfade,
+        )],
+        dur,
+    })
+}
+
+fn turn_targets(s: &Scene, id_or_tag: &str) -> Vec<String> {
+    if s.get(id_or_tag).is_some() {
+        return vec![id_or_tag.to_string()];
+    }
+    s.entities
+        .iter()
+        .filter(|entity| entity.tags.iter().any(|tag| tag == id_or_tag))
+        .map(|entity| entity.id.clone())
+        .collect()
+}
+
+/// `turn(id_or_tag, pivot, degrees, [duration], [ease])` — rotate one object
+/// or a tagged arrangement as a rigid system around a shared pivot.
+fn v_turn(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(5)?;
+    let id_or_tag = a.ident(0)?;
+    let pivot = match &a.exprs.get(1).map(|expr| &expr.kind) {
+        Some(ExprKind::Pair(x, y)) => Vec2::new(*x, *y),
+        Some(ExprKind::Ident(id)) => authored_attached_position(s, id, &mut Vec::new())
+            .ok_or_else(|| Error::new(format!("no 2-D pivot named `{id}`"), a.span_of(1)))?,
+        _ => {
+            return Err(Error::new(
+                "turn pivot should be a `(x, y)` point or an entity name",
+                a.span_of(1),
+            ))
+        }
+    };
+    let degrees = a.num(2)?;
+    if !degrees.is_finite() {
+        return Err(Error::new("turn degrees must be finite", a.span_of(2)));
+    }
+    let dur = a.opt_num(3)?.unwrap_or(0.7);
+    if dur <= 0.0 || !dur.is_finite() {
+        return Err(Error::new("turn duration must be positive", a.span_of(3)));
+    }
+    let easing = if a.len() > 4 {
+        resolve_easing(&a.ident(4)?, a.span_of(4))?
+    } else {
+        Easing::InOutCubic
+    };
+    let targets = turn_targets(s, &id_or_tag);
+    if targets.is_empty() {
+        return Err(Error::new(
+            format!("no 2-D entity or tag named `{id_or_tag}` to turn"),
+            a.span_of(0),
+        ));
+    }
+
+    let segments = ((degrees.abs() / 7.5).ceil() as usize).clamp(1, 64);
+    let segment_dur = dur / segments as f32;
+    let mut tracks = Vec::new();
+    for id in targets {
+        let entity = s.authored_entity(&id).expect("turn target was validated");
+        let mut previous_angle = 0.0;
+        for segment in 1..=segments {
+            let angle = degrees * easing.apply(segment as f32 / segments as f32);
+            let delta = angle - previous_angle;
+            tracks.push(TrackSpec {
+                id: id.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::RotateAround {
+                    pivot,
+                    degrees: delta,
+                },
+                start: segment_dur * (segment - 1) as f32,
+                dur: segment_dur,
+                easing: Easing::Linear,
+            });
+            if matches!(
+                entity.shape,
+                Shape::Line { .. } | Shape::Arrow { .. } | Shape::Curve { .. } | Shape::Coil { .. }
+            ) {
+                tracks.push(TrackSpec {
+                    id: id.clone(),
+                    prop: Prop::To,
+                    target: TargetValue::RotateAround {
+                        pivot,
+                        degrees: delta,
+                    },
+                    start: segment_dur * (segment - 1) as f32,
+                    dur: segment_dur,
+                    easing: Easing::Linear,
+                });
+            }
+            if matches!(entity.shape, Shape::Curve { .. }) {
+                tracks.push(TrackSpec {
+                    id: id.clone(),
+                    prop: Prop::Ctrl,
+                    target: TargetValue::RotateAround {
+                        pivot,
+                        degrees: delta,
+                    },
+                    start: segment_dur * (segment - 1) as f32,
+                    dur: segment_dur,
+                    easing: Easing::Linear,
+                });
+            }
+            previous_angle = angle;
+        }
+        if !matches!(
+            entity.shape,
+            Shape::Line { .. } | Shape::Arrow { .. } | Shape::Curve { .. } | Shape::Coil { .. }
+        ) {
+            tracks.push(TrackSpec {
+                id,
+                prop: Prop::Rot,
+                target: TargetValue::Rel(Value::F(degrees)),
+                start: 0.0,
+                dur,
+                easing,
+            });
+        }
+    }
+    Ok(Clip {
+        tracks,
         events: Vec::new(),
         dur,
     })
@@ -2819,6 +3187,9 @@ pub fn register(r: &mut Registry) {
     r.mut_verb("cycle", v_cycle); // variadic CyclicReplace with an optional path arc
     r.mut_verb("travel", v_travel); // move a persistent entity once along a path
     r.mut_verb("arrange", v_arrange); // persistent particles: grid/random/ring + new container
+    r.mut_verb("attach", v_attach); // persistent per-frame relationship; target `none` releases
+    r.mut_verb("become", v_become); // retain source id while adopting a visual blueprint
+    r.mut_verb("turn", v_turn); // rotate an entity/tag rigidly about a shared pivot
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
     r.verb("wordpop", v_wordpop); // pop caption words in one at a time
     r.verb("wander", v_wander); // contained deterministic ambient particle motion
@@ -3682,6 +4053,140 @@ mod tests {
             "sticky(grp) should broadcast to tagged `b`"
         );
         assert!(m.validate().is_ok());
+    }
+
+    #[test]
+    fn attach_follows_then_releases_without_a_snap() {
+        let movie = crate::parse(
+            "canvas(800,600);\n\
+             dot(anchor,(100,200),8);\n\
+             text(note,(100,170),\"tracking\");\n\
+             attach(note,anchor,(0,-30));\n\
+             move(anchor,(300,200),1,linear);\n\
+             attach(note,none);\n\
+             move(anchor,(500,200),1,linear);",
+        )
+        .expect("attach/release should lower without flags");
+        let (base, timeline) = movie.finalize();
+
+        let moving = timeline.apply(&base, 0.5);
+        assert!((moving.get("anchor").unwrap().pos.x - 200.0).abs() < 0.01);
+        assert!((moving.get("note").unwrap().pos.x - 200.0).abs() < 0.01);
+        assert!((moving.get("note").unwrap().pos.y - 170.0).abs() < 0.01);
+
+        let released = timeline.apply(&base, 1.5);
+        assert!((released.get("anchor").unwrap().pos.x - 400.0).abs() < 0.01);
+        assert!((released.get("note").unwrap().pos.x - 300.0).abs() < 0.01);
+        assert!((released.get("note").unwrap().pos.y - 170.0).abs() < 0.01);
+        assert!(released.get("note").unwrap().follow.is_none());
+
+        // Scrubbing backwards after sampling the end must reproduce the same
+        // attached midpoint exactly.
+        let backwards = timeline.apply(&base, 0.5);
+        assert_eq!(
+            backwards.get("note").unwrap().pos,
+            moving.get("note").unwrap().pos
+        );
+    }
+
+    #[test]
+    fn attach_rejects_cycles_at_build_time() {
+        let error = crate::parse(
+            "canvas(800,600); dot(a,(100,100)); dot(b,(200,100)); attach(a,b); attach(b,a);",
+        )
+        .err()
+        .expect("attachment cycles must be rejected")
+        .to_string();
+        assert!(error.contains("cycle"), "{error}");
+    }
+
+    #[test]
+    fn become_interpolates_compatible_shapes_and_settles_exactly() {
+        let movie = crate::parse(
+            "canvas(800,600);\n\
+             circle(source,(100,250),20); color(source,cyan); outlined(source); stroke(source,2);\n\
+             circle(goal,(300,250),80); color(goal,magenta); outlined(goal); stroke(goal,9); hidden(goal);\n\
+             become(source,goal,1,linear);",
+        )
+        .expect("compatible become should lower");
+        let (base, timeline) = movie.finalize();
+        let halfway = timeline.apply(&base, 0.5);
+        let source = halfway.get("source").unwrap();
+        assert!((source.pos.x - 200.0).abs() < 0.01);
+        assert!(matches!(source.shape, Shape::Circle { r } if (r - 50.0).abs() < 0.01));
+        assert!((source.stroke.width - 5.5).abs() < 0.01);
+
+        let settled = timeline.apply(&base, 1.0);
+        let source = settled.get("source").unwrap();
+        let goal = settled.get("goal").unwrap();
+        assert_eq!(source.shape, Shape::Circle { r: 80.0 });
+        assert_eq!(source.pos, Vec2::new(300.0, 250.0));
+        assert_eq!(source.color, crate::style::MAGENTA);
+        assert!((source.stroke.width - 9.0).abs() < 1e-6);
+        assert!((source.opacity - 1.0).abs() < 1e-6);
+        assert!(
+            (goal.opacity - 0.0).abs() < 1e-6,
+            "blueprint visibility must not change"
+        );
+    }
+
+    #[test]
+    fn become_uses_a_safe_local_crossfade_for_incompatible_shapes() {
+        let movie = crate::parse(
+            "canvas(800,600); circle(source,(100,250),20); rect(goal,(300,250),120,70); hidden(goal); become(source,goal,1,linear);",
+        )
+        .expect("incompatible shapes should use the documented fallback");
+        let (base, timeline) = movie.finalize();
+        let midpoint = timeline.apply(&base, 0.5);
+        assert!(midpoint.get("source").unwrap().opacity.abs() < 1e-6);
+        let settled = timeline.apply(&base, 1.0);
+        assert_eq!(
+            settled.get("source").unwrap().shape,
+            Shape::Rect { w: 120.0, h: 70.0 }
+        );
+        assert!((settled.get("source").unwrap().opacity - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn turn_rotates_a_moved_group_and_path_rigidly_about_one_pivot() {
+        let movie = crate::parse(
+            "canvas(800,600);\n\
+             dot(pivot,(0,0),3); hidden(pivot);\n\
+             dot(a,(100,0),5); tag(a,rotor);\n\
+             dot(b,(0,100),5); tag(b,rotor);\n\
+             line(ray,(100,0),(200,0)); tag(ray,rotor);\n\
+             move(a,(200,0),1,linear);\n\
+             turn(rotor,pivot,90,1,linear);",
+        )
+        .expect("turn should accept an entity pivot and tag target");
+        let (base, timeline) = movie.finalize();
+        let settled = timeline.apply(&base, 2.0);
+        assert!(
+            settled
+                .get("a")
+                .unwrap()
+                .pos
+                .distance(Vec2::new(0.0, 200.0))
+                < 0.02
+        );
+        assert!(
+            settled
+                .get("b")
+                .unwrap()
+                .pos
+                .distance(Vec2::new(-100.0, 0.0))
+                < 0.02
+        );
+        let ray = settled.get("ray").unwrap();
+        assert!(ray.pos.distance(Vec2::new(0.0, 100.0)) < 0.02);
+        assert!(
+            matches!(ray.shape, Shape::Line { to } if to.distance(Vec2::new(0.0, 200.0)) < 0.02)
+        );
+
+        let middle = timeline.apply(&base, 1.5);
+        assert!((middle.get("a").unwrap().pos.length() - 200.0).abs() < 0.05);
+        let repeat = timeline.apply(&base, 2.0);
+        assert_eq!(repeat.get("a").unwrap().pos, settled.get("a").unwrap().pos);
     }
 
     /// `support(...)` lays out a hatched support (baseline + ticks), the bare id

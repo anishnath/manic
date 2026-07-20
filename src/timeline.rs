@@ -55,6 +55,8 @@ pub enum Prop {
     Pos,
     /// Endpoint of a `Line`/`Arrow`/`Curve` shape.
     To,
+    /// Control point of a quadratic `Curve` shape.
+    Ctrl,
     Color,
     Opacity,
     Scale,
@@ -93,6 +95,14 @@ pub enum TargetValue {
     Abs(Value),
     /// Current value + delta (`move_by`, `pulse`, `shake`).
     Rel(Value),
+    /// Rotate the current 2-D point about a shared pivot. Unlike an absolute
+    /// endpoint this resolves from the preceding track's settled value, so a
+    /// `turn` composes after `move`, `travel`, or another `turn` without a
+    /// constructor-position snap.
+    RotateAround {
+        pivot: Vec2,
+        degrees: f32,
+    },
     /// The value the property had before the previous track started
     /// (`highlight`/`pulse` auto-restore).
     Revert,
@@ -124,6 +134,27 @@ pub enum TimelineEvent {
         shape: Shape,
         at: f32,
     },
+    /// A time-scoped 2-D attachment relationship. `target: None` releases the
+    /// child; the accompanying zero-duration position track emitted by the DSL
+    /// keeps the release frame exact and lets later movement compose normally.
+    Attachment {
+        id: String,
+        target: Option<String>,
+        offset: Vec2,
+        at: f32,
+    },
+    /// A visual-blueprint transition used by `become`. Animatable scalar
+    /// properties travel on ordinary tracks; this event owns geometry and the
+    /// remaining shape styling, then installs the exact target at `u = 1`.
+    Become {
+        id: String,
+        from: Box<Entity>,
+        to: Box<Entity>,
+        at: f32,
+        dur: f32,
+        easing: Easing,
+        crossfade: bool,
+    },
 }
 
 impl TimelineEvent {
@@ -135,21 +166,58 @@ impl TimelineEvent {
         Self::Shape { id, shape, at }
     }
 
+    pub fn attachment(id: String, target: Option<String>, offset: Vec2, at: f32) -> Self {
+        Self::Attachment {
+            id,
+            target,
+            offset,
+            at,
+        }
+    }
+
+    pub fn visual_transition(
+        id: String,
+        from: Entity,
+        to: Entity,
+        dur: f32,
+        easing: Easing,
+        crossfade: bool,
+    ) -> Self {
+        Self::Become {
+            id,
+            from: Box::new(from),
+            to: Box::new(to),
+            at: 0.0,
+            dur,
+            easing,
+            crossfade,
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
-            Self::Text { id, .. } | Self::Shape { id, .. } => id,
+            Self::Text { id, .. }
+            | Self::Shape { id, .. }
+            | Self::Attachment { id, .. }
+            | Self::Become { id, .. } => id,
         }
     }
 
     pub fn at(&self) -> f32 {
         match self {
-            Self::Text { at, .. } | Self::Shape { at, .. } => *at,
+            Self::Text { at, .. }
+            | Self::Shape { at, .. }
+            | Self::Attachment { at, .. }
+            | Self::Become { at, .. } => *at,
         }
     }
 
     pub fn shift(&mut self, dt: f32) {
         match self {
-            Self::Text { at, .. } | Self::Shape { at, .. } => *at += dt,
+            Self::Text { at, .. }
+            | Self::Shape { at, .. }
+            | Self::Attachment { at, .. }
+            | Self::Become { at, .. } => *at += dt,
         }
     }
 }
@@ -262,6 +330,10 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
                 | Shape::Coil { to, .. } => Value::V(*to),
                 _ => return None,
             },
+            Prop::Ctrl => match &e.shape {
+                Shape::Curve { ctrl, .. } => Value::V(*ctrl),
+                _ => return None,
+            },
             Prop::PlotX => match &e.graph_view {
                 Some(gv) => Value::F(gv.x()),
                 None => return None,
@@ -292,7 +364,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             }
             Value::F(0.0)
         }
-        Prop::Rot | Prop::Hue | Prop::Value | Prop::PlotX | Prop::Flow => return None,
+        Prop::Rot | Prop::Ctrl | Prop::Hue | Prop::Value | Prop::PlotX | Prop::Flow => return None,
     })
 }
 
@@ -358,6 +430,11 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                     *to = p;
                 }
             }
+            (Prop::Ctrl, Value::V(p)) => {
+                if let Shape::Curve { ctrl, .. } = &mut e.shape {
+                    *ctrl = p;
+                }
+            }
             (Prop::PlotX, Value::F(nx)) => {
                 // move the view's parameter, then recompute the entity from it
                 if let Some(gv) = e.graph_view.as_mut() {
@@ -391,6 +468,7 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                 *to = p;
             }
         }
+        (Prop::Ctrl, _) => {}
         (Prop::Morph, Value::F(f)) => {
             use crate::primitives3d::{Morph3Kind, Shape3D};
             if let Some(m) = &e.morph3 {
@@ -660,18 +738,190 @@ fn linked_boundary_trim(e: &Entity, dir_world: Vec2, fallback: f32) -> f32 {
     }
 }
 
+/// Whether two shapes have a topology-preserving direct interpolation. Other
+/// pairs still work through `become`, but use its local fade/swap/fade fallback.
+pub(crate) fn shape_transition_compatible(from: &Shape, to: &Shape) -> bool {
+    match (from, to) {
+        (Shape::Circle { .. }, Shape::Circle { .. })
+        | (Shape::Rect { .. }, Shape::Rect { .. })
+        | (Shape::Line { .. }, Shape::Line { .. })
+        | (Shape::Arrow { .. }, Shape::Arrow { .. })
+        | (Shape::Curve { .. }, Shape::Curve { .. })
+        | (Shape::Arc { .. }, Shape::Arc { .. }) => true,
+        (Shape::Coil { turns: a, .. }, Shape::Coil { turns: b, .. }) => a == b,
+        (Shape::Polygon { pts: a }, Shape::Polygon { pts: b })
+        | (Shape::Polyline { pts: a }, Shape::Polyline { pts: b }) => {
+            a.len() == b.len() && !a.is_empty()
+        }
+        _ => false,
+    }
+}
+
+fn lerp_shape(from: &Shape, to: &Shape, u: f32) -> Option<Shape> {
+    let f = |a: f32, b: f32| a + (b - a) * u;
+    let v = |a: Vec2, b: Vec2| a.lerp(b, u);
+    Some(match (from, to) {
+        (Shape::Circle { r: a }, Shape::Circle { r: b }) => Shape::Circle { r: f(*a, *b) },
+        (Shape::Rect { w: aw, h: ah }, Shape::Rect { w: bw, h: bh }) => Shape::Rect {
+            w: f(*aw, *bw),
+            h: f(*ah, *bh),
+        },
+        (Shape::Line { to: a }, Shape::Line { to: b }) => Shape::Line { to: v(*a, *b) },
+        (Shape::Arrow { to: a }, Shape::Arrow { to: b }) => Shape::Arrow { to: v(*a, *b) },
+        (
+            Shape::Curve {
+                ctrl: ac,
+                to: at,
+                arrow: aa,
+            },
+            Shape::Curve {
+                ctrl: bc,
+                to: bt,
+                arrow: ba,
+            },
+        ) if aa == ba => Shape::Curve {
+            ctrl: v(*ac, *bc),
+            to: v(*at, *bt),
+            arrow: *aa,
+        },
+        (Shape::Coil { to: a, turns: at }, Shape::Coil { to: b, turns: bt }) if at == bt => {
+            Shape::Coil {
+                to: v(*a, *b),
+                turns: *at,
+            }
+        }
+        (Shape::Polygon { pts: a }, Shape::Polygon { pts: b }) if a.len() == b.len() => {
+            Shape::Polygon {
+                pts: a.iter().zip(b).map(|(a, b)| v(*a, *b)).collect(),
+            }
+        }
+        (Shape::Polyline { pts: a }, Shape::Polyline { pts: b }) if a.len() == b.len() => {
+            Shape::Polyline {
+                pts: a.iter().zip(b).map(|(a, b)| v(*a, *b)).collect(),
+            }
+        }
+        (
+            Shape::Arc {
+                r: ar,
+                inner: ai,
+                start: ast,
+                sweep: asw,
+            },
+            Shape::Arc {
+                r: br,
+                inner: bi,
+                start: bst,
+                sweep: bsw,
+            },
+        ) => Shape::Arc {
+            r: f(*ar, *br),
+            inner: f(*ai, *bi),
+            start: f(*ast, *bst),
+            sweep: f(*asw, *bsw),
+        },
+        _ => return None,
+    })
+}
+
+fn lerp_color(a: Color, b: Color, u: f32) -> Color {
+    Color::new(
+        a.r + (b.r - a.r) * u,
+        a.g + (b.g - a.g) * u,
+        a.b + (b.b - a.b) * u,
+        a.a + (b.a - a.a) * u,
+    )
+}
+
+fn apply_become_visual(entity: &mut Entity, from: &Entity, to: &Entity, u: f32, crossfade: bool) {
+    if u >= 1.0 {
+        entity.shape = to.shape.clone();
+    } else if crossfade {
+        entity.shape = if u < 0.5 {
+            from.shape.clone()
+        } else {
+            to.shape.clone()
+        };
+    } else if let Some(shape) = lerp_shape(&from.shape, &to.shape, u) {
+        entity.shape = shape;
+    }
+
+    entity.stroke.width = from.stroke.width + (to.stroke.width - from.stroke.width) * u;
+    entity.stroke.fill = if u < 0.5 {
+        from.stroke.fill
+    } else {
+        to.stroke.fill
+    };
+    entity.stroke.outline = if u < 0.5 {
+        from.stroke.outline
+    } else {
+        to.stroke.outline
+    };
+    entity.stroke.outline_color = match (from.stroke.outline_color, to.stroke.outline_color) {
+        (Some(a), Some(b)) => Some(lerp_color(a, b, u)),
+        (a, b) => {
+            if u < 0.5 {
+                a
+            } else {
+                b
+            }
+        }
+    };
+    entity.glow = from.glow + (to.glow - from.glow) * u;
+    entity.corner_radius = from.corner_radius + (to.corner_radius - from.corner_radius) * u;
+    entity.wrap = match (from.wrap, to.wrap) {
+        (Some(a), Some(b)) => Some(a + (b - a) * u),
+        (a, b) => {
+            if u < 0.5 {
+                a
+            } else {
+                b
+            }
+        }
+    };
+    entity.dash = match (from.dash, to.dash) {
+        (Some((ad, ag)), Some((bd, bg))) => Some((ad + (bd - ad) * u, ag + (bg - ag) * u)),
+        (a, b) => {
+            if u < 0.5 {
+                a
+            } else {
+                b
+            }
+        }
+    };
+    if u >= 0.5 {
+        entity.font = to.font;
+        entity.align = to.align;
+        entity.z = to.z;
+        entity.type_cursor = to.type_cursor;
+    }
+    if u >= 1.0 {
+        entity.hue = to.hue;
+    }
+}
+
 impl Timeline {
     /// Replace a cached image path in future shape events after the player has
     /// resolved semantic LaTeX colours through the selected template.
     pub fn remap_image_path(&mut self, from: &str, to: &str) {
         for event in &mut self.events {
-            let TimelineEvent::Shape { shape, .. } = event else {
-                continue;
-            };
-            if let Shape::Image { path, .. } = shape {
-                if path == from {
-                    *path = to.to_string();
+            let remap = |shape: &mut Shape| {
+                if let Shape::Image { path, .. } = shape {
+                    if path == from {
+                        *path = to.to_string();
+                    }
                 }
+            };
+            match event {
+                TimelineEvent::Shape { shape, .. } => remap(shape),
+                TimelineEvent::Become {
+                    from: source,
+                    to: target,
+                    ..
+                } => {
+                    remap(&mut source.shape);
+                    remap(&mut target.shape);
+                }
+                _ => {}
             }
         }
     }
@@ -685,6 +935,10 @@ impl Timeline {
                     shape: Shape::Image { path, .. },
                     ..
                 } => Some(path.clone()),
+                TimelineEvent::Become { to, .. } => match &to.shape {
+                    Shape::Image { path, .. } => Some(path.clone()),
+                    _ => None,
+                },
                 _ => None,
             })
             .collect()
@@ -728,6 +982,14 @@ impl Timeline {
                 let to = match s.target {
                     TargetValue::Abs(v) => v,
                     TargetValue::Rel(v) => from.add(v),
+                    TargetValue::RotateAround { pivot, degrees } => match from {
+                        Value::V(point) => {
+                            let (sn, cs) = degrees.to_radians().sin_cos();
+                            let d = point - pivot;
+                            Value::V(pivot + Vec2::new(d.x * cs - d.y * sn, d.x * sn + d.y * cs))
+                        }
+                        _ => from,
+                    },
                     TargetValue::Revert => prev_from.unwrap_or(base_val),
                 };
                 resolved.push(Track {
@@ -797,6 +1059,31 @@ impl Timeline {
                 TimelineEvent::Shape { id, shape, .. } => {
                     if let Some(e) = scene.get_mut(id) {
                         e.shape = shape.clone();
+                    }
+                }
+                TimelineEvent::Attachment {
+                    id, target, offset, ..
+                } => {
+                    if let Some(e) = scene.get_mut(id) {
+                        e.follow = target.clone().map(|target| (target, *offset));
+                    }
+                }
+                TimelineEvent::Become {
+                    id,
+                    from,
+                    to,
+                    at,
+                    dur,
+                    easing,
+                    crossfade,
+                } => {
+                    let u = if *dur <= 0.0 {
+                        1.0
+                    } else {
+                        easing.apply(((t - *at) / *dur).clamp(0.0, 1.0))
+                    };
+                    if let Some(e) = scene.get_mut(id) {
+                        apply_become_visual(e, from, to, u, *crossfade);
                     }
                 }
             }

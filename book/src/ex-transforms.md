@@ -2,6 +2,32 @@
 
 Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
 
+## motion-graphics-v2
+
+The generic Motion Graphics V2 acceptance scene: one persistent marker carries an attached
+label along a path, becomes a declared visual blueprint, releases the label, gathers the
+same particles into a ring, and turns the whole arrangement around one shared pivot. Uses
+`attach`, `become`, and `turn` with no renderer flags or subject-specific vocabulary.
+
+```manic
+{{#include ../../examples/motion-graphics-v2.manic}}
+```
+
+<div class="manic-video" data-video="ex-motion-graphics-v2"></div>
+
+## motion-graphics-v2-story
+
+The advanced composition example: one question travels through a field of facts, its `WHY?`
+label follows, notation rewrites into a pattern, the question becomes a model, and the same
+facts arrange and turn as one knowledge system. Combines `attach`, `become`, and `turn` with
+`to`, `travel`, `flow`, `spin`, `arrange`, `wander`, `rewrite`, `seq`, `par`, and `stagger`.
+
+```manic
+{{#include ../../examples/motion-graphics-v2-story.manic}}
+```
+
+<div class="manic-video" data-video="ex-motion-graphics-v2-story"></div>
+
 ## reactive-math-journey
 
 A playful vertical journey from `1+1` in Class 1 through fractions, algebra,

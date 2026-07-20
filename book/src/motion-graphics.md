@@ -1,65 +1,155 @@
 # Motion graphics — move ideas, not layers
 
-Most explanatory animation is not a sequence of disconnected scenes. A dot
-becomes a data point, follows a curve, joins a ring, and then stops. Manic keeps
-that object identity visible, while its timeline stays deterministic and freely
-scrubbable.
+Motion Graphics V2 is built around continuity. Keep one object alive while it
+moves, follows another object, changes visual form, joins a layout, or turns as
+part of a system. The timeline remains deterministic and freely scrubbable.
 
-## The small vocabulary that covers the common jobs
+There is no V2 mode or production flag. Write an ordinary `.manic` file and use
+the relationship only where the story needs it.
 
-| Intent | Manic | What the viewer sees |
+## The complete everyday vocabulary
+
+| Creator intent | Manic | Result |
 |---|---|---|
-| Ambient life inside a region | `wander(group, dur)` | independent contained motion |
-| Reorganize the same particles | `arrange(group, region, "random|grid|ring", dur, ease)` | a state change, not a crossfade |
-| Move a real object along a path | `travel(marker, path, dur, ease)` | the marker arrives and remains at the endpoint |
-| Send temporary emphasis along a path | `flow(path, dur)` | a pulse passes; the authored objects do not move |
-| Preserve a path across ideas | `morph(from, to)` + `to(from, morph, 1, dur)` | one open path becomes another without a closing chord |
-| Rotate or shear a whole group | `transform(tag, origin, a,b,c,d,dur,ease)` | every tagged object moves as one system |
+| Keep one object beside another | `attach(child, target, [(dx,dy)])` | the child follows every resolved target position |
+| Stop following | `attach(child, none)` | the child releases at the settled position without a second verb |
+| Change visual identity | `become(source, blueprint, [dur], [ease])` | the source keeps its id and settles exactly on the blueprint |
+| Turn a whole arrangement | `turn(id_or_tag, pivot, degrees, [dur], [ease])` | every member follows the same circular pivot motion |
+| Move a real object on a path | `travel(object, path, dur, ease)` | the object arrives and remains at the endpoint |
+| Send temporary path emphasis | `flow(path, dur)` | a pulse passes without moving an authored object |
+| Add contained ambient life | `wander(particles, dur)` | seeded, repeatable motion within the container |
+| Reorganize the same particles | `arrange(particles, region, "random|grid|ring", dur, ease)` | identity-preserving layout change |
+| Change an ordinary property | `to(id, property, value, dur, ease)` | the general escape hatch remains available |
 
-`random` is seeded but not rigid. Each particle follows its own stable curved
-route, so preview and export match exactly without the “assigned target on a
-ruler” look. `grid` and `ring` remain direct, ordered layouts because their
-structure is the point.
+The three V2 words add relationships; they do not replace `move`, `travel`,
+`flow`, `arrange`, `spin`, `transform`, `rewrite`, or `morph`.
 
-## Choose `travel` or `flow` deliberately
+## `attach` — author the relationship
 
 ```manic
-plot(curve, (180,620), 90, 140, "1-exp(-x)", (0,4));
-dot(marker, (180,620), 7);
+dot(marker, (180,620), 8);
+text(readout, (180,580), "sample A");
+plot(curve, (180,620), 90,140,"1-exp(-x)",(0,4));
 
+attach(readout, marker, (0,-40));
+travel(marker, curve, 2, smooth);
+attach(readout, none); // release at the settled endpoint
+```
+
+The child follows after normal tracks, reactive bindings, derived geometry,
+links, particle layouts, and path travel have resolved. Its opacity is
+multiplied by the target opacity, so a label naturally disappears with the
+thing it explains.
+
+Use an offset to keep the child readable. Release at the end of a movement,
+then `move`, `fade`, or reuse the child normally. Attachment cycles are rejected
+while building the movie rather than failing during rendering.
+
+## `become` — preserve identity across a visual change
+
+Declare the destination like any other entity and hide it when it is only a
+blueprint:
+
+```manic
+circle(seed, (220,700), 16); color(seed, cyan);
+circle(node, (820,700), 62); color(node, magenta);
+outlined(node); stroke(node, 7); hidden(node);
+
+become(seed, node, 0.9, smooth);
+```
+
+Compatible geometry interpolates continuously, including circle, rectangle,
+line, arrow, curve, coil, arc, and equal-topology polygon/polyline pairs.
+Unsupported pairs use a local fade/swap/fade instead of producing broken
+geometry. Both paths settle on the exact target geometry and styling while the
+source id remains alive. A hidden blueprint does not make the transformed
+source disappear, and the blueprint's own visibility is never changed.
+
+Use `rewrite` for equations because it understands matching LaTeX visual parts.
+Use `morph` plus `to(..., morph, ...)` when you explicitly need a fraction-driven
+point morph or winding angle.
+
+## `turn` — rotate the system, not every member
+
+```manic
+circle(orbit, (540,700), 220); hidden(orbit);
+particles(dots, orbit, 16, 7, 42, "ring");
+
+turn(dots, orbit, 24, 0.65, out);
+```
+
+The first argument may be one entity or a tag. The pivot may be a point or an
+entity. Positions follow circular paths, path endpoints and curve controls turn
+with their paths, and ordinary shapes retain their group-local orientation.
+Because the target is resolved from the latest authored state, `turn` composes
+after `move`, `travel`, `arrange`, or an earlier `turn` without snapping back.
+
+Use `spin` for one object's in-place rotation. Use `transform` when the actual
+idea is a matrix, shear, reflection, or other precise linear map.
+
+## `travel` versus `flow`
+
+```manic
 par {
   draw(curve, 2, out);
-  travel(marker, curve, 2, out); // marker moves and stops at the end
-  flow(curve, 1);                // temporary highlight only
+  travel(marker, curve, 2, out); // the marker moves and stays
+  flow(curve, 1);                // temporary travelling emphasis
 }
 ```
 
-Use `travel` when the moving thing has identity: a vehicle, probe, token,
-particle, or graph marker. Use `flow` for energy, attention, traffic, or a signal
-that should disappear after passing.
+Use `travel` for a vehicle, probe, token, particle, or graph marker. Use `flow`
+for energy, attention, traffic, or a signal that should disappear after passing.
 
-## Make arrival and rest both readable
+## Complete V2 example
 
-Motion feels intentional when it has a settling frame. Arrange the objects,
-give the group a short final turn, then leave a hold:
+This generic Reel demonstrates all three relationship words, release, path
+travel, an identity-preserving blueprint change, particle arrangement, a shared
+pivot turn, and a readable final hold:
 
 ```manic
-circle(orbit, (540,700), 240); hidden(orbit);
-
-seq {
-  arrange(dots, orbit, "ring", 1.1, smooth);
-  transform(dots, (540,700), 0.966, -0.259, 0.259, 0.966, 0.5, out);
-  wait(1.2); // the audience gets time to read the finished state
-}
+{{#include ../../examples/motion-graphics-v2.manic}}
 ```
 
-The matrix above is a 15° rotation. Use a small angle and `out` for a quick
-decelerating settle; larger angles read as a spin rather than an arrival.
+<div class="manic-video" data-video="ex-motion-graphics-v2"></div>
 
-## Complete example
+Run it directly—no extra runtime option is required:
 
-This scene combines organic particles, a persistent path marker, topology-safe
-morphing, an ordered ring, and a brief final settle:
+```bash
+manic examples/motion-graphics-v2.manic
+```
+
+## Advanced story — compose the whole motion language
+
+The compact example above answers “what do the three new words do?” This
+advanced Reel answers the more important creator question: “how do they form a
+story with the motion vocabulary I already know?”
+
+It keeps one visual world alive across three acts:
+
+1. A question travels while its label stays attached; a path pulse guides the
+   eye and surrounding facts wander.
+2. The notation rewrites, the same question becomes a model, and the same facts
+   arrange into a system. The model then spins locally.
+3. Labels and particles turn around one shared pivot while the equation reaches
+   the story's final meaning.
+
+`seq` creates cause and effect, `par` groups changes that express one idea, and
+`stagger` prevents a dense scene from arriving as a visual shock.
+
+```manic
+{{#include ../../examples/motion-graphics-v2-story.manic}}
+```
+
+<div class="manic-video" data-video="ex-motion-graphics-v2-story"></div>
+
+Run the advanced story through the same file-only production path:
+
+```bash
+manic examples/motion-graphics-v2-story.manic
+```
+
+The original essentials example remains useful when learning `wander`,
+`travel`, explicit `morph`, and particle arrangement:
 
 ```manic
 {{#include ../../examples/motion-graphics.manic}}
@@ -67,18 +157,13 @@ morphing, an ordered ring, and a brief final settle:
 
 <div class="manic-video" data-video="ex-motion-graphics"></div>
 
-Run it with:
+## Professional motion checklist
 
-```bash
-manic examples/motion-graphics.manic
-```
-
-## Creator tips
-
-- Run ambient motion in `par` with the explanation so it adds life without
-  delaying the story.
-- Use one persistent id across a change. Recreating the object loses continuity.
-- Let important movement finish before the next sentence begins.
-- Reserve `elastic` or `bounce` for playful subjects. `smooth` and `out` suit
-  graphs, science, product demos, and professional explainers.
-- Add a short `wait` after the final motion. Stopping is part of the animation.
+- Author relationships and final states; avoid hand-keyframing intermediate
+  coordinates.
+- Use `par` for changes that belong to one idea and `seq` for cause-and-effect.
+- Prefer `smooth` for explanatory transformations and `out` for a short settle.
+- Keep an important object id alive instead of fading it out and rebuilding it.
+- Leave a final `wait` so the audience can read the state motion created.
+- Preview by named `step` and scrub backwards: the same time must always produce
+  the same frame.

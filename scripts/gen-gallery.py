@@ -496,6 +496,16 @@ SECTIONS = [
    ("conics", "Ellipse, parabola, hyperbola."),
  ]),
  dict(slug="transforms", title="Transforms & morphing", intro="", sub=SUB, items=[
+   ("motion-graphics-v2",
+    "The generic Motion Graphics V2 acceptance scene: one persistent marker carries an attached\n"
+    "label along a path, becomes a declared visual blueprint, releases the label, gathers the\n"
+    "same particles into a ring, and turns the whole arrangement around one shared pivot. Uses\n"
+    "`attach`, `become`, and `turn` with no renderer flags or subject-specific vocabulary."),
+   ("motion-graphics-v2-story",
+    "The advanced composition example: one question travels through a field of facts, its `WHY?`\n"
+    "label follows, notation rewrites into a pattern, the question becomes a model, and the same\n"
+    "facts arrange and turn as one knowledge system. Combines `attach`, `become`, and `turn` with\n"
+    "`to`, `travel`, `flow`, `spin`, `arrange`, `wander`, `rewrite`, `seq`, `par`, and `stagger`."),
    ("reactive-math-journey",
     "A playful vertical journey from `1+1` in Class 1 through fractions, algebra,\n"
     "geometry, calculus, linear algebra, probability and Fourier analysis to a PhD-level\n"

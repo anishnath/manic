@@ -544,6 +544,7 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
             // a mutating verb carries state forward, so it gets `&mut scene`
             if let Some(f) = registry.mut_verbs.get(s.name.as_str()) {
                 let clip = f(&mut movie.scene, &args_of(s))?;
+                movie.scene.record_authored_clip(&clip);
                 movie.play(clip);
                 return Ok(());
             }
@@ -553,6 +554,7 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
                 .get(s.name.as_str())
                 .expect("classified as verb");
             let clip = run_verb(*f, &movie.scene, s)?;
+            movie.scene.record_authored_clip(&clip);
             movie.play(clip);
             Ok(())
         }
@@ -733,10 +735,16 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
         _ => {
             // a mutating verb carries state forward, so it gets `&mut scene`
             if let Some(f) = registry.mut_verbs.get(s.name.as_str()) {
-                return f(scene, &args_of(s));
+                let clip = f(scene, &args_of(s))?;
+                scene.record_authored_clip(&clip);
+                return Ok(clip);
             }
             match registry.verbs.get(s.name.as_str()) {
-                Some(f) => run_verb(*f, scene, s),
+                Some(f) => {
+                    let clip = run_verb(*f, scene, s)?;
+                    scene.record_authored_clip(&clip);
+                    Ok(clip)
+                }
                 None => {
                     // constructor or unknown used in a timeline block
                     if registry.ctors.contains_key(s.name.as_str()) {
