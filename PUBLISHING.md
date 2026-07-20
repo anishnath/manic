@@ -130,6 +130,24 @@ bash scripts/embed-videos.sh     # → book/book/  with real players
 > Shortcut for steps 4–6: `python youtube/manic_youtube.py --all --privacy public`
 > runs render → upload → embed in one go.
 
+## 6b. Publish a native Reddit video (optional)
+
+The sibling Reddit publisher reuses the same title, rendered MP4, gallery
+description, and exact source link. It defaults to `r/maniclang`, supports
+community-specific title/body/flair overrides, and refuses accidental duplicate
+posts through `reddit/post_state.json`:
+
+```sh
+python reddit/manic_reddit.py --only textbook-watermelon-sections --dry-run
+python reddit/manic_reddit.py --only textbook-watermelon-sections
+```
+
+The first command is read-only and needs no credentials. Before the second,
+create a Reddit script application and configure the `REDDIT_*` variables or an
+ignored PRAW profile as described in [`reddit/README.md`](reddit/README.md).
+Posting remains interactive unless `--yes` is explicitly supplied. Review each
+target community's rules before reusing a post outside `r/maniclang`.
+
 ## 7. Deploy the built book into the playground → `/manic/docs`
 
 Copy the generated site into the `crypto-tool` webapp; it's served at `/manic/docs/`:
