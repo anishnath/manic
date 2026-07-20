@@ -23,8 +23,8 @@ use crate::parser::parse;
 
 /// Control-flow / meta names handled by the lowerer, not the registry.
 const RESERVED_CONTROL: &[&str] = &[
-    "par", "seq", "stagger", "step", "timed", "during", "section", "wait", "beat", "mark",
-    "title", "canvas", "template", "masthead",
+    "par", "seq", "stagger", "step", "timed", "during", "section", "wait", "beat", "mark", "title",
+    "canvas", "template", "masthead",
 ];
 
 // ---- output shapes --------------------------------------------------------
@@ -611,9 +611,9 @@ mod tests {
         let src = "step(\"explain\") { wait(1); }";
         assert_eq!(kinds_at(&tokenize(src), src, "step"), Some("keyword"));
         assert!(check(src).is_empty(), "step should be editor-valid");
-        assert!(complete("ste", 3).iter().any(|c| {
-            c.label == "step" && c.insert.contains("step(\"name\")")
-        }));
+        assert!(complete("ste", 3)
+            .iter()
+            .any(|c| { c.label == "step" && c.insert.contains("step(\"name\")") }));
         // A bare `step` remains available as the named Heaviside plot function.
         let plot = "plot(f,(0,0),80,60,step);";
         assert_ne!(kinds_at(&tokenize(plot), plot, "step"), Some("keyword"));
@@ -633,9 +633,14 @@ mod tests {
                    bind(a,f,formula,\"p*x*x\");\n\
                    bind(a,d,x,200,1000);\n\
                    step(\"opens down\") { to(a,value,-1,1,smooth); }";
-        assert!(check(src).is_empty(), "parameter journey should be editor-valid");
+        assert!(
+            check(src).is_empty(),
+            "parameter journey should be editor-valid"
+        );
         assert_eq!(kinds_at(&tokenize(src), src, "parameter"), Some("builtin"));
-        assert!(complete("para", 4).iter().any(|item| item.label == "parameter"));
+        assert!(complete("para", 4)
+            .iter()
+            .any(|item| item.label == "parameter"));
         assert!(complete("bin", 3).iter().any(|item| item.label == "bind"));
     }
 
@@ -650,7 +655,10 @@ mod tests {
         // an unknown bareword function is flagged (was silently accepted → Render
         // wrongly enabled; the `acos` drift). Suggestion offered.
         let d = check("plot(f, (0,0), 80, 60, foobar);");
-        let err = d.iter().find(|x| x.severity == "error").expect("expected an error");
+        let err = d
+            .iter()
+            .find(|x| x.severity == "error")
+            .expect("expected an error");
         assert!(err.message.contains("function"), "msg: {}", err.message);
         // a valid bareword (incl. the newly-added inverse trig) is accepted
         assert!(check("plot(f, (0,0), 80, 60, acos);")
@@ -690,7 +698,10 @@ mod tests {
     fn glued_var_function_suggests_a_star() {
         // `g3rcos(x)` = `g3r` (var) × `cos` (fn) run together — the wheel-graph slip.
         let d = check("let g3r = 5;\ndot(p, (g3rcos(0), 0), 3);");
-        let v = d.iter().find(|x| x.message.contains("g3rcos")).expect("flagged");
+        let v = d
+            .iter()
+            .find(|x| x.message.contains("g3rcos"))
+            .expect("flagged");
         assert_eq!(v.fix.as_ref().unwrap().replacement, "g3r * cos");
     }
 
@@ -698,7 +709,10 @@ mod tests {
     fn constant_used_as_function_suggests_a_star() {
         // `tau(x)` — tau is a constant, not a function.
         let d = check("dot(p, (tau(1), 0), 3);");
-        let v = d.iter().find(|x| x.message.contains("constant")).expect("flagged");
+        let v = d
+            .iter()
+            .find(|x| x.message.contains("constant"))
+            .expect("flagged");
         assert_eq!(v.fix.as_ref().unwrap().replacement, "tau * ");
     }
 

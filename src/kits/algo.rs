@@ -1852,11 +1852,7 @@ fn v_dijkstra(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                     parent_edge.insert(v.clone(), eid.clone());
                     recolor(&mut tracks, &eid, C_FRONTIER, sub);
                     recolor(&mut tracks, &v, C_FRONTIER, sub + 0.1);
-                    events.push(TextEvent::text(
-                        format!("{v}.d"),
-                        fmt_num(nd),
-                        sub + 0.15,
-                    ));
+                    events.push(TextEvent::text(format!("{v}.d"), fmt_num(nd), sub + 0.15));
                     sub += 0.26;
                 }
             }

@@ -170,13 +170,14 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "particles",
             Ctor,
             "std",
-            "deterministic small dots inside a circle or rectangle",
+            "deterministic small dots inside a circle or rectangle; optional random/grid/ring layout",
             &[
                 ("id", Name, R),
                 ("container", Ident, R),
                 ("count", Num, R),
                 ("radius", Num, O),
                 ("seed", Num, O),
+                ("layout", Str, O),
             ],
         ),
         spec(
@@ -518,6 +519,31 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "std",
             "gently move a particle group inside its source container",
             &[("particles", Ident, R), ("dur", Num, O)],
+        ),
+        spec(
+            "arrange",
+            MutVerb,
+            "std",
+            "move persistent particles into a deterministic random, grid, or ring layout; random uses stable organic curved routes",
+            &[
+                ("particles", Ident, R),
+                ("container", Ident, R),
+                ("layout", Str, O),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
+        ),
+        spec(
+            "travel",
+            MutVerb,
+            "std",
+            "move one persistent entity once along an existing path and stop at its endpoint",
+            &[
+                ("entity", Ident, R),
+                ("path", Ident, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
         ),
         spec(
             "shift",

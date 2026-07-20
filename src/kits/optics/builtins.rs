@@ -35,7 +35,11 @@ fn medium_tint(n: f32) -> f32 {
 /// `{id}.thetat`. All tagged bare `{id}` so `color`/`show`/`hidden` broadcast.
 pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 360.0)
+    };
     let n1 = a.opt_num(2)?.unwrap_or(1.0).max(1.0);
     let n2 = a.opt_num(3)?.unwrap_or(1.5).max(1.0);
     let fixed_angle = a.opt_num(4)?;
@@ -61,7 +65,11 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let mut tt_val = Vec::with_capacity(n);
 
     for k in 0..n {
-        let f = if n <= 1 { 0.0 } else { k as f32 / (n - 1) as f32 };
+        let f = if n <= 1 {
+            0.0
+        } else {
+            k as f32 / (n - 1) as f32
+        };
         let deg = a0 + (a1 - a0) * f;
         let th = deg.to_radians();
         let (si, co) = (th.sin(), th.cos());
@@ -94,7 +102,10 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let tint = |strength: f32, y: f32, part: &str| -> Entity {
         let mut m = Entity::new(
             format!("{id}.{part}"),
-            Shape::Rect { w: hw * 2.0, h: 230.0 },
+            Shape::Rect {
+                w: hw * 2.0,
+                h: 230.0,
+            },
             Vec2::new(cx, y),
             style::CYAN,
         );
@@ -109,7 +120,9 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut iface = Entity::new(
         format!("{id}.interface"),
-        Shape::Line { to: Vec2::new(cx + hw, cy) },
+        Shape::Line {
+            to: Vec2::new(cx + hw, cy),
+        },
         Vec2::new(cx - hw, cy),
         style::FG,
     );
@@ -119,7 +132,9 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut normal = Entity::new(
         format!("{id}.normal"),
-        Shape::Line { to: Vec2::new(cx, cy + 168.0) },
+        Shape::Line {
+            to: Vec2::new(cx, cy + 168.0),
+        },
         Vec2::new(cx, cy - 168.0),
         style::DIM,
     );
@@ -128,17 +143,34 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(normal);
 
     // ---- the three rays ----
-    let mut ray = |part: &str, from: Vec2, to: Vec2, color: Color, width: f32, glow: f32, op: f32| {
-        let mut e = Entity::new(format!("{id}.{part}"), Shape::Arrow { to }, from, color);
-        e.stroke.width = width;
-        e.glow = glow;
-        e.opacity = op;
-        e.tags = tag();
-        s.add(e);
-    };
+    let mut ray =
+        |part: &str, from: Vec2, to: Vec2, color: Color, width: f32, glow: f32, op: f32| {
+            let mut e = Entity::new(format!("{id}.{part}"), Shape::Arrow { to }, from, color);
+            e.stroke.width = width;
+            e.glow = glow;
+            e.opacity = op;
+            e.tags = tag();
+            s.add(e);
+        };
     ray("incident", src_pts[0], hit, style::GOLD, 3.0, 1.4, 1.0); // tail sweeps, head at hit
-    ray("refracted", hit, refr_to[0], style::CYAN, 3.0, 1.4, refr_op[0].x); // head sweeps
-    ray("reflected", hit, refl_to[0], style::ORANGE, 2.5, 1.0, refl_op[0].x);
+    ray(
+        "refracted",
+        hit,
+        refr_to[0],
+        style::CYAN,
+        3.0,
+        1.4,
+        refr_op[0].x,
+    ); // head sweeps
+    ray(
+        "reflected",
+        hit,
+        refl_to[0],
+        style::ORANGE,
+        2.5,
+        1.0,
+        refl_op[0].x,
+    );
 
     // ---- live angle readouts ----
     let mut readout = |part: &str, v: f32, prefix: &str, at: Vec2, color: Color| {
@@ -150,7 +182,10 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
         };
         let mut e = Entity::new(
             format!("{id}.{part}"),
-            Shape::Text { content: counter.render(), size: 22.0 },
+            Shape::Text {
+                content: counter.render(),
+                size: 22.0,
+            },
             at,
             color,
         );
@@ -158,13 +193,28 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
         e.tags = tag();
         s.add(e);
     };
-    readout("thetai", ti_val[0].x, "in = ", Vec2::new(cx - 150.0, cy - 44.0), style::GOLD);
-    readout("thetat", tt_val[0].x, "out = ", Vec2::new(cx + 155.0, cy + 66.0), style::CYAN);
+    readout(
+        "thetai",
+        ti_val[0].x,
+        "in = ",
+        Vec2::new(cx - 150.0, cy - 44.0),
+        style::GOLD,
+    );
+    readout(
+        "thetat",
+        tt_val[0].x,
+        "out = ",
+        Vec2::new(cx + 155.0, cy + 66.0),
+        style::CYAN,
+    );
 
     // TIR callout — hidden except while the light is totally internally reflected
     let mut tir = Entity::new(
         format!("{id}.tir"),
-        Shape::Text { content: "total internal reflection".into(), size: 22.0 },
+        Shape::Text {
+            content: "total internal reflection".into(),
+            size: 22.0,
+        },
         Vec2::new(cx, cy + 120.0),
         style::ORANGE,
     );
@@ -174,16 +224,52 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // ---- playback (the parameter sweep) ----
     let playback = vec![
-        PlaybackTrack { id: format!("{id}.incident"), prop: Prop::Pos, points: src_pts },
-        PlaybackTrack { id: format!("{id}.refracted"), prop: Prop::To, points: refr_to },
-        PlaybackTrack { id: format!("{id}.refracted"), prop: Prop::Opacity, points: refr_op.clone() },
-        PlaybackTrack { id: format!("{id}.reflected"), prop: Prop::To, points: refl_to },
-        PlaybackTrack { id: format!("{id}.reflected"), prop: Prop::Opacity, points: refl_op },
-        PlaybackTrack { id: format!("{id}.thetai"), prop: Prop::Value, points: ti_val },
-        PlaybackTrack { id: format!("{id}.thetat"), prop: Prop::Value, points: tt_val },
+        PlaybackTrack {
+            id: format!("{id}.incident"),
+            prop: Prop::Pos,
+            points: src_pts,
+        },
+        PlaybackTrack {
+            id: format!("{id}.refracted"),
+            prop: Prop::To,
+            points: refr_to,
+        },
+        PlaybackTrack {
+            id: format!("{id}.refracted"),
+            prop: Prop::Opacity,
+            points: refr_op.clone(),
+        },
+        PlaybackTrack {
+            id: format!("{id}.reflected"),
+            prop: Prop::To,
+            points: refl_to,
+        },
+        PlaybackTrack {
+            id: format!("{id}.reflected"),
+            prop: Prop::Opacity,
+            points: refl_op,
+        },
+        PlaybackTrack {
+            id: format!("{id}.thetai"),
+            prop: Prop::Value,
+            points: ti_val,
+        },
+        PlaybackTrack {
+            id: format!("{id}.thetat"),
+            prop: Prop::Value,
+            points: tt_val,
+        },
         // the "out" readout hides at TIR (same on/off as the refracted ray)
-        PlaybackTrack { id: format!("{id}.thetat"), prop: Prop::Opacity, points: refr_op },
-        PlaybackTrack { id: format!("{id}.tir"), prop: Prop::Opacity, points: tir_op },
+        PlaybackTrack {
+            id: format!("{id}.thetat"),
+            prop: Prop::Opacity,
+            points: refr_op,
+        },
+        PlaybackTrack {
+            id: format!("{id}.tir"),
+            prop: Prop::Opacity,
+            points: tir_op,
+        },
     ];
     s.sims.insert(
         id,
@@ -216,7 +302,11 @@ pub fn c_refract(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// `{id}.out{i}`. All tagged bare `{id}` so `color`/`show`/`hidden` broadcast.
 pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 360.0)
+    };
     let fixed_focal = a.opt_num(2)?;
     let ap = a.opt_num(3)?.unwrap_or(150.0).clamp(40.0, 320.0);
     let (cx, cy) = (center.x, center.y);
@@ -227,7 +317,11 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let nrays = 7usize; // odd → a chief ray on the axis
     let ys: Vec<f32> = (0..nrays)
         .map(|i| {
-            let t = if nrays <= 1 { 0.0 } else { i as f32 / (nrays - 1) as f32 };
+            let t = if nrays <= 1 {
+                0.0
+            } else {
+                i as f32 / (nrays - 1) as f32
+            };
             -ap + 2.0 * ap * t
         })
         .collect();
@@ -242,7 +336,11 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // one To-track of output-ray endpoints per ray
     let mut out_to: Vec<Vec<Vec2>> = vec![Vec::with_capacity(n); nrays];
     for k in 0..n {
-        let t = if n <= 1 { 0.0 } else { k as f32 / (n - 1) as f32 };
+        let t = if n <= 1 {
+            0.0
+        } else {
+            k as f32 / (n - 1) as f32
+        };
         let f = f0 + (f1 - f0) * t;
         focus_pts.push(Vec2::new(cx + f, cy));
         flabel_pts.push(Vec2::new(cx + f, cy - 26.0));
@@ -257,7 +355,9 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // ---- static scenery ----
     let mut axis = Entity::new(
         format!("{id}.axis"),
-        Shape::Line { to: Vec2::new(x_max, cy) },
+        Shape::Line {
+            to: Vec2::new(x_max, cy),
+        },
         Vec2::new(x_left, cy),
         style::DIM,
     );
@@ -279,7 +379,12 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let b = bulge * (1.0 - (y / ap) * (y / ap));
         lpts.push(Vec2::new(cx - b, cy + y));
     }
-    let mut lens = Entity::new(format!("{id}.lens"), Shape::Polygon { pts: lpts }, Vec2::ZERO, style::CYAN);
+    let mut lens = Entity::new(
+        format!("{id}.lens"),
+        Shape::Polygon { pts: lpts },
+        Vec2::ZERO,
+        style::CYAN,
+    );
     lens.stroke.fill = true;
     lens.stroke.outline = true;
     lens.stroke.width = 2.0;
@@ -295,7 +400,9 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     for (i, &y) in ys.iter().enumerate() {
         let mut inray = Entity::new(
             format!("{id}.in{i}"),
-            Shape::Line { to: Vec2::new(cx, cy + y) },
+            Shape::Line {
+                to: Vec2::new(cx, cy + y),
+            },
             Vec2::new(x_left, cy + y),
             style::GOLD,
         );
@@ -317,7 +424,12 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // ---- the focal point + its label ----
-    let mut focus = Entity::new(format!("{id}.focus"), Shape::Circle { r: 6.0 }, focus_pts[0], style::GOLD);
+    let mut focus = Entity::new(
+        format!("{id}.focus"),
+        Shape::Circle { r: 6.0 },
+        focus_pts[0],
+        style::GOLD,
+    );
     focus.stroke.fill = true;
     focus.stroke.outline = false;
     focus.glow = 2.0;
@@ -326,7 +438,10 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut flabel = Entity::new(
         format!("{id}.flabel"),
-        Shape::Text { content: "F".into(), size: 26.0 },
+        Shape::Text {
+            content: "F".into(),
+            size: 26.0,
+        },
         flabel_pts[0],
         style::GOLD,
     );
@@ -335,11 +450,23 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // ---- playback (the focal-length sweep) ----
     let mut playback = vec![
-        PlaybackTrack { id: format!("{id}.focus"), prop: Prop::Pos, points: focus_pts },
-        PlaybackTrack { id: format!("{id}.flabel"), prop: Prop::Pos, points: flabel_pts },
+        PlaybackTrack {
+            id: format!("{id}.focus"),
+            prop: Prop::Pos,
+            points: focus_pts,
+        },
+        PlaybackTrack {
+            id: format!("{id}.flabel"),
+            prop: Prop::Pos,
+            points: flabel_pts,
+        },
     ];
     for (i, track) in out_to.into_iter().enumerate() {
-        playback.push(PlaybackTrack { id: format!("{id}.out{i}"), prop: Prop::To, points: track });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.out{i}"),
+            prop: Prop::To,
+            points: track,
+        });
     }
     s.sims.insert(
         id,
@@ -371,8 +498,16 @@ pub fn c_lens(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// bare `{id}` so `color`/`show`/`hidden` broadcast.
 pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(540.0, 380.0) };
-    let glass = if a.len() >= 3 { a.text(2)? } else { "bk7".to_string() };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(540.0, 380.0)
+    };
+    let glass = if a.len() >= 3 {
+        a.text(2)?
+    } else {
+        "bk7".to_string()
+    };
     let (cx, cy) = (center.x, center.y);
     let tag = || vec![id.clone(), format!("{id}.parts")];
 
@@ -386,7 +521,9 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let e = apex + (bl - apex) * 0.55; // entry point on the left face
 
     // visible wavelengths (nm): red … violet
-    let waves = [660.0f32, 625.0, 592.0, 560.0, 535.0, 510.0, 482.0, 455.0, 430.0];
+    let waves = [
+        660.0f32, 625.0, 592.0, 560.0, 535.0, 510.0, 482.0, 455.0, 430.0,
+    ];
     let nc = waves.len();
     let x_target = cx + 560.0; // exit rays run out to here
 
@@ -423,7 +560,9 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // ---- static scenery: the prism body ----
     let mut prism = Entity::new(
         format!("{id}.prism"),
-        Shape::Polygon { pts: vec![apex, br, bl] },
+        Shape::Polygon {
+            pts: vec![apex, br, bl],
+        },
         Vec2::ZERO,
         Color::new(style::CYAN.r, style::CYAN.g, style::CYAN.b, 0.12),
     );
@@ -435,7 +574,12 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(prism);
 
     // ---- the white incoming beam (tail sweeps, head pinned at the entry) ----
-    let mut beam = Entity::new(format!("{id}.beam"), Shape::Line { to: e }, src_pts[0], style::FG);
+    let mut beam = Entity::new(
+        format!("{id}.beam"),
+        Shape::Line { to: e },
+        src_pts[0],
+        style::FG,
+    );
     beam.stroke.width = 4.0;
     beam.glow = 1.6;
     beam.tags = tag();
@@ -444,7 +588,12 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // ---- per-colour in-glass + dispersed exit rays ----
     for (ci, &nm) in waves.iter().enumerate() {
         let col = dispersion::wavelength_rgb(nm);
-        let mut inray = Entity::new(format!("{id}.in{ci}"), Shape::Line { to: in_to[ci][0] }, e, col);
+        let mut inray = Entity::new(
+            format!("{id}.in{ci}"),
+            Shape::Line { to: in_to[ci][0] },
+            e,
+            col,
+        );
         inray.stroke.width = 2.0;
         inray.glow = 1.2;
         inray.tags = tag();
@@ -463,11 +612,27 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // ---- playback (the incidence-angle sweep) ----
-    let mut playback = vec![PlaybackTrack { id: format!("{id}.beam"), prop: Prop::Pos, points: src_pts }];
+    let mut playback = vec![PlaybackTrack {
+        id: format!("{id}.beam"),
+        prop: Prop::Pos,
+        points: src_pts,
+    }];
     for ci in 0..nc {
-        playback.push(PlaybackTrack { id: format!("{id}.in{ci}"), prop: Prop::To, points: in_to[ci].clone() });
-        playback.push(PlaybackTrack { id: format!("{id}.out{ci}"), prop: Prop::Pos, points: out_pos[ci].clone() });
-        playback.push(PlaybackTrack { id: format!("{id}.out{ci}"), prop: Prop::To, points: out_to[ci].clone() });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.in{ci}"),
+            prop: Prop::To,
+            points: in_to[ci].clone(),
+        });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.out{ci}"),
+            prop: Prop::Pos,
+            points: out_pos[ci].clone(),
+        });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.out{ci}"),
+            prop: Prop::To,
+            points: out_to[ci].clone(),
+        });
     }
     s.sims.insert(
         id,
@@ -499,7 +664,11 @@ pub fn c_prism(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// foci `{id}.fred`/`{id}.fblue`. All tagged bare `{id}`.
 pub fn c_achromat(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(540.0, 360.0) };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(540.0, 360.0)
+    };
     let ap = a.opt_num(2)?.unwrap_or(120.0).clamp(50.0, 260.0);
     let (cx, cy) = (center.x, center.y);
     let tag = || vec![id.clone(), format!("{id}.parts")];
@@ -542,7 +711,9 @@ pub fn c_achromat(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // ---- static scenery ----
     let mut axis = Entity::new(
         format!("{id}.axis"),
-        Shape::Line { to: Vec2::new(x_max, cy) },
+        Shape::Line {
+            to: Vec2::new(x_max, cy),
+        },
         Vec2::new(cx - 400.0, cy),
         style::DIM,
     );
@@ -581,7 +752,9 @@ pub fn c_achromat(s: &mut Scene, a: &Args) -> Result<(), Error> {
     for (i, &y) in heights.iter().enumerate() {
         let mut inray = Entity::new(
             format!("{id}.in{i}"),
-            Shape::Line { to: Vec2::new(cx, cy + y) },
+            Shape::Line {
+                to: Vec2::new(cx, cy + y),
+            },
             Vec2::new(cx - 400.0, cy + y),
             style::FG,
         );
@@ -621,12 +794,28 @@ pub fn c_achromat(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // ---- playback (the correction sweep) ----
     let mut playback = vec![
-        PlaybackTrack { id: format!("{id}.fred"), prop: Prop::Pos, points: fred_pts },
-        PlaybackTrack { id: format!("{id}.fblue"), prop: Prop::Pos, points: fblue_pts },
+        PlaybackTrack {
+            id: format!("{id}.fred"),
+            prop: Prop::Pos,
+            points: fred_pts,
+        },
+        PlaybackTrack {
+            id: format!("{id}.fblue"),
+            prop: Prop::Pos,
+            points: fblue_pts,
+        },
     ];
     for i in 0..heights.len() {
-        playback.push(PlaybackTrack { id: format!("{id}.r{i}"), prop: Prop::To, points: r_to[i].clone() });
-        playback.push(PlaybackTrack { id: format!("{id}.b{i}"), prop: Prop::To, points: b_to[i].clone() });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.r{i}"),
+            prop: Prop::To,
+            points: r_to[i].clone(),
+        });
+        playback.push(PlaybackTrack {
+            id: format!("{id}.b{i}"),
+            prop: Prop::To,
+            points: b_to[i].clone(),
+        });
     }
     s.sims.insert(
         id,
@@ -658,12 +847,24 @@ struct Surf {
 }
 
 fn sf(r: f32, thick: f32, glass: &str) -> Surf {
-    Surf { r, thick, glass: glass.to_string(), conic: 0.0, aperture: 0.0 }
+    Surf {
+        r,
+        thick,
+        glass: glass.to_string(),
+        conic: 0.0,
+        aperture: 0.0,
+    }
 }
 
 /// A surface with a conic constant (an asphere).
 fn sfc(r: f32, thick: f32, glass: &str, conic: f32) -> Surf {
-    Surf { r, thick, glass: glass.to_string(), conic, aperture: 0.0 }
+    Surf {
+        r,
+        thick,
+        glass: glass.to_string(),
+        conic,
+        aperture: 0.0,
+    }
 }
 
 const FLAT: f32 = 1.0e7;
@@ -703,9 +904,22 @@ fn parse_prescription(spec: &str) -> (Vec<Surf>, f32, String) {
             "air" | "" => "",
             g => g,
         };
-        let conic = toks.get(3).and_then(|t| t.parse::<f32>().ok()).unwrap_or(0.0);
-        let aperture = toks.get(4).and_then(|t| t.parse::<f32>().ok()).unwrap_or(0.0).max(0.0);
-        surfs.push(Surf { r, thick, glass: glass.to_string(), conic, aperture });
+        let conic = toks
+            .get(3)
+            .and_then(|t| t.parse::<f32>().ok())
+            .unwrap_or(0.0);
+        let aperture = toks
+            .get(4)
+            .and_then(|t| t.parse::<f32>().ok())
+            .unwrap_or(0.0)
+            .max(0.0);
+        surfs.push(Surf {
+            r,
+            thick,
+            glass: glass.to_string(),
+            conic,
+            aperture,
+        });
     }
     if surfs.len() < 2 {
         let (s, ap, _) = preset("singlet");
@@ -719,21 +933,33 @@ fn parse_prescription(spec: &str) -> (Vec<Surf>, f32, String) {
 fn preset(name: &str) -> (Vec<Surf>, f32, &'static str) {
     match name {
         // flat back, convex front — the classic plano-convex
-        "plano-convex" | "planoconvex" | "plano" => {
-            (vec![sf(190.0, 28.0, "bk7"), sf(FLAT, 0.0, "")], 120.0, "plano-convex")
-        }
+        "plano-convex" | "planoconvex" | "plano" => (
+            vec![sf(190.0, 28.0, "bk7"), sf(FLAT, 0.0, "")],
+            120.0,
+            "plano-convex",
+        ),
         // same plano-convex but the convex face is a HYPERBOLIC asphere (conic
         // ≈ −n²) that nulls spherical aberration — a fast lens that still focuses
         // to a point
-        "aspheric" | "asphere" => {
-            (vec![sfc(190.0, 28.0, "bk7", -0.55), sf(FLAT, 0.0, "")], 120.0, "aspheric singlet (corrected)")
-        }
+        "aspheric" | "asphere" => (
+            vec![sfc(190.0, 28.0, "bk7", -0.55), sf(FLAT, 0.0, "")],
+            120.0,
+            "aspheric singlet (corrected)",
+        ),
         // both surfaces curve the same way — a converging meniscus
-        "meniscus" => (vec![sf(150.0, 24.0, "bk7"), sf(320.0, 0.0, "")], 110.0, "meniscus"),
+        "meniscus" => (
+            vec![sf(150.0, 24.0, "bk7"), sf(320.0, 0.0, "")],
+            110.0,
+            "meniscus",
+        ),
         // cemented achromatic-style doublet — power split over 3 surfaces, so it
         // bends each ray less → far less spherical aberration than the singlet
         "doublet" | "achromat" | "achromatic-doublet" => (
-            vec![sf(300.0, 30.0, "bk7"), sf(-210.0, 14.0, "f2"), sf(-560.0, 0.0, "")],
+            vec![
+                sf(300.0, 30.0, "bk7"),
+                sf(-210.0, 14.0, "f2"),
+                sf(-560.0, 0.0, ""),
+            ],
             120.0,
             "doublet (crown + flint)",
         ),
@@ -751,7 +977,11 @@ fn preset(name: &str) -> (Vec<Surf>, f32, &'static str) {
             "triplet (3 elements)",
         ),
         // a fast biconvex singlet — its outer rays focus short (spherical aberration)
-        _ => (vec![sf(200.0, 30.0, "bk7"), sf(-200.0, 0.0, "")], 120.0, "singlet (one element)"),
+        _ => (
+            vec![sf(200.0, 30.0, "bk7"), sf(-200.0, 0.0, "")],
+            120.0,
+            "singlet (one element)",
+        ),
     }
 }
 
@@ -770,8 +1000,16 @@ fn preset(name: &str) -> (Vec<Surf>, f32, &'static str) {
 /// `{id}.fnum` (f-number). All tagged bare `{id}`.
 pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 380.0) };
-    let name = if a.len() >= 3 { a.text(2)? } else { "singlet".to_string() };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 380.0)
+    };
+    let name = if a.len() >= 3 {
+        a.text(2)?
+    } else {
+        "singlet".to_string()
+    };
     let (surfs, ap, label) = resolve_prescription(&name);
     let (cx, cy) = (center.x, center.y);
     let tag = || vec![id.clone(), format!("{id}.parts")];
@@ -782,7 +1020,7 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let lx = cx - 150.0; // first vertex x
     let lens_len: f32 = surfs.iter().map(|s| s.thick).sum();
     let x_in = lx - 260.0; // parallel beam entry
-    // a finite (real-image) object throws the image farther out — extend the field
+                           // a finite (real-image) object throws the image farther out — extend the field
     let x_end = lx + lens_len + if object.is_some() { 620.0 } else { 420.0 };
 
     // surface vertex x positions
@@ -813,13 +1051,25 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
             _ => (Vec2::new(x_in, cy + y), Vec2::new(1.0, 0.0)),
         };
         // draw from the left viewport edge (a distant object point is off-screen)
-        let start = if o.x < x_in && d.x.abs() > 1e-4 { o + d * ((x_in - o.x) / d.x) } else { o };
+        let start = if o.x < x_in && d.x.abs() > 1e-4 {
+            o + d * ((x_in - o.x) / d.x)
+        } else {
+            o
+        };
         let mut n1 = 1.0f32;
         let mut poly = vec![start];
         let mut ok = true;
         for (i, sf) in surfs.iter().enumerate() {
-            let n2 = if sf.glass.is_empty() { 1.0 } else { dispersion::glass_n(&sf.glass, lam) };
-            let surf_ap = if sf.aperture > 0.0 { sf.aperture } else { ap * 1.2 };
+            let n2 = if sf.glass.is_empty() {
+                1.0
+            } else {
+                dispersion::glass_n(&sf.glass, lam)
+            };
+            let surf_ap = if sf.aperture > 0.0 {
+                sf.aperture
+            } else {
+                ap * 1.2
+            };
             match trace::trace_conic(o, d, vxs[i], sf.r, sf.conic, cy, n1, n2) {
                 Some((hit, nd)) if (hit.y - cy).abs() <= surf_ap => {
                     poly.push(hit);
@@ -867,7 +1117,8 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     for k in 0..nsweep {
         let x = x0 + (x1 - x0) * k as f32 / (nsweep - 1) as f32;
         let ys: Vec<f32> = ray_tail.iter().map(|t| y_at(t, x)).collect();
-        let spot = ys.iter().cloned().fold(f32::MIN, f32::max) - ys.iter().cloned().fold(f32::MAX, f32::min);
+        let spot = ys.iter().cloned().fold(f32::MIN, f32::max)
+            - ys.iter().cloned().fold(f32::MAX, f32::min);
         if spot < best_spot {
             best_spot = spot;
             best_x = x;
@@ -885,7 +1136,11 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let mut v = Vec::new();
         for j in 0..=steps {
             let f = j as f32 / steps as f32;
-            let yy = if top_down { half - 2.0 * half * f } else { -half + 2.0 * half * f };
+            let yy = if top_down {
+                half - 2.0 * half * f
+            } else {
+                -half + 2.0 * half * f
+            };
             let disc = (r * r - (1.0 + k) * yy * yy).max(0.0);
             let sag = r.signum() * yy * yy / (r.abs() + disc.sqrt());
             v.push(Vec2::new(vx + sag, cy + yy));
@@ -903,7 +1158,13 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
             break;
         }
         let mut body = arc_pts(vxs[i], sf.r, sf.conic, surf_half(sf), true); // front, top→bottom
-        body.extend(arc_pts(vxs[i + 1], surfs[i + 1].r, surfs[i + 1].conic, surf_half(&surfs[i + 1]), false)); // back
+        body.extend(arc_pts(
+            vxs[i + 1],
+            surfs[i + 1].r,
+            surfs[i + 1].conic,
+            surf_half(&surfs[i + 1]),
+            false,
+        )); // back
         let mut e = Entity::new(
             format!("{id}.elem{elem}"),
             Shape::Polygon { pts: body },
@@ -922,7 +1183,9 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // optical axis
     let mut axis = Entity::new(
         format!("{id}.axis"),
-        Shape::Line { to: Vec2::new(x_end, cy) },
+        Shape::Line {
+            to: Vec2::new(x_end, cy),
+        },
         Vec2::new(x_in, cy),
         style::DIM,
     );
@@ -932,7 +1195,12 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // ---- the traced rays (polylines, drawable) ----
     for (i, poly) in ray_polys.iter().enumerate() {
-        let mut r = Entity::new(format!("{id}.ray{i}"), Shape::Polyline { pts: poly.clone() }, Vec2::ZERO, style::CYAN);
+        let mut r = Entity::new(
+            format!("{id}.ray{i}"),
+            Shape::Polyline { pts: poly.clone() },
+            Vec2::ZERO,
+            style::CYAN,
+        );
         r.stroke.width = 1.6;
         r.glow = 1.3;
         r.tags = vec![id.clone(), format!("{id}.parts"), format!("{id}.rays")];
@@ -942,7 +1210,9 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // ---- the sweeping sensor plane + live spot read-out ----
     let mut sensor = Entity::new(
         format!("{id}.sensor"),
-        Shape::Line { to: Vec2::new(sensor_pts[0].x, cy + ap * 0.7) },
+        Shape::Line {
+            to: Vec2::new(sensor_pts[0].x, cy + ap * 0.7),
+        },
         Vec2::new(sensor_pts[0].x, cy - ap * 0.7),
         style::GOLD,
     );
@@ -950,12 +1220,23 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     sensor.tags = tag();
     s.add(sensor);
     // the sensor's `to` endpoint also rides the sweep (a vertical bar)
-    let sensor_to: Vec<Vec2> = sensor_pts.iter().map(|p| Vec2::new(p.x, cy + ap * 0.7)).collect();
+    let sensor_to: Vec<Vec2> = sensor_pts
+        .iter()
+        .map(|p| Vec2::new(p.x, cy + ap * 0.7))
+        .collect();
 
-    let spot_counter = crate::primitives::Counter { value: spot_pts[0].x, decimals: 0, prefix: "spot = ".into(), suffix: " px".into() };
+    let spot_counter = crate::primitives::Counter {
+        value: spot_pts[0].x,
+        decimals: 0,
+        prefix: "spot = ".into(),
+        suffix: " px".into(),
+    };
     let mut spot = Entity::new(
         format!("{id}.spot"),
-        Shape::Text { content: spot_counter.render(), size: 22.0 },
+        Shape::Text {
+            content: spot_counter.render(),
+            size: 22.0,
+        },
         Vec2::new(cx + 40.0, cy - ap - 40.0),
         style::GOLD,
     );
@@ -966,10 +1247,18 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // f-number + NA read-outs — defined for a collimated (object-at-infinity)
     // beam; a finite object is a different conjugate, so they're omitted there
     if object.is_none() {
-        let fcounter = crate::primitives::Counter { value: fnum, decimals: 1, prefix: "f/".into(), suffix: "".into() };
+        let fcounter = crate::primitives::Counter {
+            value: fnum,
+            decimals: 1,
+            prefix: "f/".into(),
+            suffix: "".into(),
+        };
         let mut fnume = Entity::new(
             format!("{id}.fnum"),
-            Shape::Text { content: fcounter.render(), size: 24.0 },
+            Shape::Text {
+                content: fcounter.render(),
+                size: 24.0,
+            },
             Vec2::new(x_in + 40.0, cy - ap - 40.0),
             style::FG,
         );
@@ -979,10 +1268,18 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
         // numerical aperture (paraxial): NA ≈ 1 / (2·f/#)
         let na = if fnum > 1e-3 { 1.0 / (2.0 * fnum) } else { 0.0 };
-        let ncounter = crate::primitives::Counter { value: na, decimals: 2, prefix: "NA ".into(), suffix: "".into() };
+        let ncounter = crate::primitives::Counter {
+            value: na,
+            decimals: 2,
+            prefix: "NA ".into(),
+            suffix: "".into(),
+        };
         let mut nae = Entity::new(
             format!("{id}.na"),
-            Shape::Text { content: ncounter.render(), size: 20.0 },
+            Shape::Text {
+                content: ncounter.render(),
+                size: 20.0,
+            },
             Vec2::new(x_in + 40.0, cy - ap - 12.0),
             style::DIM,
         );
@@ -994,7 +1291,9 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // autofocus: mark the best-focus plane (the sensor's minimum-spot position)
     let mut bestf = Entity::new(
         format!("{id}.bestfocus"),
-        Shape::Line { to: Vec2::new(best_x, cy + ap * 0.55) },
+        Shape::Line {
+            to: Vec2::new(best_x, cy + ap * 0.55),
+        },
         Vec2::new(best_x, cy - ap * 0.55),
         style::MAGENTA,
     );
@@ -1004,7 +1303,10 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(bestf);
     let mut bflab = Entity::new(
         format!("{id}.bestfocuslabel"),
-        Shape::Text { content: "best focus".into(), size: 16.0 },
+        Shape::Text {
+            content: "best focus".into(),
+            size: 16.0,
+        },
         Vec2::new(best_x, cy + ap * 0.55 + 18.0),
         style::MAGENTA,
     );
@@ -1014,7 +1316,10 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut lbl = Entity::new(
         format!("{id}.label"),
-        Shape::Text { content: label.into(), size: 22.0 },
+        Shape::Text {
+            content: label.into(),
+            size: 22.0,
+        },
         Vec2::new(cx, cy + ap + 56.0),
         style::DIM,
     );
@@ -1023,9 +1328,24 @@ pub fn c_lenssystem(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // ---- playback: the sensor sweeps, the spot read-out tracks it ----
     let playback = vec![
-        PlaybackTrack { id: format!("{id}.sensor"), prop: Prop::Pos, points: sensor_pts.iter().map(|p| Vec2::new(p.x, cy - ap * 0.7)).collect() },
-        PlaybackTrack { id: format!("{id}.sensor"), prop: Prop::To, points: sensor_to },
-        PlaybackTrack { id: format!("{id}.spot"), prop: Prop::Value, points: spot_pts },
+        PlaybackTrack {
+            id: format!("{id}.sensor"),
+            prop: Prop::Pos,
+            points: sensor_pts
+                .iter()
+                .map(|p| Vec2::new(p.x, cy - ap * 0.7))
+                .collect(),
+        },
+        PlaybackTrack {
+            id: format!("{id}.sensor"),
+            prop: Prop::To,
+            points: sensor_to,
+        },
+        PlaybackTrack {
+            id: format!("{id}.spot"),
+            prop: Prop::Value,
+            points: spot_pts,
+        },
     ];
     s.sims.insert(
         id,
@@ -1068,7 +1388,11 @@ pub(super) fn analyze_preset(name: &str, cy: f32) -> (Vec<(f32, f32)>, f32, f32)
         let mut n1 = 1.0f32;
         let mut ok = true;
         for (j, sf) in surfs.iter().enumerate() {
-            let n2 = if sf.glass.is_empty() { 1.0 } else { dispersion::glass_n(&sf.glass, lam) };
+            let n2 = if sf.glass.is_empty() {
+                1.0
+            } else {
+                dispersion::glass_n(&sf.glass, lam)
+            };
             match trace::trace_conic(o, d, vxs[j], sf.r, sf.conic, cy, n1, n2) {
                 Some((h, nd)) => {
                     o = h;
@@ -1087,7 +1411,11 @@ pub(super) fn analyze_preset(name: &str, cy: f32) -> (Vec<(f32, f32)>, f32, f32)
     }
     let y_at = |t: &(f32, Vec2, Vec2), x: f32| -> f32 {
         let (_, p, d) = t;
-        if d.x.abs() < 1e-5 { p.y } else { p.y + (x - p.x) * d.y / d.x }
+        if d.x.abs() < 1e-5 {
+            p.y
+        } else {
+            p.y + (x - p.x) * d.y / d.x
+        }
     };
     // best focus = minimum transverse spread
     let (x0, x1) = (last_vx + 30.0, last_vx + 700.0);
@@ -1095,7 +1423,8 @@ pub(super) fn analyze_preset(name: &str, cy: f32) -> (Vec<(f32, f32)>, f32, f32)
     for k in 0..200 {
         let x = x0 + (x1 - x0) * k as f32 / 199.0;
         let ys: Vec<f32> = tails.iter().map(|t| y_at(t, x)).collect();
-        let spread = ys.iter().cloned().fold(f32::MIN, f32::max) - ys.iter().cloned().fold(f32::MAX, f32::min);
+        let spread = ys.iter().cloned().fold(f32::MIN, f32::max)
+            - ys.iter().cloned().fold(f32::MAX, f32::min);
         if spread < best {
             best = spread;
             best_x = x;
@@ -1112,8 +1441,16 @@ pub(super) fn analyze_preset(name: &str, cy: f32) -> (Vec<(f32, f32)>, f32, f32)
 /// `"singlet"`/`"doublet"`/`"triplet"`. Parts `{id}.box/.zerox/.zeroy/.curve/…`.
 pub fn c_rayfan(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
-    let name = if a.len() >= 3 { a.text(2)? } else { "singlet".to_string() };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 360.0)
+    };
+    let name = if a.len() >= 3 {
+        a.text(2)?
+    } else {
+        "singlet".to_string()
+    };
     let (dys, _focal, _ap) = analyze_preset(&name, 0.0);
     let (cx, cy) = (center.x, center.y);
     let tag = || vec![id.clone(), format!("{id}.parts")];
@@ -1126,7 +1463,15 @@ pub fn c_rayfan(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let yscale = hh * 0.85 / ref_max;
 
     // frame + zero axes
-    let mut frame = Entity::new(format!("{id}.box"), Shape::Rect { w: hw * 2.0, h: hh * 2.0 }, center, style::DIM);
+    let mut frame = Entity::new(
+        format!("{id}.box"),
+        Shape::Rect {
+            w: hw * 2.0,
+            h: hh * 2.0,
+        },
+        center,
+        style::DIM,
+    );
     frame.stroke.outline = true;
     frame.stroke.fill = false;
     frame.stroke.width = 1.5;
@@ -1144,8 +1489,16 @@ pub fn c_rayfan(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // the aberration curve
-    let pts: Vec<Vec2> = dys.iter().map(|(h, d)| Vec2::new(cx + h * hw, cy - d * yscale)).collect();
-    let mut curve = Entity::new(format!("{id}.curve"), Shape::Polyline { pts }, Vec2::ZERO, style::CYAN);
+    let pts: Vec<Vec2> = dys
+        .iter()
+        .map(|(h, d)| Vec2::new(cx + h * hw, cy - d * yscale))
+        .collect();
+    let mut curve = Entity::new(
+        format!("{id}.curve"),
+        Shape::Polyline { pts },
+        Vec2::ZERO,
+        style::CYAN,
+    );
     curve.stroke.width = 3.0;
     curve.glow = 1.4;
     curve.tags = vec![id.clone(), format!("{id}.parts"), format!("{id}.curve")];
@@ -1153,13 +1506,39 @@ pub fn c_rayfan(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // labels
     let mklab = |s: &mut Scene, part: &str, at: Vec2, txt: &str, sz: f32| {
-        let mut e = Entity::new(format!("{id}.{part}"), Shape::Text { content: txt.into(), size: sz }, at, style::DIM);
+        let mut e = Entity::new(
+            format!("{id}.{part}"),
+            Shape::Text {
+                content: txt.into(),
+                size: sz,
+            },
+            at,
+            style::DIM,
+        );
         e.tags = vec![id.clone(), format!("{id}.parts")];
         s.add(e);
     };
-    mklab(s, "xlabel", Vec2::new(cx, cy + hh + 26.0), "pupil height  (edge → edge)", 18.0);
-    mklab(s, "ylabel", Vec2::new(cx - hw - 4.0, cy - hh - 22.0), "ray error at focus", 18.0);
-    mklab(s, "title", Vec2::new(cx, cy - hh - 30.0), &format!("ray-fan: {name}"), 22.0);
+    mklab(
+        s,
+        "xlabel",
+        Vec2::new(cx, cy + hh + 26.0),
+        "pupil height  (edge → edge)",
+        18.0,
+    );
+    mklab(
+        s,
+        "ylabel",
+        Vec2::new(cx - hw - 4.0, cy - hh - 22.0),
+        "ray error at focus",
+        18.0,
+    );
+    mklab(
+        s,
+        "title",
+        Vec2::new(cx, cy - hh - 30.0),
+        &format!("ray-fan: {name}"),
+        22.0,
+    );
     Ok(())
 }
 
@@ -1171,8 +1550,16 @@ pub fn c_rayfan(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// the dots. Parts `{id}.ideal/.rms/.dot{k}/…`.
 pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
-    let name = if a.len() >= 3 { a.text(2)? } else { "singlet".to_string() };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 360.0)
+    };
+    let name = if a.len() >= 3 {
+        a.text(2)?
+    } else {
+        "singlet".to_string()
+    };
     let (dys, _focal, _ap) = analyze_preset(&name, 0.0);
     let (cx, cy) = (center.x, center.y);
     let tag = || vec![id.clone(), format!("{id}.parts")];
@@ -1180,14 +1567,25 @@ pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // scale to the SINGLET's aberration (same for every preset), so a corrected
     // doublet/triplet forms a visibly TIGHTER spot than the singlet's blur disc
     let (ref_dys, _, _) = analyze_preset("singlet", 0.0);
-    let ref_max = ref_dys.iter().map(|(_, d)| d.abs()).fold(0.001f32, f32::max);
+    let ref_max = ref_dys
+        .iter()
+        .map(|(_, d)| d.abs())
+        .fold(0.001f32, f32::max);
     let disp = 140.0 / ref_max;
     let rms_px = (dys.iter().map(|(_, d)| d * d).sum::<f32>() / dys.len() as f32).sqrt();
 
     // reference crosshair
     for (part, from, to) in [
-        ("crossx", Vec2::new(cx - 170.0, cy), Vec2::new(cx + 170.0, cy)),
-        ("crossy", Vec2::new(cx, cy - 170.0), Vec2::new(cx, cy + 170.0)),
+        (
+            "crossx",
+            Vec2::new(cx - 170.0, cy),
+            Vec2::new(cx + 170.0, cy),
+        ),
+        (
+            "crossy",
+            Vec2::new(cx, cy - 170.0),
+            Vec2::new(cx, cy + 170.0),
+        ),
     ] {
         let mut ln = Entity::new(format!("{id}.{part}"), Shape::Line { to }, from, style::DIM);
         ln.stroke.width = 1.0;
@@ -1211,7 +1609,12 @@ pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
         for j in 0..azimuths {
             let ang = j as f32 * std::f32::consts::TAU / azimuths as f32 + phase;
             let at = Vec2::new(cx + radius * ang.cos(), cy + radius * ang.sin());
-            let mut dot = Entity::new(format!("{id}.dot{k}"), Shape::Circle { r: 3.0 }, at, style::CYAN);
+            let mut dot = Entity::new(
+                format!("{id}.dot{k}"),
+                Shape::Circle { r: 3.0 },
+                at,
+                style::CYAN,
+            );
             dot.stroke.fill = true;
             dot.stroke.outline = false;
             dot.glow = 1.3;
@@ -1222,17 +1625,30 @@ pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // ideal (point) focus + RMS read-out
-    let mut ideal = Entity::new(format!("{id}.ideal"), Shape::Circle { r: 5.0 }, center, style::LIME);
+    let mut ideal = Entity::new(
+        format!("{id}.ideal"),
+        Shape::Circle { r: 5.0 },
+        center,
+        style::LIME,
+    );
     ideal.stroke.fill = true;
     ideal.stroke.outline = false;
     ideal.glow = 2.0;
     ideal.tags = tag();
     s.add(ideal);
 
-    let rms_counter = crate::primitives::Counter { value: rms_px, decimals: 1, prefix: "RMS ".into(), suffix: " px".into() };
+    let rms_counter = crate::primitives::Counter {
+        value: rms_px,
+        decimals: 1,
+        prefix: "RMS ".into(),
+        suffix: " px".into(),
+    };
     let mut rms = Entity::new(
         format!("{id}.rms"),
-        Shape::Text { content: rms_counter.render(), size: 22.0 },
+        Shape::Text {
+            content: rms_counter.render(),
+            size: 22.0,
+        },
         Vec2::new(cx, cy - 190.0),
         style::GOLD,
     );
@@ -1242,7 +1658,10 @@ pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut lbl = Entity::new(
         format!("{id}.label"),
-        Shape::Text { content: format!("spot at focus: {name}"), size: 20.0 },
+        Shape::Text {
+            content: format!("spot at focus: {name}"),
+            size: 20.0,
+        },
         Vec2::new(cx, cy + 195.0),
         style::DIM,
     );
@@ -1262,8 +1681,16 @@ pub fn c_spotdiagram(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// `{id}.airy`, `{id}.rms`, `{id}.crossx/.crossy/.label`.
 pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    let center = if a.len() >= 2 { a.pair(1)? } else { Vec2::new(640.0, 360.0) };
-    let name = if a.len() >= 3 { a.text(2)? } else { "doublet".to_string() };
+    let center = if a.len() >= 2 {
+        a.pair(1)?
+    } else {
+        Vec2::new(640.0, 360.0)
+    };
+    let name = if a.len() >= 3 {
+        a.text(2)?
+    } else {
+        "doublet".to_string()
+    };
     let field = a.opt_num(3)?.unwrap_or(5.0).to_radians();
     let (surfs, ap, _) = resolve_prescription(&name);
     let (cx, cy) = (center.x, center.y);
@@ -1297,8 +1724,16 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
                 let mut n1 = 1.0f32;
                 let mut ok = true;
                 for (j, sf) in surfs.iter().enumerate() {
-                    let n2 = if sf.glass.is_empty() { 1.0 } else { dispersion::glass_n(&sf.glass, lam) };
-                    let surf_ap = if sf.aperture > 0.0 { sf.aperture } else { ap * 1.3 };
+                    let n2 = if sf.glass.is_empty() {
+                        1.0
+                    } else {
+                        dispersion::glass_n(&sf.glass, lam)
+                    };
+                    let surf_ap = if sf.aperture > 0.0 {
+                        sf.aperture
+                    } else {
+                        ap * 1.3
+                    };
                     match trace::trace_conic_3d(o, d, vxs[j], sf.r, sf.conic, n1, n2) {
                         Some((h, nd)) if (h.y * h.y + h.z * h.z).sqrt() <= surf_ap => {
                             o = h;
@@ -1329,7 +1764,10 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let centroid = |pts: &[(f32, f32)]| -> (f32, f32) {
         let n = pts.len().max(1) as f32;
-        (pts.iter().map(|p| p.0).sum::<f32>() / n, pts.iter().map(|p| p.1).sum::<f32>() / n)
+        (
+            pts.iter().map(|p| p.0).sum::<f32>() / n,
+            pts.iter().map(|p| p.1).sum::<f32>() / n,
+        )
     };
 
     // best (on-axis) focus = minimum radial RMS of the on-axis pupil
@@ -1340,7 +1778,12 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let x = fx0 + (fx1 - fx0) * k as f32 / 159.0;
         let pts: Vec<(f32, f32)> = onax.iter().map(|t| yz_at(t, x)).collect();
         let (cy_, cz_) = centroid(&pts);
-        let rms = (pts.iter().map(|(y, z)| (y - cy_).powi(2) + (z - cz_).powi(2)).sum::<f32>() / pts.len().max(1) as f32).sqrt();
+        let rms = (pts
+            .iter()
+            .map(|(y, z)| (y - cy_).powi(2) + (z - cz_).powi(2))
+            .sum::<f32>()
+            / pts.len().max(1) as f32)
+            .sqrt();
         if rms < best {
             best = rms;
             best_x = x;
@@ -1354,15 +1797,27 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let spots: Vec<(f32, f32)> = field_tails.iter().map(|t| yz_at(t, best_x)).collect();
     let (c0y, c0z) = centroid(&spots);
     let offs: Vec<(f32, f32)> = spots.iter().map(|(y, z)| (y - c0y, z - c0z)).collect();
-    let max_r = offs.iter().map(|(y, z)| (y * y + z * z).sqrt()).fold(0.5f32, f32::max);
+    let max_r = offs
+        .iter()
+        .map(|(y, z)| (y * y + z * z).sqrt())
+        .fold(0.5f32, f32::max);
     let disp = 130.0 / max_r; // fit this spot to the panel
-    let rms_px = (offs.iter().map(|(y, z)| y * y + z * z).sum::<f32>() / offs.len().max(1) as f32).sqrt();
+    let rms_px =
+        (offs.iter().map(|(y, z)| y * y + z * z).sum::<f32>() / offs.len().max(1) as f32).sqrt();
     let airy_disp = (1.22 * 0.546 * fnum) * disp; // 1 px ≈ 1 µm at the image
 
     // crosshair
     for (part, from, to) in [
-        ("crossx", Vec2::new(cx - 170.0, cy), Vec2::new(cx + 170.0, cy)),
-        ("crossy", Vec2::new(cx, cy - 170.0), Vec2::new(cx, cy + 170.0)),
+        (
+            "crossx",
+            Vec2::new(cx - 170.0, cy),
+            Vec2::new(cx + 170.0, cy),
+        ),
+        (
+            "crossy",
+            Vec2::new(cx, cy - 170.0),
+            Vec2::new(cx, cy + 170.0),
+        ),
     ] {
         let mut ln = Entity::new(format!("{id}.{part}"), Shape::Line { to }, from, style::DIM);
         ln.stroke.width = 1.0;
@@ -1374,7 +1829,12 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // the spot: local (Δy, Δz) → screen (x, y)
     for (k, (dy, dz)) in offs.iter().enumerate() {
         let at = Vec2::new(cx + dy * disp, cy + dz * disp);
-        let mut dot = Entity::new(format!("{id}.dot{k}"), Shape::Circle { r: 2.6 }, at, style::CYAN);
+        let mut dot = Entity::new(
+            format!("{id}.dot{k}"),
+            Shape::Circle { r: 2.6 },
+            at,
+            style::CYAN,
+        );
         dot.stroke.fill = true;
         dot.stroke.outline = false;
         dot.glow = 1.3;
@@ -1385,7 +1845,12 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // Airy-disk reference (diffraction limit) — dashed-look faint ring
     let mut airy = Entity::new(
         format!("{id}.airy"),
-        Shape::Arc { r: airy_disp.max(4.0), inner: 0.0, start: 0.0, sweep: 360.0 },
+        Shape::Arc {
+            r: airy_disp.max(4.0),
+            inner: 0.0,
+            start: 0.0,
+            sweep: 360.0,
+        },
         center,
         style::GOLD,
     );
@@ -1396,10 +1861,18 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     airy.tags = tag();
     s.add(airy);
 
-    let rms_counter = crate::primitives::Counter { value: rms_px, decimals: 1, prefix: "RMS ".into(), suffix: " px".into() };
+    let rms_counter = crate::primitives::Counter {
+        value: rms_px,
+        decimals: 1,
+        prefix: "RMS ".into(),
+        suffix: " px".into(),
+    };
     let mut rms = Entity::new(
         format!("{id}.rms"),
-        Shape::Text { content: rms_counter.render(), size: 22.0 },
+        Shape::Text {
+            content: rms_counter.render(),
+            size: 22.0,
+        },
         Vec2::new(cx, cy - 190.0),
         style::GOLD,
     );
@@ -1410,7 +1883,10 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let fdeg = field.to_degrees();
     let mut lbl = Entity::new(
         format!("{id}.label"),
-        Shape::Text { content: format!("spot at {fdeg:.0}° off-axis: {name}"), size: 20.0 },
+        Shape::Text {
+            content: format!("spot at {fdeg:.0}° off-axis: {name}"),
+            size: 20.0,
+        },
         Vec2::new(cx, cy + 195.0),
         style::DIM,
     );
@@ -1419,7 +1895,10 @@ pub fn c_fieldspot(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     let mut ai = Entity::new(
         format!("{id}.airylabel"),
-        Shape::Text { content: "circle = Airy (diffraction limit)".into(), size: 15.0 },
+        Shape::Text {
+            content: "circle = Airy (diffraction limit)".into(),
+            size: 15.0,
+        },
         Vec2::new(cx, cy - 165.0),
         style::DIM,
     );

@@ -113,12 +113,7 @@ fn item_key(item: &DisplayItem) -> String {
     }
 }
 
-fn render_list(
-    dl: &DisplayList,
-    size: f32,
-    dpr: f32,
-    padding: f32,
-) -> Result<Vec<u8>, String> {
+fn render_list(dl: &DisplayList, size: f32, dpr: f32, padding: f32) -> Result<Vec<u8>, String> {
     ratex_render::render_to_png(
         dl,
         &ratex_render::RenderOptions {
@@ -164,7 +159,9 @@ fn discover_crop(dl: &DisplayList, index: usize, size: f32) -> Result<EquationPa
         max_y = max_y.max(y);
     }
     if !found {
-        return Err(format!("equation display item {index} has no visible pixels"));
+        return Err(format!(
+            "equation display item {index} has no visible pixels"
+        ));
     }
     let x0 = min_x.saturating_sub(PART_PAD);
     let y0 = min_y.saturating_sub(PART_PAD);

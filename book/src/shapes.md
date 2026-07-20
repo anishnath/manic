@@ -26,16 +26,24 @@ and endpoints:
 
 ```manic
 circle(glass, (400,300), 100);
-particles(bubbles, glass, 24, 5, 7); // id, container, count, radius, seed
+particles(bubbles, glass, 24, 5, 7); // default random layout
 
 rect(tank, (750,300), 180, 160);
+particles(samples, tank, 24, 4, 11, "grid");
 link(pipe, glass, tank, 35);         // 35 px of curve; 0 is straight
+
+circle(orbit, (980,300), 90);
+particles(ticks, orbit, 24, 4, 13, "ring");
 ```
 
 `particles` works inside circles and rectangles. Its bare id addresses every
 child dot, so `hidden(bubbles)` and `recolor(bubbles, fg)` affect the whole
-group. `link` meets those shapes at their boundaries and stays attached when
-either endpoint moves.
+group. Use the optional `"grid"` layout for an ordered rectangular state, then
+`arrange(samples, tank, "random", 2, smooth)` to move the same dots into a
+typical random state. `arrange` may target a larger container for expansion and
+can return to `"grid"` exactly. A circle plus `"ring"` gives the particles an
+ordered radial endpoint. `link` meets shapes at their boundaries and stays
+attached when either endpoint moves.
 
 Points are `(x, y)` in pixels, **origin top-left, y increasing downward**. Use
 `cx`, `cy`, `w`, `h` to stay canvas-independent.

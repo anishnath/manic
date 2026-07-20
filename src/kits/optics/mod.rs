@@ -47,12 +47,25 @@ mod tests {
     fn refract_builds_parts_and_sweep() {
         let m = crate::parse("canvas(\"16:9\");\nrefract(r, (640, 360), 1.0, 1.5);\n").unwrap();
         let base = m.base();
-        for sub in ["r.interface", "r.normal", "r.incident", "r.refracted", "r.reflected", "r.thetai", "r.thetat", "r.tir"] {
+        for sub in [
+            "r.interface",
+            "r.normal",
+            "r.incident",
+            "r.refracted",
+            "r.reflected",
+            "r.thetai",
+            "r.thetat",
+            "r.tir",
+        ] {
             assert!(base.contains(sub), "missing entity `{sub}`");
         }
         // `run(r)` must resolve against the stored sweep
         let m2 = crate::parse("canvas(\"16:9\");\nrefract(r);\nrun(r, 6);\n").unwrap();
-        assert!(m2.validate().is_ok(), "refract+run should validate: {:?}", m2.validate().err());
+        assert!(
+            m2.validate().is_ok(),
+            "refract+run should validate: {:?}",
+            m2.validate().err()
+        );
     }
 
     /// `lens` lays out the axis, lens body, focal point, and both ray fans, and
@@ -61,11 +74,17 @@ mod tests {
     fn lens_builds_rays_and_focus_sweep() {
         let m = crate::parse("canvas(\"16:9\");\nlens(l, (640, 360), 240);\n").unwrap();
         let base = m.base();
-        for sub in ["l.axis", "l.lens", "l.focus", "l.flabel", "l.in0", "l.out0", "l.out6"] {
+        for sub in [
+            "l.axis", "l.lens", "l.focus", "l.flabel", "l.in0", "l.out0", "l.out6",
+        ] {
             assert!(base.contains(sub), "missing entity `{sub}`");
         }
         let m2 = crate::parse("canvas(\"16:9\");\nlens(l);\nrun(l, 6);\n").unwrap();
-        assert!(m2.validate().is_ok(), "lens+run should validate: {:?}", m2.validate().err());
+        assert!(
+            m2.validate().is_ok(),
+            "lens+run should validate: {:?}",
+            m2.validate().err()
+        );
     }
 
     /// `prism` lays out the glass body, the white beam, and the per-colour in/out
@@ -79,7 +98,11 @@ mod tests {
             assert!(base.contains(sub), "missing entity `{sub}`");
         }
         let m2 = crate::parse("canvas(\"16:9\");\nprism(p);\nrun(p, 6);\n").unwrap();
-        assert!(m2.validate().is_ok(), "prism+run should validate: {:?}", m2.validate().err());
+        assert!(
+            m2.validate().is_ok(),
+            "prism+run should validate: {:?}",
+            m2.validate().err()
+        );
     }
 
     /// `achromat` lays out both colour ray fans and the two foci, and stores the
@@ -88,11 +111,17 @@ mod tests {
     fn achromat_builds_two_foci_and_sweep() {
         let m = crate::parse("canvas(\"16:9\");\nachromat(ac, (540, 360), 120);\n").unwrap();
         let base = m.base();
-        for sub in ["ac.lens", "ac.in0", "ac.r0", "ac.r1", "ac.b0", "ac.b1", "ac.fred", "ac.fblue"] {
+        for sub in [
+            "ac.lens", "ac.in0", "ac.r0", "ac.r1", "ac.b0", "ac.b1", "ac.fred", "ac.fblue",
+        ] {
             assert!(base.contains(sub), "missing entity `{sub}`");
         }
         let m2 = crate::parse("canvas(\"16:9\");\nachromat(ac);\nrun(ac, 6);\n").unwrap();
-        assert!(m2.validate().is_ok(), "achromat+run should validate: {:?}", m2.validate().err());
+        assert!(
+            m2.validate().is_ok(),
+            "achromat+run should validate: {:?}",
+            m2.validate().err()
+        );
     }
 
     /// `lenssystem` traces a real multi-surface prescription: it lays out glass
@@ -100,15 +129,29 @@ mod tests {
     /// preset (singlet/doublet/triplet) validates with `draw` + `run`.
     #[test]
     fn lenssystem_traces_presets() {
-        let m = crate::parse("canvas(\"16:9\");\nlenssystem(ls, (640, 380), \"doublet\");\n").unwrap();
+        let m =
+            crate::parse("canvas(\"16:9\");\nlenssystem(ls, (640, 380), \"doublet\");\n").unwrap();
         let base = m.base();
-        for sub in ["ls.elem0", "ls.axis", "ls.ray0", "ls.sensor", "ls.spot", "ls.fnum", "ls.na", "ls.bestfocus"] {
+        for sub in [
+            "ls.elem0",
+            "ls.axis",
+            "ls.ray0",
+            "ls.sensor",
+            "ls.spot",
+            "ls.fnum",
+            "ls.na",
+            "ls.bestfocus",
+        ] {
             assert!(base.contains(sub), "missing entity `{sub}`");
         }
         for p in ["singlet", "doublet", "triplet"] {
             let src = format!("canvas(\"16:9\");\nlenssystem(ls, (640, 380), \"{p}\");\ndraw(ls.rays, 2);\nrun(ls, 5);\n");
             let m2 = crate::parse(&src).unwrap();
-            assert!(m2.validate().is_ok(), "lenssystem {p} should validate: {:?}", m2.validate().err());
+            assert!(
+                m2.validate().is_ok(),
+                "lenssystem {p} should validate: {:?}",
+                m2.validate().err()
+            );
         }
     }
 
@@ -116,16 +159,28 @@ mod tests {
     /// draw clean — and a corrected doublet has a SMALLER RMS spot than a singlet.
     #[test]
     fn rayfan_and_spotdiagram_build() {
-        let rf = crate::parse("canvas(\"16:9\");\nrayfan(rf, (640, 360), \"singlet\");\ndraw(rf.curve, 2);\n").unwrap();
+        let rf = crate::parse(
+            "canvas(\"16:9\");\nrayfan(rf, (640, 360), \"singlet\");\ndraw(rf.curve, 2);\n",
+        )
+        .unwrap();
         assert!(rf.base().contains("rf.curve"), "rayfan curve missing");
-        let sp = crate::parse("canvas(\"16:9\");\nspotdiagram(sp, (640, 360), \"singlet\");\ndraw(sp.dots, 2);\n").unwrap();
-        assert!(sp.base().contains("sp.ideal") && sp.base().contains("sp.dot0"), "spot dots missing");
+        let sp = crate::parse(
+            "canvas(\"16:9\");\nspotdiagram(sp, (640, 360), \"singlet\");\ndraw(sp.dots, 2);\n",
+        )
+        .unwrap();
+        assert!(
+            sp.base().contains("sp.ideal") && sp.base().contains("sp.dot0"),
+            "spot dots missing"
+        );
         // the physics: a doublet corrects — its RMS transverse aberration beats the singlet's
         let rms = |name: &str| -> f32 {
             let (dys, _, _) = super::builtins::analyze_preset(name, 0.0);
             (dys.iter().map(|(_, d)| d * d).sum::<f32>() / dys.len() as f32).sqrt()
         };
-        assert!(rms("doublet") < rms("singlet"), "doublet should focus tighter than singlet");
+        assert!(
+            rms("doublet") < rms("singlet"),
+            "doublet should focus tighter than singlet"
+        );
     }
 
     /// Lens prescriptions both ways: named presets (the easy path) AND a custom
@@ -138,16 +193,32 @@ mod tests {
             let (dys, _, _) = super::builtins::analyze_preset(name, 0.0);
             (dys.iter().map(|(_, d)| d * d).sum::<f32>() / dys.len() as f32).sqrt()
         };
-        assert!(rms("aspheric") < rms("plano-convex") * 0.5, "asphere should roughly null spherical aberration");
+        assert!(
+            rms("aspheric") < rms("plano-convex") * 0.5,
+            "asphere should roughly null spherical aberration"
+        );
         for p in ["plano-convex", "meniscus", "achromat", "cooke", "singlet"] {
-            let m = crate::parse(&format!("canvas(\"16:9\");\nlenssystem(l, (640, 380), \"{p}\");\n")).unwrap();
-            assert!(m.base().contains("l.elem0"), "named preset `{p}` should build glass");
+            let m = crate::parse(&format!(
+                "canvas(\"16:9\");\nlenssystem(l, (640, 380), \"{p}\");\n"
+            ))
+            .unwrap();
+            assert!(
+                m.base().contains("l.elem0"),
+                "named preset `{p}` should build glass"
+            );
         }
         // custom prescription: crown + flint doublet by the numbers
         let src = "canvas(\"16:9\");\nlenssystem(l, (640, 380), \"160 26 bk7 | -140 8 f2 | -420 0 air\");\ndraw(l.rays, 2);\nrun(l, 5);\n";
         let m = crate::parse(src).unwrap();
-        assert!(m.base().contains("l.elem0") && m.base().contains("l.ray0"), "custom prescription should build");
-        assert!(m.validate().is_ok(), "custom prescription should validate: {:?}", m.validate().err());
+        assert!(
+            m.base().contains("l.elem0") && m.base().contains("l.ray0"),
+            "custom prescription should build"
+        );
+        assert!(
+            m.validate().is_ok(),
+            "custom prescription should validate: {:?}",
+            m.validate().err()
+        );
     }
 
     /// `fieldspot` traces a 3-D pupil at a field angle: it builds the spot dots +
@@ -158,8 +229,15 @@ mod tests {
         for f in [0, 8] {
             let src = format!("canvas(\"16:9\");\nfieldspot(fs, (640, 360), \"singlet\", {f});\ndraw(fs.dots, 1);\n");
             let m = crate::parse(&src).unwrap();
-            assert!(m.base().contains("fs.dot0") && m.base().contains("fs.airy"), "field {f} should build a spot + Airy ring");
-            assert!(m.validate().is_ok(), "fieldspot {f} should validate: {:?}", m.validate().err());
+            assert!(
+                m.base().contains("fs.dot0") && m.base().contains("fs.airy"),
+                "field {f} should build a spot + Airy ring"
+            );
+            assert!(
+                m.validate().is_ok(),
+                "fieldspot {f} should validate: {:?}",
+                m.validate().err()
+            );
         }
     }
 }

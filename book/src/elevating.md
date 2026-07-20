@@ -79,7 +79,9 @@ construction, or an algorithm trace.
 | Name the parts | `text`, leader `arrow`, `bracelabel`, reference `line` | say what each thing is |
 | Emphasize | `flash(id,color)`, `pulse(id)`, `recolor(id,color,dur)`, `glow(id,amt)`, `shake(id)`, `spin(id,deg,dur)` | move the eye to the part being discussed |
 | Add ambient life | `particles(id, circle_or_rect, count, radius, seed)` + `wander(id,dur)` | contained bubbles, dust, stars, data, or molecules without hand-animating dots |
+| Change a particle state | `particles(...,"grid")` + `arrange(id,container,"random|grid|ring",dur)` | free expansion, mixing, ordering, exact reversal, and radial endpoints while every dot keeps its identity; random layouts use natural seeded routes |
 | Show a transfer | `link(id,a,b,bend)` + `flow(id,dur)` | a tracked curved connection and a travelling emphasis pulse for energy, signals, traffic, or attention |
+| Move a real object on a path | `travel(marker,path,dur,ease)` | a plot marker, vehicle, token, or probe follows the authored path once and stops at its endpoint |
 | Preserve identity | `watermark(mark)` or `watermark(mark,(x,y),"text")` | a persistent screen-fixed mark; use the responsive bottom-right default or move it away from platform UI / important content |
 | Broadcast | `flash(id.parts, lime)` | hit **every** part of the sim at once |
 | State the law | a `text` with the formula | tie the motion to the equation |

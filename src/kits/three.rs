@@ -64,7 +64,11 @@ fn c_camera(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // underside) camera. This makes a later pole-crossing orbit start from a
     // deterministic orientation instead of depending on atan2(0, 0).
     let azimuth = if flat <= 1e-6 {
-        if d.z >= 0.0 { -90.0 } else { 90.0 }
+        if d.z >= 0.0 {
+            -90.0
+        } else {
+            90.0
+        }
     } else {
         d.y.atan2(d.x).to_degrees()
     };
@@ -177,13 +181,31 @@ fn c_axes(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let len = a.num(2)?;
     let step = a.opt_num(3)?.unwrap_or(1.0);
     let tick = (len * 0.04).clamp(0.05, 0.25); // tick half-length
-    // Fan each axis's tick numbers off the axis line in a distinct screen
-    // direction (px, y-down) so short axes sharing an origin don't stack their
-    // labels on top of each other: x below, y above, z to the right.
+                                               // Fan each axis's tick numbers off the axis line in a distinct screen
+                                               // direction (px, y-down) so short axes sharing an origin don't stack their
+                                               // labels on top of each other: x below, y above, z to the right.
     for (suffix, dir, tickdir, color, lbl_off) in [
-        ("x", vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), style::CYAN, vec2(0.0, 20.0)),
-        ("y", vec3(0.0, 1.0, 0.0), vec3(1.0, 0.0, 0.0), style::MAGENTA, vec2(0.0, -20.0)),
-        ("z", vec3(0.0, 0.0, 1.0), vec3(1.0, 0.0, 0.0), style::LIME, vec2(22.0, 0.0)),
+        (
+            "x",
+            vec3(1.0, 0.0, 0.0),
+            vec3(0.0, 1.0, 0.0),
+            style::CYAN,
+            vec2(0.0, 20.0),
+        ),
+        (
+            "y",
+            vec3(0.0, 1.0, 0.0),
+            vec3(1.0, 0.0, 0.0),
+            style::MAGENTA,
+            vec2(0.0, -20.0),
+        ),
+        (
+            "z",
+            vec3(0.0, 0.0, 1.0),
+            vec3(1.0, 0.0, 0.0),
+            style::LIME,
+            vec2(22.0, 0.0),
+        ),
     ] {
         let mut arrow = Entity3D::new(
             format!("{id}.{suffix}"),
@@ -202,7 +224,9 @@ fn c_axes(s: &mut Scene, a: &Args) -> Result<(), Error> {
             // tick mark: a short 3D segment centred on `at`
             let mut mark = Entity3D::new(
                 format!("{id}.tick.{suffix}.{n}"),
-                Shape3D::Line { to: tickdir * (tick * 2.0) },
+                Shape3D::Line {
+                    to: tickdir * (tick * 2.0),
+                },
                 at - tickdir * tick,
                 color,
             );
@@ -272,8 +296,7 @@ fn c_curve3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let compile = |i: usize| -> Result<expr::Node, Error> {
         let src = a.text(i)?;
-        expr::compile(&src)
-            .map_err(|m| Error::new(format!("in curve3 formula: {m}"), a.span_of(i)))
+        expr::compile(&src).map_err(|m| Error::new(format!("in curve3 formula: {m}"), a.span_of(i)))
     };
     let (fx, fy, fz) = (compile(1)?, compile(2)?, compile(3)?);
     let (t0, t1) = match a.pair(4) {
@@ -310,7 +333,10 @@ fn c_revolve3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let src = a.text(2)?;
     let f = expr::compile(&src)
         .map_err(|m| Error::new(format!("in revolve3 profile: {m}"), a.span_of(2)))?;
-    let (t0, t1) = { let p = a.pair(3)?; (p.x, p.y) };
+    let (t0, t1) = {
+        let p = a.pair(3)?;
+        (p.x, p.y)
+    };
     let sides = match a.opt_num(4)? {
         Some(n) => (n.round() as i64).clamp(3, 256) as usize,
         None => 32,
@@ -380,7 +406,7 @@ fn c_prism3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         edges.push((k, k1)); // base ring
         edges.push((n + k, n + k1)); // top ring
         edges.push((k, n + k)); // vertical
-        // side quad (base_k, base_k1, top_k1, top_k) as two triangles
+                                // side quad (base_k, base_k1, top_k1, top_k) as two triangles
         faces.push([k, k1, n + k1]);
         faces.push([k, n + k1, n + k]);
     }
@@ -390,7 +416,11 @@ fn c_prism3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     s.add_3d(Entity3D::new(
         id,
-        Shape3D::Mesh { verts, edges, faces },
+        Shape3D::Mesh {
+            verts,
+            edges,
+            faces,
+        },
         center,
         style::CYAN,
     ));
@@ -422,7 +452,11 @@ fn c_pyramid3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     s.add_3d(Entity3D::new(
         id,
-        Shape3D::Mesh { verts, edges, faces },
+        Shape3D::Mesh {
+            verts,
+            edges,
+            faces,
+        },
         center,
         style::LIME,
     ));
@@ -437,8 +471,14 @@ fn c_surface3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let src = a.text(1)?;
     let f = expr::compile(&src)
         .map_err(|m| Error::new(format!("in surface3 formula: {m}"), a.span_of(1)))?;
-    let (x0, x1) = { let p = a.pair(2)?; (p.x, p.y) };
-    let (y0, y1) = { let p = a.pair(3)?; (p.x, p.y) };
+    let (x0, x1) = {
+        let p = a.pair(2)?;
+        (p.x, p.y)
+    };
+    let (y0, y1) = {
+        let p = a.pair(3)?;
+        (p.x, p.y)
+    };
     let res = (a.opt_num(4)?.unwrap_or(20.0) as usize).clamp(2, 120);
     let n = res + 1; // points per side
     let mut pts = Vec::with_capacity(n * n);
@@ -452,7 +492,11 @@ fn c_surface3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let mut e = Entity3D::new(
         id,
-        Shape3D::Surface { pts, nu: n as u32, nv: n as u32 },
+        Shape3D::Surface {
+            pts,
+            nu: n as u32,
+            nv: n as u32,
+        },
         Vec3::ZERO,
         style::CYAN,
     );
@@ -497,7 +541,12 @@ fn c_gradient3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     } else {
         Vec3::ZERO
     };
-    let mut e = Entity3D::new(id.clone(), Shape3D::Arrow { to: dir }, surf.point(x, y), color);
+    let mut e = Entity3D::new(
+        id.clone(),
+        Shape3D::Arrow { to: dir },
+        surf.point(x, y),
+        color,
+    );
     e.tags.push(id);
     s.add_3d(e);
     Ok(())
@@ -529,7 +578,11 @@ fn c_tangentplane3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let mut e = Entity3D::new(
         id.clone(),
-        Shape3D::Surface { pts, nu: m as u32, nv: m as u32 },
+        Shape3D::Surface {
+            pts,
+            nu: m as u32,
+            nv: m as u32,
+        },
         Vec3::ZERO,
         color,
     );
@@ -589,12 +642,17 @@ fn c_param3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let compile = |i: usize| -> Result<expr::Node, Error> {
         let src = a.text(i)?;
-        expr::compile(&src)
-            .map_err(|m| Error::new(format!("in param3 formula: {m}"), a.span_of(i)))
+        expr::compile(&src).map_err(|m| Error::new(format!("in param3 formula: {m}"), a.span_of(i)))
     };
     let (fx, fy, fz) = (compile(1)?, compile(2)?, compile(3)?);
-    let (u0, u1) = { let p = a.pair(4)?; (p.x, p.y) };
-    let (v0, v1) = { let p = a.pair(5)?; (p.x, p.y) };
+    let (u0, u1) = {
+        let p = a.pair(4)?;
+        (p.x, p.y)
+    };
+    let (v0, v1) = {
+        let p = a.pair(5)?;
+        (p.x, p.y)
+    };
     let res = (a.opt_num(6)?.unwrap_or(24.0) as usize).clamp(2, 120);
     let n = res + 1; // points per side
     let mut pts = Vec::with_capacity(n * n);
@@ -608,7 +666,11 @@ fn c_param3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     s.add_3d(Entity3D::new(
         id,
-        Shape3D::Surface { pts, nu: n as u32, nv: n as u32 },
+        Shape3D::Surface {
+            pts,
+            nu: n as u32,
+            nv: n as u32,
+        },
         Vec3::ZERO,
         style::CYAN,
     ));
@@ -808,28 +870,41 @@ fn build_morph3(sa: Shape3D, sb: Shape3D) -> Result<(Vec<Vec3>, Vec<Vec3>, Morph
             Morph3Kind::Path,
         )),
         (
-            Shape3D::Surface { pts: pa, nu: ua, nv: va },
-            Shape3D::Surface { pts: pb, nu: ub, nv: vb },
+            Shape3D::Surface {
+                pts: pa,
+                nu: ua,
+                nv: va,
+            },
+            Shape3D::Surface {
+                pts: pb,
+                nu: ub,
+                nv: vb,
+            },
         ) => Ok((
             resample_surface(&pa, ua, va, RU, RV),
             resample_surface(&pb, ub, vb, RU, RV),
             Morph3Kind::Surface { nu: RU, nv: RV },
         )),
         (sa, sb) if is_solid3(&sa) && is_solid3(&sb) => {
-            let ta = crate::render3d::shape_tris(&sa)
-                .ok_or("this solid has no surface to morph")?;
-            let tb = crate::render3d::shape_tris(&sb)
-                .ok_or("this solid has no surface to morph")?;
+            let ta =
+                crate::render3d::shape_tris(&sa).ok_or("this solid has no surface to morph")?;
+            let tb =
+                crate::render3d::shape_tris(&sb).ok_or("this solid has no surface to morph")?;
             Ok((
                 spherical_grid(&ta, GU, GV),
                 spherical_grid(&tb, GU, GV),
-                Morph3Kind::Surface { nu: (GU + 1) as u32, nv: (GV + 1) as u32 },
+                Morph3Kind::Surface {
+                    nu: (GU + 1) as u32,
+                    nv: (GV + 1) as u32,
+                },
             ))
         }
-        _ => Err("morph3 needs two shapes of the same family: both curves (curve3), \
+        _ => Err(
+            "morph3 needs two shapes of the same family: both curves (curve3), \
                   both surfaces (surface3/revolve3), or both solids \
                   (cube3/sphere3/prism3/pyramid3/extrude3)"
-            .into()),
+                .into(),
+        ),
     }
 }
 
@@ -854,12 +929,23 @@ fn c_morph3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         .clone();
     let (from, to, kind) = build_morph3(sa, sb).map_err(|m| Error::new(m, a.name_span))?;
     let start = match kind {
-        Morph3Kind::Path => Shape3D::Path { points: from.clone() },
-        Morph3Kind::Surface { nu, nv } => Shape3D::Surface { pts: from.clone(), nu, nv },
+        Morph3Kind::Path => Shape3D::Path {
+            points: from.clone(),
+        },
+        Morph3Kind::Surface { nu, nv } => Shape3D::Surface {
+            pts: from.clone(),
+            nu,
+            nv,
+        },
     };
     let e = s.get_3d_mut(&ida).unwrap();
     e.shape = start;
-    e.morph3 = Some(Morph3 { from, to, kind, spin });
+    e.morph3 = Some(Morph3 {
+        from,
+        to,
+        kind,
+        spin,
+    });
     Ok(())
 }
 
@@ -1101,16 +1187,32 @@ fn parallelepiped(c1: Vec3, c2: Vec3, c3: Vec3) -> (Vec<Vec3>, Vec<(u32, u32)>, 
         verts.push(c1 * x + c2 * y + c3 * z);
     }
     let edges = vec![
-        (0, 1), (0, 2), (0, 4), (1, 3), (1, 5), (2, 3),
-        (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7),
+        (0, 1),
+        (0, 2),
+        (0, 4),
+        (1, 3),
+        (1, 5),
+        (2, 3),
+        (2, 6),
+        (3, 7),
+        (4, 5),
+        (4, 6),
+        (5, 7),
+        (6, 7),
     ];
     let faces = vec![
-        [0, 1, 3], [0, 3, 2], // z = 0
-        [4, 5, 7], [4, 7, 6], // z = 1
-        [0, 1, 5], [0, 5, 4], // y = 0
-        [2, 3, 7], [2, 7, 6], // y = 1
-        [0, 2, 6], [0, 6, 4], // x = 0
-        [1, 3, 7], [1, 7, 5], // x = 1
+        [0, 1, 3],
+        [0, 3, 2], // z = 0
+        [4, 5, 7],
+        [4, 7, 6], // z = 1
+        [0, 1, 5],
+        [0, 5, 4], // y = 0
+        [2, 3, 7],
+        [2, 7, 6], // y = 1
+        [0, 2, 6],
+        [0, 6, 4], // x = 0
+        [1, 3, 7],
+        [1, 7, 5], // x = 1
     ];
     (verts, edges, faces)
 }
@@ -1131,9 +1233,15 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let o = a.triple(1)?;
     let m = [
-        a.num(2)?, a.num(3)?, a.num(4)?,
-        a.num(5)?, a.num(6)?, a.num(7)?,
-        a.num(8)?, a.num(9)?, a.num(10)?,
+        a.num(2)?,
+        a.num(3)?,
+        a.num(4)?,
+        a.num(5)?,
+        a.num(6)?,
+        a.num(7)?,
+        a.num(8)?,
+        a.num(9)?,
+        a.num(10)?,
     ];
     // columns = images of the basis vectors  (î → (a,d,g), etc.)
     let c1 = vec3(m[0], m[3], m[6]);
@@ -1148,10 +1256,18 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         style::LIME
     };
     // faint reference unit cube (identity), wireframe only
-    let (uv, ue, _) = parallelepiped(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+    let (uv, ue, _) = parallelepiped(
+        vec3(1.0, 0.0, 0.0),
+        vec3(0.0, 1.0, 0.0),
+        vec3(0.0, 0.0, 1.0),
+    );
     let mut refc = Entity3D::new(
         format!("{id}.ref"),
-        Shape3D::Mesh { verts: uv, edges: ue, faces: vec![] },
+        Shape3D::Mesh {
+            verts: uv,
+            edges: ue,
+            faces: vec![],
+        },
         o,
         style::DIM,
     );
@@ -1162,7 +1278,11 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let (pv, pe, pf) = parallelepiped(c1, c2, c3);
     let mut img = Entity3D::new(
         id.clone(),
-        Shape3D::Mesh { verts: pv, edges: pe, faces: pf },
+        Shape3D::Mesh {
+            verts: pv,
+            edges: pe,
+            faces: pf,
+        },
         o,
         fill,
     );
@@ -1170,12 +1290,24 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     img.tags.push(id.clone());
     s.add_3d(img);
     // basis arrows on the columns, with pinned labels
-    for (nm, col, col_c) in [("i", c1, style::CYAN), ("j", c2, style::MAGENTA), ("k", c3, style::LIME)] {
+    for (nm, col, col_c) in [
+        ("i", c1, style::CYAN),
+        ("j", c2, style::MAGENTA),
+        ("k", c3, style::LIME),
+    ] {
         let mut arr = Entity3D::new(format!("{id}.{nm}"), Shape3D::Arrow { to: col }, o, col_c);
         arr.tags.push(id.clone());
         s.add_3d(arr);
         let lbl = format!("{id}.l{nm}");
-        let mut t = Entity::new(lbl.clone(), Shape::Text { content: nm.to_string(), size: 22.0 }, Vec2::ZERO, col_c);
+        let mut t = Entity::new(
+            lbl.clone(),
+            Shape::Text {
+                content: nm.to_string(),
+                size: 22.0,
+            },
+            Vec2::ZERO,
+            col_c,
+        );
         t.tags.push(id.clone());
         s.add(t);
         s.pins.push(Pin3 {
@@ -1190,7 +1322,10 @@ fn c_linmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let vlbl = format!("{id}.val");
     let mut vt = Entity::new(
         vlbl.clone(),
-        Shape::Text { content: format!("det = {det:.2}"), size: 24.0 },
+        Shape::Text {
+            content: format!("det = {det:.2}"),
+            size: 24.0,
+        },
         Vec2::ZERO,
         style::GOLD,
     );
@@ -1223,7 +1358,9 @@ fn real_cubic_roots(a2: f32, a1: f32, a0: f32) -> Vec<f32> {
         vec![shift, shift, shift] // triple root
     } else {
         let r = (-p / 3.0).sqrt();
-        let phi = ((3.0 * q) / (2.0 * p) * (-3.0 / p).sqrt()).clamp(-1.0, 1.0).acos();
+        let phi = ((3.0 * q) / (2.0 * p) * (-3.0 / p).sqrt())
+            .clamp(-1.0, 1.0)
+            .acos();
         (0..3)
             .map(|k| 2.0 * r * (phi / 3.0 - std::f32::consts::TAU * k as f32 / 3.0).cos() + shift)
             .collect()
@@ -1254,7 +1391,8 @@ fn eigvec3(m: &[f32; 9], l: f32) -> Vec3 {
 /// three eigenvalues are complex (0 or 2). Repeated real eigenvalues are merged.
 fn eig3(m: &[f32; 9]) -> (Vec<(f32, Vec3)>, usize) {
     let tr = m[0] + m[4] + m[8];
-    let minors = (m[4] * m[8] - m[5] * m[7]) + (m[0] * m[8] - m[2] * m[6]) + (m[0] * m[4] - m[1] * m[3]);
+    let minors =
+        (m[4] * m[8] - m[5] * m[7]) + (m[0] * m[8] - m[2] * m[6]) + (m[0] * m[4] - m[1] * m[3]);
     let dt = det3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
     let roots = real_cubic_roots(-tr, minors, -dt);
     let n_complex = 3 - roots.len();
@@ -1276,9 +1414,15 @@ fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let o = a.triple(1)?;
     let m = [
-        a.num(2)?, a.num(3)?, a.num(4)?,
-        a.num(5)?, a.num(6)?, a.num(7)?,
-        a.num(8)?, a.num(9)?, a.num(10)?,
+        a.num(2)?,
+        a.num(3)?,
+        a.num(4)?,
+        a.num(5)?,
+        a.num(6)?,
+        a.num(7)?,
+        a.num(8)?,
+        a.num(9)?,
+        a.num(10)?,
     ];
     let explicit = if a.len() > 11 {
         Some(resolve_color(&a.ident(11)?, a.span_of(11))?)
@@ -1292,7 +1436,9 @@ fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let col = explicit.unwrap_or(palette[k % 3]);
         let mut line = Entity3D::new(
             format!("{id}.axis{k}"),
-            Shape3D::Line { to: *v * (2.0 * ext) },
+            Shape3D::Line {
+                to: *v * (2.0 * ext),
+            },
             o - *v * ext,
             col,
         );
@@ -1301,7 +1447,10 @@ fn c_eigen3(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let lbl = format!("{id}.l{k}");
         let mut t = Entity::new(
             lbl.clone(),
-            Shape::Text { content: format!("lambda = {l:.2}"), size: 22.0 },
+            Shape::Text {
+                content: format!("lambda = {l:.2}"),
+                size: 22.0,
+            },
             Vec2::ZERO,
             col,
         );
@@ -1387,7 +1536,11 @@ mod tests {
         // swapping two columns flips orientation (det < 0)
         assert!(det3(0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0) < 0.0);
         // the parallelepiped has 8 corners, 12 edges, 12 triangle faces
-        let (v, e, f) = parallelepiped(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+        let (v, e, f) = parallelepiped(
+            vec3(1.0, 0.0, 0.0),
+            vec3(0.0, 1.0, 0.0),
+            vec3(0.0, 0.0, 1.0),
+        );
         assert_eq!((v.len(), e.len(), f.len()), (8, 12, 12));
     }
 
@@ -1406,7 +1559,9 @@ mod tests {
             );
             assert!((av - *v * *l).length() < 1e-3, "A·v != λ·v for λ={l}");
         }
-        assert!([2.0, 3.0, 4.0].iter().all(|t| pairs.iter().any(|(l, _)| (l - t).abs() < 1e-3)));
+        assert!([2.0, 3.0, 4.0]
+            .iter()
+            .all(|t| pairs.iter().any(|(l, _)| (l - t).abs() < 1e-3)));
         // a 90° rotation about z: one real eigenvalue (λ=1, axis = z), two complex
         let rot = [0.0, -1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
         let (rp, rc) = eig3(&rot);
@@ -1419,9 +1574,23 @@ mod tests {
     fn surface_partials_match_calculus() {
         // f(x,y) = x^2 + y^2 : fx = 2x, fy = 2y  (a paraboloid bowl)
         let f = crate::kits::math::expr::compile("x*x + y*y").unwrap();
-        let sf = SurfaceFn { f, x0: -3.0, x1: 3.0, y0: -3.0, y1: 3.0 };
-        assert!((sf.dx(1.0, 0.5) - 2.0).abs() < 1e-2, "fx = {}", sf.dx(1.0, 0.5));
-        assert!((sf.dy(0.5, 1.5) - 3.0).abs() < 1e-2, "fy = {}", sf.dy(0.5, 1.5));
+        let sf = SurfaceFn {
+            f,
+            x0: -3.0,
+            x1: 3.0,
+            y0: -3.0,
+            y1: 3.0,
+        };
+        assert!(
+            (sf.dx(1.0, 0.5) - 2.0).abs() < 1e-2,
+            "fx = {}",
+            sf.dx(1.0, 0.5)
+        );
+        assert!(
+            (sf.dy(0.5, 1.5) - 3.0).abs() < 1e-2,
+            "fy = {}",
+            sf.dy(0.5, 1.5)
+        );
         // gradient is zero at the minimum (0,0)
         assert!(sf.dx(0.0, 0.0).abs() < 1e-2 && sf.dy(0.0, 0.0).abs() < 1e-2);
     }
@@ -1556,7 +1725,11 @@ mod tests {
         .unwrap()
         .finalize();
         match &base.get_3d("pr").unwrap().shape {
-            Shape3D::Mesh { verts, edges, faces } => {
+            Shape3D::Mesh {
+                verts,
+                edges,
+                faces,
+            } => {
                 assert_eq!(verts.len(), 12); // 2 × 6-gon rings
                 assert_eq!(edges.len(), 18); // base + top + verticals
                 assert_eq!(faces.len(), 20); // 2×6 sides + 2×(6-2) caps
@@ -1564,7 +1737,11 @@ mod tests {
             o => panic!("prism: {o:?}"),
         }
         match &base.get_3d("py").unwrap().shape {
-            Shape3D::Mesh { verts, edges, faces } => {
+            Shape3D::Mesh {
+                verts,
+                edges,
+                faces,
+            } => {
                 assert_eq!(verts.len(), 5); // 4 base + apex
                 assert_eq!(edges.len(), 8); // 4 base + 4 slants
                 assert_eq!(faces.len(), 6); // 4 sides + (4-2) base-cap
@@ -1625,7 +1802,11 @@ mod tests {
         // the 2D source is consumed (it was only the cross-section recipe)
         assert_eq!(base.get("pl").unwrap().opacity, 0.0);
         match &base.get_3d("sol").unwrap().shape {
-            Shape3D::Mesh { verts, faces, edges } => {
+            Shape3D::Mesh {
+                verts,
+                faces,
+                edges,
+            } => {
                 // rect ring → 2 cap tris ×2 ends + 4 wall edges ×2 = 12 tris
                 assert_eq!(faces.len(), 12);
                 assert_eq!(verts.len(), 36);

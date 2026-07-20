@@ -444,7 +444,10 @@ mod tests {
         );
         // `\"` still escapes a quote inside a double-quoted string
         let esc = kinds(r#"f("a\"b")"#);
-        assert!(esc.contains(&Tok::Str("a\"b".into())), "\\\" should escape a quote: {esc:?}");
+        assert!(
+            esc.contains(&Tok::Str("a\"b".into())),
+            "\\\" should escape a quote: {esc:?}"
+        );
     }
 
     #[test]

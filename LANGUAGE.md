@@ -188,7 +188,7 @@ address.
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
 | `rect(id, (x,y), w, h)` | rectangle, same node styling |
-| `particles(id, container, count, [radius], [seed])` | a deterministic group of small dots inside a `circle` or `rect`; children are `{id}.p0…` and the bare id addresses the group. The id supplies the meaning—`bubbles`, `dust`, `stars`, `data`, etc. |
+| `particles(id, container, count, [radius], [seed], ["layout"])` | a deterministic group of small dots inside a `circle` or `rect`; `layout` is `"random"` (default), `"grid"` (rectangle), or `"ring"` (circle). Children are `{id}.p0…` and the bare id addresses the group. The id supplies the meaning—`bubbles`, `dust`, `stars`, `data`, etc. |
 | `image(id, (x,y), "path", [w], [h])` | a **raster image** (PNG/JPG) from a file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing file draws a crossed placeholder box. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
 | `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Color individual terms with standard LaTeX and Manic palette names: `` `\textcolor{magenta}{\mathrm{slope}}=\textcolor{cyan}{x}` ``; semantic colors follow the active template and uncolored terms use its foreground. Ordinary single-color equations still follow `color`/`recolor`. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace); use `rewrite` below for a continuous step-by-step derivation. Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
 | `line(id, (x1,y1), (x2,y2))` | a straight line |
@@ -241,7 +241,9 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `move(id, target, [dur], [ease])` | move to a point **or another entity's position** |
 | `shift(id, (dx,dy), [dur], [ease])` | move by a delta |
 | `grow(id, target, [dur], [ease])` | move a line/arrow's endpoint (draws or retargets it) |
+| `travel(id, path, [dur], [ease])` | move one persistent entity once along an existing line, arrow, curve, plot, spline, or arc; it stops and holds at the endpoint |
 | `wander(id, [dur])` | gently move a `particles` group while keeping every dot inside its original circle/rectangle; seeded and deterministic |
+| `arrange(id, container, ["random|grid|ring"], [dur], [ease])` | move one persistent particle set into a deterministic layout inside `container`; random layouts use independent organic curved routes, a larger rectangle creates expansion, `grid → random → grid` gives exact reversal, and a circle plus `ring` gives a radial endpoint |
 | `flow(path, [dur])` | send one luminous emphasis pulse over a line, arrow, curve, spline, arc, or `link` |
 | `draw(id, [dur])` | trace a stroke on (declare `untraced` first) |
 | `erase(id, [dur])` | trace a stroke off |
@@ -262,38 +264,47 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `cycle(a, b, c, …, [dur], [arc], [ease])` | move each entity into the next one's position and the last into the first one's position (Manim `CyclicReplace`). `arc` is degrees and defaults to 90; use `0` for straight paths. Repeated cycles compose statefully. |
 | `karaoke(id, [delay], [color])` | highlight a `caption`'s words in sequence (lyrics-style) |
 | `wordpop(id, [delay])` | pop a `caption`'s words in one at a time (TikTok-style; `hidden(id.words)` first) |
-| `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
+| `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Open paths remain open and closed outlines remain closed, avoiding a false diagonal chord during graph/line transforms. Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
 | `copy(new, src)` (constructor) | duplicate entity `src` as `new` (standalone, no group tags) — copy then morph/move it while the original stays |
 
 `move`/`grow` accept an entity id as the target (`move(A, B)` moves A to B's
 position); everything else takes a literal `(x, y)`.
 
-### Contained motion and live connections
+### Contained motion, rearrangement, and live connections
 
-Four generic words replace the common pattern of hand-placing and hand-moving
-dozens of dots. They are intentionally not chemistry vocabulary:
+A compact generic vocabulary replaces the common pattern of hand-placing and
+hand-moving dozens of dots. None of these words is chemistry-specific:
 
 ```manic
 circle(glass, (400,300), 100);
 particles(bubbles, glass, 24, 5, 7);
 
 rect(tank, (750,300), 180, 160);
-particles(data, tank, 18, 4, 19);
+particles(data, tank, 18, 4, 19, "grid");
 
 link(pipe, glass, tank, 35);
 untraced(pipe);
 
 par {
   wander(bubbles, 6);
-  wander(data, 6);
+  arrange(data, tank, "random", 3, smooth);
   seq { draw(pipe, 0.8); flow(pipe, 1.2); }
 }
+
+dot(marker, (400,300), 6);
+travel(marker, pipe, 1.2, smooth); // moves the dot and leaves it at the end
 ```
 
 The optional seed makes placement and motion repeat exactly in preview, stills,
-and recordings. `wander` occupies its requested duration, so put it in `par`
-with the story beats it should accompany. A `link` follows `move`d endpoints;
-`flow` is transient emphasis and does not alter the path itself.
+and recordings. `arrange` preserves every child id while changing its layout or
+container. Its random transition gives each particle a stable curved route, so
+the result stays deterministic without looking like one synchronized straight
+tween; a later `arrange(...,"grid")` can still reconstruct the exact ordered
+state. A circular target plus `"ring"` gives the same particles a radial final
+layout. `wander` occupies its requested duration, so put it in `par` with the
+story beats it should accompany. A `link` follows `move`d endpoints; `flow` is
+transient emphasis and does not alter the path itself, while `travel` moves a
+real entity once along that path and stops at its endpoint.
 
 ### Parameter journeys
 

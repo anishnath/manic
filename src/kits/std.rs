@@ -18,7 +18,7 @@ use crate::primitives::{
 };
 use crate::scene::{EquationState, ParticleGroup, PendingEquationPart, Scene};
 use crate::style;
-use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value, TimelineEvent};
+use crate::timeline::{Clip, Prop, TargetValue, TimelineEvent, TrackSpec, Value};
 
 fn neon_stroke() -> StrokeStyle {
     StrokeStyle {
@@ -148,11 +148,118 @@ fn particle_points(
     }
 }
 
-/// `particles(id, container, count, [radius], [seed])` — deterministic small
-/// dots inside a circle or rectangle. Meaning comes from the author's id
+/// Lay particles out as an ordered grid inside a rectangle. The final partial
+/// row is centred, which keeps small groups visually balanced. A grid inside a
+/// circle is intentionally not guessed: "ordered" has no single obvious
+/// circular layout, while a rectangle has an unambiguous row/column reading.
+fn particle_grid_points(
+    container: &Entity,
+    count: usize,
+    radius: f32,
+) -> Result<Vec<Vec2>, String> {
+    let Shape::Rect { w, h } = &container.shape else {
+        return Err("grid particle layout currently needs a rectangle container".into());
+    };
+    let usable_w = w * container.scale.abs() - 2.0 * radius;
+    let usable_h = h * container.scale.abs() - 2.0 * radius;
+    if usable_w < 0.0 || usable_h < 0.0 {
+        return Err(format!(
+            "particle radius {radius} is larger than the rectangle's interior"
+        ));
+    }
+    if count == 1 {
+        return Ok(vec![container.pos]);
+    }
+
+    let aspect = (usable_w / usable_h.max(1.0)).max(0.01);
+    let cols = ((count as f32 * aspect).sqrt().ceil() as usize).clamp(1, count);
+    let rows = count.div_ceil(cols);
+    let step_x = if cols > 1 {
+        usable_w / (cols - 1) as f32
+    } else {
+        0.0
+    };
+    let step_y = if rows > 1 {
+        usable_h / (rows - 1) as f32
+    } else {
+        0.0
+    };
+    if (cols > 1 && step_x + 1e-4 < radius * 2.0) || (rows > 1 && step_y + 1e-4 < radius * 2.0) {
+        return Err(format!(
+            "{count} particles of radius {radius} do not fit as a grid in this rectangle"
+        ));
+    }
+
+    let mut points = Vec::with_capacity(count);
+    for row in 0..rows {
+        let row_start = row * cols;
+        let row_count = (count - row_start).min(cols);
+        let y = if rows > 1 {
+            -usable_h * 0.5 + row as f32 * step_y
+        } else {
+            0.0
+        };
+        let x0 = -(row_count.saturating_sub(1) as f32) * step_x * 0.5;
+        for col in 0..row_count {
+            let local = Vec2::new(x0 + col as f32 * step_x, y);
+            points.push(container.pos + rot_local(local, container.rot));
+        }
+    }
+    Ok(points)
+}
+
+/// Place particles evenly around a circular container. This is an ordered
+/// layout just like `grid`, but for cyclic/radial stories: clocks, orbits,
+/// rings, radial menus, and state transitions all use the same primitive.
+fn particle_ring_points(
+    container: &Entity,
+    count: usize,
+    radius: f32,
+) -> Result<Vec<Vec2>, String> {
+    let Shape::Circle { r } = &container.shape else {
+        return Err("ring particle layout currently needs a circle container".into());
+    };
+    let orbit = r * container.scale.abs() - radius;
+    if orbit < 0.0 {
+        return Err(format!(
+            "particle radius {radius} is larger than the circle's interior"
+        ));
+    }
+    if count == 1 {
+        return Ok(vec![container.pos]);
+    }
+    Ok((0..count)
+        .map(|i| {
+            let angle =
+                -std::f32::consts::FRAC_PI_2 + std::f32::consts::TAU * i as f32 / count as f32;
+            container.pos + Vec2::new(angle.cos(), angle.sin()) * orbit
+        })
+        .collect())
+}
+
+fn particle_layout_points(
+    container: &Entity,
+    count: usize,
+    radius: f32,
+    seed: u64,
+    layout: &str,
+) -> Result<Vec<Vec2>, String> {
+    match layout {
+        "random" => particle_points(container, count, radius, seed),
+        "grid" => particle_grid_points(container, count, radius),
+        "ring" => particle_ring_points(container, count, radius),
+        other => Err(format!(
+            "unknown particle layout `{other}` (try: random, grid, ring)"
+        )),
+    }
+}
+
+/// `particles(id, container, count, [radius], [seed], ["layout"])` —
+/// deterministic small dots inside a circle or rectangle. `layout` is `random`
+/// (default), `grid` (rectangles), or `ring` (circles). Meaning comes from the author's id
 /// (`bubbles`, `dust`, `stars`, `molecules`, …), not domain-specific engine code.
 fn c_particles(s: &mut Scene, a: &Args) -> Result<(), Error> {
-    a.max(5)?;
+    a.max(6)?;
     let id = a.ident(0)?;
     if s.particle_groups.contains_key(&id) || s.contains(&id) {
         return Err(Error::new(format!("`{id}` already exists"), a.span_of(0)));
@@ -177,16 +284,17 @@ fn c_particles(s: &mut Scene, a: &Args) -> Result<(), Error> {
         .opt_num(4)?
         .map(|v| v.max(1.0).round() as u64)
         .unwrap_or_else(|| stable_seed(&id));
+    let layout = a.opt_text(5)?.unwrap_or_else(|| "random".into());
     let container = s.get(&container_id).cloned().ok_or_else(|| {
         Error::new(
             format!("no 2-D container named `{container_id}`"),
             a.span_of(1),
         )
     })?;
-    let points = particle_points(&container, count, radius, seed).map_err(|m| {
+    let points = particle_layout_points(&container, count, radius, seed, &layout).map_err(|m| {
         Error::new(
             format!("`{container_id}` cannot contain particles: {m}"),
-            a.span_of(1),
+            a.span_of(if a.len() > 5 { 5 } else { 1 }),
         )
     })?;
     let mut children = Vec::with_capacity(count);
@@ -343,6 +451,13 @@ fn sample_outline(e: &Entity, n: usize) -> Vec<Vec2> {
         }
         _ => vec![e.pos; n], // text / arc / region: degenerate, holds a point
     }
+}
+
+fn shape_outline_is_closed(shape: &Shape) -> bool {
+    matches!(
+        shape,
+        Shape::Circle { .. } | Shape::Rect { .. } | Shape::Polygon { .. } | Shape::Region { .. }
+    )
 }
 
 /// `caption(id, "some words", (cx,cy), [size], [color])` — lay out the words in
@@ -571,21 +686,31 @@ fn c_morph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let ida = a.ident(0)?;
     let idb = a.ident(1)?;
     let spin = a.opt_num(2)?.unwrap_or(0.0);
-    let mut from = {
+    let (mut from, from_closed) = {
         let ea = s
             .get(&ida)
             .ok_or_else(|| Error::new(format!("no entity named `{ida}`"), a.span_of(0)))?;
-        sample_outline(ea, MORPH_N)
+        (
+            sample_outline(ea, MORPH_N),
+            shape_outline_is_closed(&ea.shape),
+        )
     };
-    let mut to = {
+    let (mut to, to_closed) = {
         let eb = s
             .get(&idb)
             .ok_or_else(|| Error::new(format!("no entity named `{idb}`"), a.span_of(1)))?;
-        sample_outline(eb, MORPH_N)
+        (
+            sample_outline(eb, MORPH_N),
+            shape_outline_is_closed(&eb.shape),
+        )
     };
-    // close the loop so the outline has no gap
-    from.push(from[0]);
-    to.push(to[0]);
+    // Preserve topology for path-to-path transforms. Closing an open plot or
+    // line creates a visible diagonal chord halfway through the morph. Closed
+    // outlines still repeat their first point so circles/polygons have no gap.
+    if from_closed && to_closed {
+        from.push(from[0]);
+        to.push(to[0]);
+    }
     let ea = s.get_mut(&ida).unwrap();
     ea.shape = Shape::Polyline { pts: from.clone() };
     ea.pos = Vec2::ZERO; // polyline points are absolute (like geo shapes)
@@ -745,7 +870,11 @@ fn c_bind(s: &mut Scene, a: &Args) -> Result<(), Error> {
             a.span_of(0),
         ));
     };
-    let initial = source_entity.counter.as_ref().map(|c| c.value).unwrap_or(0.0);
+    let initial = source_entity
+        .counter
+        .as_ref()
+        .map(|c| c.value)
+        .unwrap_or(0.0);
     let target_entity = s.get(&target).ok_or_else(|| {
         Error::new(
             format!("`bind` currently needs a 2-D entity; no entity named `{target}`"),
@@ -1568,7 +1697,12 @@ fn v_transform(s: &Scene, a: &Args) -> Result<Clip, Error> {
         dur,
         easing,
     };
-    let mut tracks = vec![track(Prop::Pos, e.pos)];
+    // Stateful position verbs such as `arrange`, `cycle`, and `swap` keep their
+    // authored endpoint in `motion_pos` while the base scene stays at t=0.
+    // Transform that current endpoint, not the constructor position, so a ring
+    // can arrive first and then receive a short group turn without snapping.
+    let current_pos = s.motion_pos.get(&id).copied().unwrap_or(e.pos);
+    let mut tracks = vec![track(Prop::Pos, current_pos)];
     if let Shape::Line { to } | Shape::Arrow { to } | Shape::Curve { to, .. } = &e.shape {
         tracks.push(track(Prop::To, *to));
     }
@@ -1927,13 +2061,7 @@ fn v_rewrite(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                 events: vec![TimelineEvent::shape(id.clone(), target_shape.clone(), dur)],
             }
         }
-        _ => fallback_equation_rewrite(
-            id.clone(),
-            target_shape.clone(),
-            target_scale,
-            dur,
-            easing,
-        ),
+        _ => fallback_equation_rewrite(id.clone(), target_shape.clone(), target_scale, dur, easing),
     };
 
     s.equation_states.insert(
@@ -2200,6 +2328,269 @@ fn v_zoom(_s: &Scene, a: &Args) -> Result<Clip, Error> {
     Ok(apply_dur_ease(act().cam_zoom(z), a, 1)?.into())
 }
 
+/// Sample a drawable path in scene coordinates. Keeping this build-time and
+/// turning it into ordinary position tracks preserves Manic's stateless
+/// preview/scrubbing contract.
+fn travel_path_points(path: &Entity) -> Option<Vec<Vec2>> {
+    let rotate_about = |point: Vec2| path.pos + rot_local(point - path.pos, path.rot);
+    Some(match &path.shape {
+        Shape::Line { to } | Shape::Arrow { to } => {
+            vec![path.pos, rotate_about(*to)]
+        }
+        Shape::Curve { ctrl, to, .. } => (0..=64)
+            .map(|i| {
+                let u = i as f32 / 64.0;
+                let v = 1.0 - u;
+                path.pos * (v * v)
+                    + rotate_about(*ctrl) * (2.0 * v * u)
+                    + rotate_about(*to) * (u * u)
+            })
+            .collect(),
+        Shape::Polyline { pts } => {
+            let mut out: Vec<Vec2> = pts.iter().map(|point| *point + path.pos).collect();
+            if path.rot.abs() > 1e-3 && !out.is_empty() {
+                let centre = out.iter().copied().sum::<Vec2>() / out.len() as f32;
+                for point in &mut out {
+                    *point = centre + rot_local(*point - centre, path.rot);
+                }
+            }
+            out
+        }
+        Shape::Arc {
+            r, start, sweep, ..
+        } => {
+            let segments = ((sweep.abs() / 4.0).ceil() as usize).max(16);
+            let orbit = r * path.scale.abs();
+            (0..=segments)
+                .map(|i| {
+                    let angle =
+                        (start + path.rot + sweep * i as f32 / segments as f32).to_radians();
+                    path.pos + Vec2::new(angle.cos(), angle.sin()) * orbit
+                })
+                .collect()
+        }
+        _ => return None,
+    })
+}
+
+fn point_along_polyline(points: &[Vec2], u: f32) -> Vec2 {
+    if points.len() < 2 {
+        return points.first().copied().unwrap_or(Vec2::ZERO);
+    }
+    let mut lengths = Vec::with_capacity(points.len());
+    lengths.push(0.0);
+    for pair in points.windows(2) {
+        lengths.push(lengths.last().copied().unwrap() + pair[0].distance(pair[1]));
+    }
+    let total = *lengths.last().unwrap();
+    if total <= 1e-6 {
+        return points[0];
+    }
+    let distance = total * u.clamp(0.0, 1.0);
+    let mut segment = 0;
+    while segment + 1 < lengths.len() && lengths[segment + 1] < distance {
+        segment += 1;
+    }
+    if segment + 1 >= points.len() {
+        return *points.last().unwrap();
+    }
+    let span = lengths[segment + 1] - lengths[segment];
+    let local = if span > 1e-6 {
+        (distance - lengths[segment]) / span
+    } else {
+        0.0
+    };
+    points[segment].lerp(points[segment + 1], local)
+}
+
+/// `travel(entity, path, [duration], [ease])` — move one persistent entity
+/// once along an existing line/arrow/curve/plot/spline/arc and leave it at the
+/// endpoint. This is intentionally distinct from `flow`: `flow` is a transient
+/// highlight, while `travel` moves the author's actual marker or object.
+fn v_travel(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(4)?;
+    let id = a.ident(0)?;
+    let path_id = a.ident(1)?;
+    if id == path_id {
+        return Err(Error::new(
+            "travel needs different entity and path ids",
+            a.span_of(1),
+        ));
+    }
+    if s.get(&id).is_none() {
+        return Err(Error::new(
+            format!("no 2-D entity named `{id}`"),
+            a.span_of(0),
+        ));
+    }
+    let path = s
+        .get(&path_id)
+        .ok_or_else(|| Error::new(format!("no path named `{path_id}`"), a.span_of(1)))?;
+    let points = travel_path_points(path).ok_or_else(|| {
+        Error::new(
+            format!("`{path_id}` is not a line, arrow, curve, plot, spline, or arc"),
+            a.span_of(1),
+        )
+    })?;
+    if points.len() < 2 {
+        return Err(Error::new(
+            format!("path `{path_id}` has fewer than two points"),
+            a.span_of(1),
+        ));
+    }
+    let dur = a.opt_num(2)?.unwrap_or(1.0);
+    if dur <= 0.0 {
+        return Err(Error::new("travel duration must be positive", a.span_of(2)));
+    }
+    let easing = if a.len() > 3 {
+        resolve_easing(&a.ident(3)?, a.span_of(3))?
+    } else {
+        Easing::InOutCubic
+    };
+    let segments = points.len().saturating_sub(1).clamp(16, 96);
+    let mut tracks = Vec::with_capacity(segments);
+    for i in 1..=segments {
+        let u = easing.apply(i as f32 / segments as f32);
+        tracks.push(TrackSpec {
+            id: id.clone(),
+            prop: Prop::Pos,
+            target: TargetValue::Abs(Value::V(point_along_polyline(&points, u))),
+            start: dur * (i - 1) as f32 / segments as f32,
+            dur: dur / segments as f32,
+            easing: Easing::Linear,
+        });
+    }
+    let endpoint = *points.last().unwrap();
+    s.motion_pos.insert(id, endpoint);
+    Ok(Clip {
+        tracks,
+        events: Vec::new(),
+        dur,
+    })
+}
+
+/// `arrange(particles, container, ["random|grid|ring"], [duration], [ease])` —
+/// move one persistent particle set into a deterministic layout in a circle or
+/// rectangle. Random layouts use stable curved routes rather than one shared
+/// straight tween, so a gas or crowd feels organic without sacrificing exact
+/// replay/scrubbing. Because the children retain identity, `grid → random →
+/// grid` reads as an exact reversible rearrangement rather than a crossfade.
+fn v_arrange(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
+    a.max(5)?;
+    let id = a.ident(0)?;
+    let container_id = a.ident(1)?;
+    let layout = a.opt_text(2)?.unwrap_or_else(|| "random".into());
+    let dur = a.opt_num(3)?.unwrap_or(1.2);
+    if dur <= 0.0 {
+        return Err(Error::new(
+            "arrange duration must be positive",
+            a.span_of(3),
+        ));
+    }
+    let easing = if a.len() > 4 {
+        resolve_easing(&a.ident(4)?, a.span_of(4))?
+    } else {
+        Easing::InOutCubic
+    };
+    let group = s.particle_groups.get(&id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("no particle group `{id}` — call particles({id}, ...) first"),
+            a.span_of(0),
+        )
+    })?;
+    let container = s.get(&container_id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("no 2-D container named `{container_id}`"),
+            a.span_of(1),
+        )
+    })?;
+    let targets = particle_layout_points(
+        &container,
+        group.children.len(),
+        group.radius,
+        group.seed,
+        &layout,
+    )
+    .map_err(|m| {
+        Error::new(
+            format!("`{container_id}` cannot arrange particles: {m}"),
+            a.span_of(2),
+        )
+    })?;
+
+    // An unordered state should not look like every dot was assigned a ruler.
+    // Give each child one deterministic Bézier route and compile it to ordinary
+    // position tracks. This keeps evaluation pure and seekable while avoiding
+    // the visibly synchronized straight-line pattern of a single tween.
+    let route_controls = if layout == "random" {
+        Some(
+            particle_points(
+                &container,
+                group.children.len(),
+                group.radius,
+                group.seed
+                    ^ stable_seed(&format!("{id}:{container_id}:arrange-route"))
+                    ^ 0xd1b5_4a32_d192_ed03,
+            )
+            .map_err(|m| {
+                Error::new(
+                    format!("`{container_id}` cannot route particles: {m}"),
+                    a.span_of(2),
+                )
+            })?,
+        )
+    } else {
+        None
+    };
+    let route_segments = 12usize;
+    let capacity = if route_controls.is_some() {
+        group.children.len() * route_segments
+    } else {
+        group.children.len()
+    };
+    let mut tracks = Vec::with_capacity(capacity);
+    for (index, (child, target)) in group.children.iter().zip(targets).enumerate() {
+        if let Some(controls) = &route_controls {
+            let from = s
+                .motion_pos
+                .get(child)
+                .copied()
+                .or_else(|| s.get(child).map(|entity| entity.pos))
+                .unwrap_or(target);
+            let control = controls[index];
+            for segment in 1..=route_segments {
+                let u = easing.apply(segment as f32 / route_segments as f32);
+                let v = 1.0 - u;
+                let point = from * (v * v) + control * (2.0 * v * u) + target * (u * u);
+                tracks.push(TrackSpec {
+                    id: child.clone(),
+                    prop: Prop::Pos,
+                    target: TargetValue::Abs(Value::V(point)),
+                    start: dur * (segment - 1) as f32 / route_segments as f32,
+                    dur: dur / route_segments as f32,
+                    easing: Easing::Linear,
+                });
+            }
+        } else {
+            tracks.push(TrackSpec {
+                id: child.clone(),
+                prop: Prop::Pos,
+                target: TargetValue::Abs(Value::V(target)),
+                start: 0.0,
+                dur,
+                easing,
+            });
+        }
+        s.motion_pos.insert(child.clone(), target);
+    }
+    s.particle_groups.get_mut(&id).unwrap().container = container_id;
+    Ok(Clip {
+        tracks,
+        events: Vec::new(),
+        dur,
+    })
+}
+
 /// `wander(particles, [duration])` — contained, deterministic ambient motion.
 /// It expands to ordinary position tracks at build time, preserving the core
 /// invariant that evaluating frame `t` is pure and freely scrubbable.
@@ -2426,6 +2817,8 @@ pub fn register(r: &mut Registry) {
     r.mut_verb("rewrite", v_rewrite); // matching LaTeX transformation, opt-in
     r.mut_verb("swap", v_swap); // two entities, or stateful array slot-swap
     r.mut_verb("cycle", v_cycle); // variadic CyclicReplace with an optional path arc
+    r.mut_verb("travel", v_travel); // move a persistent entity once along a path
+    r.mut_verb("arrange", v_arrange); // persistent particles: grid/random/ring + new container
     r.verb("karaoke", v_karaoke); // highlight caption words in sequence
     r.verb("wordpop", v_wordpop); // pop caption words in one at a time
     r.verb("wander", v_wander); // contained deterministic ambient particle motion
@@ -2435,6 +2828,8 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use macroquad::prelude::Vec2;
+
+    use crate::primitives::Shape;
 
     #[test]
     fn parameter_drives_properties_readouts_and_native_widget_purely() {
@@ -2455,26 +2850,21 @@ mod tests {
         assert!((parameter - 0.5).abs() < 1e-4);
         assert!((half.get("body").unwrap().pos.x - 800.0).abs() < 1e-3);
         assert!((half.get("body").unwrap().scale - 1.25).abs() < 1e-3);
-        assert!(
-            (half
-                .get("square")
-                .unwrap()
-                .counter
-                .as_ref()
-                .unwrap()
-                .value
-                - 0.25)
-                .abs()
-                < 1e-3
-        );
+        assert!((half.get("square").unwrap().counter.as_ref().unwrap().value - 0.25).abs() < 1e-3);
         let widget = half.get("p.dot").unwrap().pos;
         assert!((widget.x - (640.0 + 48.0)).abs() < 1e-3);
 
         let _later = timeline.apply(&base, 1.8);
         let after_seek = timeline.apply(&base, 0.35);
         let fresh = timeline.apply(&base, 0.35);
-        assert_eq!(after_seek.get("body").unwrap().pos, fresh.get("body").unwrap().pos);
-        assert_eq!(after_seek.get("p.dot").unwrap().pos, fresh.get("p.dot").unwrap().pos);
+        assert_eq!(
+            after_seek.get("body").unwrap().pos,
+            fresh.get("body").unwrap().pos
+        );
+        assert_eq!(
+            after_seek.get("p.dot").unwrap().pos,
+            fresh.get("p.dot").unwrap().pos
+        );
     }
 
     #[test]
@@ -2531,17 +2921,18 @@ mod tests {
         let (base, timeline) = movie.finalize();
         let end = timeline.apply(&base, 1.0);
         assert!((end.get("untouched").unwrap().pos.y - 250.0).abs() < 1e-4);
-        assert!((end
-            .get("live")
-            .unwrap()
-            .graph_view
-            .as_ref()
-            .unwrap()
-            .graph()
-            .y(2.0)
-            - 4.0)
-            .abs()
-            < 1e-3);
+        assert!(
+            (end.get("live")
+                .unwrap()
+                .graph_view
+                .as_ref()
+                .unwrap()
+                .graph()
+                .y(2.0)
+                - 4.0)
+                .abs()
+                < 1e-3
+        );
     }
 
     #[test]
@@ -2557,9 +2948,18 @@ mod tests {
 
         for (source, expected) in [
             ("parameter(p,(0,0),0,1,1);", "min < max"),
-            ("counter(p,(0,0),0); dot(d,(0,0)); bind(p,d,x,0,1);", "not a `parameter`"),
-            ("parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,x,\"wat(p)\");", "unknown function"),
-            ("parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,formula,\"p*x\");", "not a plot"),
+            (
+                "counter(p,(0,0),0); dot(d,(0,0)); bind(p,d,x,0,1);",
+                "not a `parameter`",
+            ),
+            (
+                "parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,x,\"wat(p)\");",
+                "unknown function",
+            ),
+            (
+                "parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,formula,\"p*x\");",
+                "not a plot",
+            ),
         ] {
             let error = match crate::parse(source) {
                 Err(error) => error,
@@ -2593,6 +2993,190 @@ mod tests {
             );
         }
         assert!(a.validate().is_ok());
+    }
+
+    #[test]
+    fn particles_arrange_between_ordered_random_and_larger_containers() {
+        let movie = crate::parse(
+            "canvas(800,500);\n\
+             rect(box, (250,180), 300, 160);\n\
+             particles(bits, box, 12, 5, 17, \"grid\");\n\
+             arrange(bits, box, \"random\", 1, linear);\n\
+             arrange(bits, box, \"grid\", 1, linear);\n\
+             rect(left, (150,380), 120, 100); rect(full, (400,380), 600, 100);\n\
+             particles(gas, left, 10, 4, 23);\n\
+             arrange(gas, full, \"random\", 1, smooth);\n\
+             circle(orbit, (650,180), 70);\n\
+             arrange(bits, orbit, \"ring\", 1, smooth);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let ordered: Vec<Vec2> = base.particle_groups["bits"]
+            .children
+            .iter()
+            .map(|id| base.get(id).unwrap().pos)
+            .collect();
+
+        let random = timeline.apply(&base, 1.0);
+        assert!(
+            base.particle_groups["bits"]
+                .children
+                .iter()
+                .zip(&ordered)
+                .any(|(id, start)| random.get(id).unwrap().pos != *start),
+            "grid → random must visibly rearrange persistent children"
+        );
+        let curved = timeline.apply(&base, 0.5);
+        assert!(
+            base.particle_groups["bits"]
+                .children
+                .iter()
+                .zip(&ordered)
+                .any(|(id, start)| {
+                    let end = random.get(id).unwrap().pos;
+                    let direct_midpoint = (*start + end) * 0.5;
+                    curved.get(id).unwrap().pos.distance(direct_midpoint) > 1.0
+                }),
+            "random arrangement should use independent curved routes, not one straight tween"
+        );
+
+        let restored = timeline.apply(&base, 2.0);
+        for (id, start) in base.particle_groups["bits"].children.iter().zip(&ordered) {
+            assert_eq!(
+                restored.get(id).unwrap().pos,
+                *start,
+                "random → grid must reconstruct the exact ordered state"
+            );
+        }
+
+        let expanded = timeline.apply(&base, 3.0);
+        for id in &base.particle_groups["gas"].children {
+            let p = expanded.get(id).unwrap().pos;
+            assert!((100.0..=700.0).contains(&p.x));
+            assert!((330.0..=430.0).contains(&p.y));
+        }
+
+        let ring = timeline.apply(&base, 4.0);
+        for id in &base.particle_groups["bits"].children {
+            let distance = ring.get(id).unwrap().pos.distance(Vec2::new(650.0, 180.0));
+            assert!((distance - 65.0).abs() < 1e-3);
+        }
+    }
+
+    #[test]
+    fn transform_after_arrange_uses_the_arranged_endpoint_without_snapping() {
+        let movie = crate::parse(
+            "canvas(800,500);\n\
+             rect(box, (180,250), 180, 180);\n\
+             circle(orbit, (560,250), 90);\n\
+             particles(dots, box, 8, 5, 17, \"grid\");\n\
+             arrange(dots, orbit, \"ring\", 1, linear);\n\
+             transform(dots, (560,250), 0, -1, 1, 0, 1, linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let arranged = timeline.apply(&base, 1.0);
+        let transformed = timeline.apply(&base, 2.0);
+        for id in &base.particle_groups["dots"].children {
+            let p = arranged.get(id).unwrap().pos;
+            let expected = Vec2::new(560.0 - (p.y - 250.0), 250.0 + (p.x - 560.0));
+            assert!(
+                transformed.get(id).unwrap().pos.distance(expected) < 1e-3,
+                "`{id}` should rotate from its ring position"
+            );
+        }
+    }
+
+    #[test]
+    fn particle_layout_errors_are_clear() {
+        for (source, expected) in [
+            (
+                "circle(c,(100,100),80); particles(p,c,8,4,7,\"grid\");",
+                "grid particle layout currently needs a rectangle",
+            ),
+            (
+                "rect(r,(100,100),100,100); particles(p,r,8); arrange(p,r,\"rows\");",
+                "unknown particle layout `rows`",
+            ),
+            (
+                "rect(r,(100,100),100,100); particles(p,r,8,4,7,\"ring\");",
+                "ring particle layout currently needs a circle",
+            ),
+        ] {
+            let error = match crate::parse(source) {
+                Err(error) => error,
+                Ok(_) => panic!("invalid particle layout must fail: {source}"),
+            };
+            assert!(error.msg.contains(expected), "got: {}", error.msg);
+        }
+    }
+
+    #[test]
+    fn travel_moves_once_along_a_path_and_holds_at_the_endpoint() {
+        let movie = crate::parse(
+            "canvas(800,500);\n\
+             plot(path, (100,400), 80, 90, \"1-exp(-x)\", (0,4));\n\
+             dot(marker, (100,400), 5);\n\
+             travel(marker, path, 2, smooth);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let Shape::Polyline { pts } = &base.get("path").unwrap().shape else {
+            panic!("plot must be a polyline");
+        };
+        let expected = *pts.last().unwrap() + base.get("path").unwrap().pos;
+
+        let midpoint = timeline.apply(&base, 1.0).get("marker").unwrap().pos;
+        assert_ne!(midpoint, base.get("marker").unwrap().pos);
+        assert_ne!(midpoint, expected);
+        assert_eq!(
+            timeline.apply(&base, 2.0).get("marker").unwrap().pos,
+            expected
+        );
+        assert_eq!(
+            timeline.apply(&base, 8.0).get("marker").unwrap().pos,
+            expected
+        );
+        let early = timeline.apply(&base, 0.7).get("marker").unwrap().pos;
+        let _later = timeline.apply(&base, 1.7);
+        let early_again = timeline.apply(&base, 0.7).get("marker").unwrap().pos;
+        assert_eq!(
+            early, early_again,
+            "travel must remain deterministic under out-of-order scrubbing"
+        );
+
+        let bad = match crate::parse("circle(c,(100,100),20); dot(d,(0,0)); travel(d,c,1);") {
+            Err(error) => error,
+            Ok(_) => panic!("a filled shape is not a travel path"),
+        };
+        assert!(bad
+            .msg
+            .contains("is not a line, arrow, curve, plot, spline, or arc"));
+    }
+
+    #[test]
+    fn morph_preserves_open_and_closed_path_topology() {
+        let open =
+            crate::parse("line(a,(0,0),(100,40)); line(b,(20,80),(180,80)); morph(a,b);").unwrap();
+        let Shape::Polyline { pts } = &open.base().get("a").unwrap().shape else {
+            panic!("morph source must become a polyline");
+        };
+        assert_ne!(
+            pts.first(),
+            pts.last(),
+            "an open line must not gain a closing chord"
+        );
+
+        let closed =
+            crate::parse("circle(a,(100,100),40); rect(b,(100,100),90,60); morph(a,b);").unwrap();
+        let Shape::Polyline { pts } = &closed.base().get("a").unwrap().shape else {
+            panic!("morph source must become a polyline");
+        };
+        assert_eq!(
+            pts.first(),
+            pts.last(),
+            "closed outlines must remain closed"
+        );
     }
 
     #[test]
@@ -2807,7 +3391,12 @@ mod tests {
             "opt-in rewrite should decompose RaTeX display items"
         );
         assert_eq!(
-            movie.base().entities.iter().filter(|e| e.id == "work").count(),
+            movie
+                .base()
+                .entities
+                .iter()
+                .filter(|e| e.id == "work")
+                .count(),
             1,
             "the public equation id stays stable"
         );
@@ -2846,20 +3435,18 @@ mod tests {
             .expect("ordinary equation remains unchanged");
         assert!(ordinary.base().pending_eq_parts.is_empty());
 
-        let non_equation = crate::parse(
-            "canvas(1280,720); text(label,(cx,cy),\"x\"); rewrite(label,`x+1`);",
-        )
-        .err()
-        .expect("rewrite should require an equation")
-        .to_string();
+        let non_equation =
+            crate::parse("canvas(1280,720); text(label,(cx,cy),\"x\"); rewrite(label,`x+1`);")
+                .err()
+                .expect("rewrite should require an equation")
+                .to_string();
         assert!(non_equation.contains("needs an equation"), "{non_equation}");
 
-        let bad_latex = crate::parse(
-            "canvas(1280,720); equation(q,(cx,cy),`x`,48); rewrite(q,`\\frac{`);",
-        )
-        .err()
-        .expect("malformed target LaTeX should fail")
-        .to_string();
+        let bad_latex =
+            crate::parse("canvas(1280,720); equation(q,(cx,cy),`x`,48); rewrite(q,`\\frac{`);")
+                .err()
+                .expect("malformed target LaTeX should fail")
+                .to_string();
         assert!(bad_latex.contains("rewrite"), "{bad_latex}");
     }
 
@@ -2871,7 +3458,10 @@ mod tests {
         );
         let movie = crate::parse(&src).unwrap();
         let state = &movie.base().equation_states["q"];
-        assert!(state.visual_scale < 1.0, "portrait overflow should auto-fit");
+        assert!(
+            state.visual_scale < 1.0,
+            "portrait overflow should auto-fit"
+        );
         let (long_w, _, _) = crate::latex::layout_dims(long, 72.0).unwrap();
         assert!(
             long_w * state.visual_scale <= movie.base().canvas().x * 0.90 + 0.1,
@@ -2890,7 +3480,11 @@ mod tests {
         // travels through the same public equation/rewrite pipeline and must
         // settle on the exact RaTeX-rendered target image.
         let cases = [
-            ("algebraic rearrangement", r"2(x+3)=14", r"2x=8\quad\Rightarrow\quad x=4"),
+            (
+                "algebraic rearrangement",
+                r"2(x+3)=14",
+                r"2x=8\quad\Rightarrow\quad x=4",
+            ),
             (
                 "integrals and derivatives",
                 r"F(x)=\int_0^x t^2\,dt",
@@ -2964,15 +3558,20 @@ mod tests {
                 ),
                 other => panic!("{name} settled as {other:?}, not an equation image"),
             }
-            assert!((work.opacity - 1.0).abs() < 1e-6, "{name} must settle visible");
+            assert!(
+                (work.opacity - 1.0).abs() < 1e-6,
+                "{name} must settle visible"
+            );
         }
 
-        let mixed = crate::parse(
-            "canvas(1280,720); text(note,(cx,cy),`Energy $E=mc^2$ uses mass $m$.`);",
-        )
-        .expect("ordinary prose with multiple inline formulas should typeset");
+        let mixed =
+            crate::parse("canvas(1280,720); text(note,(cx,cy),`Energy $E=mc^2$ uses mass $m$.`);")
+                .expect("ordinary prose with multiple inline formulas should typeset");
         assert!(
-            matches!(mixed.base().get("note").unwrap().shape, Shape::RichText { .. }),
+            matches!(
+                mixed.base().get("note").unwrap().shape,
+                Shape::RichText { .. }
+            ),
             "mixed prose/math should remain a rich-text entity"
         );
     }
@@ -2988,12 +3587,10 @@ mod tests {
         assert_eq!(movie.base().get("guide").unwrap().dash, Some((16.0, 10.0)));
         assert_eq!(movie.base().get("curve").unwrap().dash, Some((20.0, 7.0)));
 
-        let bad = crate::parse(
-            "canvas(1280,720); circle(c,(cx,cy),80); dashed(c);",
-        )
-        .err()
-        .expect("filled shapes are not path-like")
-        .to_string();
+        let bad = crate::parse("canvas(1280,720); circle(c,(cx,cy),80); dashed(c);")
+            .err()
+            .expect("filled shapes are not path-like")
+            .to_string();
         assert!(bad.contains("path-like"), "{bad}");
     }
 

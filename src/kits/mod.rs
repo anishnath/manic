@@ -89,7 +89,11 @@ mod catalog_tests {
         let root = env!("CARGO_MANIFEST_DIR");
         let script = format!("{root}/scripts/audit-arity.py");
         let out = ["python3", "python"].iter().find_map(|py| {
-            Command::new(py).arg(&script).current_dir(root).output().ok()
+            Command::new(py)
+                .arg(&script)
+                .current_dir(root)
+                .output()
+                .ok()
         });
         let Some(out) = out else {
             eprintln!("skipping arity audit — no python3/python on PATH");
@@ -155,7 +159,10 @@ mod catalog_tests {
                 .filter(|d| d.severity == "error")
                 .count()
         };
-        assert_eq!(errs("canvas(\"16:9\");\npolygon(p, (0,0), (100,0), (50,80));\n"), 0);
+        assert_eq!(
+            errs("canvas(\"16:9\");\npolygon(p, (0,0), (100,0), (50,80));\n"),
+            0
+        );
         assert_eq!(
             errs("canvas(\"16:9\");\npolygon(p, (0,0), (100,0), (50,80), lime);\n"),
             0

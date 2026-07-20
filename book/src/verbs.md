@@ -75,6 +75,41 @@ duration you give it, so run it in `par` with the story it should accompany.
 arc, or tracked `link`; it is useful for a signal, energy, traffic, or simply
 directing attention.
 
+`travel(marker, path, dur, smooth)` moves the actual marker once along that
+same kind of path and leaves it at the endpoint. Use `flow` for temporary
+emphasis and `travel` when object identity and the stopping point matter:
+
+```manic
+plot(curve, (180,620), 90, 140, "1-exp(-x)", (0,4));
+dot(marker, (180,620), 7);
+par { draw(curve, 2, out); travel(marker, curve, 2, out); }
+```
+
+For a persistent layout change, keep the same particle ids:
+
+```manic
+rect(chamber, (540,500), 600, 260);
+particles(gas, chamber, 48, 5, 17, "grid");
+arrange(gas, chamber, "random", 2.5, smooth);
+arrange(gas, chamber, "grid", 2.5, smooth); // exact ordered return
+
+circle(orbit, (900,500), 150);
+arrange(gas, orbit, "ring", 1.2, smooth);    // move and stop radially
+```
+
+`arrange` also accepts a different circle/rectangle container, which makes a
+free expansion readable without moving every dot by hand. A `random` layout
+uses independent seeded curved routes: the result is reproducible and
+scrubbable, but does not look like every particle followed the same ruler.
+
+For a complete creator-oriented treatment of persistent motion, arrival,
+settling, and the difference between `travel` and `flow`, see
+[Motion graphics — move ideas, not layers](motion-graphics.md).
+
+For shape continuity, `morph(a,b)` preserves topology: graph/line paths remain
+open, while circles and other closed outlines remain closed. This prevents an
+unwanted diagonal chord when a plot becomes a connector or guide line.
+
 For a persistent comparison style, use `dashed(id, [dash], [gap])` before the
 timeline. It is a base Manic modifier—not a calculus feature—so the same
 16/10-pixel default pattern works on a plot, guide line, link, arrow, curve,

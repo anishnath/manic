@@ -66,7 +66,6 @@ pub(crate) fn parse_opts() -> Result<Opts, String> {
 }
 
 fn parse_opts_from(args: &[String]) -> Result<Opts, String> {
-
     // pre-scan the preset + branding toggle so they seed the defaults below
     let mut preset_name = String::from("studio");
     let mut no_brand = false;
@@ -287,9 +286,7 @@ fn active_stage_index(
 ) -> Option<usize> {
     stages
         .iter()
-        .position(|stage| {
-            t >= stage.start.max(playback.from) && t < stage.end.min(playback.to)
-        })
+        .position(|stage| t >= stage.start.max(playback.from) && t < stage.end.min(playback.to))
         .or_else(|| {
             stages
                 .last()
@@ -307,8 +304,7 @@ fn stage_index_at_fraction(
     stages.iter().enumerate().find_map(|(index, stage)| {
         let (start, end) = stage_span(stage, playback);
         let is_last = index + 1 == stages.len();
-        (fraction >= start && (fraction < end || (is_last && fraction <= end)))
-            .then_some(index)
+        (fraction >= start && (fraction < end || (is_last && fraction <= end))).then_some(index)
     })
 }
 
@@ -877,10 +873,7 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
         if is_mouse_button_down(MouseButton::Left) && my >= bar_y {
             paused = true;
             t = playback.time_at(mx / sw);
-        } else if is_mouse_button_pressed(MouseButton::Left)
-            && my >= nav_y
-            && my < bar_y
-        {
+        } else if is_mouse_button_pressed(MouseButton::Left) && my >= nav_y && my < bar_y {
             if let Some(index) = stage_index_at_fraction(&visible_stages, &playback, mx / sw) {
                 t = visible_stages[index].start.max(playback.from);
                 paused = true;
@@ -927,13 +920,7 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
         // for the final visible stage.
         let active_stage_index = active_stage_index(&visible_stages, t, &playback);
         if !visible_stages.is_empty() {
-            draw_rectangle(
-                0.0,
-                nav_y,
-                sw,
-                24.0,
-                Color::new(0.015, 0.015, 0.04, 0.94),
-            );
+            draw_rectangle(0.0, nav_y, sw, 24.0, Color::new(0.015, 0.015, 0.04, 0.94));
             for (index, stage) in visible_stages.iter().enumerate() {
                 let (start, end) = stage_span(stage, &playback);
                 let (x0, x1) = (sw * start, sw * end);
@@ -1010,8 +997,8 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
 #[cfg(test)]
 mod stage_tests {
     use super::{
-        active_stage_index, parse_opts_from, playback_window, stage_index_at_fraction,
-        stage_span, visible_stage_ranges, Opts, PlaybackWindow,
+        active_stage_index, parse_opts_from, playback_window, stage_index_at_fraction, stage_span,
+        visible_stage_ranges, Opts, PlaybackWindow,
     };
 
     fn args(values: &[&str]) -> Vec<String> {
@@ -1185,7 +1172,11 @@ mod stage_tests {
                 include_str!("../examples/reactive-math-notation.manic"),
                 false,
             ),
-            ("sine-wave", include_str!("../examples/sine_wave.manic"), false),
+            (
+                "sine-wave",
+                include_str!("../examples/sine_wave.manic"),
+                false,
+            ),
             (
                 "reactive-world",
                 include_str!("../examples/reactive-world.manic"),

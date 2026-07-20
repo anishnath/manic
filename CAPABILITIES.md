@@ -98,7 +98,7 @@ not an instruction to implement everything.
 | P1 | 🟡 | **Multi-format composition** — reusable layout policies, format-specific pacing, thumbnail/still framing, and UI-controlled output variants. | Turns one semantic story into a dependable publishing system. |
 | P2 | ⬜ | **General bounds + relative placement** — reusable entity/group bounding boxes, framing, edge origins, and `next_to`-style layout. | Removes manual coordinates and unlocks reliable automatic composition. |
 | P2 | ⬜ | **Live geometry measurements** — bind derived lengths, angles, positions, and areas into counters/labels. | Makes olympiad, engineering, and interactive diagrams numerically truthful. |
-| P2 | ⬜ | **Move along path + nonlinear remapping** — let arbitrary entities follow existing paths; later deform grids/curves through a general map. | Covers orbit, tracing, winding, signal flow, and advanced transformation stories with small vocabulary. |
+| P2 | ⬜ | **Nonlinear remapping** — `travel(entity,path,…)` now ships for move-along-path; the remaining work is deforming grids/curves through a general authored map. | Extends the shipped path motion into advanced transformation stories without multiplying vocabulary. |
 | P3 | ⬜ | **Typography/look extensions** — selectable bundled fonts, then an optional chalkboard/sketch renderer. | Broadens creator identity without changing story semantics. |
 
 ### Future creator support
@@ -267,17 +267,28 @@ The generic-motion slice closes a creator-facing gap exposed by the Zeroth-Law
 reference animation: authors no longer have to hand-place dozens of dots or fake
 motion along curved connections. The vocabulary stays domain-neutral and small.
 
-This slice deliberately adds only three domain-neutral words and exposes one
-existing engine concept:
+This slice deliberately keeps one small domain-neutral surface:
 
-- **`particles(id, container, count, [radius], [seed])`** — create a seeded,
+- **`particles(id, container, count, [radius], [seed], ["layout"])`** — create a seeded,
   deterministic group of small dots inside a circle or rectangle. The author's id
   supplies the meaning: `bubbles`, `dust`, `stars`, `data`, or `molecules` all
   use the same constructor. Children are `{id}.p0…`, tagged by bare `{id}`.
+  `layout` is `random` by default, an ordered `grid` inside a rectangle, or an
+  ordered `ring` inside a circle.
 - **`wander(id, [duration])`** — give a particle group gentle ambient movement
   for the clip duration while keeping every child inside its source container.
   Evaluation remains pure by absolute time, so preview scrubbing and recording
   produce the same frame.
+- **`arrange(id, container, ["random|grid|ring"], [duration], [ease])`** — move the
+  same persistent children into another deterministic layout/container. This
+  covers free expansion and exact `grid → random → grid` reversal without
+  per-particle scripting or domain-specific entropy vocabulary. Random states
+  use independent stable curved routes instead of a synchronized straight
+  tween; `ring` adds a radial endpoint for clocks, orbits, state diagrams, and
+  final-law frames.
+- **`travel(entity, path, [duration], [ease])`** — move one real entity once
+  along a line, arrow, curve, plot, spline, or arc, then hold it at the endpoint.
+  This is the persistent-object complement to the transient `flow` pulse.
 - **`link(id, a, b, [bend])`** — expose the engine's tracked-edge mechanism as
   public std vocabulary. `bend=0` is a straight link; non-zero bend produces a
   curve whose endpoints continue to follow moving entities.
@@ -295,6 +306,9 @@ wander(bubbles, 6);
 circle(tank, (cx+360,cy), 120);
 link(pipe, glass, tank, 30);
 untraced(pipe); draw(pipe); flow(pipe, 1.2);
+
+dot(marker, (cx,cy), 6);
+travel(marker, pipe, 1.2, smooth);
 ```
 
 Non-goals for this slice: no `molecule`, `reservoir`, `heatflow`, or
@@ -309,12 +323,14 @@ rectangles are convex, so both the sampled positions and every tween between
 them stay inside. Concave-region path planning, collisions, emitters, forces,
 and physics remain intentionally outside this small primitive. Dedicated tests
 cover seeded repeatability, containment at sampled times, pure out-of-order
-timeline evaluation, moving bent links, flow phase, and invalid targets.
+timeline evaluation, moving bent links, path travel/endpoint holding, open-path
+morph topology, flow phase, and invalid targets.
 
-Reference: `examples/particles-flow.manic` isolates the four generic motion
-words, while `examples/zeroth-law-thermodynamics.manic` uses them in the full
-published lesson with contained matter, thermal links, and an explicit Manic
-watermark.
+Reference: `examples/particles-flow.manic` isolates ambient particles and path
+flow; `examples/zeroth-law-thermodynamics.manic` uses them for thermal
+equalisation; and `examples/second-law-thermodynamics.manic` uses persistent
+rearrangement for mixing, free expansion, graph markers, graph-to-connector
+morphs, a radial final state, and an exact statistical reversal.
 
 ### 3Blue1Brown benchmark audit — prioritized, vocabulary-gated
 

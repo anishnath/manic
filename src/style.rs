@@ -276,9 +276,7 @@ impl Template {
     /// Resolve a template by name (`None` if unknown).
     pub fn by_name(name: &str) -> Option<Template> {
         match name.trim().to_ascii_lowercase().as_str() {
-            "mono" | "monochrome" | "blackwhite" | "black-white" | "bw" => {
-                Some(Self::mono())
-            }
+            "mono" | "monochrome" | "blackwhite" | "black-white" | "bw" => Some(Self::mono()),
             "plain" | "blank" | "clean" => Some(Self::plain()),
             "terminal" | "neon" | "shell" => Some(Self::terminal()),
             "paper" | "print" | "light" => Some(Self::paper()),

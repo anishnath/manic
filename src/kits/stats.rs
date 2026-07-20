@@ -71,7 +71,17 @@ fn fmt(v: f32) -> String {
     }
 }
 
-fn add_line(s: &mut Scene, id: String, from: Vec2, to: Vec2, color: Color, width: f32, opacity: f32, z: i32, tags: Vec<String>) {
+fn add_line(
+    s: &mut Scene,
+    id: String,
+    from: Vec2,
+    to: Vec2,
+    color: Color,
+    width: f32,
+    opacity: f32,
+    z: i32,
+    tags: Vec<String>,
+) {
     let mut e = Entity::new(id, Shape::Line { to }, from, color);
     e.stroke.width = width;
     e.opacity = opacity;
@@ -81,7 +91,15 @@ fn add_line(s: &mut Scene, id: String, from: Vec2, to: Vec2, color: Color, width
 }
 
 fn add_label(s: &mut Scene, id: String, text: &str, pos: Vec2, size: f32, color: Color, tag: &str) {
-    let mut t = Entity::new(id, Shape::Text { content: text.to_string(), size }, pos, color);
+    let mut t = Entity::new(
+        id,
+        Shape::Text {
+            content: text.to_string(),
+            size,
+        },
+        pos,
+        color,
+    );
     t.font = FontKind::MonoBold;
     t.tags.push(tag.to_string());
     s.add(t);
@@ -122,7 +140,17 @@ fn c_histogram(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let tags = || vec![id.clone(), format!("{id}.bars")];
 
     // baseline axis
-    add_line(s, format!("{id}.axis"), vec2(x0, baseline), vec2(x0 + w, baseline), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(x0, baseline),
+        vec2(x0 + w, baseline),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
 
     // one bar per bin — always created (empty bins are height 0) so the count is
     // exactly `bins` and a `for k in 0..bins { draw(id.bar{k}) }` loop is safe.
@@ -133,7 +161,10 @@ fn c_histogram(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let by = baseline - bh / 2.0;
         let mut e = Entity::new(
             format!("{id}.bar{k}"),
-            Shape::Rect { w: barw * 0.9, h: bh },
+            Shape::Rect {
+                w: barw * 0.9,
+                h: bh,
+            },
             vec2(bx, by),
             color,
         );
@@ -146,14 +177,48 @@ fn c_histogram(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // range labels under the ends
-    add_label(s, format!("{id}.min"), &fmt(lo), vec2(x0, baseline + 22.0), 18.0, style::DIM, &id);
-    add_label(s, format!("{id}.max"), &fmt(hi), vec2(x0 + w, baseline + 22.0), 18.0, style::DIM, &id);
+    add_label(
+        s,
+        format!("{id}.min"),
+        &fmt(lo),
+        vec2(x0, baseline + 22.0),
+        18.0,
+        style::DIM,
+        &id,
+    );
+    add_label(
+        s,
+        format!("{id}.max"),
+        &fmt(hi),
+        vec2(x0 + w, baseline + 22.0),
+        18.0,
+        style::DIM,
+        &id,
+    );
 
     // mean marker (vertical line + label)
     let mean = data.iter().sum::<f32>() / n as f32;
     let mx = x0 + ((mean - lo) / range) * w;
-    add_line(s, format!("{id}.meanline"), vec2(mx, baseline), vec2(mx, baseline - h - 12.0), style::GOLD, 2.0, 0.9, 1, vec![id.clone()]);
-    add_label(s, format!("{id}.mean"), "mean", vec2(mx, baseline - h - 28.0), 18.0, style::GOLD, &id);
+    add_line(
+        s,
+        format!("{id}.meanline"),
+        vec2(mx, baseline),
+        vec2(mx, baseline - h - 12.0),
+        style::GOLD,
+        2.0,
+        0.9,
+        1,
+        vec![id.clone()],
+    );
+    add_label(
+        s,
+        format!("{id}.mean"),
+        "mean",
+        vec2(mx, baseline - h - 28.0),
+        18.0,
+        style::GOLD,
+        &id,
+    );
 
     Ok(())
 }
@@ -200,12 +265,19 @@ fn c_covariance(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // signed-area rectangles (behind), one per point
     for (i, p) in pts.iter().enumerate() {
-        let col = if (p.x - mx) * (p.y - my) >= 0.0 { style::CYAN } else { style::MAGENTA };
+        let col = if (p.x - mx) * (p.y - my) >= 0.0 {
+            style::CYAN
+        } else {
+            style::MAGENTA
+        };
         let a0 = sc(vec2(mx, my));
         let a1 = sc(*p);
         let mut e = Entity::new(
             format!("{id}.rect{i}"),
-            Shape::Rect { w: (a1.x - a0.x).abs(), h: (a1.y - a0.y).abs() },
+            Shape::Rect {
+                w: (a1.x - a0.x).abs(),
+                h: (a1.y - a0.y).abs(),
+            },
             vec2((a0.x + a1.x) / 2.0, (a0.y + a1.y) / 2.0),
             col,
         );
@@ -217,19 +289,60 @@ fn c_covariance(s: &mut Scene, a: &Args) -> Result<(), Error> {
         s.add(e);
     }
     // the mean cross
-    add_line(s, format!("{id}.crossv"), sc(vec2(mx, my - ext)), sc(vec2(mx, my + ext)), style::DIM, 2.0, 0.8, 0, vec![id.clone(), format!("{id}.cross")]);
-    add_line(s, format!("{id}.crossh"), sc(vec2(mx - ext, my)), sc(vec2(mx + ext, my)), style::DIM, 2.0, 0.8, 0, vec![id.clone(), format!("{id}.cross")]);
+    add_line(
+        s,
+        format!("{id}.crossv"),
+        sc(vec2(mx, my - ext)),
+        sc(vec2(mx, my + ext)),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone(), format!("{id}.cross")],
+    );
+    add_line(
+        s,
+        format!("{id}.crossh"),
+        sc(vec2(mx - ext, my)),
+        sc(vec2(mx + ext, my)),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone(), format!("{id}.cross")],
+    );
     // points on top
     for (i, p) in pts.iter().enumerate() {
-        let mut e = Entity::new(format!("{id}.p{i}"), Shape::Circle { r: 7.0 }, sc(*p), dot_color);
+        let mut e = Entity::new(
+            format!("{id}.p{i}"),
+            Shape::Circle { r: 7.0 },
+            sc(*p),
+            dot_color,
+        );
         e.stroke.fill = true;
         e.z = 2;
         e.tags = vec![id.clone(), format!("{id}.points")];
         s.add(e);
     }
     let cov = covariance_of(&pts);
-    let sign = if cov >= 0.0 { "positive relationship" } else { "negative relationship" };
-    add_label(s, format!("{id}.cov"), &format!("cov = {cov:+.2}   ({sign})"), vec2(c.x, c.y + ext * u + 30.0), 22.0, if cov >= 0.0 { style::CYAN } else { style::MAGENTA }, &id);
+    let sign = if cov >= 0.0 {
+        "positive relationship"
+    } else {
+        "negative relationship"
+    };
+    add_label(
+        s,
+        format!("{id}.cov"),
+        &format!("cov = {cov:+.2}   ({sign})"),
+        vec2(c.x, c.y + ext * u + 30.0),
+        22.0,
+        if cov >= 0.0 {
+            style::CYAN
+        } else {
+            style::MAGENTA
+        },
+        &id,
+    );
     Ok(())
 }
 
@@ -265,27 +378,96 @@ fn c_bayes(s: &mut Scene, a: &Args) -> Result<(), Error> {
             .collect()
     };
     let draw_curve = |s: &mut Scene, nm: &str, pts: Vec<Vec2>, col, z: i32| {
-        let mut e = Entity::new(format!("{id}.{nm}"), Shape::Polyline { pts }, vec2(0.0, 0.0), col);
+        let mut e = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Polyline { pts },
+            vec2(0.0, 0.0),
+            col,
+        );
         e.stroke.width = 3.0;
         e.z = z;
         e.tags.push(id.clone());
         s.add(e);
     };
 
-    add_line(s, format!("{id}.axis"), vec2(px(0.0), base), vec2(px(1.0), base), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(px(0.0), base),
+        vec2(px(1.0), base),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
     for (p, txt) in [(0.0, "0"), (0.5, "0.5"), (1.0, "1")] {
-        add_label(s, format!("{id}.t{}", (p * 10.0) as i32), txt, vec2(px(p), base + 22.0), 16.0, style::DIM, &id);
+        add_label(
+            s,
+            format!("{id}.t{}", (p * 10.0) as i32),
+            txt,
+            vec2(px(p), base + 22.0),
+            16.0,
+            style::DIM,
+            &id,
+        );
     }
     // prior Beta(2,2); likelihood ∝ p^H(1-p)^T = Beta(H+1,T+1); posterior Beta(H+2,T+2)
     draw_curve(s, "prior", curve(2.0, 2.0), style::GOLD, 1);
-    draw_curve(s, "likelihood", curve(heads + 1.0, tails + 1.0), style::MAGENTA, 2);
-    draw_curve(s, "posterior", curve(heads + 2.0, tails + 2.0), style::CYAN, 3);
+    draw_curve(
+        s,
+        "likelihood",
+        curve(heads + 1.0, tails + 1.0),
+        style::MAGENTA,
+        2,
+    );
+    draw_curve(
+        s,
+        "posterior",
+        curve(heads + 2.0, tails + 2.0),
+        style::CYAN,
+        3,
+    );
     // posterior mean = (H+2)/(H+T+4)
     let pm = (heads + 2.0) / (heads + tails + 4.0);
-    add_line(s, format!("{id}.mean"), vec2(px(pm), base), vec2(px(pm), base - h), style::CYAN, 2.0, 0.7, 0, vec![id.clone()]);
-    add_label(s, format!("{id}.priorlbl"), "prior", vec2(px(0.5), base - h * 0.28), 18.0, style::GOLD, &id);
-    add_label(s, format!("{id}.postlbl"), &format!("posterior  (p ~ {pm:.2})"), vec2(px(pm), base - h - 16.0), 18.0, style::CYAN, &id);
-    add_label(s, format!("{id}.datalbl"), &format!("{} heads, {} tails", heads as i32, tails as i32), vec2(c.x, base + 50.0), 20.0, style::MAGENTA, &id);
+    add_line(
+        s,
+        format!("{id}.mean"),
+        vec2(px(pm), base),
+        vec2(px(pm), base - h),
+        style::CYAN,
+        2.0,
+        0.7,
+        0,
+        vec![id.clone()],
+    );
+    add_label(
+        s,
+        format!("{id}.priorlbl"),
+        "prior",
+        vec2(px(0.5), base - h * 0.28),
+        18.0,
+        style::GOLD,
+        &id,
+    );
+    add_label(
+        s,
+        format!("{id}.postlbl"),
+        &format!("posterior  (p ~ {pm:.2})"),
+        vec2(px(pm), base - h - 16.0),
+        18.0,
+        style::CYAN,
+        &id,
+    );
+    add_label(
+        s,
+        format!("{id}.datalbl"),
+        &format!("{} heads, {} tails", heads as i32, tails as i32),
+        vec2(c.x, base + 50.0),
+        20.0,
+        style::MAGENTA,
+        &id,
+    );
     Ok(())
 }
 
@@ -323,11 +505,25 @@ fn c_hypothesis(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let bx = |t: f32| c.x + t * unit;
     let by = |t: f32| baseline - (-0.5 * t * t).exp() * h;
 
-    add_line(s, format!("{id}.axis"), vec2(bx(-zmax), baseline), vec2(bx(zmax), baseline), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(bx(-zmax), baseline),
+        vec2(bx(zmax), baseline),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
 
     // shade the two tails beyond ±z (the p-value area)
     for (nm, sgn) in [("lo", -1.0f32), ("hi", 1.0f32)] {
-        let (a0, a1) = if sgn > 0.0 { (z.min(zmax), zmax) } else { (-zmax, -z.max(-zmax)) };
+        let (a0, a1) = if sgn > 0.0 {
+            (z.min(zmax), zmax)
+        } else {
+            (-zmax, -z.max(-zmax))
+        };
         if a1 > a0 {
             let steps = 40;
             let mut pts = vec![vec2(bx(a0), baseline)];
@@ -336,7 +532,12 @@ fn c_hypothesis(s: &mut Scene, a: &Args) -> Result<(), Error> {
                 pts.push(vec2(bx(t), by(t)));
             }
             pts.push(vec2(bx(a1), baseline));
-            let mut e = Entity::new(format!("{id}.tail{nm}"), Shape::Polygon { pts }, vec2(0.0, 0.0), style::MAGENTA);
+            let mut e = Entity::new(
+                format!("{id}.tail{nm}"),
+                Shape::Polygon { pts },
+                vec2(0.0, 0.0),
+                style::MAGENTA,
+            );
             e.stroke.fill = true;
             e.stroke.outline = false;
             e.opacity = 0.5;
@@ -353,25 +554,74 @@ fn c_hypothesis(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let t = -zmax + 2.0 * zmax * i as f32 / cn as f32;
         curve.push(vec2(bx(t), by(t)));
     }
-    let mut ce = Entity::new(format!("{id}.curve"), Shape::Polyline { pts: curve }, vec2(0.0, 0.0), style::CYAN);
+    let mut ce = Entity::new(
+        format!("{id}.curve"),
+        Shape::Polyline { pts: curve },
+        vec2(0.0, 0.0),
+        style::CYAN,
+    );
     ce.stroke.width = 3.0;
     ce.z = 2;
     ce.tags.push(id.clone());
     s.add(ce);
 
     // observed ±z lines
-    add_line(s, format!("{id}.zlinehi"), vec2(bx(z), baseline), vec2(bx(z), by(z)), style::GOLD, 2.5, 1.0, 3, vec![id.clone(), format!("{id}.zline")]);
-    add_line(s, format!("{id}.zlinelo"), vec2(bx(-z), baseline), vec2(bx(-z), by(-z)), style::GOLD, 2.5, 1.0, 3, vec![id.clone(), format!("{id}.zline")]);
-    add_label(s, format!("{id}.zlbl"), &format!("z = {z:.2}"), vec2(bx(z), by(z) - 16.0), 18.0, style::GOLD, &id);
+    add_line(
+        s,
+        format!("{id}.zlinehi"),
+        vec2(bx(z), baseline),
+        vec2(bx(z), by(z)),
+        style::GOLD,
+        2.5,
+        1.0,
+        3,
+        vec![id.clone(), format!("{id}.zline")],
+    );
+    add_line(
+        s,
+        format!("{id}.zlinelo"),
+        vec2(bx(-z), baseline),
+        vec2(bx(-z), by(-z)),
+        style::GOLD,
+        2.5,
+        1.0,
+        3,
+        vec![id.clone(), format!("{id}.zline")],
+    );
+    add_label(
+        s,
+        format!("{id}.zlbl"),
+        &format!("z = {z:.2}"),
+        vec2(bx(z), by(z) - 16.0),
+        18.0,
+        style::GOLD,
+        &id,
+    );
 
     let p = (2.0 * normal_tail(z)).min(1.0);
-    add_label(s, format!("{id}.p"), &format!("p = {p:.3}"), vec2(c.x, baseline + 34.0), 22.0, style::MAGENTA, &id);
+    add_label(
+        s,
+        format!("{id}.p"),
+        &format!("p = {p:.3}"),
+        vec2(c.x, baseline + 34.0),
+        22.0,
+        style::MAGENTA,
+        &id,
+    );
     let verdict = if p < alpha {
         format!("p < {alpha} — reject the null hypothesis")
     } else {
         format!("p >= {alpha} — fail to reject")
     };
-    add_label(s, format!("{id}.verdict"), &verdict, vec2(c.x, baseline + 62.0), 20.0, style::FG, &id);
+    add_label(
+        s,
+        format!("{id}.verdict"),
+        &verdict,
+        vec2(c.x, baseline + 62.0),
+        20.0,
+        style::FG,
+        &id,
+    );
     Ok(())
 }
 
@@ -388,7 +638,10 @@ fn c_bellcurve(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let mu = a.num(2)?;
     let sigma = a.num(3)?;
     if sigma <= 0.0 {
-        return Err(Error::new("normal: sigma must be positive".to_string(), a.span_of(3)));
+        return Err(Error::new(
+            "normal: sigma must be positive".to_string(),
+            a.span_of(3),
+        ));
     }
     let unit = a.opt_num(4)?.unwrap_or(80.0);
     let color = if a.len() > 5 {
@@ -403,7 +656,17 @@ fn c_bellcurve(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let by = |z: f32| baseline - (-0.5 * z * z).exp() * h;
 
     // baseline axis
-    add_line(s, format!("{id}.axis"), vec2(bx(-zmax), baseline), vec2(bx(zmax), baseline), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(bx(-zmax), baseline),
+        vec2(bx(zmax), baseline),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
 
     // nested ±kσ bands (widest first, decreasing opacity → darker toward centre)
     for (k, kz, pct) in [(3usize, 3.0f32, "99.7%"), (2, 2.0, "95%"), (1, 1.0, "68%")] {
@@ -414,7 +677,12 @@ fn c_bellcurve(s: &mut Scene, a: &Args) -> Result<(), Error> {
             pts.push(vec2(bx(z), by(z)));
         }
         pts.push(vec2(bx(kz), baseline));
-        let mut e = Entity::new(format!("{id}.band{k}"), Shape::Polygon { pts }, vec2(0.0, 0.0), color);
+        let mut e = Entity::new(
+            format!("{id}.band{k}"),
+            Shape::Polygon { pts },
+            vec2(0.0, 0.0),
+            color,
+        );
         e.stroke.fill = true;
         e.stroke.outline = false;
         e.opacity = 0.16;
@@ -423,8 +691,20 @@ fn c_bellcurve(s: &mut Scene, a: &Args) -> Result<(), Error> {
         s.add(e);
         // percentage label: for the core at centre, for the rings offset into the +side ring
         let lz = if k == 1 { 0.0 } else { kz - 0.5 };
-        let ly = if k == 1 { baseline - h * 0.45 } else { baseline - 34.0 };
-        add_label(s, format!("{id}.p{k}"), pct, vec2(bx(lz), ly), 20.0, color, &id);
+        let ly = if k == 1 {
+            baseline - h * 0.45
+        } else {
+            baseline - 34.0
+        };
+        add_label(
+            s,
+            format!("{id}.p{k}"),
+            pct,
+            vec2(bx(lz), ly),
+            20.0,
+            color,
+            &id,
+        );
     }
 
     // the bell curve on top
@@ -434,18 +714,41 @@ fn c_bellcurve(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let z = -zmax + 2.0 * zmax * i as f32 / cn as f32;
         curve.push(vec2(bx(z), by(z)));
     }
-    let mut ce = Entity::new(format!("{id}.curve"), Shape::Polyline { pts: curve }, vec2(0.0, 0.0), color);
+    let mut ce = Entity::new(
+        format!("{id}.curve"),
+        Shape::Polyline { pts: curve },
+        vec2(0.0, 0.0),
+        color,
+    );
     ce.stroke.width = 3.0;
     ce.z = 1;
     ce.tags.push(id.clone());
     s.add(ce);
 
     // mean line + value ticks
-    add_line(s, format!("{id}.mean"), vec2(bx(0.0), baseline), vec2(bx(0.0), by(0.0)), style::GOLD, 2.0, 0.9, 1, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.mean"),
+        vec2(bx(0.0), baseline),
+        vec2(bx(0.0), by(0.0)),
+        style::GOLD,
+        2.0,
+        0.9,
+        1,
+        vec![id.clone()],
+    );
     for k in -3..=3 {
         let v = mu + k as f32 * sigma;
         let col = if k == 0 { style::GOLD } else { style::DIM };
-        add_label(s, format!("{id}.t{k}"), &fmt(v), vec2(bx(k as f32), baseline + 22.0), 17.0, col, &id);
+        add_label(
+            s,
+            format!("{id}.t{k}"),
+            &fmt(v),
+            vec2(bx(k as f32), baseline + 22.0),
+            17.0,
+            col,
+            &id,
+        );
     }
     Ok(())
 }
@@ -533,7 +836,10 @@ fn c_summary(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let (bx0, bx1) = (sx(st.mean - st.std), sx(st.mean + st.std));
     let mut band = Entity::new(
         format!("{id}.band"),
-        Shape::Rect { w: (bx1 - bx0).abs(), h: 84.0 },
+        Shape::Rect {
+            w: (bx1 - bx0).abs(),
+            h: 84.0,
+        },
         vec2((bx0 + bx1) / 2.0, y0 - 34.0),
         accent,
     );
@@ -544,11 +850,26 @@ fn c_summary(s: &mut Scene, a: &Args) -> Result<(), Error> {
     band.tags.push(id.clone());
     s.add(band);
 
-    add_line(s, format!("{id}.line"), vec2(sx(lop), y0), vec2(sx(hip), y0), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.line"),
+        vec2(sx(lop), y0),
+        vec2(sx(hip), y0),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
 
     // the data cloud (translucent dots — overlaps darken where values cluster)
     for (k, &v) in data.iter().enumerate() {
-        let mut e = Entity::new(format!("{id}.dot{k}"), Shape::Circle { r: 5.0 }, vec2(sx(v), y0), style::FG);
+        let mut e = Entity::new(
+            format!("{id}.dot{k}"),
+            Shape::Circle { r: 5.0 },
+            vec2(sx(v), y0),
+            style::FG,
+        );
         e.stroke.fill = true;
         e.opacity = 0.45;
         e.z = 1;
@@ -558,23 +879,85 @@ fn c_summary(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
     // central-tendency markers, at different heights so labels never collide
     let marker = |s: &mut Scene, nm: &str, v: f32, hgt: f32, col, label: String| {
-        add_line(s, format!("{id}.{nm}mark"), vec2(sx(v), y0), vec2(sx(v), y0 - hgt), col, 2.5, 0.95, 2, vec![id.clone()]);
-        let mut t = Entity::new(format!("{id}.{nm}lbl"), Shape::Text { content: label, size: 18.0 }, vec2(sx(v), y0 - hgt - 14.0), col);
+        add_line(
+            s,
+            format!("{id}.{nm}mark"),
+            vec2(sx(v), y0),
+            vec2(sx(v), y0 - hgt),
+            col,
+            2.5,
+            0.95,
+            2,
+            vec![id.clone()],
+        );
+        let mut t = Entity::new(
+            format!("{id}.{nm}lbl"),
+            Shape::Text {
+                content: label,
+                size: 18.0,
+            },
+            vec2(sx(v), y0 - hgt - 14.0),
+            col,
+        );
         t.font = FontKind::MonoBold;
         t.tags.push(id.clone());
         s.add(t);
     };
-    marker(s, "mean", st.mean, 92.0, style::GOLD, format!("mean {}", fmt(st.mean)));
-    marker(s, "median", st.median, 66.0, style::MAGENTA, format!("median {}", fmt(st.median)));
+    marker(
+        s,
+        "mean",
+        st.mean,
+        92.0,
+        style::GOLD,
+        format!("mean {}", fmt(st.mean)),
+    );
+    marker(
+        s,
+        "median",
+        st.median,
+        66.0,
+        style::MAGENTA,
+        format!("median {}", fmt(st.median)),
+    );
     if let Some(m) = st.mode {
         marker(s, "mode", m, 40.0, style::LIME, format!("mode {}", fmt(m)));
     }
 
-    add_label(s, format!("{id}.min"), &fmt(st.lo), vec2(sx(st.lo), y0 + 22.0), 16.0, style::DIM, &id);
-    add_label(s, format!("{id}.max"), &fmt(st.hi), vec2(sx(st.hi), y0 + 22.0), 16.0, style::DIM, &id);
+    add_label(
+        s,
+        format!("{id}.min"),
+        &fmt(st.lo),
+        vec2(sx(st.lo), y0 + 22.0),
+        16.0,
+        style::DIM,
+        &id,
+    );
+    add_label(
+        s,
+        format!("{id}.max"),
+        &fmt(st.hi),
+        vec2(sx(st.hi), y0 + 22.0),
+        16.0,
+        style::DIM,
+        &id,
+    );
 
-    let readout = format!("n = {}     range {}     variance {:.1}     std {:.1}", n, fmt(st.hi - st.lo), st.var, st.std);
-    add_label(s, format!("{id}.readout"), &readout, vec2(c.x, y0 + 60.0), 20.0, accent, &id);
+    let readout = format!(
+        "n = {}     range {}     variance {:.1}     std {:.1}",
+        n,
+        fmt(st.hi - st.lo),
+        st.var,
+        st.std
+    );
+    add_label(
+        s,
+        format!("{id}.readout"),
+        &readout,
+        vec2(c.x, y0 + 60.0),
+        20.0,
+        accent,
+        &id,
+    );
 
     Ok(())
 }
@@ -636,7 +1019,10 @@ fn c_correlation(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let sc = |p: Vec2| vec2(c.x + (p.x - mx) * u, c.y - (p.y - my) * u);
 
     let (m, k, r) = regression(&pts).ok_or_else(|| {
-        Error::new("correlation: x or y has no spread".to_string(), a.span_of(3))
+        Error::new(
+            "correlation: x or y has no spread".to_string(),
+            a.span_of(3),
+        )
     })?;
     let x0 = pts.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
     let x1 = pts.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
@@ -654,7 +1040,12 @@ fn c_correlation(s: &mut Scene, a: &Args) -> Result<(), Error> {
         vec![id.clone()],
     );
     for (i, p) in pts.iter().enumerate() {
-        let mut e = Entity::new(format!("{id}.p{i}"), Shape::Circle { r: 7.0 }, sc(*p), color);
+        let mut e = Entity::new(
+            format!("{id}.p{i}"),
+            Shape::Circle { r: 7.0 },
+            sc(*p),
+            color,
+        );
         e.stroke.fill = true;
         e.z = 2;
         e.tags = vec![id.clone(), format!("{id}.points")];
@@ -668,7 +1059,15 @@ fn c_correlation(s: &mut Scene, a: &Args) -> Result<(), Error> {
         "weak"
     };
     let dir = if r >= 0.0 { "positive" } else { "negative" };
-    add_label(s, format!("{id}.r"), &format!("r = {r:+.2}   ({strength} {dir})"), vec2(c.x, c.y + 200.0), 22.0, color, &id);
+    add_label(
+        s,
+        format!("{id}.r"),
+        &format!("r = {r:+.2}   ({strength} {dir})"),
+        vec2(c.x, c.y + 200.0),
+        22.0,
+        color,
+        &id,
+    );
     Ok(())
 }
 
@@ -719,12 +1118,30 @@ fn c_skew(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let barw = w / bins as f32;
     let sx = |v: f32| x0 + ((v - lo) / range) * w;
 
-    add_line(s, format!("{id}.axis"), vec2(x0, baseline), vec2(x0 + w, baseline), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(x0, baseline),
+        vec2(x0 + w, baseline),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
     for (k, &count) in counts.iter().enumerate() {
         let color = bar_color(rainbow, base_color, k, bins);
         let bh = (count as f32 / maxc) * h;
         let bx = x0 + (k as f32 + 0.5) * barw;
-        let mut e = Entity::new(format!("{id}.bar{k}"), Shape::Rect { w: barw * 0.9, h: bh }, vec2(bx, baseline - bh / 2.0), color);
+        let mut e = Entity::new(
+            format!("{id}.bar{k}"),
+            Shape::Rect {
+                w: barw * 0.9,
+                h: bh,
+            },
+            vec2(bx, baseline - bh / 2.0),
+            color,
+        );
         e.stroke.fill = true;
         e.stroke.outline = true;
         e.stroke.outline_color = Some(color);
@@ -737,10 +1154,46 @@ fn c_skew(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let mut sorted = data.clone();
     sorted.sort_by(|a, b| a.total_cmp(b));
     let median = median_of(&sorted);
-    add_line(s, format!("{id}.medianline"), vec2(sx(median), baseline), vec2(sx(median), baseline - h - 8.0), style::MAGENTA, 2.0, 0.9, 1, vec![id.clone()]);
-    add_line(s, format!("{id}.meanline"), vec2(sx(mean), baseline), vec2(sx(mean), baseline - h - 8.0), style::GOLD, 2.0, 0.9, 1, vec![id.clone()]);
-    add_label(s, format!("{id}.medianlbl"), "median", vec2(sx(median), baseline - h - 24.0), 16.0, style::MAGENTA, &id);
-    add_label(s, format!("{id}.meanlbl"), "mean", vec2(sx(mean), baseline - h - 44.0), 16.0, style::GOLD, &id);
+    add_line(
+        s,
+        format!("{id}.medianline"),
+        vec2(sx(median), baseline),
+        vec2(sx(median), baseline - h - 8.0),
+        style::MAGENTA,
+        2.0,
+        0.9,
+        1,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.meanline"),
+        vec2(sx(mean), baseline),
+        vec2(sx(mean), baseline - h - 8.0),
+        style::GOLD,
+        2.0,
+        0.9,
+        1,
+        vec![id.clone()],
+    );
+    add_label(
+        s,
+        format!("{id}.medianlbl"),
+        "median",
+        vec2(sx(median), baseline - h - 24.0),
+        16.0,
+        style::MAGENTA,
+        &id,
+    );
+    add_label(
+        s,
+        format!("{id}.meanlbl"),
+        "mean",
+        vec2(sx(mean), baseline - h - 44.0),
+        16.0,
+        style::GOLD,
+        &id,
+    );
 
     let g1 = skewness(&data);
     let dir = if g1.abs() < 0.15 {
@@ -750,7 +1203,15 @@ fn c_skew(s: &mut Scene, a: &Args) -> Result<(), Error> {
     } else {
         "left-skewed"
     };
-    add_label(s, format!("{id}.skewlbl"), &format!("skew = {g1:+.2}   ({dir})"), vec2(c.x, baseline + 32.0), 22.0, base_color, &id);
+    add_label(
+        s,
+        format!("{id}.skewlbl"),
+        &format!("skew = {g1:+.2}   ({dir})"),
+        vec2(c.x, baseline + 32.0),
+        22.0,
+        base_color,
+        &id,
+    );
     Ok(())
 }
 
@@ -808,8 +1269,16 @@ fn c_boxplot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let (mn, q1, med, q3, mx) = five_number(&data);
     let iqr = q3 - q1;
     let (flo, fhi) = (q1 - 1.5 * iqr, q3 + 1.5 * iqr);
-    let wlo = data.iter().copied().filter(|&v| v >= flo).fold(f32::INFINITY, f32::min);
-    let whi = data.iter().copied().filter(|&v| v <= fhi).fold(f32::NEG_INFINITY, f32::max);
+    let wlo = data
+        .iter()
+        .copied()
+        .filter(|&v| v >= flo)
+        .fold(f32::INFINITY, f32::min);
+    let whi = data
+        .iter()
+        .copied()
+        .filter(|&v| v <= fhi)
+        .fold(f32::NEG_INFINITY, f32::max);
     let (lo, hi) = (mn.min(wlo), mx.max(whi));
     let pad = (hi - lo) * 0.08 + 0.5;
     let (lop, hip) = (lo - pad, hi + pad);
@@ -819,15 +1288,58 @@ fn c_boxplot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let bh = 44.0;
 
     // whiskers first (behind the box)
-    add_line(s, format!("{id}.whiskerlo"), vec2(sx(wlo), y0), vec2(sx(q1), y0), style::DIM, 2.0, 0.9, 0, vec![id.clone()]);
-    add_line(s, format!("{id}.whiskerhi"), vec2(sx(q3), y0), vec2(sx(whi), y0), style::DIM, 2.0, 0.9, 0, vec![id.clone()]);
-    add_line(s, format!("{id}.caplo"), vec2(sx(wlo), y0 - 20.0), vec2(sx(wlo), y0 + 20.0), style::DIM, 2.0, 0.9, 0, vec![id.clone()]);
-    add_line(s, format!("{id}.caphi"), vec2(sx(whi), y0 - 20.0), vec2(sx(whi), y0 + 20.0), style::DIM, 2.0, 0.9, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.whiskerlo"),
+        vec2(sx(wlo), y0),
+        vec2(sx(q1), y0),
+        style::DIM,
+        2.0,
+        0.9,
+        0,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.whiskerhi"),
+        vec2(sx(q3), y0),
+        vec2(sx(whi), y0),
+        style::DIM,
+        2.0,
+        0.9,
+        0,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.caplo"),
+        vec2(sx(wlo), y0 - 20.0),
+        vec2(sx(wlo), y0 + 20.0),
+        style::DIM,
+        2.0,
+        0.9,
+        0,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.caphi"),
+        vec2(sx(whi), y0 - 20.0),
+        vec2(sx(whi), y0 + 20.0),
+        style::DIM,
+        2.0,
+        0.9,
+        0,
+        vec![id.clone()],
+    );
 
     // the IQR box
     let mut boxe = Entity::new(
         format!("{id}.box"),
-        Shape::Rect { w: (sx(q3) - sx(q1)).max(1.0), h: 2.0 * bh },
+        Shape::Rect {
+            w: (sx(q3) - sx(q1)).max(1.0),
+            h: 2.0 * bh,
+        },
         vec2((sx(q1) + sx(q3)) / 2.0, y0),
         accent,
     );
@@ -840,12 +1352,27 @@ fn c_boxplot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(boxe);
 
     // median line inside the box
-    add_line(s, format!("{id}.med"), vec2(sx(med), y0 - bh), vec2(sx(med), y0 + bh), style::GOLD, 3.0, 1.0, 2, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.med"),
+        vec2(sx(med), y0 - bh),
+        vec2(sx(med), y0 + bh),
+        style::GOLD,
+        3.0,
+        1.0,
+        2,
+        vec![id.clone()],
+    );
 
     // outlier dots
     for (k, &v) in data.iter().enumerate() {
         if v < flo || v > fhi {
-            let mut e = Entity::new(format!("{id}.out{k}"), Shape::Circle { r: 6.0 }, vec2(sx(v), y0), style::MAGENTA);
+            let mut e = Entity::new(
+                format!("{id}.out{k}"),
+                Shape::Circle { r: 6.0 },
+                vec2(sx(v), y0),
+                style::MAGENTA,
+            );
             e.stroke.fill = true;
             e.z = 3;
             e.tags = vec![id.clone(), format!("{id}.outliers")];
@@ -854,9 +1381,25 @@ fn c_boxplot(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
 
     // labels: IQR above; the five numbers below (staggered into two rows)
-    add_label(s, format!("{id}.iqr"), &format!("IQR = {}", fmt(iqr)), vec2((sx(q1) + sx(q3)) / 2.0, y0 - bh - 22.0), 20.0, accent, &id);
+    add_label(
+        s,
+        format!("{id}.iqr"),
+        &format!("IQR = {}", fmt(iqr)),
+        vec2((sx(q1) + sx(q3)) / 2.0, y0 - bh - 22.0),
+        20.0,
+        accent,
+        &id,
+    );
     let row = |s: &mut Scene, nm: &str, v: f32, dy: f32, col| {
-        add_label(s, format!("{id}.l{nm}"), &fmt(v), vec2(sx(v), y0 + bh + dy), 17.0, col, &id);
+        add_label(
+            s,
+            format!("{id}.l{nm}"),
+            &fmt(v),
+            vec2(sx(v), y0 + bh + dy),
+            17.0,
+            col,
+            &id,
+        );
     };
     row(s, "min", wlo, 24.0, style::DIM);
     row(s, "med", med, 24.0, style::GOLD);
@@ -912,12 +1455,21 @@ fn c_distribution(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // helper: draw a peak-normalised density curve sampled over [lo, hi]
     let draw_curve = |s: &mut Scene, lo: f32, hi: f32, f: &dyn Fn(f32) -> f32| {
         let cn = 160;
-        let dens: Vec<f32> = (0..=cn).map(|i| f(lo + (hi - lo) * i as f32 / cn as f32)).collect();
+        let dens: Vec<f32> = (0..=cn)
+            .map(|i| f(lo + (hi - lo) * i as f32 / cn as f32))
+            .collect();
         let peak = dens.iter().cloned().fold(1e-9, f32::max);
-        let pts: Vec<Vec2> = dens.iter().enumerate().map(|(i, &d)| {
-            vec2(x0 + i as f32 / cn as f32 * w, base - (d / peak) * h)
-        }).collect();
-        let mut e = Entity::new(format!("{id}.curve"), Shape::Polyline { pts }, vec2(0.0, 0.0), color);
+        let pts: Vec<Vec2> = dens
+            .iter()
+            .enumerate()
+            .map(|(i, &d)| vec2(x0 + i as f32 / cn as f32 * w, base - (d / peak) * h))
+            .collect();
+        let mut e = Entity::new(
+            format!("{id}.curve"),
+            Shape::Polyline { pts },
+            vec2(0.0, 0.0),
+            color,
+        );
         e.stroke.width = 3.0;
         e.z = 1;
         e.tags.push(id.clone());
@@ -932,7 +1484,15 @@ fn c_distribution(s: &mut Scene, a: &Args) -> Result<(), Error> {
             let bc = bar_color(rainbow, color, k, nb);
             let bh = (p as f32 / maxp) * h;
             let bx = x0 + (k as f32 + 0.5) * bw;
-            let mut e = Entity::new(format!("{id}.bar{k}"), Shape::Rect { w: bw * 0.85, h: bh }, vec2(bx, base - bh / 2.0), bc);
+            let mut e = Entity::new(
+                format!("{id}.bar{k}"),
+                Shape::Rect {
+                    w: bw * 0.85,
+                    h: bh,
+                },
+                vec2(bx, base - bh / 2.0),
+                bc,
+            );
             e.stroke.fill = true;
             e.stroke.outline = true;
             e.stroke.outline_color = Some(bc);
@@ -941,12 +1501,28 @@ fn c_distribution(s: &mut Scene, a: &Args) -> Result<(), Error> {
             s.add(e);
         }
     };
-    add_line(s, format!("{id}.axis"), vec2(x0, base), vec2(x0 + w, base), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(x0, base),
+        vec2(x0 + w, base),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
     let label = match kind.as_str() {
         "uniform" => {
             let (lo, hi) = (p1, p2.max(p1 + 1e-3));
             let pad = (hi - lo) * 0.25;
-            draw_curve(s, lo - pad, hi + pad, &move |x| if x >= lo && x <= hi { 1.0 } else { 0.0 });
+            draw_curve(s, lo - pad, hi + pad, &move |x| {
+                if x >= lo && x <= hi {
+                    1.0
+                } else {
+                    0.0
+                }
+            });
             format!("uniform [{}, {}]", fmt(lo), fmt(hi))
         }
         "exponential" => {
@@ -957,27 +1533,43 @@ fn c_distribution(s: &mut Scene, a: &Args) -> Result<(), Error> {
         "binomial" => {
             let n = (p1.round() as i64).clamp(1, 20) as u32;
             let p = p2.clamp(0.0, 1.0) as f64;
-            let probs: Vec<f64> = (0..=n).map(|k| {
-                factorial(n) / (factorial(k) * factorial(n - k)) * p.powi(k as i32) * (1.0 - p).powi((n - k) as i32)
-            }).collect();
+            let probs: Vec<f64> = (0..=n)
+                .map(|k| {
+                    factorial(n) / (factorial(k) * factorial(n - k))
+                        * p.powi(k as i32)
+                        * (1.0 - p).powi((n - k) as i32)
+                })
+                .collect();
             bars(s, &probs);
             format!("binomial  (n = {n}, p = {})", fmt(p as f32))
         }
         "poisson" => {
             let lam = p1.max(0.1) as f64;
             let kmax = ((lam * 2.5) as u32 + 6).min(30);
-            let probs: Vec<f64> = (0..=kmax).map(|k| lam.powi(k as i32) * (-lam).exp() / factorial(k)).collect();
+            let probs: Vec<f64> = (0..=kmax)
+                .map(|k| lam.powi(k as i32) * (-lam).exp() / factorial(k))
+                .collect();
             bars(s, &probs);
             format!("poisson  (mean {})", fmt(lam as f32))
         }
         other => {
             return Err(Error::new(
-                format!("unknown distribution `{other}` (uniform / exponential / binomial / poisson)"),
+                format!(
+                    "unknown distribution `{other}` (uniform / exponential / binomial / poisson)"
+                ),
                 a.span_of(2),
             ))
         }
     };
-    add_label(s, format!("{id}.name"), &label, vec2(c.x, base + 34.0), 22.0, color, &id);
+    add_label(
+        s,
+        format!("{id}.name"),
+        &label,
+        vec2(c.x, base + 34.0),
+        22.0,
+        color,
+        &id,
+    );
     Ok(())
 }
 
@@ -993,26 +1585,83 @@ fn c_confidence(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let n = a.num(4)?.max(1.0);
     let level = a.opt_num(5)?.unwrap_or(95.0);
     let w = a.opt_num(6)?.unwrap_or(560.0);
-    let z = if level >= 99.0 { 2.576 } else if level >= 95.0 { 1.96 } else { 1.645 };
+    let z = if level >= 99.0 {
+        2.576
+    } else if level >= 95.0 {
+        1.96
+    } else {
+        1.645
+    };
     let margin = z * sd / n.sqrt();
     let span = (margin * 3.0).max(1e-3);
     let sx = |v: f32| c.x + (v - mean) / span * (w / 2.0);
     let y0 = c.y;
 
-    add_line(s, format!("{id}.line"), vec2(sx(mean - span), y0), vec2(sx(mean + span), y0), style::DIM, 2.0, 0.7, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.line"),
+        vec2(sx(mean - span), y0),
+        vec2(sx(mean + span), y0),
+        style::DIM,
+        2.0,
+        0.7,
+        0,
+        vec![id.clone()],
+    );
     // the CI error bar + caps
-    add_line(s, format!("{id}.bar"), vec2(sx(mean - margin), y0), vec2(sx(mean + margin), y0), style::CYAN, 4.0, 1.0, 1, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.bar"),
+        vec2(sx(mean - margin), y0),
+        vec2(sx(mean + margin), y0),
+        style::CYAN,
+        4.0,
+        1.0,
+        1,
+        vec![id.clone()],
+    );
     for e in [-margin, margin] {
-        add_line(s, format!("{id}.cap{}", if e < 0.0 { "lo" } else { "hi" }), vec2(sx(mean + e), y0 - 18.0), vec2(sx(mean + e), y0 + 18.0), style::CYAN, 3.0, 1.0, 1, vec![id.clone()]);
-        add_label(s, format!("{id}.b{}", if e < 0.0 { "lo" } else { "hi" }), &fmt(mean + e), vec2(sx(mean + e), y0 + 40.0), 17.0, style::DIM, &id);
+        add_line(
+            s,
+            format!("{id}.cap{}", if e < 0.0 { "lo" } else { "hi" }),
+            vec2(sx(mean + e), y0 - 18.0),
+            vec2(sx(mean + e), y0 + 18.0),
+            style::CYAN,
+            3.0,
+            1.0,
+            1,
+            vec![id.clone()],
+        );
+        add_label(
+            s,
+            format!("{id}.b{}", if e < 0.0 { "lo" } else { "hi" }),
+            &fmt(mean + e),
+            vec2(sx(mean + e), y0 + 40.0),
+            17.0,
+            style::DIM,
+            &id,
+        );
     }
     // point estimate
-    let mut dot = Entity::new(format!("{id}.estimate"), Shape::Circle { r: 8.0 }, vec2(sx(mean), y0), style::GOLD);
+    let mut dot = Entity::new(
+        format!("{id}.estimate"),
+        Shape::Circle { r: 8.0 },
+        vec2(sx(mean), y0),
+        style::GOLD,
+    );
     dot.stroke.fill = true;
     dot.z = 2;
     dot.tags.push(id.clone());
     s.add(dot);
-    add_label(s, format!("{id}.ci"), &format!("{}% CI:  {} ± {}", fmt(level), fmt(mean), fmt(margin)), vec2(c.x, y0 - 44.0), 22.0, style::GOLD, &id);
+    add_label(
+        s,
+        format!("{id}.ci"),
+        &format!("{}% CI:  {} ± {}", fmt(level), fmt(mean), fmt(margin)),
+        vec2(c.x, y0 - 44.0),
+        22.0,
+        style::GOLD,
+        &id,
+    );
     Ok(())
 }
 
@@ -1027,12 +1676,25 @@ fn c_montecarlo(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let seed = a.opt_num(3)?.map(|v| v as u64).unwrap_or(12345);
     let size = a.opt_num(4)?.unwrap_or(230.0);
 
-    let mut sq = Entity::new(format!("{id}.square"), Shape::Rect { w: 2.0 * size, h: 2.0 * size }, c, style::DIM);
+    let mut sq = Entity::new(
+        format!("{id}.square"),
+        Shape::Rect {
+            w: 2.0 * size,
+            h: 2.0 * size,
+        },
+        c,
+        style::DIM,
+    );
     sq.stroke.fill = false;
     sq.stroke.outline = true;
     sq.tags.push(id.clone());
     s.add(sq);
-    let mut circ = Entity::new(format!("{id}.circle"), Shape::Circle { r: size }, c, style::GOLD);
+    let mut circ = Entity::new(
+        format!("{id}.circle"),
+        Shape::Circle { r: size },
+        c,
+        style::GOLD,
+    );
     circ.stroke.fill = false;
     circ.stroke.outline = true;
     circ.stroke.outline_color = Some(style::GOLD);
@@ -1048,14 +1710,27 @@ fn c_montecarlo(s: &mut Scene, a: &Args) -> Result<(), Error> {
         if hit {
             inside += 1;
         }
-        let mut e = Entity::new(format!("{id}.pt{i}"), Shape::Circle { r: 3.5 }, vec2(c.x + x * size, c.y - y * size), if hit { style::CYAN } else { style::MAGENTA });
+        let mut e = Entity::new(
+            format!("{id}.pt{i}"),
+            Shape::Circle { r: 3.5 },
+            vec2(c.x + x * size, c.y - y * size),
+            if hit { style::CYAN } else { style::MAGENTA },
+        );
         e.stroke.fill = true;
         e.z = 1;
         e.tags = vec![id.clone(), format!("{id}.points")];
         s.add(e);
     }
     let pi = 4.0 * inside as f32 / points as f32;
-    add_label(s, format!("{id}.pi"), &format!("pi ~ {pi:.3}   ({points} darts)"), vec2(c.x, c.y + size + 34.0), 22.0, style::GOLD, &id);
+    add_label(
+        s,
+        format!("{id}.pi"),
+        &format!("pi ~ {pi:.3}   ({points} darts)"),
+        vec2(c.x, c.y + size + 34.0),
+        22.0,
+        style::GOLD,
+        &id,
+    );
     Ok(())
 }
 
@@ -1077,7 +1752,12 @@ fn c_randomwalk(s: &mut Scene, a: &Args) -> Result<(), Error> {
         path.push(pos);
     }
     let (start, end) = (path[0], *path.last().unwrap());
-    let mut p = Entity::new(format!("{id}.path"), Shape::Polyline { pts: path }, vec2(0.0, 0.0), style::CYAN);
+    let mut p = Entity::new(
+        format!("{id}.path"),
+        Shape::Polyline { pts: path },
+        vec2(0.0, 0.0),
+        style::CYAN,
+    );
     p.stroke.width = 2.0;
     p.opacity = 0.9;
     p.tags.push(id.clone());
@@ -1126,22 +1806,75 @@ fn c_lln(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let px = |n: usize| x0 + (n as f32) / (trials as f32) * w;
 
     // frame: p=0 axis + the true-probability reference at p=0.5
-    add_line(s, format!("{id}.axis"), vec2(x0, base), vec2(x0 + w, base), style::DIM, 2.0, 0.7, 0, vec![id.clone()]);
-    add_line(s, format!("{id}.ref"), vec2(x0, py(0.5)), vec2(x0 + w, py(0.5)), style::GOLD, 2.0, 0.85, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(x0, base),
+        vec2(x0 + w, base),
+        style::DIM,
+        2.0,
+        0.7,
+        0,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.ref"),
+        vec2(x0, py(0.5)),
+        vec2(x0 + w, py(0.5)),
+        style::GOLD,
+        2.0,
+        0.85,
+        0,
+        vec![id.clone()],
+    );
     for (p, txt) in [(0.0, "0"), (0.5, "0.5"), (1.0, "1")] {
-        add_label(s, format!("{id}.y{}", (p * 10.0) as i32), txt, vec2(x0 - 26.0, py(p)), 17.0, style::DIM, &id);
+        add_label(
+            s,
+            format!("{id}.y{}", (p * 10.0) as i32),
+            txt,
+            vec2(x0 - 26.0, py(p)),
+            17.0,
+            style::DIM,
+            &id,
+        );
     }
-    add_label(s, format!("{id}.truelbl"), "true probability = 0.5", vec2(x0 + w - 130.0, py(0.5) - 18.0), 18.0, style::GOLD, &id);
+    add_label(
+        s,
+        format!("{id}.truelbl"),
+        "true probability = 0.5",
+        vec2(x0 + w - 130.0, py(0.5) - 18.0),
+        18.0,
+        style::GOLD,
+        &id,
+    );
 
     // the running-proportion curve
-    let pts: Vec<Vec2> = props.iter().enumerate().map(|(i, &p)| vec2(px(i + 1), py(p))).collect();
-    let mut curve = Entity::new(format!("{id}.curve"), Shape::Polyline { pts }, vec2(0.0, 0.0), style::CYAN);
+    let pts: Vec<Vec2> = props
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| vec2(px(i + 1), py(p)))
+        .collect();
+    let mut curve = Entity::new(
+        format!("{id}.curve"),
+        Shape::Polyline { pts },
+        vec2(0.0, 0.0),
+        style::CYAN,
+    );
     curve.stroke.width = 2.5;
     curve.z = 1;
     curve.tags.push(id.clone());
     s.add(curve);
 
-    add_label(s, format!("{id}.finallbl"), &format!("after {} flips: {:.3}", trials, props[trials - 1]), vec2(c.x, base + 34.0), 20.0, style::CYAN, &id);
+    add_label(
+        s,
+        format!("{id}.finallbl"),
+        &format!("after {} flips: {:.3}", trials, props[trials - 1]),
+        vec2(c.x, base + 34.0),
+        20.0,
+        style::CYAN,
+        &id,
+    );
     Ok(())
 }
 
@@ -1180,7 +1913,17 @@ fn c_clt(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let barw = w / bins as f32;
     let sx = |v: f32| x0 + ((v - lo) / (hi - lo)) * w;
 
-    add_line(s, format!("{id}.axis"), vec2(x0, baseline), vec2(x0 + w, baseline), style::DIM, 2.0, 0.8, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis"),
+        vec2(x0, baseline),
+        vec2(x0 + w, baseline),
+        style::DIM,
+        2.0,
+        0.8,
+        0,
+        vec![id.clone()],
+    );
 
     // one bar per bin (always created so a 0..bins loop is safe)
     for (k, &count) in counts.iter().enumerate() {
@@ -1189,7 +1932,10 @@ fn c_clt(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let bx = x0 + (k as f32 + 0.5) * barw;
         let mut e = Entity::new(
             format!("{id}.bar{k}"),
-            Shape::Rect { w: barw * 0.9, h: bh },
+            Shape::Rect {
+                w: barw * 0.9,
+                h: bh,
+            },
             vec2(bx, baseline - bh / 2.0),
             bc,
         );
@@ -1211,17 +1957,48 @@ fn c_clt(s: &mut Scene, a: &Args) -> Result<(), Error> {
         let z = (v - mu) / sig;
         curve.push(vec2(sx(v), baseline - (-0.5 * z * z).exp() * h));
     }
-    let mut ce = Entity::new(format!("{id}.curve"), Shape::Polyline { pts: curve }, vec2(0.0, 0.0), style::GOLD);
+    let mut ce = Entity::new(
+        format!("{id}.curve"),
+        Shape::Polyline { pts: curve },
+        vec2(0.0, 0.0),
+        style::GOLD,
+    );
     ce.stroke.width = 3.0;
     ce.z = 2;
     ce.tags.push(id.clone());
     s.add(ce);
 
-    add_line(s, format!("{id}.mean"), vec2(sx(mu), baseline), vec2(sx(mu), baseline - h - 10.0), style::GOLD, 2.0, 0.9, 1, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.mean"),
+        vec2(sx(mu), baseline),
+        vec2(sx(mu), baseline - h - 10.0),
+        style::GOLD,
+        2.0,
+        0.9,
+        1,
+        vec![id.clone()],
+    );
     for v in 1..=6 {
-        add_label(s, format!("{id}.t{v}"), &fmt(v as f32), vec2(sx(v as f32), baseline + 22.0), 17.0, style::DIM, &id);
+        add_label(
+            s,
+            format!("{id}.t{v}"),
+            &fmt(v as f32),
+            vec2(sx(v as f32), baseline + 22.0),
+            17.0,
+            style::DIM,
+            &id,
+        );
     }
-    add_label(s, format!("{id}.info"), &format!("average of {n} dice, {trials} times"), vec2(c.x, baseline - h - 30.0), 20.0, style::DIM, &id);
+    add_label(
+        s,
+        format!("{id}.info"),
+        &format!("average of {n} dice, {trials} times"),
+        vec2(c.x, baseline - h - 30.0),
+        20.0,
+        style::DIM,
+        &id,
+    );
 
     Ok(())
 }
@@ -1270,7 +2047,10 @@ mod tests {
             }
         }
         let pi = 4.0 * inside as f32 / n as f32;
-        assert!((pi - std::f32::consts::PI).abs() < 0.15, "pi estimate = {pi}");
+        assert!(
+            (pi - std::f32::consts::PI).abs() < 0.15,
+            "pi estimate = {pi}"
+        );
     }
 
     #[test]
@@ -1287,7 +2067,16 @@ mod tests {
         assert!(covariance_of(&[vec2(1.0, 1.0), vec2(2.0, 2.0), vec2(3.0, 3.0)]) > 0.0);
         assert!(covariance_of(&[vec2(1.0, 3.0), vec2(2.0, 2.0), vec2(3.0, 1.0)]) < 0.0);
         // symmetric cloud → ~0
-        assert!(covariance_of(&[vec2(-1.0, 1.0), vec2(1.0, 1.0), vec2(-1.0, -1.0), vec2(1.0, -1.0)]).abs() < 1e-4);
+        assert!(
+            covariance_of(&[
+                vec2(-1.0, 1.0),
+                vec2(1.0, 1.0),
+                vec2(-1.0, -1.0),
+                vec2(1.0, -1.0)
+            ])
+            .abs()
+                < 1e-4
+        );
     }
 
     #[test]
@@ -1320,7 +2109,12 @@ mod tests {
         use super::regression;
         use macroquad::prelude::vec2;
         // points exactly on y = 2x + 1 → m=2, k=1, r=+1
-        let up = [vec2(0.0, 1.0), vec2(1.0, 3.0), vec2(2.0, 5.0), vec2(3.0, 7.0)];
+        let up = [
+            vec2(0.0, 1.0),
+            vec2(1.0, 3.0),
+            vec2(2.0, 5.0),
+            vec2(3.0, 7.0),
+        ];
         let (m, k, r) = regression(&up).unwrap();
         assert!((m - 2.0).abs() < 1e-4 && (k - 1.0).abs() < 1e-4 && (r - 1.0).abs() < 1e-4);
         // a perfectly decreasing line → r = -1
@@ -1357,7 +2151,11 @@ mod tests {
         use super::lln_proportions;
         let p = lln_proportions(2000, 5);
         assert_eq!(p, lln_proportions(2000, 5)); // deterministic
-        assert!((p[p.len() - 1] - 0.5).abs() < 0.05, "final proportion = {}", p[p.len() - 1]);
+        assert!(
+            (p[p.len() - 1] - 0.5).abs() < 0.05,
+            "final proportion = {}",
+            p[p.len() - 1]
+        );
         // later estimates are calmer than the earliest one
         assert!((p[p.len() - 1] - 0.5).abs() <= (p[0] - 0.5).abs());
     }

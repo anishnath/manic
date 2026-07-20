@@ -11,7 +11,9 @@ use macroquad::prelude::{Color, Vec2};
 
 use crate::lang::diag::Error;
 use crate::lang::lower::{resolve_color, Args, Registry};
-use crate::primitives::{Counter, Entity, FontKind, GraphFn, GraphSrc, GraphView, Shape, StrokeStyle};
+use crate::primitives::{
+    Counter, Entity, FontKind, GraphFn, GraphSrc, GraphView, Shape, StrokeStyle,
+};
 use crate::scene::Scene;
 use crate::style;
 
@@ -64,7 +66,10 @@ pub(crate) const NAMED_FORMULAS: &[(&str, &str)] = &[
 ];
 
 fn named_formula(name: &str) -> Option<&'static str> {
-    NAMED_FORMULAS.iter().find(|(n, _)| *n == name).map(|(_, f)| *f)
+    NAMED_FORMULAS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, f)| *f)
 }
 
 /// A human-readable list of the bareword names, for error messages.
@@ -755,13 +760,7 @@ fn fetch_graph(
 
 /// Shared body for `tangent`/`normal`: a line grazing (or perpendicular to) the
 /// curve at `x`, with a contact dot. `x` is animatable via `to(id, x, …)`.
-fn line_view(
-    s: &mut Scene,
-    a: &Args,
-    who: &str,
-    normal: bool,
-    color: Color,
-) -> Result<(), Error> {
+fn line_view(s: &mut Scene, a: &Args, who: &str, normal: bool, color: Color) -> Result<(), Error> {
     let id = a.ident(0)?;
     let source = a.ident(1)?;
     let graph = fetch_graph(s, a, 1, who)?;
@@ -900,7 +899,12 @@ fn c_area(s: &mut Scene, a: &Args) -> Result<(), Error> {
         n,
     };
     let (tris, rings) = gv.region();
-    let mut e = Entity::new(id.clone(), Shape::Region { tris, rings }, Vec2::ZERO, style::CYAN);
+    let mut e = Entity::new(
+        id.clone(),
+        Shape::Region { tris, rings },
+        Vec2::ZERO,
+        style::CYAN,
+    );
     e.opacity = 0.30;
     e.stroke.fill = true;
     e.graph_view = Some(gv);
@@ -1115,7 +1119,9 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
         s.add(lbl);
         let mut line = Entity::new(
             id.clone(),
-            Shape::Line { to: Vec2::new(xr, ys) },
+            Shape::Line {
+                to: Vec2::new(xr, ys),
+            },
             Vec2::new(xl, ys),
             color,
         );
@@ -1142,7 +1148,9 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // dashed-ish guide lines (dim) down to the x-axis and across to the y-axis
     let mut gx = Entity::new(
         format!("{id}.gx"),
-        Shape::Line { to: Vec2::new(target.x, g.center.y) },
+        Shape::Line {
+            to: Vec2::new(target.x, g.center.y),
+        },
         target,
         style::DIM,
     );
@@ -1151,7 +1159,9 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(gx);
     let mut gy = Entity::new(
         format!("{id}.gy"),
-        Shape::Line { to: Vec2::new(g.center.x, target.y) },
+        Shape::Line {
+            to: Vec2::new(g.center.x, target.y),
+        },
         target,
         style::DIM,
     );
@@ -1172,7 +1182,12 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
     lbl.tags.push(id.clone());
     s.add(lbl);
     // the open circle at (a, L) — the value approached
-    let mut mark = Entity::new(format!("{id}.mark"), Shape::Circle { r: 10.0 }, target, color);
+    let mut mark = Entity::new(
+        format!("{id}.mark"),
+        Shape::Circle { r: 10.0 },
+        target,
+        color,
+    );
     mark.stroke.fill = false;
     mark.stroke.outline = true;
     mark.stroke.width = 3.0;
@@ -1186,10 +1201,7 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
     };
     let mut dot = Entity::new(id.clone(), Shape::Circle { r: 7.0 }, g.point(start), color);
     dot.stroke.fill = true;
-    dot.graph_view = Some(GraphView::Mark {
-        graph: g,
-        x: start,
-    });
+    dot.graph_view = Some(GraphView::Mark { graph: g, x: start });
     dot.graph_source = Some(source);
     dot.tags.push(id);
     s.add(dot);
@@ -1273,7 +1285,10 @@ fn c_band(s: &mut Scene, a: &Args) -> Result<(), Error> {
         }
     }
     if up.len() < 2 {
-        return Err(Error::new("`band` produced no fillable region", a.name_span));
+        return Err(Error::new(
+            "`band` produced no fillable region",
+            a.name_span,
+        ));
     }
     let mut tris = Vec::with_capacity((up.len() - 1) * 2);
     for i in 0..up.len() - 1 {
@@ -1286,7 +1301,10 @@ fn c_band(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let mut e = Entity::new(
         id.clone(),
-        Shape::Region { tris, rings: vec![ring] },
+        Shape::Region {
+            tris,
+            rings: vec![ring],
+        },
         Vec2::ZERO,
         color,
     );
@@ -1334,7 +1352,11 @@ fn catmull_rom(pts: &[Vec2], seg: usize) -> Vec<Vec2> {
     }
     let mut out = Vec::with_capacity((n - 1) * seg + 1);
     for i in 0..n - 1 {
-        let p0 = if i == 0 { 2.0 * pts[0] - pts[1] } else { pts[i - 1] };
+        let p0 = if i == 0 {
+            2.0 * pts[0] - pts[1]
+        } else {
+            pts[i - 1]
+        };
         let p1 = pts[i];
         let p2 = pts[i + 1];
         let p3 = if i + 2 < n {
@@ -1386,14 +1408,24 @@ fn c_spline(s: &mut Scene, a: &Args) -> Result<(), Error> {
         ));
     }
     for (k, p) in pts.iter().enumerate() {
-        let mut d = Entity::new(format!("{id}.k{k}"), Shape::Circle { r: 5.0 }, *p, style::MAGENTA);
+        let mut d = Entity::new(
+            format!("{id}.k{k}"),
+            Shape::Circle { r: 5.0 },
+            *p,
+            style::MAGENTA,
+        );
         d.stroke.fill = true;
         d.stroke.outline = false;
         d.tags.push(format!("{id}.knots"));
         s.add(d);
     }
     let curve = catmull_rom(&pts, 24);
-    let mut e = Entity::new(id.clone(), Shape::Polyline { pts: curve }, Vec2::ZERO, style::CYAN);
+    let mut e = Entity::new(
+        id.clone(),
+        Shape::Polyline { pts: curve },
+        Vec2::ZERO,
+        style::CYAN,
+    );
     e.stroke.width = 3.0;
     e.tags.push(id);
     s.add(e);
@@ -1415,7 +1447,11 @@ fn c_trajectory(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let start = a.pair(3)?;
     let center = a.pair(4)?;
     let scale = a.num(5)?;
-    let steps = a.opt_num(6)?.map(|v| v as u32).unwrap_or(400).clamp(2, 5000);
+    let steps = a
+        .opt_num(6)?
+        .map(|v| v as u32)
+        .unwrap_or(400)
+        .clamp(2, 5000);
     let path = rk4_path(&fx, &fy, start.x, start.y, 0.02, steps);
     let pts: Vec<Vec2> = path
         .iter()
@@ -2041,28 +2077,76 @@ fn c_linmap(s: &mut Scene, a: &Args) -> Result<(), Error> {
     for k in -span..=span {
         let g = k as f32;
         // faint identity grid
-        add_line(s, format!("{id}.ih{k}"), sc(-sp, g), sc(sp, g), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
-        add_line(s, format!("{id}.iv{k}"), sc(g, -sp), sc(g, sp), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.ih{k}"),
+            sc(-sp, g),
+            sc(sp, g),
+            style::DIM,
+            1.0,
+            0.2,
+            -2,
+            vec![id.clone()],
+        );
+        add_line(
+            s,
+            format!("{id}.iv{k}"),
+            sc(g, -sp),
+            sc(g, sp),
+            style::DIM,
+            1.0,
+            0.2,
+            -2,
+            vec![id.clone()],
+        );
         // deformed grid = identity mapped by M
         let (hx0, hy0) = map(-sp, g);
         let (hx1, hy1) = map(sp, g);
-        add_line(s, format!("{id}.h{k}"), sc(hx0, hy0), sc(hx1, hy1), style::CYAN, 1.5, 0.85, -1, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.h{k}"),
+            sc(hx0, hy0),
+            sc(hx1, hy1),
+            style::CYAN,
+            1.5,
+            0.85,
+            -1,
+            vec![id.clone()],
+        );
         let (vx0, vy0) = map(g, -sp);
         let (vx1, vy1) = map(g, sp);
-        add_line(s, format!("{id}.v{k}"), sc(vx0, vy0), sc(vx1, vy1), style::CYAN, 1.5, 0.85, -1, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.v{k}"),
+            sc(vx0, vy0),
+            sc(vx1, vy1),
+            style::CYAN,
+            1.5,
+            0.85,
+            -1,
+            vec![id.clone()],
+        );
     }
     // basis vectors, landing on the columns
     for (nm, tox, toy, col, lab) in [
         ("i", m11, m21, style::GOLD, "i"),
         ("j", m12, m22, style::MAGENTA, "j"),
     ] {
-        let mut arr = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(tox, toy) }, sc(0.0, 0.0), col);
+        let mut arr = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Arrow { to: sc(tox, toy) },
+            sc(0.0, 0.0),
+            col,
+        );
         arr.stroke.width = 4.0;
         arr.tags.push(id.clone());
         s.add(arr);
         let mut t = Entity::new(
             format!("{id}.l{nm}"),
-            Shape::Text { content: lab.to_string(), size: 22.0 },
+            Shape::Text {
+                content: lab.to_string(),
+                size: 22.0,
+            },
             sc(tox, toy) + Vec2::new(14.0, -12.0),
             col,
         );
@@ -2093,14 +2177,24 @@ fn c_determinant(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let sc = |gx: f32, gy: f32| Vec2::new(c.x + gx * u, c.y - gy * u);
     // faint unit square (identity)
     let unit_sq = vec![sc(0.0, 0.0), sc(1.0, 0.0), sc(1.0, 1.0), sc(0.0, 1.0)];
-    let mut usq = Entity::new(format!("{id}.unit"), Shape::Polygon { pts: unit_sq }, Vec2::ZERO, style::DIM);
+    let mut usq = Entity::new(
+        format!("{id}.unit"),
+        Shape::Polygon { pts: unit_sq },
+        Vec2::ZERO,
+        style::DIM,
+    );
     usq.stroke.fill = false;
     usq.stroke.outline = true;
     usq.opacity = 0.35;
     usq.tags.push(id.clone());
     s.add(usq);
     // image parallelogram: columns (m11,m21) and (m12,m22)
-    let para = vec![sc(0.0, 0.0), sc(m11, m21), sc(m11 + m12, m21 + m22), sc(m12, m22)];
+    let para = vec![
+        sc(0.0, 0.0),
+        sc(m11, m21),
+        sc(m11 + m12, m21 + m22),
+        sc(m12, m22),
+    ];
     let mut e = Entity::new(id.clone(), Shape::Polygon { pts: para }, Vec2::ZERO, color);
     e.stroke.fill = true;
     e.stroke.outline = true;
@@ -2111,7 +2205,10 @@ fn c_determinant(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let mid = sc(0.5 * (m11 + m12), 0.5 * (m21 + m22));
     let mut lbl = Entity::new(
         format!("{id}.val"),
-        Shape::Text { content: format!("det = {det:.2}"), size: 24.0 },
+        Shape::Text {
+            content: format!("det = {det:.2}"),
+            size: 24.0,
+        },
         mid,
         color,
     );
@@ -2140,7 +2237,10 @@ fn c_eigen(s: &mut Scene, a: &Args) -> Result<(), Error> {
     if pairs.is_empty() {
         let mut note = Entity::new(
             format!("{id}.note"),
-            Shape::Text { content: "complex eigenvalues (a rotation)".to_string(), size: 20.0 },
+            Shape::Text {
+                content: "complex eigenvalues (a rotation)".to_string(),
+                size: 20.0,
+            },
             c + Vec2::new(0.0, u * 2.6),
             style::DIM,
         );
@@ -2163,7 +2263,10 @@ fn c_eigen(s: &mut Scene, a: &Args) -> Result<(), Error> {
         );
         let mut lbl = Entity::new(
             format!("{id}.l{k}"),
-            Shape::Text { content: format!("lambda = {l:.2}"), size: 20.0 },
+            Shape::Text {
+                content: format!("lambda = {l:.2}"),
+                size: 20.0,
+            },
             sc(v.x * (ext - 0.6), v.y * (ext - 0.6)) + Vec2::new(0.0, -14.0),
             color,
         );
@@ -2213,23 +2316,78 @@ fn c_diagonalise(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // faint eigen-grid: the (skewed) coordinate frame of the eigenbasis.
     for k in -span..=span {
         let kf = k as f32;
-        add_line(s, format!("{id}.g{k}a"), sc(-sp * e1 + kf * e2), sc(sp * e1 + kf * e2), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
-        add_line(s, format!("{id}.g{k}b"), sc(kf * e1 - sp * e2), sc(kf * e1 + sp * e2), style::DIM, 1.0, 0.2, -2, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.g{k}a"),
+            sc(-sp * e1 + kf * e2),
+            sc(sp * e1 + kf * e2),
+            style::DIM,
+            1.0,
+            0.2,
+            -2,
+            vec![id.clone()],
+        );
+        add_line(
+            s,
+            format!("{id}.g{k}b"),
+            sc(kf * e1 - sp * e2),
+            sc(kf * e1 + sp * e2),
+            style::DIM,
+            1.0,
+            0.2,
+            -2,
+            vec![id.clone()],
+        );
     }
     // eigen-axes through the origin (the invariant directions)
     let ext = sp + 0.5;
-    add_line(s, format!("{id}.axis1"), sc(-ext * e1), sc(ext * e1), style::GOLD, 2.0, 0.8, -1, vec![id.clone()]);
-    add_line(s, format!("{id}.axis2"), sc(-ext * e2), sc(ext * e2), style::MAGENTA, 2.0, 0.8, -1, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.axis1"),
+        sc(-ext * e1),
+        sc(ext * e1),
+        style::GOLD,
+        2.0,
+        0.8,
+        -1,
+        vec![id.clone()],
+    );
+    add_line(
+        s,
+        format!("{id}.axis2"),
+        sc(-ext * e2),
+        sc(ext * e2),
+        style::MAGENTA,
+        2.0,
+        0.8,
+        -1,
+        vec![id.clone()],
+    );
     // unit eigen-cell (faint) and its image under A: stretched by λ along each axis.
     let cell = vec![sc(Vec2::ZERO), sc(e1), sc(e1 + e2), sc(e2)];
-    let mut ce = Entity::new(format!("{id}.cell"), Shape::Polygon { pts: cell }, Vec2::ZERO, style::DIM);
+    let mut ce = Entity::new(
+        format!("{id}.cell"),
+        Shape::Polygon { pts: cell },
+        Vec2::ZERO,
+        style::DIM,
+    );
     ce.stroke.fill = false;
     ce.stroke.outline = true;
     ce.opacity = 0.5;
     ce.tags.push(id.clone());
     s.add(ce);
-    let img = vec![sc(Vec2::ZERO), sc(l1 * e1), sc(l1 * e1 + l2 * e2), sc(l2 * e2)];
-    let mut ie = Entity::new(format!("{id}.img"), Shape::Polygon { pts: img }, Vec2::ZERO, color);
+    let img = vec![
+        sc(Vec2::ZERO),
+        sc(l1 * e1),
+        sc(l1 * e1 + l2 * e2),
+        sc(l2 * e2),
+    ];
+    let mut ie = Entity::new(
+        format!("{id}.img"),
+        Shape::Polygon { pts: img },
+        Vec2::ZERO,
+        color,
+    );
     ie.stroke.fill = true;
     ie.stroke.outline = true;
     ie.stroke.outline_color = Some(color);
@@ -2238,13 +2396,21 @@ fn c_diagonalise(s: &mut Scene, a: &Args) -> Result<(), Error> {
     s.add(ie);
     // the eigenvectors' images λ·e as arrows (only stretch, never turn)
     for (nm, l, e, col) in [("v1", l1, e1, style::GOLD), ("v2", l2, e2, style::MAGENTA)] {
-        let mut arr = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(l * e) }, sc(Vec2::ZERO), col);
+        let mut arr = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Arrow { to: sc(l * e) },
+            sc(Vec2::ZERO),
+            col,
+        );
         arr.stroke.width = 4.0;
         arr.tags.push(id.clone());
         s.add(arr);
         let mut lbl = Entity::new(
             format!("{id}.{nm}l"),
-            Shape::Text { content: format!("lambda = {l:.2}"), size: 20.0 },
+            Shape::Text {
+                content: format!("lambda = {l:.2}"),
+                size: 20.0,
+            },
             sc(l * e) + Vec2::new(10.0, -12.0),
             col,
         );
@@ -2304,7 +2470,10 @@ fn rref_steps(m0: Vec<Vec<f32>>) -> Vec<(Vec<Vec<f32>>, String)> {
             for j in 0..ncols {
                 m[pr][j] /= pv;
             }
-            steps.push((m.clone(), format!("R{} -> R{} / {}", pr + 1, pr + 1, fmt_cell(pv))));
+            steps.push((
+                m.clone(),
+                format!("R{} -> R{} / {}", pr + 1, pr + 1, fmt_cell(pv)),
+            ));
         }
         for r in 0..nrows {
             if r == pr {
@@ -2318,7 +2487,14 @@ fn rref_steps(m0: Vec<Vec<f32>>) -> Vec<(Vec<Vec<f32>>, String)> {
                 let sign = if f > 0.0 { "-" } else { "+" };
                 steps.push((
                     m.clone(),
-                    format!("R{} -> R{} {} {} R{}", r + 1, r + 1, sign, fmt_cell(f.abs()), pr + 1),
+                    format!(
+                        "R{} -> R{} {} {} R{}",
+                        r + 1,
+                        r + 1,
+                        sign,
+                        fmt_cell(f.abs()),
+                        pr + 1
+                    ),
                 ));
             }
         }
@@ -2382,7 +2558,10 @@ fn c_rref(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let serif = 14.0;
     let margin = cw * 0.5;
     let (top, bot) = (y0 - pad, y0 + totalh + pad);
-    for (nm, bx, dir) in [("lbrack", x0 - margin, 1.0f32), ("rbrack", x0 + totalw + margin, -1.0)] {
+    for (nm, bx, dir) in [
+        ("lbrack", x0 - margin, 1.0f32),
+        ("rbrack", x0 + totalw + margin, -1.0),
+    ] {
         let mut b = Entity::new(
             format!("{id}.{nm}"),
             Shape::Polyline {
@@ -2407,7 +2586,10 @@ fn c_rref(s: &mut Scene, a: &Args) -> Result<(), Error> {
                 let pos = Vec2::new(x0 + cw * j as f32, y0 + ch * i as f32);
                 let mut e = Entity::new(
                     format!("{id}.s{k}r{i}c{j}"),
-                    Shape::Text { content: fmt_cell(*val), size: 30.0 },
+                    Shape::Text {
+                        content: fmt_cell(*val),
+                        size: 30.0,
+                    },
                     pos,
                     style::FG,
                 );
@@ -2423,7 +2605,10 @@ fn c_rref(s: &mut Scene, a: &Args) -> Result<(), Error> {
     for (k, (_grid, op)) in steps.iter().enumerate() {
         let mut t = Entity::new(
             format!("{id}.op{k}"),
-            Shape::Text { content: op.clone(), size: 24.0 },
+            Shape::Text {
+                content: op.clone(),
+                size: 24.0,
+            },
             Vec2::new(c.x, y0 + totalh + ch * 0.95),
             style::GOLD,
         );
@@ -2460,21 +2645,46 @@ fn c_project(s: &mut Scene, a: &Args) -> Result<(), Error> {
     }
     let t = (b.x * av.x + b.y * av.y) / denom; // b·a / a·a
     let p = Vec2::new(t * av.x, t * av.y); // the projection point
-    // the subspace: the line spanned by a, through the origin
+                                           // the subspace: the line spanned by a, through the origin
     let n = denom.sqrt();
     let ah = av / n;
     let ext = 4.5;
-    add_line(s, format!("{id}.line"), sc(-ext * ah), sc(ext * ah), style::DIM, 2.0, 0.7, -1, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.line"),
+        sc(-ext * ah),
+        sc(ext * ah),
+        style::DIM,
+        2.0,
+        0.7,
+        -1,
+        vec![id.clone()],
+    );
     // b (the vector), p (its shadow), and the residual b - p
     let arrow = |s: &mut Scene, nm: &str, to: Vec2, col| {
-        let mut e = Entity::new(format!("{id}.{nm}"), Shape::Arrow { to: sc(to) }, sc(Vec2::ZERO), col);
+        let mut e = Entity::new(
+            format!("{id}.{nm}"),
+            Shape::Arrow { to: sc(to) },
+            sc(Vec2::ZERO),
+            col,
+        );
         e.stroke.width = 4.0;
         e.tags.push(id.clone());
         s.add(e);
     };
     arrow(s, "b", b, color);
     arrow(s, "p", p, style::GOLD);
-    add_line(s, format!("{id}.res"), sc(p), sc(b), style::MAGENTA, 2.5, 0.9, 0, vec![id.clone()]);
+    add_line(
+        s,
+        format!("{id}.res"),
+        sc(p),
+        sc(b),
+        style::MAGENTA,
+        2.5,
+        0.9,
+        0,
+        vec![id.clone()],
+    );
     // right-angle mark at p, in the corner between the line and the residual
     let eh = {
         let d = b - p;
@@ -2486,7 +2696,9 @@ fn c_project(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let d2 = eh * sq;
     let mut rt = Entity::new(
         format!("{id}.rt"),
-        Shape::Polyline { pts: vec![sc(p + d1), sc(p + d1 + d2), sc(p + d2)] },
+        Shape::Polyline {
+            pts: vec![sc(p + d1), sc(p + d1 + d2), sc(p + d2)],
+        },
         Vec2::ZERO,
         style::DIM,
     );
@@ -2500,7 +2712,10 @@ fn c_project(s: &mut Scene, a: &Args) -> Result<(), Error> {
     ] {
         let mut lbl = Entity::new(
             format!("{id}.{nm}"),
-            Shape::Text { content: txt.to_string(), size: 22.0 },
+            Shape::Text {
+                content: txt.to_string(),
+                size: 22.0,
+            },
             sc(at) + Vec2::new(12.0, -12.0),
             col,
         );
@@ -2544,10 +2759,14 @@ fn c_leastsquares(s: &mut Scene, a: &Args) -> Result<(), Error> {
     } else {
         style::CYAN
     };
-    let nums: Vec<f32> = tokens(&src).iter().filter_map(|t| t.parse::<f32>().ok()).collect();
+    let nums: Vec<f32> = tokens(&src)
+        .iter()
+        .filter_map(|t| t.parse::<f32>().ok())
+        .collect();
     if nums.len() < 4 || nums.len() % 2 != 0 {
         return Err(Error::new(
-            "leastsquares needs an even list of at least two points: \"x1 y1 x2 y2 ...\"".to_string(),
+            "leastsquares needs an even list of at least two points: \"x1 y1 x2 y2 ...\""
+                .to_string(),
             a.span_of(3),
         ));
     }
@@ -2555,7 +2774,8 @@ fn c_leastsquares(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
     let (m, k) = fit_line(&pts).ok_or_else(|| {
         Error::new(
-            "leastsquares: all points share one x — no y = m x + c fit (a vertical line)".to_string(),
+            "leastsquares: all points share one x — no y = m x + c fit (a vertical line)"
+                .to_string(),
             a.span_of(3),
         )
     })?;
@@ -2577,10 +2797,25 @@ fn c_leastsquares(s: &mut Scene, a: &Args) -> Result<(), Error> {
     // residuals (thin vertical segments) then the points on top
     for (i, p) in pts.iter().enumerate() {
         let yhat = m * p.x + k;
-        add_line(s, format!("{id}.r{i}"), sc(*p), sc(Vec2::new(p.x, yhat)), style::MAGENTA, 2.0, 0.8, -1, vec![id.clone(), format!("{id}.residuals")]);
+        add_line(
+            s,
+            format!("{id}.r{i}"),
+            sc(*p),
+            sc(Vec2::new(p.x, yhat)),
+            style::MAGENTA,
+            2.0,
+            0.8,
+            -1,
+            vec![id.clone(), format!("{id}.residuals")],
+        );
     }
     for (i, p) in pts.iter().enumerate() {
-        let mut e = Entity::new(format!("{id}.p{i}"), Shape::Circle { r: 7.0 }, sc(*p), color);
+        let mut e = Entity::new(
+            format!("{id}.p{i}"),
+            Shape::Circle { r: 7.0 },
+            sc(*p),
+            color,
+        );
         e.stroke.fill = true;
         e.z = 2;
         e.tags = vec![id.clone(), format!("{id}.points")];
@@ -2634,17 +2869,40 @@ fn c_linsolve(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let ext = a.opt_num(9)?.map(|v| v as f32).unwrap_or(5.0);
     let sc = |p: Vec2| Vec2::new(c.x + p.x * u, c.y - p.y * u);
     if let Some((p0, p1)) = line_eq_pts(m11, m12, e, ext) {
-        add_line(s, format!("{id}.r1"), sc(p0), sc(p1), style::CYAN, 3.0, 1.0, 0, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.r1"),
+            sc(p0),
+            sc(p1),
+            style::CYAN,
+            3.0,
+            1.0,
+            0,
+            vec![id.clone()],
+        );
     }
     if let Some((p0, p1)) = line_eq_pts(m21, m22, f, ext) {
-        add_line(s, format!("{id}.r2"), sc(p0), sc(p1), style::MAGENTA, 3.0, 1.0, 0, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.r2"),
+            sc(p0),
+            sc(p1),
+            style::MAGENTA,
+            3.0,
+            1.0,
+            0,
+            vec![id.clone()],
+        );
     }
     let (sx, sy) = match solve2(m11, m12, m21, m22, e, f) {
         Some(xy) => xy,
         None => {
             let mut note = Entity::new(
                 format!("{id}.note"),
-                Shape::Text { content: "no unique solution (parallel lines)".to_string(), size: 20.0 },
+                Shape::Text {
+                    content: "no unique solution (parallel lines)".to_string(),
+                    size: 20.0,
+                },
                 c + Vec2::new(0.0, u * 2.6),
                 style::DIM,
             );
@@ -2653,13 +2911,21 @@ fn c_linsolve(s: &mut Scene, a: &Args) -> Result<(), Error> {
             return Ok(());
         }
     };
-    let mut dot = Entity::new(id.clone(), Shape::Circle { r: 8.0 }, sc(Vec2::new(sx, sy)), style::GOLD);
+    let mut dot = Entity::new(
+        id.clone(),
+        Shape::Circle { r: 8.0 },
+        sc(Vec2::new(sx, sy)),
+        style::GOLD,
+    );
     dot.stroke.fill = true;
     dot.tags.push(id.clone());
     s.add(dot);
     let mut lbl = Entity::new(
         format!("{id}.val"),
-        Shape::Text { content: format!("({sx:.2}, {sy:.2})"), size: 22.0 },
+        Shape::Text {
+            content: format!("({sx:.2}, {sy:.2})"),
+            size: 22.0,
+        },
         sc(Vec2::new(sx, sy)) + Vec2::new(18.0, -18.0),
         style::GOLD,
     );
@@ -2701,7 +2967,17 @@ fn c_span(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let span_line = |s: &mut Scene, dir: Vec2| {
         let n = dir.length().max(1e-6);
         let d = dir / n * ext;
-        add_line(s, format!("{id}.line"), sc(-d), sc(d), style::DIM, 2.0, 0.85, -1, vec![id.clone()]);
+        add_line(
+            s,
+            format!("{id}.line"),
+            sc(-d),
+            sc(d),
+            style::DIM,
+            2.0,
+            0.85,
+            -1,
+            vec![id.clone()],
+        );
     };
     match w {
         None => span_line(s, v),
@@ -2718,7 +2994,12 @@ fn c_span(s: &mut Scene, a: &Args) -> Result<(), Error> {
                     sc(Vec2::new(ext, ext)),
                     sc(Vec2::new(-ext, ext)),
                 ];
-                let mut e = Entity::new(format!("{id}.plane"), Shape::Polygon { pts: sq }, Vec2::ZERO, style::CYAN);
+                let mut e = Entity::new(
+                    format!("{id}.plane"),
+                    Shape::Polygon { pts: sq },
+                    Vec2::ZERO,
+                    style::CYAN,
+                );
                 e.stroke.fill = true;
                 e.stroke.outline = false;
                 e.opacity = 0.14;
@@ -2802,7 +3083,7 @@ mod graph_tests {
     fn determinant_and_eigen_match_linear_algebra() {
         use super::{det2, eig2};
         assert!((det2(1.0, 2.0, 3.0, 4.0) + 2.0).abs() < 1e-5); // 1*4 - 2*3 = -2
-        // symmetric [[2,1],[1,2]]: eigenvalues 3 and 1, eigenvectors (1,1) & (1,-1)
+                                                                // symmetric [[2,1],[1,2]]: eigenvalues 3 and 1, eigenvectors (1,1) & (1,-1)
         let e = eig2(2.0, 1.0, 1.0, 2.0);
         assert_eq!(e.len(), 2);
         assert!(e.iter().any(|(l, _)| (l - 3.0).abs() < 1e-3));
@@ -2840,10 +3121,18 @@ mod graph_tests {
         // [1 0 | 1 ; 0 1 | 3] — identity on the left, solution (1,3) on the right.
         let steps = rref_steps(vec![vec![2.0, 1.0, 5.0], vec![1.0, 3.0, 10.0]]);
         let (last, _) = steps.last().unwrap();
-        assert!((last[0][0] - 1.0).abs() < 1e-4 && last[0][1].abs() < 1e-4 && (last[0][2] - 1.0).abs() < 1e-4);
-        assert!(last[1][0].abs() < 1e-4 && (last[1][1] - 1.0).abs() < 1e-4 && (last[1][2] - 3.0).abs() < 1e-4);
+        assert!(
+            (last[0][0] - 1.0).abs() < 1e-4
+                && last[0][1].abs() < 1e-4
+                && (last[0][2] - 1.0).abs() < 1e-4
+        );
+        assert!(
+            last[1][0].abs() < 1e-4
+                && (last[1][1] - 1.0).abs() < 1e-4
+                && (last[1][2] - 3.0).abs() < 1e-4
+        );
         assert!(steps.len() >= 4); // start + real row operations, not a no-op
-        // a singular left block leaves a row of zeros (no unique solution)
+                                   // a singular left block leaves a row of zeros (no unique solution)
         let sing = rref_steps(vec![vec![1.0, 2.0, 3.0], vec![2.0, 4.0, 7.0]]);
         let (ls, _) = sing.last().unwrap();
         assert!(ls[1][0].abs() < 1e-4 && ls[1][1].abs() < 1e-4); // bottom row's A-part is zero
@@ -2856,7 +3145,10 @@ mod graph_tests {
         let t = (b.x * av.x + b.y * av.y) / (av.x * av.x + av.y * av.y);
         let p = Vec2::new(t * av.x, t * av.y);
         let e = b - p;
-        assert!((e.x * av.x + e.y * av.y).abs() < 1e-5, "residual not perpendicular");
+        assert!(
+            (e.x * av.x + e.y * av.y).abs() < 1e-5,
+            "residual not perpendicular"
+        );
         // a vector already on the line projects to itself
         let on = Vec2::new(6.0, 2.0); // = 2·a
         let t2 = (on.x * av.x + on.y * av.y) / (av.x * av.x + av.y * av.y);
@@ -2904,9 +3196,13 @@ mod graph_tests {
         // dropped: rcos/rsin (collide with the r*cos/r*sin glued-name typo)
         assert!(named_formula("rcos").is_none() && named_formula("rsin").is_none());
         let f = |n: &str| compile(named_formula(n).unwrap()).unwrap();
-        assert!(f("relu").eval(-2.0, 0.0).abs() < 1e-4 && (f("relu").eval(3.0, 0.0) - 3.0).abs() < 1e-4);
+        assert!(
+            f("relu").eval(-2.0, 0.0).abs() < 1e-4 && (f("relu").eval(3.0, 0.0) - 3.0).abs() < 1e-4
+        );
         assert!((f("sigmoid").eval(0.0, 0.0) - 0.5).abs() < 1e-4);
-        assert!((f("step").eval(2.0, 0.0) - 1.0).abs() < 1e-4 && f("step").eval(-2.0, 0.0).abs() < 1e-4);
+        assert!(
+            (f("step").eval(2.0, 0.0) - 1.0).abs() < 1e-4 && f("step").eval(-2.0, 0.0).abs() < 1e-4
+        );
     }
 
     /// The editor's `NAMED_FNS` vocab (manic-lang catalog) must equal exactly the
@@ -2920,25 +3216,45 @@ mod graph_tests {
         let engine: BTreeSet<&str> = NAMED_FORMULAS.iter().map(|(n, _)| *n).collect();
         let cat: BTreeSet<&str> = manic_lang::catalog::NAMED_FNS.iter().copied().collect();
         assert_eq!(
-            engine, cat,
+            engine,
+            cat,
             "named-fn vocab drift — only in engine: {:?}; only in catalog: {:?}",
             engine.difference(&cat).collect::<Vec<_>>(),
             cat.difference(&engine).collect::<Vec<_>>(),
         );
         for (n, formula) in NAMED_FORMULAS {
             let g = compile(formula).unwrap_or_else(|e| panic!("{n}: `{formula}` bad: {e}"));
-            assert!(g.eval(0.5, 0.0).is_finite(), "{n} did not evaluate finitely");
+            assert!(
+                g.eval(0.5, 0.0).is_finite(),
+                "{n} did not evaluate finitely"
+            );
         }
         // the newly-added inverse trig is correct
-        assert!(compile(named_formula("acos").unwrap()).unwrap().eval(1.0, 0.0).abs() < 1e-4); // acos 1 = 0
-        assert!(compile(named_formula("asin").unwrap()).unwrap().eval(0.0, 0.0).abs() < 1e-4); // asin 0 = 0
+        assert!(
+            compile(named_formula("acos").unwrap())
+                .unwrap()
+                .eval(1.0, 0.0)
+                .abs()
+                < 1e-4
+        ); // acos 1 = 0
+        assert!(
+            compile(named_formula("asin").unwrap())
+                .unwrap()
+                .eval(0.0, 0.0)
+                .abs()
+                < 1e-4
+        ); // asin 0 = 0
     }
 
     #[test]
     fn slope_matches_calculus() {
         let g = graph("sin(x)");
         // d/dx sin = cos: slope at 0 ≈ 1, at π/2 ≈ 0, at π ≈ -1
-        assert!((g.slope(0.0) - 1.0).abs() < 1e-2, "sin' (0) = {}", g.slope(0.0));
+        assert!(
+            (g.slope(0.0) - 1.0).abs() < 1e-2,
+            "sin' (0) = {}",
+            g.slope(0.0)
+        );
         assert!(g.slope(std::f32::consts::FRAC_PI_2).abs() < 1e-2);
         assert!((g.slope(std::f32::consts::PI) + 1.0).abs() < 1e-2);
     }
@@ -2952,26 +3268,45 @@ mod graph_tests {
             half: 80.0,
         };
         let (a, b) = gv.segment().unwrap();
-        assert!((a.y - b.y).abs() < 0.5, "peak tangent not flat: {a:?} {b:?}");
+        assert!(
+            (a.y - b.y).abs() < 0.5,
+            "peak tangent not flat: {a:?} {b:?}"
+        );
         assert!((b.x - a.x - 160.0).abs() < 1.0, "segment length wrong");
     }
 
     #[test]
     fn normal_is_perpendicular_to_tangent() {
         let g = graph("x*x"); // slope 2 at x=1 (screen dir not axis-aligned)
-        let t = GraphView::Tangent { graph: g.clone(), x: 1.0, half: 50.0 };
-        let n = GraphView::Normal { graph: g, x: 1.0, half: 50.0 };
+        let t = GraphView::Tangent {
+            graph: g.clone(),
+            x: 1.0,
+            half: 50.0,
+        };
+        let n = GraphView::Normal {
+            graph: g,
+            x: 1.0,
+            half: 50.0,
+        };
         let (ta, tb) = t.segment().unwrap();
         let (na, nb) = n.segment().unwrap();
         let dt = tb - ta;
         let dn = nb - na;
-        assert!(dt.dot(dn).abs() < 1.0, "normal not ⟂ tangent: dot = {}", dt.dot(dn));
+        assert!(
+            dt.dot(dn).abs() < 1.0,
+            "normal not ⟂ tangent: dot = {}",
+            dt.dot(dn)
+        );
     }
 
     #[test]
     fn undefined_slope_draws_no_line() {
         // 1/x has an asymptote at 0: the segment collapses to the touch point
-        let gv = GraphView::Tangent { graph: graph("1/x"), x: 0.0, half: 80.0 };
+        let gv = GraphView::Tangent {
+            graph: graph("1/x"),
+            x: 0.0,
+            half: 80.0,
+        };
         let (a, b) = gv.segment().unwrap();
         assert_eq!(a, b, "a fake tangent was drawn at an asymptote");
     }
@@ -2979,16 +3314,34 @@ mod graph_tests {
     #[test]
     fn area_integral_matches_calculus() {
         // ∫₀² x² dx = 8/3 ≈ 2.667
-        let gv = GraphView::Area { graph: graph("x*x"), a: 0.0, x: 2.0, n: 100 };
-        assert!((gv.value() - 8.0 / 3.0).abs() < 1e-2, "∫x² = {}", gv.value());
+        let gv = GraphView::Area {
+            graph: graph("x*x"),
+            a: 0.0,
+            x: 2.0,
+            n: 100,
+        };
+        assert!(
+            (gv.value() - 8.0 / 3.0).abs() < 1e-2,
+            "∫x² = {}",
+            gv.value()
+        );
         // ∫₀^π sin = 2
-        let gv = GraphView::Area { graph: graph("sin(x)"), a: 0.0, x: std::f32::consts::PI, n: 100 };
+        let gv = GraphView::Area {
+            graph: graph("sin(x)"),
+            a: 0.0,
+            x: std::f32::consts::PI,
+            n: 100,
+        };
         assert!((gv.value() - 2.0).abs() < 1e-2, "∫sin = {}", gv.value());
     }
 
     #[test]
     fn slope_readout_tracks_the_curve() {
-        let gv = GraphView::Slope { graph: graph("sin(x)"), x: 0.0, off: Vec2::ZERO };
+        let gv = GraphView::Slope {
+            graph: graph("sin(x)"),
+            x: 0.0,
+            off: Vec2::ZERO,
+        };
         assert!((gv.value() - 1.0).abs() < 1e-2); // cos(0) = 1
     }
 
@@ -3001,7 +3354,14 @@ mod graph_tests {
             xs.push(x);
             ys.push(f(x));
         }
-        GraphFn { src: GraphSrc::Samples { xs, ys }, center: Vec2::ZERO, sx: 100.0, sy: 100.0, x0, x1 }
+        GraphFn {
+            src: GraphSrc::Samples { xs, ys },
+            center: Vec2::ZERO,
+            sx: 100.0,
+            sy: 100.0,
+            x0,
+            x1,
+        }
     }
 
     #[test]
@@ -3009,7 +3369,11 @@ mod graph_tests {
         // deriv of sin sampled ≈ cos
         let g = graph("sin(x)");
         let d = sampled(|x| g.slope(x), 0.0, 6.3); // what c_deriv builds
-        assert!((d.y(1.0) - 1f32.cos()).abs() < 1e-2, "deriv(sin)(1) = {}", d.y(1.0));
+        assert!(
+            (d.y(1.0) - 1f32.cos()).abs() < 1e-2,
+            "deriv(sin)(1) = {}",
+            d.y(1.0)
+        );
         assert!((d.y(3.0) - 3f32.cos()).abs() < 1e-2);
     }
 
@@ -3020,15 +3384,30 @@ mod graph_tests {
         let g = graph("sin(x)");
         let acc = sampled(|x| crate::primitives::integrate(&g, 0.0, x, 48), 0.0, 6.3);
         for &x in &[0.7f32, 1.5, 2.5, 4.0] {
-            assert!((acc.slope(x) - x.sin()).abs() < 2e-2, "F'({x}) = {}, want sin = {}", acc.slope(x), x.sin());
+            assert!(
+                (acc.slope(x) - x.sin()).abs() < 2e-2,
+                "F'({x}) = {}, want sin = {}",
+                acc.slope(x),
+                x.sin()
+            );
         }
     }
 
     #[test]
     fn integral_readout_matches_area() {
         // ∫₀² x² dx = 8/3 — the readout value equals the swept integral
-        let gv = GraphView::Integral { graph: graph("x*x"), a: 0.0, x: 2.0, n: 80, at: Vec2::ZERO };
-        assert!((gv.value() - 8.0 / 3.0).abs() < 1e-2, "∫x² readout = {}", gv.value());
+        let gv = GraphView::Integral {
+            graph: graph("x*x"),
+            a: 0.0,
+            x: 2.0,
+            n: 80,
+            at: Vec2::ZERO,
+        };
+        assert!(
+            (gv.value() - 8.0 / 3.0).abs() < 1e-2,
+            "∫x² readout = {}",
+            gv.value()
+        );
     }
 
     #[test]
@@ -3036,8 +3415,16 @@ mod graph_tests {
         // sin over (0, 2π): max at π/2, min at 3π/2 — zeros of the derivative
         let g = graph("sin(x)");
         let crit = super::sampled_zeros(&g, |x| g.slope(x));
-        assert!(crit.iter().any(|&x| (x - std::f32::consts::FRAC_PI_2).abs() < 2e-2), "no max: {crit:?}");
-        assert!(crit.iter().any(|&x| (x - 3.0 * std::f32::consts::FRAC_PI_2).abs() < 2e-2), "no min: {crit:?}");
+        assert!(
+            crit.iter()
+                .any(|&x| (x - std::f32::consts::FRAC_PI_2).abs() < 2e-2),
+            "no max: {crit:?}"
+        );
+        assert!(
+            crit.iter()
+                .any(|&x| (x - 3.0 * std::f32::consts::FRAC_PI_2).abs() < 2e-2),
+            "no min: {crit:?}"
+        );
     }
 
     #[test]
@@ -3045,7 +3432,11 @@ mod graph_tests {
         // sin'' = -sin, zero at π (interior of 0..2π)
         let g = graph("sin(x)");
         let infl = super::sampled_zeros(&g, |x| g.second(x));
-        assert!(infl.iter().any(|&x| (x - std::f32::consts::PI).abs() < 3e-2), "no inflection at π: {infl:?}");
+        assert!(
+            infl.iter()
+                .any(|&x| (x - std::f32::consts::PI).abs() < 3e-2),
+            "no inflection at π: {infl:?}"
+        );
     }
 
     #[test]
@@ -3055,14 +3446,20 @@ mod graph_tests {
         let c = |k| g.nth_deriv(0.0, k);
         assert!(c(1).abs() > 0.97 && c(1) < 1.03, "f'(0) = {}", c(1)); // 1
         assert!((c(3) / 6.0 + 1.0 / 6.0).abs() < 3e-2, "c3 = {}", c(3) / 6.0); // -1/6
-        // and the degree-5 polynomial at x=1 ≈ sin(1)
+                                                                               // and the degree-5 polynomial at x=1 ≈ sin(1)
         let mut fact = 1.0f32;
         let mut p = 0.0f32;
         for k in 0..=5u32 {
-            if k > 0 { fact *= k as f32; }
+            if k > 0 {
+                fact *= k as f32;
+            }
             p += g.nth_deriv(0.0, k) / fact * 1f32.powi(k as i32);
         }
-        assert!((p - 1f32.sin()).abs() < 2e-2, "P5(1) = {p}, sin 1 = {}", 1f32.sin());
+        assert!(
+            (p - 1f32.sin()).abs() < 2e-2,
+            "P5(1) = {p}, sin 1 = {}",
+            1f32.sin()
+        );
     }
 
     #[test]
@@ -3086,8 +3483,14 @@ mod graph_tests {
     fn roots_finds_zero_crossings() {
         // sin over (0, 6.3): zeros at 0…, π, 2π — π and 2π are interior crossings
         let rs = graph("sin(x)").roots();
-        assert!(rs.iter().any(|&r| (r - std::f32::consts::PI).abs() < 1e-2), "no π root: {rs:?}");
-        assert!(rs.iter().any(|&r| (r - std::f32::consts::TAU).abs() < 1e-2), "no 2π root: {rs:?}");
+        assert!(
+            rs.iter().any(|&r| (r - std::f32::consts::PI).abs() < 1e-2),
+            "no π root: {rs:?}"
+        );
+        assert!(
+            rs.iter().any(|&r| (r - std::f32::consts::TAU).abs() < 1e-2),
+            "no 2π root: {rs:?}"
+        );
     }
 
     #[test]
@@ -3097,7 +3500,10 @@ mod graph_tests {
         let pts = g.newton_path(3.0, 20);
         let last = pts.last().unwrap();
         let x = (last.x - g.center.x) / g.sx; // screen → math
-        assert!((x - 2f32.sqrt()).abs() < 1e-2, "Newton landed at x = {x}, want √2");
+        assert!(
+            (x - 2f32.sqrt()).abs() < 1e-2,
+            "Newton landed at x = {x}, want √2"
+        );
     }
 
     #[test]
@@ -3123,7 +3529,10 @@ mod graph_tests {
         let fy = compile("x").unwrap();
         let path = super::rk4_path(&fx, &fy, 2.0, 0.0, 0.02, 400);
         for &(x, y) in &path {
-            assert!(((x * x + y * y).sqrt() - 2.0).abs() < 1e-2, "left the r=2 orbit at ({x},{y})");
+            assert!(
+                ((x * x + y * y).sqrt() - 2.0).abs() < 1e-2,
+                "left the r=2 orbit at ({x},{y})"
+            );
         }
     }
 }

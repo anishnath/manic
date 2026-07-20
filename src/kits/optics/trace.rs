@@ -28,7 +28,15 @@ pub fn refract_vec3(d: Vec3, n: Vec3, eta: f32) -> Option<Vec3> {
 /// at `x = vx`, axis through the origin in y,z). This is what off-axis field
 /// tracing needs (coma/astigmatism break the meridional symmetry the 2-D
 /// [`trace_conic`] relies on). Returns the hit and refracted unit dir, or `None`.
-pub fn trace_conic_3d(o: Vec3, d: Vec3, vx: f32, r: f32, k: f32, n1: f32, n2: f32) -> Option<(Vec3, Vec3)> {
+pub fn trace_conic_3d(
+    o: Vec3,
+    d: Vec3,
+    vx: f32,
+    r: f32,
+    k: f32,
+    n1: f32,
+    n2: f32,
+) -> Option<(Vec3, Vec3)> {
     if r.abs() > 1.0e6 {
         if d.x.abs() < 1e-9 {
             return None;
@@ -229,10 +237,19 @@ mod tests {
     #[test]
     fn tir_beyond_critical_angle() {
         let tc = critical_angle(1.5, 1.0).expect("glass→air has a critical angle");
-        assert!((tc.to_degrees() - 41.81).abs() < 0.1, "critical angle ≈ 41.8°");
-        assert!(snell(tc - 0.02, 1.5, 1.0).is_some(), "just under: still refracts");
+        assert!(
+            (tc.to_degrees() - 41.81).abs() < 0.1,
+            "critical angle ≈ 41.8°"
+        );
+        assert!(
+            snell(tc - 0.02, 1.5, 1.0).is_some(),
+            "just under: still refracts"
+        );
         assert!(snell(tc + 0.02, 1.5, 1.0).is_none(), "just over: TIR");
-        assert!(critical_angle(1.0, 1.5).is_none(), "no TIR entering a denser medium");
+        assert!(
+            critical_angle(1.0, 1.5).is_none(),
+            "no TIR entering a denser medium"
+        );
     }
 
     /// A convex air→glass surface bends a parallel ray above the axis DOWNWARD
@@ -255,6 +272,9 @@ mod tests {
         let d = Vec2::new(1.0, 0.0);
         let (_, sphere) = trace_conic(o, d, 100.0, 120.0, 0.0, 0.0, 1.0, 1.5).unwrap();
         let (_, hyper) = trace_conic(o, d, 100.0, 120.0, -3.0, 0.0, 1.0, 1.5).unwrap();
-        assert!((sphere.y - hyper.y).abs() > 1e-3, "conic should change the refracted slope");
+        assert!(
+            (sphere.y - hyper.y).abs() > 1e-3,
+            "conic should change the refracted slope"
+        );
     }
 }

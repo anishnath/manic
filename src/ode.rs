@@ -167,8 +167,16 @@ mod tests {
         let t_final = steps as f32 * dt;
         let last = traj.last().unwrap();
         let (x, v) = (last[0], last[1]);
-        assert!((x - t_final.cos()).abs() < 1e-2, "x {x} vs cos {}", t_final.cos());
-        assert!((v + t_final.sin()).abs() < 1e-2, "v {v} vs −sin {}", -t_final.sin());
+        assert!(
+            (x - t_final.cos()).abs() < 1e-2,
+            "x {x} vs cos {}",
+            t_final.cos()
+        );
+        assert!(
+            (v + t_final.sin()).abs() < 1e-2,
+            "v {v} vs −sin {}",
+            -t_final.sin()
+        );
         for s in &traj {
             let e = 0.5 * (s[0] * s[0] + s[1] * s[1]);
             assert!((e - 0.5).abs() < 1e-3, "energy drifted to {e}");
@@ -202,8 +210,14 @@ mod tests {
         };
         let (e2, e1, e05) = (err(0.2), err(0.1), err(0.05));
         assert!(e2 < 1e-2, "coarse error already too big: {e2}");
-        assert!(e1 < e2, "halving dt (0.2→0.1) did not reduce error: {e1} vs {e2}");
-        assert!(e05 < e1, "halving dt (0.1→0.05) did not reduce error: {e05} vs {e1}");
+        assert!(
+            e1 < e2,
+            "halving dt (0.2→0.1) did not reduce error: {e1} vs {e2}"
+        );
+        assert!(
+            e05 < e1,
+            "halving dt (0.1→0.05) did not reduce error: {e05} vs {e1}"
+        );
     }
 
     /// **Determinism:** identical inputs ⇒ bit-identical output. Core to manic's
@@ -250,6 +264,9 @@ mod tests {
     fn blowup_stops_early() {
         let traj = integrate(&[1.0], 0.01, 500, |s, d| d[0] = s[0] * s[0]);
         assert!(traj.len() < 501, "should have stopped before all 500 steps");
-        assert!(traj.iter().all(|s| s[0].is_finite()), "no non-finite snapshot retained");
+        assert!(
+            traj.iter().all(|s| s[0].is_finite()),
+            "no non-finite snapshot retained"
+        );
     }
 }

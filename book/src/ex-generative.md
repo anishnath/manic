@@ -26,7 +26,7 @@ One recursive `def`, drawn to depth 12.
 
 ## particles-flow
 
-Contained ambient motion and live curved connections in four generic words: `particles`,
+Contained ambient motion and live curved connections in a small generic vocabulary: `particles`,
 `wander`, `link`, and `flow`. The ids supply the domain meaning.
 
 ```manic

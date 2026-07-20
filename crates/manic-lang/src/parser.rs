@@ -732,7 +732,7 @@ mod tests {
         let (label, replacement) = e.fix.expect("stray token should carry a fix");
         assert!(label.contains("remove stray `sadas`"), "{}", label);
         assert_eq!(replacement, ""); // empty replacement = destructive removal
-        // the fix targets the token itself (line 2), not the following statement
+                                     // the fix targets the token itself (line 2), not the following statement
         assert_eq!(e.span.line, 2);
     }
 

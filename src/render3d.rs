@@ -99,13 +99,10 @@ pub fn project(scene: &Scene, aspect: f32, world: Vec3, pw: f32, ph: f32) -> Opt
         return None; // behind / on the camera plane
     }
     let ndc = clip.truncate() / clip.w; // (-1..1)
-    // `target_matrix` already applied the 3D pass's Y-flip, so +ndc.y maps to
-    // increasing pixel-Y here. Sign visually confirmed correct (pin3 labels +
-    // axis numbers land on their points and track the orbit) — do not flip.
-    Some(vec2(
-        (ndc.x * 0.5 + 0.5) * pw,
-        (ndc.y * 0.5 + 0.5) * ph,
-    ))
+                                        // `target_matrix` already applied the 3D pass's Y-flip, so +ndc.y maps to
+                                        // increasing pixel-Y here. Sign visually confirmed correct (pin3 labels +
+                                        // axis numbers land on their points and track the orbit) — do not flip.
+    Some(vec2((ndc.x * 0.5 + 0.5) * pw, (ndc.y * 0.5 + 0.5) * ph))
 }
 
 /// Build Macroquad's camera from the deterministic camera entity in `scene`.
@@ -222,12 +219,42 @@ pub(crate) fn box_tris(size: Vec3) -> Vec<[Vec3; 3]> {
     let v = |x: f32, y: f32, z: f32| vec3(x * h.x, y * h.y, z * h.z);
     let quad = |a, b, c, d| [[a, b, c], [a, c, d]];
     [
-        quad(v(1., -1., -1.), v(1., 1., -1.), v(1., 1., 1.), v(1., -1., 1.)), // +X
-        quad(v(-1., -1., -1.), v(-1., -1., 1.), v(-1., 1., 1.), v(-1., 1., -1.)), // -X
-        quad(v(-1., 1., -1.), v(-1., 1., 1.), v(1., 1., 1.), v(1., 1., -1.)), // +Y
-        quad(v(-1., -1., -1.), v(1., -1., -1.), v(1., -1., 1.), v(-1., -1., 1.)), // -Y
-        quad(v(-1., -1., 1.), v(1., -1., 1.), v(1., 1., 1.), v(-1., 1., 1.)), // +Z
-        quad(v(-1., -1., -1.), v(-1., 1., -1.), v(1., 1., -1.), v(1., -1., -1.)), // -Z
+        quad(
+            v(1., -1., -1.),
+            v(1., 1., -1.),
+            v(1., 1., 1.),
+            v(1., -1., 1.),
+        ), // +X
+        quad(
+            v(-1., -1., -1.),
+            v(-1., -1., 1.),
+            v(-1., 1., 1.),
+            v(-1., 1., -1.),
+        ), // -X
+        quad(
+            v(-1., 1., -1.),
+            v(-1., 1., 1.),
+            v(1., 1., 1.),
+            v(1., 1., -1.),
+        ), // +Y
+        quad(
+            v(-1., -1., -1.),
+            v(1., -1., -1.),
+            v(1., -1., 1.),
+            v(-1., -1., 1.),
+        ), // -Y
+        quad(
+            v(-1., -1., 1.),
+            v(1., -1., 1.),
+            v(1., 1., 1.),
+            v(-1., 1., 1.),
+        ), // +Z
+        quad(
+            v(-1., -1., -1.),
+            v(-1., 1., -1.),
+            v(1., 1., -1.),
+            v(1., -1., -1.),
+        ), // -Z
     ]
     .into_iter()
     .flatten()
@@ -283,7 +310,11 @@ fn tube_tris(path: &[Vec3], radius: f32, sides: usize) -> Vec<[Vec3; 3]> {
     }
     // Seed a normal perpendicular to the first tangent, then parallel-transport.
     let mut normal = {
-        let helper = if tan[0].z.abs() < 0.9 { Vec3::Z } else { Vec3::Y };
+        let helper = if tan[0].z.abs() < 0.9 {
+            Vec3::Z
+        } else {
+            Vec3::Y
+        };
         tan[0].cross(helper).normalize_or_zero()
     };
     let mut rings: Vec<Vec<Vec3>> = Vec::with_capacity(n);
@@ -420,7 +451,11 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
         Shape3D::Line { to } => {
             let end = *to * trace;
             if e.thickness > 0.0 {
-                fill_tris(&tube_tris(&[Vec3::ZERO, end], e.thickness, 8), color, local_eye);
+                fill_tris(
+                    &tube_tris(&[Vec3::ZERO, end], e.thickness, 8),
+                    color,
+                    local_eye,
+                );
             } else {
                 draw_line_3d(Vec3::ZERO, end, color);
             }
@@ -437,7 +472,11 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
                     let head_len = (len * 0.3).clamp(head_r * 1.3, head_r * 2.4).min(len);
                     let base = tip - dir * head_len;
                     if head_len < len {
-                        fill_tris(&tube_tris(&[Vec3::ZERO, base], e.thickness, 8), color, local_eye);
+                        fill_tris(
+                            &tube_tris(&[Vec3::ZERO, base], e.thickness, 8),
+                            color,
+                            local_eye,
+                        );
                     }
                     fill_tris(&cone_tris(base, tip, head_r, 12), color, local_eye);
                 }
@@ -497,9 +536,17 @@ fn draw_entity(e: &Entity3D, tpl: &style::Template, eye: Option<Vec3>) {
             }
         }
         Shape3D::Surface { pts, nu, nv } => {
-            fill_tris(&surface_grid_tris(pts, *nu, *nv), faded(color, trace), local_eye);
+            fill_tris(
+                &surface_grid_tris(pts, *nu, *nv),
+                faded(color, trace),
+                local_eye,
+            );
         }
-        Shape3D::Mesh { verts, edges, faces } => {
+        Shape3D::Mesh {
+            verts,
+            edges,
+            faces,
+        } => {
             let c = faded(color, trace);
             if !faces.is_empty() {
                 let tris: Vec<[Vec3; 3]> = faces
@@ -541,8 +588,11 @@ pub fn draw_scene(scene: &Scene, tpl: &style::Template) {
     let (opaque, mut translucent): (Vec<&Entity3D>, Vec<&Entity3D>) =
         scene.entities_3d.iter().partition(|e| alpha(e) >= 0.999);
     if let Some(eye) = eye {
-        translucent
-            .sort_by(|a, b| (b.pos - eye).length_squared().total_cmp(&(a.pos - eye).length_squared()));
+        translucent.sort_by(|a, b| {
+            (b.pos - eye)
+                .length_squared()
+                .total_cmp(&(a.pos - eye).length_squared())
+        });
     }
     for entity in opaque.into_iter().chain(translucent) {
         draw_entity(entity, tpl, eye);

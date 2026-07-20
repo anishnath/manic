@@ -123,14 +123,7 @@ fn draw_path(pts: &[Vec2], frac: f32, width: f32, color: Color) {
 /// Draw the traced portion of a polyline with a repeating dash/gap pattern.
 /// Pattern state flows continuously across segment boundaries, so a sampled
 /// plot reads as one dashed curve instead of restarting at every sample.
-fn draw_dashed_path(
-    pts: &[Vec2],
-    frac: f32,
-    width: f32,
-    color: Color,
-    dash: f32,
-    gap: f32,
-) {
+fn draw_dashed_path(pts: &[Vec2], frac: f32, width: f32, color: Color, dash: f32, gap: f32) {
     if pts.len() < 2 || frac <= 0.0 || dash <= 0.0 || gap <= 0.0 {
         return;
     }
@@ -171,13 +164,7 @@ fn draw_dashed_path(
 }
 
 #[inline]
-fn draw_styled_path(
-    pts: &[Vec2],
-    frac: f32,
-    width: f32,
-    color: Color,
-    dash: Option<(f32, f32)>,
-) {
+fn draw_styled_path(pts: &[Vec2], frac: f32, width: f32, color: Color, dash: Option<(f32, f32)>) {
     if let Some((on, off)) = dash {
         draw_dashed_path(pts, frac, width, color, on, off);
     } else {

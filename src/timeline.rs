@@ -476,7 +476,11 @@ fn sample_graph(graph: &crate::primitives::GraphFn) -> Vec<Vec2> {
 fn parameter_state(scene: &Scene, binding: &ParameterBinding) -> Option<(f32, f32, f32)> {
     let source = scene.get(&binding.source)?;
     let parameter = source.parameter?;
-    let value = source.counter.as_ref()?.value.clamp(parameter.min, parameter.max);
+    let value = source
+        .counter
+        .as_ref()?
+        .value
+        .clamp(parameter.min, parameter.max);
     Some((value, parameter.min, parameter.max))
 }
 

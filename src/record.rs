@@ -152,11 +152,7 @@ impl Recorder {
     /// Close the sink and write the historical whole-movie `markers.json`.
     /// Kept for Rust API compatibility; the Manic player uses
     /// [`Recorder::finish_range`] for stage-aware clip metadata.
-    pub fn finish(
-        self,
-        sections: &[(f32, String)],
-        marks: &[(f32, String)],
-    ) {
+    pub fn finish(self, sections: &[(f32, String)], marks: &[(f32, String)]) {
         let markers = legacy_markers_json(self.fps, sections, marks);
         self.finish_with_markers(markers);
     }
@@ -175,10 +171,7 @@ impl Recorder {
         self.finish_with_markers(markers);
     }
 
-    fn finish_with_markers(
-        mut self,
-        markers: String,
-    ) {
+    fn finish_with_markers(mut self, markers: String) {
         let _ = std::fs::write(self.dir.join("markers.json"), markers);
 
         match &mut self.sink {
@@ -210,11 +203,7 @@ impl Recorder {
     }
 }
 
-fn legacy_markers_json(
-    fps: u32,
-    sections: &[(f32, String)],
-    marks: &[(f32, String)],
-) -> String {
+fn legacy_markers_json(fps: u32, sections: &[(f32, String)], marks: &[(f32, String)]) -> String {
     fn list(items: &[(f32, String)]) -> String {
         items
             .iter()
@@ -318,9 +307,7 @@ mod tests {
         ];
         let raw = markers_json(30, &[], &points, &stages, 2.0, 5.5);
         assert!(
-            raw.contains(
-                "\"source_range\": {\"from\": 2.000, \"to\": 5.500, \"duration\": 3.500}"
-            ),
+            raw.contains("\"source_range\": {\"from\": 2.000, \"to\": 5.500, \"duration\": 3.500}"),
             "{raw}"
         );
         assert!(!raw.contains("\"name\": \"question\""), "{raw}");

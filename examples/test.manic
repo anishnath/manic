@@ -1,35 +1,128 @@
-// ============================================================================
-//  clt.manic  —  the Central Limit Theorem (stats Tier 3, the flagship payoff)
-// ----------------------------------------------------------------------------
-//  `clt(id, (cx,cy), samplesize, trials, [seed], [width], [height])` runs `trials`
-//  experiments — each the average of `samplesize` dice — and histograms those
-//  averages. However flat a single die is, the averages pile into a BELL. Draws
-//  the histogram of sample means (`{id}.bar{k}`, tagged `{id}.bars`), the normal
-//  curve they converge to (`{id}.curve`), the mean line, ticks, and an info
-//  label. Seeded → the render is identical every time.
-//
-//  TO ADAPT: change `samplesize` (bigger n → tighter bell) or `trials` (more →
-//  smoother). `seed` picks the reproducible random sequence.
-// ============================================================================
-
-title("The Central Limit Theorem");
+title("Rewrite Integration Steps");
 canvas("16:9");
+template("mono");
 
-clt(ct, (cx, cy + 20), 5, 1200, 7, 660, 300);
-untraced(ct.bars);      // the sample means pile up, bar by bar
-untraced(ct.curve);     // the normal curve draws in last
-hidden(ct.mean);
+text(head, (cx, 58), "Integrating by rewriting the denominator");
+display(head);
+bold(head);
+size(head, 34);
+hidden(head);
 
-text(cap, (cx, h - 46), ""); size(cap, 22); color(cap, dim); display(cap);
+text(sub, (cx, 96), "Every line below uses rewrite(...) on the same equation object.");
+size(sub, 22);
+color(sub, dim);
+hidden(sub);
 
-say(cap, "one die is flat — 1 to 6 are equally likely. but average FIVE dice…", 0.5);
-stagger(0.03) { for k in 0..30 { draw(ct.bar{k}, 0.3); } }
+rect(panelBox, (cx, cy + 18), w - 150, 430);
+outline(panelBox, dim);
+opacity(panelBox, 0.35);
+hidden(panelBox);
+
+text(stepTitle, (cx, 168), "");
+display(stepTitle);
+bold(stepTitle);
+size(stepTitle, 30);
+color(stepTitle, cyan);
+
+text(ruleTag, (cx, 205), "");
+size(ruleTag, 20);
+color(ruleTag, dim);
+
+equation(work, (cx, cy + 22), `I=\int \frac{1}{(x-1)(x+2)}\,dx`, 48);
+hidden(work);
+
+equation(finalLine, (cx, h - 70), `\boxed{\,\frac{\log|x-1|}{3}-\frac{\log|x+2|}{3}+C\,}`, 44);
+color(finalLine, lime);
+hidden(finalLine);
+
+show(head, 0.45);
+show(sub, 0.45);
+show(panelBox, 0.45);
+show(work, 0.5);
+wait(0.4);
+
+par {
+say(stepTitle, "1. u-Substitution", 0.25);
+say(ruleTag, "Rule: URule", 0.25);
+rewrite(work, `\begin{aligned}u&=x-1,\qquad du=dx\\[4pt]I&=\int \frac{1}{u(u+3)}\,du\end{aligned}`, 0.9, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "2. Shift the variable", 0.25);
+say(ruleTag, "Rule: URule", 0.25);
+rewrite(work, `\begin{aligned}v&=u+\frac{3}{2},\qquad dv=du\\[4pt]u(u+3)&=\left(v-\frac{3}{2}\right)\left(v+\frac{3}{2}\right)=v^2-\frac{9}{4}\\[4pt]I&=\int \frac{1}{v^2-\frac{9}{4}}\,dv\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "3. Rewrite as partial fractions", 0.25);
+say(ruleTag, "Rule: RewriteRule", 0.25);
+rewrite(work, `\begin{aligned}I&=\int \frac{1}{v^2-\frac{9}{4}}\,dv\\[4pt]&=\int\left(-\frac{2}{3(2v+3)}+\frac{2}{3(2v-3)}\right)\,dv\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "4. Split the sum", 0.25);
+say(ruleTag, "Rule: AddRule", 0.25);
+rewrite(work, `\begin{aligned}I&=-\frac{2}{3}\int\frac{1}{2v+3}\,dv+\frac{2}{3}\int\frac{1}{2v-3}\,dv\end{aligned}`, 0.9, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "5. Constant factor", 0.25);
+say(ruleTag, "Rule: ConstantTimesRule", 0.25);
+rewrite(work, `\begin{aligned}-\frac{2}{3}\int\frac{1}{2v+3}\,dv&=-\frac{2}{3}\cdot\frac{1}{2}\int\frac{1}{a}\,da\\[4pt]&=-\frac{1}{3}\log|a|+C\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "6. Back substitute first term", 0.25);
+say(ruleTag, "Rule: URule", 0.25);
+rewrite(work, `\begin{aligned}a&=2v+3\\[4pt]-\frac{1}{3}\log|a|&=-\frac{1}{3}\log|2v+3|\end{aligned}`, 0.9, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "7. Integrate the second term", 0.25);
+say(ruleTag, "Rules: URule + ReciprocalRule", 0.25);
+rewrite(work, `\begin{aligned}\frac{2}{3}\int\frac{1}{2v-3}\,dv&=\frac{2}{3}\cdot\frac{1}{2}\int\frac{1}{b}\,db\\[4pt]&=\frac{1}{3}\log|b|+C\\[4pt]&=\frac{1}{3}\log|2v-3|+C\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "8. Combine", 0.25);
+say(ruleTag, "Rule: AddRule", 0.25);
+rewrite(work, `\begin{aligned}I&=\frac{1}{3}\log|2v-3|-\frac{1}{3}\log|2v+3|+C\end{aligned}`, 0.9, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "9. Back substitute v", 0.25);
+say(ruleTag, "Rule: URule", 0.25);
+rewrite(work, `\begin{aligned}v&=u+\frac{3}{2}\\[4pt]2v-3&=2u,\qquad 2v+3=2u+6\\[4pt]I&=\frac{1}{3}\log|2u|-\frac{1}{3}\log|2u+6|+C\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "10. Back substitute u", 0.25);
+say(ruleTag, "Rule: URule", 0.25);
+rewrite(work, `\begin{aligned}u&=x-1\\[4pt]I&=\frac{1}{3}\log|2x-2|-\frac{1}{3}\log|2x+4|+C\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "11. Simplify constants", 0.25);
+say(ruleTag, "Rule: ConstantTimesRule", 0.25);
+rewrite(work, `\begin{aligned}I&=\frac{1}{3}\log|x-1|-\frac{1}{3}\log|x+2|+C\end{aligned}`, 1.0, smooth);
+}
+wait(0.35);
+
+par {
+say(stepTitle, "Result", 0.25);
+say(ruleTag, "Equivalent compact form", 0.25);
+rewrite(work, `I=\frac{1}{3}\log\left|\frac{x-1}{x+2}\right|+C`, 1.0, smooth);
+show(finalLine, 0.8);
+}
+pulse(finalLine, 0.8);
 wait(1.0);
-
-say(cap, "…and repeat 1200 times: the averages pile up around the middle", 0.5);
-show(ct.mean, 0.4);
-wait(1.6);
-
-say(cap, "they trace a bell — the Central Limit Theorem: averages are normal", 0.5);
-draw(ct.curve, 1.1);
-wait(2.0);

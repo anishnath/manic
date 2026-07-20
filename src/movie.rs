@@ -175,7 +175,12 @@ impl Movie {
             // left-aligned option label stays right of its badge.
             if let Some(inner) = whole_math_span(&content) {
                 if let Some((path, w, h, _)) = layout(inner, size) {
-                    e.shape = Shape::Image { path, w, h, tint: true };
+                    e.shape = Shape::Image {
+                        path,
+                        w,
+                        h,
+                        tint: true,
+                    };
                 }
                 continue;
             }
@@ -190,7 +195,12 @@ impl Movie {
                 match r {
                     RawRun::Text(t) => runs.push(TextRun::Text(t)),
                     RawRun::Math(m) => match layout(&m, size) {
-                        Some((path, w, h, baseline)) => runs.push(TextRun::Math { path, w, h, baseline }),
+                        Some((path, w, h, baseline)) => runs.push(TextRun::Math {
+                            path,
+                            w,
+                            h,
+                            baseline,
+                        }),
                         None => {
                             ok = false; // bad LaTeX in a run → leave the whole line as text
                             break;
@@ -448,7 +458,11 @@ impl Movie {
         let mut lines = vec![format!(
             "{} unknown entity id(s) in animations — nothing is created with {}:",
             unknown.len(),
-            if unknown.len() == 1 { "this name" } else { "these names" }
+            if unknown.len() == 1 {
+                "this name"
+            } else {
+                "these names"
+            }
         )];
         for id in &unknown {
             match crate::namehint::nearest_name(id, &candidates) {
@@ -472,8 +486,14 @@ mod validate_tests {
         let src = "dot(a, (100,100), 5);\nshow(b, 0.5);";
         let err = crate::parse(src).err().expect("expected a parse error");
         let msg = crate::lang::diag::render(src, &err);
-        assert!(msg.contains('b'), "error should name the unknown id:\n{msg}");
-        assert!(msg.contains("not created"), "should explain the problem:\n{msg}");
+        assert!(
+            msg.contains('b'),
+            "error should name the unknown id:\n{msg}"
+        );
+        assert!(
+            msg.contains("not created"),
+            "should explain the problem:\n{msg}"
+        );
     }
 
     #[test]
@@ -493,8 +513,8 @@ mod validate_tests {
 
     #[test]
     fn reactive_steps_name_parallel_multi_entity_world_changes() {
-        use macroquad::prelude::Vec2;
         use crate::primitives::Shape;
+        use macroquad::prelude::Vec2;
 
         let movie = crate::parse(
             "canvas(1280,720);\n\
@@ -519,7 +539,10 @@ mod validate_tests {
             vec![(0.0, "explain".into()), (0.8, "result".into())],
             "step starts are exported as deterministic markers"
         );
-        assert_eq!(movie.stages, movie.marks, "steps also retain story identity");
+        assert_eq!(
+            movie.stages, movie.marks,
+            "steps also retain story identity"
+        );
         assert_eq!(
             movie.stage_ranges(),
             vec![
@@ -535,11 +558,17 @@ mod validate_tests {
                 },
             ]
         );
-        assert!((movie.now() - 1.2).abs() < 1e-6, "step duration is its longest child");
+        assert!(
+            (movie.now() - 1.2).abs() < 1e-6,
+            "step duration is its longest child"
+        );
 
         let (base, timeline) = movie.finalize();
         let final_frame = timeline.apply(&base, 1.2);
-        assert_eq!(final_frame.get("point").unwrap().pos, Vec2::new(700.0, 430.0));
+        assert_eq!(
+            final_frame.get("point").unwrap().pos,
+            Vec2::new(700.0, 430.0)
+        );
         assert_eq!(
             final_frame.get("anchor").unwrap().pos,
             Vec2::new(900.0, 430.0),
@@ -579,20 +608,14 @@ mod validate_tests {
     #[test]
     fn reactive_step_rejects_ambiguous_structure() {
         let cases = [
-            (
-                "step(\"\") { wait(1); }",
-                "non-empty stage name",
-            ),
+            ("step(\"\") { wait(1); }", "non-empty stage name"),
             ("step(\"missing\");", "needs a `{ ... }` block"),
             ("step(\"empty\") { }", "at least one timeline action"),
             (
                 "step(\"same\") { wait(1); } step(\"same\") { wait(1); }",
                 "step names must be unique",
             ),
-            (
-                "par { step(\"nested\") { wait(1); } }",
-                "can't be nested",
-            ),
+            ("par { step(\"nested\") { wait(1); } }", "can't be nested"),
         ];
         for (src, expected) in cases {
             let err = crate::parse(src)

@@ -152,10 +152,9 @@ mod tests {
             Shape::Text { content, .. } if content == "Made With Manic"
         ));
 
-        let custom = crate::parse(
-            "canvas(1280,720); watermark(mark,(150,48),\"custom identity\");",
-        )
-        .unwrap();
+        let custom =
+            crate::parse("canvas(1280,720); watermark(mark,(150,48),\"custom identity\");")
+                .unwrap();
         let mark = custom.base().get("mark").unwrap();
         assert_eq!(mark.pos, Vec2::new(150.0, 48.0));
         assert!(matches!(

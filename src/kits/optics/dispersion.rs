@@ -33,18 +33,44 @@ pub fn sellmeier_n(coeffs: &[f32], lambda_um: f32) -> f32 {
 /// names fall back to borosilicate crown (BK7).
 pub fn glass_n(name: &str, lambda_um: f32) -> f32 {
     let c: &[f32] = match name.to_ascii_lowercase().as_str() {
-        "sf11" | "flint" | "denseflint" => {
-            &[1.73759695, 0.013188707, 0.313747346, 0.0623068142, 1.89878101, 155.23629]
-        }
-        "f2" => &[1.34533359, 0.00997743871, 0.209073176, 0.0470450767, 0.937357162, 111.886764],
-        "silica" | "quartz" | "fusedsilica" => {
-            &[0.6961663, 0.0046791, 0.4079426, 0.01351206, 0.8974794, 97.934003]
-        }
-        "sapphire" => &[1.4313493, 0.0052799261, 0.65054713, 0.0142382647, 5.3414021, 325.01783],
+        "sf11" | "flint" | "denseflint" => &[
+            1.73759695,
+            0.013188707,
+            0.313747346,
+            0.0623068142,
+            1.89878101,
+            155.23629,
+        ],
+        "f2" => &[
+            1.34533359,
+            0.00997743871,
+            0.209073176,
+            0.0470450767,
+            0.937357162,
+            111.886764,
+        ],
+        "silica" | "quartz" | "fusedsilica" => &[
+            0.6961663, 0.0046791, 0.4079426, 0.01351206, 0.8974794, 97.934003,
+        ],
+        "sapphire" => &[
+            1.4313493,
+            0.0052799261,
+            0.65054713,
+            0.0142382647,
+            5.3414021,
+            325.01783,
+        ],
         "diamond" => &[4.3356, 0.0106, 0.3306, 0.0],
         "water" => &[0.75831, 0.01007, 0.08495, 8.91377],
         // "bk7" | "crown" | "glass" | _ → borosilicate crown
-        _ => &[1.03961212, 0.00600069867, 0.231792344, 0.0200179144, 1.01046945, 103.560653],
+        _ => &[
+            1.03961212,
+            0.00600069867,
+            0.231792344,
+            0.0200179144,
+            1.01046945,
+            103.560653,
+        ],
     };
     sellmeier_n(c, lambda_um)
 }
@@ -94,9 +120,15 @@ mod tests {
     fn index_falls_with_wavelength() {
         let n_blue = glass_n("bk7", 0.450);
         let n_red = glass_n("bk7", 0.650);
-        assert!(n_blue > n_red, "blue index {n_blue} should exceed red {n_red}");
+        assert!(
+            n_blue > n_red,
+            "blue index {n_blue} should exceed red {n_red}"
+        );
         // BK7 at the sodium d-line (~0.589 µm) is ≈1.5168
         assert!((glass_n("bk7", 0.5893) - 1.5168).abs() < 0.002);
-        assert!(glass_n("sf11", 0.550) > glass_n("bk7", 0.550), "flint is denser than crown");
+        assert!(
+            glass_n("sf11", 0.550) > glass_n("bk7", 0.550),
+            "flint is denser than crown"
+        );
     }
 }
