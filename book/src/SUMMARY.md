@@ -4,7 +4,6 @@
 
 - [Getting started](getting-started.md)
 - [Create a polished Reel](creator-reels.md)
-- [Motion graphics — move ideas, not layers](motion-graphics.md)
 - [Reactive stories — change the idea, not the scene](creator-reactive.md)
 - [Story stages — edit the idea, not the timestamp](creator-stages.md)
 - [Visual checks — review every format](creator-visual-checks.md)

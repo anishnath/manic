@@ -51,6 +51,10 @@ SECTIONS = [
     "The reactive-math gold example: integration by parts stays one continuous equation,\n"
     "then a plot verifies that the antiderivative's slope is the integrand and `+C` is a\n"
     "family of vertical translations. Uses `rewrite`, not hand-positioned formula pieces."),
+   ("rewrite-integration",
+    "A full manual-integration walkthrough, animated: one equation object is `rewrite`-morphed\n"
+    "through all 21 steps — every substitution, partial-fraction split and back-substitution,\n"
+    "each captioned with its rule — down to the closed form. Display-quality LaTeX throughout."),
    ("reactive-world",
     "The foundation for creator-reactive stories: five named `step` blocks keep one curve,\n"
     "equation, tangent, live slope, derivative plot and caption synchronized. Each step is\n"

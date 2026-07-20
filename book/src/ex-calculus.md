@@ -26,6 +26,18 @@ family of vertical translations. Uses `rewrite`, not hand-positioned formula pie
 
 <div class="manic-video" data-video="ex-reactive-integral"></div>
 
+## rewrite-integration
+
+A full manual-integration walkthrough, animated: one equation object is `rewrite`-morphed
+through all 21 steps — every substitution, partial-fraction split and back-substitution,
+each captioned with its rule — down to the closed form. Display-quality LaTeX throughout.
+
+```manic
+{{#include ../../examples/rewrite-integration.manic}}
+```
+
+<div class="manic-video" data-video="ex-rewrite-integration"></div>
+
 ## reactive-world
 
 The foundation for creator-reactive stories: five named `step` blocks keep one curve,
