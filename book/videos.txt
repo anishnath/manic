@@ -38,7 +38,7 @@ text|_MLrC93RqsU|Animated Text + Typewriter — manic
 timing|sP61cl_PJj4|par · seq · stagger: Timing in manic
 loop|m-l37juylp8|One Loop → a Full Rainbow (manic)
 template-mono|8R1BOiFmzJo|Black & White by Default — manic's Mono Template
-ex-motion-graphics|PLACEHOLDER|Move Ideas, Not Layers — Motion Graphics in manic
+ex-motion-graphics|40ZtagTNqBw|Move Ideas, Not Layers — Motion Graphics in manic
 
 # ---- examples: algorithms & data structures ----
 ex-bubble_sort|kA4gDkjwsRQ|Bubble Sort, ACTUALLY Animated — manic
@@ -168,7 +168,7 @@ ex-volume3|EvgfZJTtcAE|A Double Integral Made Solid — Volume Under a Surface �
 
 # ---- examples: physics — simulations ----
 ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
-ex-second-law-thermodynamics|PLACEHOLDER|The Second Law of Thermodynamics — Why Entropy Only Grows — manic
+ex-second-law-thermodynamics|D_H_BevF7Vg|The Second Law of Thermodynamics — Why Entropy Only Grows — manic
 ex-timing-v2-scene|qM3LzG82fIE|One Clock Controls an Entire Physics Scene — Timing v2
 ex-zeroth-law-thermodynamics|rdI9jDMdJSw|Zeroth Law of Thermodynamics — Three Bodies Find One Temperature — manic
 ex-pendulum-damped|KhANpUmTPtc|Damped Pendulum — Watch Energy Bleed Away — manic
