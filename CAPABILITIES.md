@@ -6,15 +6,85 @@ Asymptote example corpus (520 `.asy` files: 117 `geometry/`, ~197
 `grid3`, plus generative folders) and the Manim references. Usage counts below
 are occurrences across the `geometry/` samples.
 
+## Creator-first roadmap — priority order
+
+These are the next five product directions, ordered by dependency and creator
+leverage. They are deliberately generic: each should strengthen every subject
+without adding a separate vocabulary for algebra, chemistry, biology, physics,
+or social video.
+
+1. **Reactive worlds.** Declare a visual world once, then describe the next
+   state of several existing entities together. Unmentioned entities persist;
+   equations, plots, diagrams, labels, values, and the camera change in one
+   continuous beat. **Foundation shipped ✅ (2026-07):** a named `step("name") { ... }`
+   block coordinates ordinary verbs in parallel and exports its start as a
+   marker, while `rewrite` remains the structured equation transition. Empty,
+   duplicate, and nested names fail clearly; stateless seeking and ordinary
+   non-step timelines remain unchanged. See `examples/reactive-world.manic`.
+2. **Named story stages.** Make `question → intuition → experiment → proof →
+   takeaway` first-class project structure. Stages must be readable in source,
+   seekable in preview, and reusable by recording/publishing tools. The reactive
+   `step` foundation intentionally serves both priorities 1 and 2.
+3. **One story, multiple formats.** Reframe the same semantic stages for Reels,
+   Shorts, landscape lessons, square posts, slides, thumbnails, and stills—same
+   content identity, format-specific layout and pacing. **Foundation shipped ✅
+   (2026-07):** `--canvas portrait|4:5|square|16:9|WIDTHxHEIGHT` overrides the
+   logical canvas before expansion, so `w`/`h`/`cx`/`cy`, macros, and build-time
+   layout branches reflow one source while named `step` markers and timing stay
+   identical. The DSL's own `canvas(...)` remains the no-flag default. See
+   `examples/reactive-multiformat.manic`.
+4. **Visual correctness checks.** Detect unsafe-region overflow, overlaps,
+   detached labels/links, unreadably fast changes, and equation/plot mismatches
+   before publishing. Diagnostics should explain the problem and point to the
+   responsible stage/entity. **Foundation shipped ✅ (2026-07):**
+   `manic check FILE.manic --canvas all` rebuilds portrait, 4:5 feed, square,
+   and 16:9 landscape, then audits the settled state of every named stage for
+   canvas overflow, Creator safe-area overflow, substantial content overlap,
+   and unreadably small text/notation. Messages include format, stage, time,
+   entity, and a suggested fix; findings return a failing status for publishing
+   scripts. Transition-path collisions, detached dynamic links, reading speed,
+   camera/3D bounds, and equation/plot semantic agreement remain future layers.
+5. **Parameter journeys.** Let creators expose meaningful parameters and animate
+   a family of cases—quadratic coefficients, damping, sample size, equilibrium,
+   geometry inputs—without duplicating the story. **Shipped ✅
+   (2026-07):** `parameter(id,(x,y),initial,min,max,[label],[decimals])` creates
+   a visible bounded control, while `bind(parameter,target,property,...)` maps
+   it either through responsive numeric endpoints or a formula in live `p`.
+   Ordinary `step` + `to(parameter,value,...)` then moves a whole connected
+   family without rebuilding the scene. Bindings cover 2-D position, opacity,
+   scale, angle, hue, trace, counters, and live plot formulas; a changing plot
+   pushes its source into tangent/normal/slope/area/integral/mark views before
+   they recompute. Evaluation is stateless, values clamp to the authored range,
+   duplicate/invalid connections fail early, editor support and multi-format
+   tests ship, and `examples/parameter-journeys.manic` passes all four visual
+   audits. Expensive build-time constructor changes (re-simulating a physics
+   system or changing generated object count) and live measured-geometry
+   bindings remain future extensions rather than hidden magic.
+
+### Future creator support
+
+After the five foundations above: reusable **“Why is this true?”** story
+formats; misconception → diagnosis → correction stories; semantic identity
+across equation/plot/diagram representations; visual experiment-first lessons;
+“simple to surprising” narrative templates; domain-neutral visual-proof actions
+(preserve, pair, rearrange, contradict, split cases, generalize); synchronized
+split-screen comparisons; a timeline/entity visual debugger; community remix
+inputs; and a consistent product promise—**describe how an idea changes, and
+Manic keeps the visual world continuous**.
+
 ## Capabilities (implemented)
 
 ### Engine & language
 - Stateless timeline (`Timeline::apply(base, t)` is pure) → free scrub/step,
   deterministic recording (mp4/gif/PNG), live preview, CRT post-process.
+- Creator publishing audit: `manic check FILE.manic --canvas all` validates four
+  common formats and reports settled-stage canvas, safe-area, overlap, and
+  readability issues with entity-level repair guidance.
 - ASY-like DSL: function-call statements, `(x, y)` points and `(x, y, z)` 3D
   points, `;` terminators,
-  `//` comments, `par` / `seq` / `stagger` blocks, `section`, `wait`/`beat`,
-  `mark`; dotted ids; **tag broadcast** (a verb/modifier on a tag hits the whole
+  `//` comments, `par` / `seq` / `stagger` blocks, named reactive `step` blocks,
+  `section`, `wait`/`beat`, `mark`; dotted ids; **tag broadcast** (a
+  verb/modifier on a tag hits the whole
   group); line/column error diagnostics.
 - **Computation layer** (evaluated at build time): `let` variables; arithmetic
   `+ - * / ^` with **implicit multiplication** (`2sx`, `3(x+1)`), comparisons,
@@ -22,7 +92,8 @@ are occurrences across the `geometry/` samples.
   recursive `def` macros; reductions `sum`/`prod`/`min`/`max`; id interpolation
   (`bar{i}`). All collapse to literals before rendering — kits are unaffected.
 - **Look / config**: `canvas` accepts pixels or presets (`"16:9"`/`"square"`/
-  `"portrait"`/`"1080p"`/`"4k"`); `w`/`h`/`cx`/`cy` predefined. Selectable
+  `"portrait"`/`"4:5"`/`"1080p"`/`"4k"`); `w`/`h`/`cx`/`cy` predefined, and
+  `--canvas` can reframe one responsive source before expansion. Selectable
   **templates** — `mono` (default black-and-white editorial), `plain`,
   `terminal`, `paper`, `blueprint`, `shorts` — each retints the palette and sets
   chrome/glow/CRT; author-set `masthead` (no engine branding baked in). Same
@@ -33,11 +104,15 @@ are occurrences across the `geometry/` samples.
   friendly easings; per-act duration.
 - Updaters (pure functions of `t`): `follow` (ride a target), `link`
   (edge tracks two entities), and the general `derive` hook (dynamic
-  constructions — drag a vertex and dependents recompute).
+  constructions — drag a vertex and dependents recompute). Creator parameters
+  add pure `bind` connections from one animated scalar to multiple properties,
+  counters, or a resampled plot formula.
 
 ### Kits
 - **std** — `dot`, `circle`, `rect`, `line`, `arrow`, `brace` / `bracelabel`
   (curly brace, optional label), `text`, `counter` (live numeric readout),
+  `parameter` (bounded visible control) + `bind` (responsive range or formula
+  mapping into several existing visuals),
   `morph` (set a shape up to morph into another), `copy` (duplicate an entity),
   `caption` (word-by-word text row + `karaoke`/`wordpop` verbs);
   modifiers (`hidden`, `untraced`, `cursor` (typewriter `_` on text), `color`,
@@ -1224,9 +1299,10 @@ unchanged and any plain `.manic` behaves exactly as before. Examples:
   entity + animatable `value` track, a computed number **counts up live** on
   screen (`examples/riemann_readout.manic`: a Riemann area summed and tweened).
 Still missing: stepped/`downto` ranges, string/name variables (macro params are
-numeric), and general per-frame data binding (a readout that reflects a moving
-entity's live measured length/position — needs the `derive` hook to feed a
-counter, not yet wired).
+numeric), and a live **measured-geometry** binding (a readout that reflects a
+moving entity's actual length/angle). General authored scalar binding now ships
+through `parameter` + `bind`; measurement needs the `derive` hook to feed a
+counter from geometry rather than from an authored parameter.
 
 ### Typography
 - No LaTeX / math typesetting (`$…$`, `\frac`, matrices) — mono text only.

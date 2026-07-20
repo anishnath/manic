@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use macroquad::prelude::{Color, Vec2, Vec3};
 
-use crate::primitives::{Align, Entity, FontKind, Shape, StrokeStyle};
+use crate::primitives::{Align, Entity, FontKind, ParameterBinding, Shape, StrokeStyle};
 use crate::primitives3d::Entity3D;
 use crate::style;
 use crate::timeline::Prop;
@@ -139,6 +139,10 @@ pub struct Scene {
     /// Generic contained particle groups (`particles`/`wander`). Build-time
     /// only; frames contain ordinary entities and deterministic timeline tracks.
     pub particle_groups: HashMap<String, ParticleGroup>,
+    /// Pure runtime connections from visible creator parameters to existing
+    /// entity properties or plot formulas. Constructors fill this; timeline
+    /// evaluation applies it after ordinary tracks on every stateless frame.
+    pub parameter_bindings: Vec<ParameterBinding>,
     /// 2D labels bound to 3D positions (`pin3`), applied per-frame by the player.
     pub pins: Vec<Pin3>,
     /// Pre-simulated playback for physics sims (`physics` kit): maps a sim id to

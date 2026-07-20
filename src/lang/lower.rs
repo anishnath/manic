@@ -2,8 +2,8 @@
 //!
 //! This is the seam between the domain-agnostic front end and the kits. The
 //! lowerer itself only knows a handful of reserved control-flow names
-//! (`title`, `size`, `par`, `seq`, `stagger`, `timed`, `during`, `section`,
-//! `wait`, `beat`, `mark`). Every other call name is looked up in the registry, which kits
+//! (`title`, `size`, `par`, `seq`, `stagger`, `step`, `timed`, `during`,
+//! `section`, `wait`, `beat`, `mark`). Every other call name is looked up in the registry, which kits
 //! populate with **constructors** (declare entities at t=0) and **verbs**
 //! (produce timeline clips). Meaning lives in the kits; structure lives here.
 //!
@@ -28,7 +28,7 @@ use crate::timeline::Clip;
 use super::ast::{Expr, ExprKind, Program, Stmt};
 use super::diag::{Error, Span};
 use super::parser::parse;
-use manic_lang::expand::{canvas_dims, expand};
+use manic_lang::expand::{canvas_dims, expand_with_canvas};
 
 /// A constructor builtin: declare or modify entities in the base scene.
 pub type CtorFn = fn(&mut Scene, &Args) -> Result<(), Error>;
@@ -99,6 +99,7 @@ fn is_reserved(name: &str) -> bool {
             | "par"
             | "seq"
             | "stagger"
+            | "step"
             | "timed"
             | "during"
             | "section"
@@ -356,9 +357,20 @@ pub fn apply_dur_ease(mut b: ActBuilder, a: &Args, from: usize) -> Result<ActBui
 /// Parse and lower manic source into a runnable [`Movie`], using `registry`
 /// for all non-control-flow calls.
 pub fn lower(src: &str, registry: &Registry) -> Result<Movie, Error> {
+    lower_with_canvas(src, registry, None)
+}
+
+/// Parse and lower with an optional logical canvas override. The override is
+/// visible to responsive build-time variables and wins over `canvas(...)` only
+/// for this render; the source itself is untouched.
+pub fn lower_with_canvas(
+    src: &str,
+    registry: &Registry,
+    canvas_override: Option<(u32, u32)>,
+) -> Result<Movie, Error> {
     let prog = parse(src)?;
-    let prog = expand(&prog)?;
-    lower_program(&prog, registry)
+    let prog = expand_with_canvas(&prog, canvas_override)?;
+    lower_program(&prog, registry, canvas_override)
 }
 
 // The expand pass (let/for/if/def/reductions/interpolation) lives in the
@@ -373,7 +385,11 @@ fn args_of<'a>(s: &'a Stmt) -> Args<'a> {
     }
 }
 
-fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
+fn lower_program(
+    prog: &Program,
+    registry: &Registry,
+    canvas_override: Option<(u32, u32)>,
+) -> Result<Movie, Error> {
     // phase 0 — movie metadata (title/size/template); first occurrence wins
     let mut title = "manic".to_string();
     let (mut w, mut h) = (1280u32, 720u32);
@@ -401,6 +417,10 @@ fn lower_program(prog: &Program, registry: &Registry) -> Result<Movie, Error> {
             }
             _ => {}
         }
+    }
+    if let Some((cw, ch)) = canvas_override {
+        w = cw;
+        h = ch;
     }
     let mut movie = Movie::new(&title, w, h);
     if let Some((name, span)) = template {
@@ -477,8 +497,8 @@ fn classify(name: &str, span: Span, registry: &Registry) -> Result<(), Error> {
     }
 }
 
-/// A top-level timeline statement: a section/beat/mark, a `par`/`seq`/`stagger`
-/// block, or a verb — appended to the movie's timeline at the cursor.
+/// A top-level timeline statement: a section/beat/mark, a named reactive `step`,
+/// a `par`/`seq`/`stagger` block, or a verb — appended at the current cursor.
 fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Result<(), Error> {
     let a = args_of(s);
     match s.name.as_str() {
@@ -492,6 +512,18 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
         }
         "wait" | "beat" => {
             movie.wait(a.num(0)?);
+            Ok(())
+        }
+        "step" => {
+            let (name, clip) = build_reactive_step(&mut movie.scene, s, registry)?;
+            if movie.marks.iter().any(|(_, existing)| existing == &name) {
+                return Err(Error::new(
+                    format!("reactive step `{name}` is already used — step names must be unique"),
+                    a.span_of(0),
+                ));
+            }
+            movie.mark(&name);
+            movie.play(clip);
             Ok(())
         }
         "par" | "seq" | "stagger" => {
@@ -690,6 +722,10 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
             "`during` belongs directly inside `timed(clock) { ... }`",
             s.name_span,
         )),
+        "step" => Err(Error::new(
+            "`step` is a named top-level story stage and can't be nested; use `par` or `seq` inside the step",
+            s.name_span,
+        )),
         "section" | "mark" => Err(Error::new(
             format!("`{}` can't appear inside a par/seq/stagger block", s.name),
             s.name_span,
@@ -721,6 +757,43 @@ fn lower_inner(scene: &mut Scene, s: &Stmt, registry: &Registry) -> Result<Clip,
             }
         }
     }
+}
+
+/// `step("name") { ... }` — one named state transition for an already-declared
+/// visual world. Children start together (the same semantics as `par`), so an
+/// equation rewrite, graph motion, label update, recolour, and camera move can
+/// form one coherent beat. Nested `seq` remains available for choreography.
+/// The caller records the name at the step's start for seeking/export.
+fn build_reactive_step(
+    scene: &mut Scene,
+    s: &Stmt,
+    registry: &Registry,
+) -> Result<(String, Clip), Error> {
+    let args = args_of(s);
+    args.max(1)?;
+    let raw_name = args.text(0)?;
+    let name = raw_name.trim();
+    if name.is_empty() {
+        return Err(Error::new(
+            "`step` needs a non-empty stage name",
+            args.span_of(0),
+        ));
+    }
+    let block = s
+        .block
+        .as_ref()
+        .ok_or_else(|| Error::new("`step` needs a `{ ... }` block", s.name_span))?;
+    if block.is_empty() {
+        return Err(Error::new(
+            "`step` needs at least one timeline action",
+            s.name_span,
+        ));
+    }
+    let mut clips = Vec::with_capacity(block.len());
+    for stmt in block {
+        clips.push(lower_inner(scene, stmt, registry)?);
+    }
+    Ok((name.to_string(), Clip::par(clips)))
 }
 
 /// `timed(clock) { during("phase") { ... } }` — schedule ordinary scene

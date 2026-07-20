@@ -4,6 +4,9 @@
 
 - [Getting started](getting-started.md)
 - [Create a polished Reel](creator-reels.md)
+- [Reactive stories — change the idea, not the scene](creator-reactive.md)
+- [Visual checks — review every format](creator-visual-checks.md)
+- [Parameter journeys — one value, many views](creator-parameters.md)
 - [Shapes — the cast](shapes.md)
 - [Verbs — bringing it to life](verbs.md)
 - [Timing — flow, named phases & clocks](timing.md)

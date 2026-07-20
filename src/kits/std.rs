@@ -12,7 +12,10 @@ use crate::geom;
 use crate::lang::ast::ExprKind;
 use crate::lang::diag::Error;
 use crate::lang::lower::{apply_dur_ease, resolve_color, resolve_easing, Args, Registry};
-use crate::primitives::{Entity, FontKind, Link, Shape, StrokeStyle};
+use crate::primitives::{
+    BoundProperty, Counter, Entity, FontKind, Link, Parameter, ParameterBinding, ParameterMap,
+    Shape, StrokeStyle,
+};
 use crate::scene::{EquationState, ParticleGroup, PendingEquationPart, Scene};
 use crate::style;
 use crate::timeline::{Clip, Prop, TargetValue, TrackSpec, Value, TimelineEvent};
@@ -627,6 +630,225 @@ fn c_counter(s: &mut Scene, a: &Args) -> Result<(), Error> {
     );
     e.counter = Some(counter);
     s.add(e);
+    Ok(())
+}
+
+/// `parameter(id,(x,y),initial,min,max,["label"],[decimals])` — a visible,
+/// bounded creator control. Animate it with the ordinary
+/// `to(id,value,target,dur)` verb and connect visuals with `bind`.
+fn c_parameter(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(7)?;
+    let id = a.ident(0)?;
+    let pos = a.pair(1)?;
+    let initial = a.num(2)?;
+    let min = a.num(3)?;
+    let max = a.num(4)?;
+    if !min.is_finite() || !max.is_finite() || min >= max {
+        return Err(Error::new(
+            "`parameter` needs a finite range with min < max",
+            a.span_of(3),
+        ));
+    }
+    if !initial.is_finite() || initial < min || initial > max {
+        return Err(Error::new(
+            format!("parameter initial value must be inside {min}..{max}"),
+            a.span_of(2),
+        ));
+    }
+    let label = a.opt_text(5)?.unwrap_or_else(|| id.clone());
+    let decimals = a.opt_num(6)?.unwrap_or(2.0).clamp(0.0, 6.0) as u8;
+    let counter = Counter {
+        value: initial,
+        decimals,
+        prefix: format!("{label} = "),
+        suffix: String::new(),
+    };
+    let mut readout = Entity::new(
+        id.clone(),
+        Shape::Text {
+            content: counter.render(),
+            size: 27.0,
+        },
+        pos,
+        style::FG,
+    );
+    readout.counter = Some(counter);
+    readout.parameter = Some(Parameter { min, max });
+    readout.font = FontKind::MonoBold;
+    readout.tags.push(id.clone());
+    readout.tags.push(format!("{id}.widget"));
+    readout.z = 3;
+    s.add(readout);
+
+    let left = Vec2::new(pos.x - 96.0, pos.y + 34.0);
+    let right = Vec2::new(pos.x + 96.0, pos.y + 34.0);
+    let u = (initial - min) / (max - min);
+    let live = left.lerp(right, u);
+
+    let mut track = Entity::new(
+        format!("{id}.track"),
+        Shape::Line { to: right },
+        left,
+        style::DIM,
+    );
+    track.stroke.width = 3.0;
+    track.opacity = 0.62;
+    track.glow = 0.0;
+    track.tags.push(id.clone());
+    track.tags.push(format!("{id}.widget"));
+    s.add(track);
+
+    let mut fill = Entity::new(
+        format!("{id}.fill"),
+        Shape::Line { to: live },
+        left,
+        style::CYAN,
+    );
+    fill.stroke.width = 4.5;
+    fill.tags.push(id.clone());
+    fill.tags.push(format!("{id}.widget"));
+    fill.z = 1;
+    s.add(fill);
+
+    let mut dot = Entity::new(
+        format!("{id}.dot"),
+        Shape::Circle { r: 7.0 },
+        live,
+        style::CYAN,
+    );
+    dot.stroke.fill = true;
+    dot.stroke.outline = false;
+    dot.tags.push(id.clone());
+    dot.tags.push(format!("{id}.widget"));
+    dot.z = 2;
+    s.add(dot);
+    Ok(())
+}
+
+/// `bind(parameter,target,property,"formula")` or
+/// `bind(parameter,target,property,from,to)`. Formula maps use `p` for the
+/// parameter; a plot `formula` additionally uses `x` for its coordinate.
+fn c_bind(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    a.max(5)?;
+    let source = a.ident(0)?;
+    let target = a.ident(1)?;
+    let property_name = a.ident(2)?;
+    let source_entity = s.get(&source).ok_or_else(|| {
+        Error::new(
+            format!("`bind` needs a parameter, but `{source}` does not exist"),
+            a.span_of(0),
+        )
+    })?;
+    let Some(_parameter) = source_entity.parameter else {
+        return Err(Error::new(
+            format!("`{source}` is not a `parameter`"),
+            a.span_of(0),
+        ));
+    };
+    let initial = source_entity.counter.as_ref().map(|c| c.value).unwrap_or(0.0);
+    let target_entity = s.get(&target).ok_or_else(|| {
+        Error::new(
+            format!("`bind` currently needs a 2-D entity; no entity named `{target}`"),
+            a.span_of(1),
+        )
+    })?;
+    if source == target {
+        return Err(Error::new(
+            "a parameter cannot bind to itself",
+            a.span_of(1),
+        ));
+    }
+
+    let property = match property_name.as_str() {
+        "x" => BoundProperty::X,
+        "y" => BoundProperty::Y,
+        "opacity" | "alpha" => BoundProperty::Opacity,
+        "scale" => BoundProperty::Scale,
+        "angle" | "rot" | "rotation" => BoundProperty::Rot,
+        "hue" => BoundProperty::Hue,
+        "value" | "count" => BoundProperty::Value,
+        "trace" => BoundProperty::Trace,
+        "formula" | "plot" => BoundProperty::Formula,
+        other => {
+            return Err(Error::new(
+                format!("can't bind property `{other}` (try: x, y, opacity, scale, angle, hue, value, trace, formula)"),
+                a.span_of(2),
+            ))
+        }
+    };
+    if property == BoundProperty::Formula && target_entity.graph.is_none() {
+        return Err(Error::new(
+            format!("`{target}` is not a plot; `formula` bindings target a `plot` entity"),
+            a.span_of(1),
+        ));
+    }
+    if property == BoundProperty::Value {
+        if target_entity.counter.is_none() {
+            return Err(Error::new(
+                format!("`{target}` has no live numeric `value`; use a `counter`"),
+                a.span_of(1),
+            ));
+        }
+        if target_entity.parameter.is_some() {
+            return Err(Error::new(
+                "bind visuals to a parameter; do not chain one parameter into another",
+                a.span_of(1),
+            ));
+        }
+    }
+
+    let map = if a.len() == 4 {
+        let formula = a.text(3)?;
+        let node = crate::kits::math::expr::compile(&formula)
+            .map_err(|message| Error::new(format!("in bind formula: {message}"), a.span_of(3)))?;
+        if property != BoundProperty::Formula {
+            let value = node.eval(0.0, initial);
+            if !value.is_finite() {
+                return Err(Error::new(
+                    "bind formula is not finite at the parameter's initial value",
+                    a.span_of(3),
+                ));
+            }
+        }
+        ParameterMap::Formula(node)
+    } else if a.len() == 5 {
+        if property == BoundProperty::Formula {
+            return Err(Error::new(
+                "a plot formula binding needs a string such as `\"p*x^2\"`",
+                a.span_of(3),
+            ));
+        }
+        let from = a.num(3)?;
+        let to = a.num(4)?;
+        if !from.is_finite() || !to.is_finite() {
+            return Err(Error::new(
+                "bind range endpoints must be finite",
+                a.span_of(3),
+            ));
+        }
+        ParameterMap::Range { from, to }
+    } else {
+        return Err(Error::new(
+            "`bind` needs either one formula string or two numeric range endpoints",
+            a.name_span,
+        ));
+    };
+
+    if s.parameter_bindings
+        .iter()
+        .any(|binding| binding.target == target && binding.property == property)
+    {
+        return Err(Error::new(
+            format!("`{target}.{property_name}` already has a parameter binding"),
+            a.span_of(2),
+        ));
+    }
+    s.parameter_bindings.push(ParameterBinding {
+        source,
+        target,
+        property,
+        map,
+    });
     Ok(())
 }
 
@@ -2130,6 +2352,8 @@ pub fn register(r: &mut Registry) {
     // constructors
     r.ctor("text", c_text);
     r.ctor("counter", c_counter);
+    r.ctor("parameter", c_parameter);
+    r.ctor("bind", c_bind);
     r.ctor("caption", c_caption);
     r.ctor("support", c_support);
     r.ctor("morph", c_morph);
@@ -2211,6 +2435,139 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use macroquad::prelude::Vec2;
+
+    #[test]
+    fn parameter_drives_properties_readouts_and_native_widget_purely() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             parameter(p,(640,90),0,-1,1,\"p\",2);\n\
+             dot(body,(200,300),10);\n\
+             counter(square,(640,180),0,2,\"p² = \",\"\");\n\
+             bind(p,body,x,200,1000);\n\
+             bind(p,body,scale,\"1+p*p\");\n\
+             bind(p,square,value,\"p*p\");\n\
+             to(p,value,1,2,linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let half = timeline.apply(&base, 1.0);
+        let parameter = half.get("p").unwrap().counter.as_ref().unwrap().value;
+        assert!((parameter - 0.5).abs() < 1e-4);
+        assert!((half.get("body").unwrap().pos.x - 800.0).abs() < 1e-3);
+        assert!((half.get("body").unwrap().scale - 1.25).abs() < 1e-3);
+        assert!(
+            (half
+                .get("square")
+                .unwrap()
+                .counter
+                .as_ref()
+                .unwrap()
+                .value
+                - 0.25)
+                .abs()
+                < 1e-3
+        );
+        let widget = half.get("p.dot").unwrap().pos;
+        assert!((widget.x - (640.0 + 48.0)).abs() < 1e-3);
+
+        let _later = timeline.apply(&base, 1.8);
+        let after_seek = timeline.apply(&base, 0.35);
+        let fresh = timeline.apply(&base, 0.35);
+        assert_eq!(after_seek.get("body").unwrap().pos, fresh.get("body").unwrap().pos);
+        assert_eq!(after_seek.get("p.dot").unwrap().pos, fresh.get("p.dot").unwrap().pos);
+    }
+
+    #[test]
+    fn parameter_formula_rebuilds_plot_and_all_analysis_views() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             parameter(a,(180,80),1,-2,2,\"a\",1);\n\
+             plot(f,(640,420),80,35,\"x*x\",(-3,3));\n\
+             tangent(t,f,1,160); slope(m,f,1); area(r,f,0,1,80);\n\
+             bind(a,f,formula,\"p*x*x\");\n\
+             to(a,value,2,1,linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let end = timeline.apply(&base, 1.0);
+        let graph = end.get("f").unwrap().graph.as_ref().unwrap();
+        assert!((graph.y(2.0) - 8.0).abs() < 1e-3);
+        let tangent = end.get("t").unwrap().graph_view.as_ref().unwrap();
+        assert!((tangent.graph().slope(1.0) - 4.0).abs() < 0.02);
+        let slope = end.get("m").unwrap().counter.as_ref().unwrap().value;
+        assert!((slope - 4.0).abs() < 0.02);
+        let area = end.get("r").unwrap().graph_view.as_ref().unwrap().value();
+        assert!((area - 2.0 / 3.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parameter_formula_supports_a_damping_family() {
+        let movie = crate::parse(
+            "parameter(damping,(180,80),0.1,0,1,\"damping\",2);\n\
+             plot(wave,(640,360),90,80,\"cos(4*x)\",(-3,3));\n\
+             bind(damping,wave,formula,\"exp(-p*abs(x))*cos(4*x)\");\n\
+             to(damping,value,0.7,1,linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let end = timeline.apply(&base, 1.0);
+        let graph = end.get("wave").unwrap().graph.as_ref().unwrap();
+        let expected = (-0.7_f32).exp() * 4.0_f32.cos();
+        assert!((graph.y(1.0) - expected).abs() < 1e-4);
+    }
+
+    #[test]
+    fn parameter_refresh_leaves_unbound_graph_views_alone() {
+        let movie = crate::parse(
+            "parameter(a,(100,60),1,-2,2);\n\
+             plot(bound,(400,360),50,30,\"x*x\",(-3,3));\n\
+             plot(ordinary,(900,360),50,30,\"x*x\",(-3,3));\n\
+             tangent(live,bound,1,120);\n\
+             tangent(untouched,ordinary,1,120);\n\
+             bind(a,bound,formula,\"p*x*x\");\n\
+             to(untouched,y,250,1,linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let end = timeline.apply(&base, 1.0);
+        assert!((end.get("untouched").unwrap().pos.y - 250.0).abs() < 1e-4);
+        assert!((end
+            .get("live")
+            .unwrap()
+            .graph_view
+            .as_ref()
+            .unwrap()
+            .graph()
+            .y(2.0)
+            - 4.0)
+            .abs()
+            < 1e-3);
+    }
+
+    #[test]
+    fn parameter_range_clamps_and_bind_errors_are_clear() {
+        let movie = crate::parse(
+            "parameter(p,(200,80),0,-1,1); dot(d,(0,200)); bind(p,d,x,100,300); to(p,value,9,1,linear);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let end = timeline.apply(&base, 1.0);
+        assert_eq!(end.get("p").unwrap().counter.as_ref().unwrap().value, 1.0);
+        assert!((end.get("d").unwrap().pos.x - 300.0).abs() < 1e-4);
+
+        for (source, expected) in [
+            ("parameter(p,(0,0),0,1,1);", "min < max"),
+            ("counter(p,(0,0),0); dot(d,(0,0)); bind(p,d,x,0,1);", "not a `parameter`"),
+            ("parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,x,\"wat(p)\");", "unknown function"),
+            ("parameter(p,(0,0),0,-1,1); dot(d,(0,0)); bind(p,d,formula,\"p*x\");", "not a plot"),
+        ] {
+            let error = match crate::parse(source) {
+                Err(error) => error,
+                Ok(_) => panic!("expected `{source}` to fail"),
+            };
+            assert!(error.msg.contains(expected), "got: {}", error.msg);
+        }
+    }
 
     #[test]
     fn particles_are_seeded_repeatable_and_contained() {

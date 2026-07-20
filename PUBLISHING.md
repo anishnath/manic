@@ -33,7 +33,21 @@ mdbook build book        # → book/book/   (the static site)
 mdbook serve book        # optional: live preview at http://localhost:3000
 ```
 
-## 3. Render the demo videos
+## 3. Run the visual publishing audit
+
+Before spending time on final renders, rebuild responsive creator examples at
+the four common output shapes and audit their settled named stages:
+
+```sh
+manic check examples/reactive-multiformat.manic --canvas all
+```
+
+The command checks portrait, 4:5 feed, square, and 16:9 landscape for canvas
+overflow, Creator safe-area overflow, substantial content overlap, and
+unreadably small text/notation. Fix every reported format/stage/entity before
+recording. Ordinary `manic check` remains the fast syntax/timeline check.
+
+## 4. Render the demo videos
 
 Renders each row in `book/videos.txt` to `book/videos-out/<name>.mp4`, **unbranded**
 at 1080p/60 (`--preset studio --no-brand`). Incremental — re-renders only changed
@@ -49,7 +63,7 @@ Needs a display. On a headless server, run under xvfb (see `scripts/ec2-setup.sh
 xvfb-run -a bash scripts/render-samples.sh
 ```
 
-## 4. Upload the videos to YouTube
+## 5. Upload the videos to YouTube
 
 Uploads every clip whose `book/videos.txt` id is still `PLACEHOLDER` (and that has a
 render), writes the returned id back into `videos.txt`, and adds each to the **`manic`**
@@ -63,7 +77,7 @@ python manic_youtube.py --privacy public --playlists   # ...also file into per-t
 cd ..
 ```
 
-## 5. Embed the players + rebuild the book
+## 6. Embed the players + rebuild the book
 
 Rebuilds the book and swaps each `data-video` placeholder for a real YouTube
 iframe (rows still `PLACEHOLDER` keep the "coming soon" card). Idempotent — only
@@ -73,10 +87,10 @@ rewrites the built HTML:
 bash scripts/embed-videos.sh     # → book/book/  with real players
 ```
 
-> Shortcut for steps 3–5: `python youtube/manic_youtube.py --all --privacy public`
+> Shortcut for steps 4–6: `python youtube/manic_youtube.py --all --privacy public`
 > runs render → upload → embed in one go.
 
-## 6. Deploy the built book into the playground → `/manic/docs`
+## 7. Deploy the built book into the playground → `/manic/docs`
 
 Copy the generated site into the `crypto-tool` webapp; it's served at `/manic/docs/`:
 
@@ -142,9 +156,10 @@ CT=/Users/anish/git/crypto-tool/src/main/webapp/manic
 
 python3 scripts/gen-gallery.py                         # 1  gallery pages (if examples changed)
 mdbook build book                                      # 2  build the book
-python youtube/manic_youtube.py --all --privacy public # 3–5 render + upload + embed videos
+manic check examples/reactive-multiformat.manic --canvas all # 3  visual publishing audit
+python youtube/manic_youtube.py --all --privacy public # 4–6 render + upload + embed videos
 #   (or `bash scripts/embed-videos.sh` alone to keep PLACEHOLDER "coming soon" cards)
-cp -R book/book/. "$CT/docs/"                           # 6  deploy the book
+cp -R book/book/. "$CT/docs/"                           # 7  deploy the book
 
 # sibling playground assets (rebuild + copy when their sources change):
 python3 scripts/gen-ui-index.py                         # c  examples/*.manic + index.json
@@ -158,4 +173,4 @@ cp SYSTEM_PROMPT.md "$CT/system-prompt.md"              # b  AI system prompt
 **Videos are the one thing not yet done for the newer physics / textbook examples**
 — those rows are `PLACEHOLDER` (coming-soon cards) in `book/videos.txt`. To ship
 real players: `cargo build --release` (the release binary must include the current
-kits), then steps 3–5.
+kits), then steps 4–6.

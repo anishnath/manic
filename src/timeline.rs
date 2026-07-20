@@ -9,7 +9,9 @@ use std::collections::HashMap;
 use macroquad::prelude::{Color, Vec2, Vec3};
 
 use crate::easing::Easing;
-use crate::primitives::{Entity, GraphView, Shape};
+use crate::primitives::{
+    BoundProperty, Entity, GraphSrc, GraphView, ParameterBinding, ParameterMap, Shape,
+};
 use crate::scene::Scene;
 
 /// A dynamically-typed animatable value.
@@ -313,6 +315,10 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                 }
             }
             (Prop::Value, Value::F(v)) => {
+                let v = e
+                    .parameter
+                    .map(|parameter| v.clamp(parameter.min, parameter.max))
+                    .unwrap_or(v);
                 if let Some(c) = &mut e.counter {
                     c.value = v;
                     let text = c.render();
@@ -357,44 +363,7 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
                 if let Some(gv) = e.graph_view.as_mut() {
                     gv.set_x(nx);
                 }
-                if let Some(gv) = e.graph_view.clone() {
-                    match &gv {
-                        // tangent/normal: slide the segment (dot rides its midpoint)
-                        GraphView::Tangent { .. } | GraphView::Normal { .. } => {
-                            if let Some((tail, head)) = gv.segment() {
-                                e.pos = if tail.x.is_finite() && tail.y.is_finite() {
-                                    tail
-                                } else {
-                                    gv.touch()
-                                };
-                                if let Shape::Line { to } = &mut e.shape {
-                                    *to = head;
-                                }
-                            }
-                        }
-                        // slope/integral readout: recompute the number, reposition
-                        GraphView::Slope { .. } | GraphView::Integral { .. } => {
-                            let v = gv.value();
-                            if let Some(c) = &mut e.counter {
-                                c.value = v;
-                                let text = c.render();
-                                if let Shape::Text { content, .. } = &mut e.shape {
-                                    *content = text;
-                                }
-                            }
-                            e.pos = gv.readout_pos();
-                        }
-                        // area: rebuild the swept region up to the new bound
-                        GraphView::Area { .. } => {
-                            let (tris, rings) = gv.region();
-                            e.shape = Shape::Region { tris, rings };
-                        }
-                        // mark: a dot that rides the curve
-                        GraphView::Mark { .. } => {
-                            e.pos = gv.touch();
-                        }
-                    }
-                }
+                refresh_graph_view(e);
             }
             _ => {}
         }
@@ -452,6 +421,211 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             }
         }
         _ => {}
+    }
+}
+
+fn refresh_graph_view(e: &mut Entity) {
+    let Some(gv) = e.graph_view.clone() else {
+        return;
+    };
+    match &gv {
+        GraphView::Tangent { .. } | GraphView::Normal { .. } => {
+            if let Some((tail, head)) = gv.segment() {
+                e.pos = if tail.x.is_finite() && tail.y.is_finite() {
+                    tail
+                } else {
+                    gv.touch()
+                };
+                if let Shape::Line { to } = &mut e.shape {
+                    *to = head;
+                }
+            }
+        }
+        GraphView::Slope { .. } | GraphView::Integral { .. } => {
+            let value = gv.value();
+            if let Some(counter) = &mut e.counter {
+                counter.value = value;
+                let text = counter.render();
+                if let Shape::Text { content, .. } = &mut e.shape {
+                    *content = text;
+                }
+            }
+            e.pos = gv.readout_pos();
+        }
+        GraphView::Area { .. } => {
+            let (tris, rings) = gv.region();
+            e.shape = Shape::Region { tris, rings };
+        }
+        GraphView::Mark { .. } => e.pos = gv.touch(),
+    }
+}
+
+fn sample_graph(graph: &crate::primitives::GraphFn) -> Vec<Vec2> {
+    const SAMPLES: usize = 600;
+    let mut points = Vec::with_capacity(SAMPLES + 1);
+    for i in 0..=SAMPLES {
+        let x = graph.x0 + (graph.x1 - graph.x0) * i as f32 / SAMPLES as f32;
+        let point = graph.point(x);
+        if point.x.is_finite() && point.y.is_finite() {
+            points.push(point);
+        }
+    }
+    points
+}
+
+fn parameter_state(scene: &Scene, binding: &ParameterBinding) -> Option<(f32, f32, f32)> {
+    let source = scene.get(&binding.source)?;
+    let parameter = source.parameter?;
+    let value = source.counter.as_ref()?.value.clamp(parameter.min, parameter.max);
+    Some((value, parameter.min, parameter.max))
+}
+
+fn mapped_parameter_value(map: &ParameterMap, p: f32, min: f32, max: f32) -> f32 {
+    match map {
+        ParameterMap::Range { from, to } => {
+            let u = ((p - min) / (max - min)).clamp(0.0, 1.0);
+            from + (to - from) * u
+        }
+        ParameterMap::Formula(node) => node.eval(0.0, p),
+    }
+}
+
+fn apply_parameter_binding(scene: &mut Scene, binding: &ParameterBinding) {
+    let Some((p, min, max)) = parameter_state(scene, binding) else {
+        return;
+    };
+    let Some(target) = scene.get_mut(&binding.target) else {
+        return;
+    };
+    if binding.property == BoundProperty::Formula {
+        let ParameterMap::Formula(node) = &binding.map else {
+            return;
+        };
+        let Some(graph) = target.graph.as_mut() else {
+            return;
+        };
+        graph.src = GraphSrc::ParameterExpr {
+            node: node.clone(),
+            p,
+        };
+        target.shape = Shape::Polyline {
+            pts: sample_graph(graph),
+        };
+        return;
+    }
+
+    let value = mapped_parameter_value(&binding.map, p, min, max);
+    if !value.is_finite() {
+        return;
+    }
+    match binding.property {
+        BoundProperty::X => {
+            if let Some(view) = target.graph_view.as_mut() {
+                view.set_x(value);
+            } else {
+                target.pos.x = value;
+            }
+        }
+        BoundProperty::Y => target.pos.y = value,
+        BoundProperty::Opacity => target.opacity = value.clamp(0.0, 1.0),
+        BoundProperty::Scale => target.scale = value,
+        BoundProperty::Rot => target.rot = value,
+        BoundProperty::Hue => {
+            target.hue = Some(value);
+            let color = crate::style::hsl(value, 1.0, 0.6);
+            target.color = color;
+            if target.stroke.outline_color.is_some() {
+                target.stroke.outline_color = Some(color);
+            }
+        }
+        BoundProperty::Value => {
+            if let Some(counter) = &mut target.counter {
+                counter.value = value;
+                if let Shape::Text { content, .. } = &mut target.shape {
+                    *content = counter.render();
+                }
+            }
+        }
+        BoundProperty::Trace => target.trace = value.clamp(0.0, 1.0),
+        BoundProperty::Formula => {}
+    }
+}
+
+fn apply_parameter_bindings(scene: &mut Scene) {
+    let bindings = scene.parameter_bindings.clone();
+    // A changing plot must be rebuilt before its analysis views copy the source.
+    for binding in bindings
+        .iter()
+        .filter(|binding| binding.property == BoundProperty::Formula)
+    {
+        apply_parameter_binding(scene, binding);
+    }
+    for binding in bindings
+        .iter()
+        .filter(|binding| binding.property != BoundProperty::Formula)
+    {
+        apply_parameter_binding(scene, binding);
+    }
+}
+
+fn sync_parameter_widgets(scene: &mut Scene) {
+    let parameters: Vec<_> = scene
+        .entities
+        .iter()
+        .filter_map(|entity| {
+            let parameter = entity.parameter?;
+            let value = entity.counter.as_ref()?.value;
+            Some((entity.id.clone(), parameter, value))
+        })
+        .collect();
+    for (id, parameter, value) in parameters {
+        let Some((left, right)) = scene.get(&format!("{id}.track")).and_then(|track| {
+            let Shape::Line { to } = track.shape else {
+                return None;
+            };
+            Some((track.pos, to))
+        }) else {
+            continue;
+        };
+        let u = ((value - parameter.min) / (parameter.max - parameter.min)).clamp(0.0, 1.0);
+        let live = left.lerp(right, u);
+        if let Some(fill) = scene.get_mut(&format!("{id}.fill")) {
+            fill.pos = left;
+            if let Shape::Line { to } = &mut fill.shape {
+                *to = live;
+            }
+        }
+        if let Some(dot) = scene.get_mut(&format!("{id}.dot")) {
+            dot.pos = live;
+        }
+    }
+}
+
+fn sync_parameter_graph_views(scene: &mut Scene) {
+    let bound_plots: Vec<_> = scene
+        .parameter_bindings
+        .iter()
+        .filter(|binding| binding.property == BoundProperty::Formula)
+        .map(|binding| binding.target.as_str())
+        .collect();
+    let updates: Vec<_> = scene
+        .entities
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entity)| {
+            let source = entity.graph_source.as_ref()?;
+            if !bound_plots.iter().any(|bound| *bound == source) {
+                return None;
+            }
+            let graph = scene.get(source)?.graph.clone()?;
+            Some((index, graph))
+        })
+        .collect();
+    for (index, graph) in updates {
+        if let Some(view) = scene.entities[index].graph_view.as_mut() {
+            view.set_graph(graph);
+            refresh_graph_view(&mut scene.entities[index]);
+        }
     }
 }
 
@@ -623,6 +797,12 @@ impl Timeline {
                 }
             }
         }
+
+        // A parameter is an ordinary animated counter; these pure connections
+        // turn its current value into a coordinated family of visual states.
+        apply_parameter_bindings(&mut scene);
+        sync_parameter_widgets(&mut scene);
+        sync_parameter_graph_views(&mut scene);
 
         // --- constraint resolution, each a pure function of t ---
 

@@ -429,6 +429,118 @@ mod validate_tests {
         assert_eq!(neon_movie.template.name, "plain");
     }
 
+    #[test]
+    fn reactive_steps_name_parallel_multi_entity_world_changes() {
+        use macroquad::prelude::Vec2;
+        use crate::primitives::Shape;
+
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             text(cap,(640,90),\"before\");\n\
+             equation(work,(640,250),`x+x=2`,48);\n\
+             dot(point,(100,430),10);\n\
+             circle(anchor,(900,430),24);\n\
+             step(\"explain\") {\n\
+               say(cap,\"after\",0.4);\n\
+               rewrite(work,`2x=2`,0.8,smooth);\n\
+               move(point,(500,430),0.6,smooth);\n\
+             }\n\
+             step(\"result\") {\n\
+               rewrite(work,`x=1`,0.4,smooth);\n\
+               move(point,(700,430),0.4,smooth);\n\
+             }",
+        )
+        .expect("named reactive world should lower");
+
+        assert_eq!(
+            movie.marks,
+            vec![(0.0, "explain".into()), (0.8, "result".into())],
+            "step starts are exported as deterministic markers"
+        );
+        assert!((movie.now() - 1.2).abs() < 1e-6, "step duration is its longest child");
+
+        let (base, timeline) = movie.finalize();
+        let final_frame = timeline.apply(&base, 1.2);
+        assert_eq!(final_frame.get("point").unwrap().pos, Vec2::new(700.0, 430.0));
+        assert_eq!(
+            final_frame.get("anchor").unwrap().pos,
+            Vec2::new(900.0, 430.0),
+            "unmentioned world entities persist unchanged"
+        );
+        assert!(matches!(
+            &final_frame.get("work").unwrap().shape,
+            Shape::Image { path, .. } if path == &crate::latex::eq_path("x=1", 48.0)
+        ));
+
+        // Stateless guarantee: seeking backwards after the result reconstructs
+        // the same intermediate point position and does not retain final state.
+        let mid_after_final = timeline.apply(&base, 0.3).get("point").unwrap().pos;
+        let mid_fresh = timeline.apply(&base, 0.3).get("point").unwrap().pos;
+        assert_eq!(mid_after_final, mid_fresh);
+        assert!(mid_after_final.x > 100.0 && mid_after_final.x < 500.0);
+    }
+
+    #[test]
+    fn reactive_step_rejects_ambiguous_structure() {
+        let cases = [
+            (
+                "step(\"\") { wait(1); }",
+                "non-empty stage name",
+            ),
+            ("step(\"missing\");", "needs a `{ ... }` block"),
+            ("step(\"empty\") { }", "at least one timeline action"),
+            (
+                "step(\"same\") { wait(1); } step(\"same\") { wait(1); }",
+                "step names must be unique",
+            ),
+            (
+                "par { step(\"nested\") { wait(1); } }",
+                "can't be nested",
+            ),
+        ];
+        for (src, expected) in cases {
+            let err = crate::parse(src)
+                .err()
+                .unwrap_or_else(|| panic!("expected `{src}` to fail"))
+                .to_string();
+            assert!(err.contains(expected), "`{src}`: {err}");
+        }
+    }
+
+    #[test]
+    fn render_canvas_override_reframes_one_responsive_story() {
+        use macroquad::prelude::Vec2;
+
+        let src = "canvas(1280,720);\n\
+                   if h > w { dot(focus,(cx,cy),12); }\n\
+                   else { dot(focus,(w*0.75,cy),12); }\n\
+                   step(\"payoff\") { move(focus,(cx,cy),0.5,smooth); }";
+
+        let authored = crate::parse(src).unwrap();
+        assert_eq!((authored.width, authored.height), (1280, 720));
+        assert_eq!(
+            authored.base().get("focus").unwrap().pos,
+            Vec2::new(960.0, 360.0),
+            "without an override the authored canvas and layout stay unchanged"
+        );
+
+        let portrait = crate::parse_with_canvas(src, 1080, 1920).unwrap();
+        assert_eq!((portrait.width, portrait.height), (1080, 1920));
+        assert_eq!(
+            portrait.base().get("focus").unwrap().pos,
+            Vec2::new(540.0, 960.0)
+        );
+        assert_eq!(portrait.marks, vec![(0.0, "payoff".into())]);
+
+        let landscape = crate::parse_with_canvas(src, 1920, 1080).unwrap();
+        assert_eq!((landscape.width, landscape.height), (1920, 1080));
+        assert_eq!(
+            landscape.base().get("focus").unwrap().pos,
+            Vec2::new(1440.0, 540.0)
+        );
+        assert_eq!(landscape.marks, portrait.marks);
+    }
+
     /// `Movie::validate` (the `manic check` net) directly flags a bad track even
     /// one hand-built past the parse-time check (e.g. a mut-verb path).
     #[test]

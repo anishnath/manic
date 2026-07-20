@@ -36,16 +36,31 @@ struct Ctx {
 /// therefore never see an unevaluated expression, and programs that use none of
 /// these features pass through unchanged.
 pub fn expand(prog: &Program) -> Result<Program, Error> {
+    expand_with_canvas(prog, None)
+}
+
+/// Expand a program while optionally replacing its logical canvas size.
+///
+/// The override is applied before `w`/`h`/`cx`/`cy`, conditionals, loops, and
+/// macros are evaluated. Renderers can therefore reframe one responsive source
+/// without rewriting its AST or changing ordinary editor/browser expansion.
+pub fn expand_with_canvas(
+    prog: &Program,
+    canvas_override: Option<(u32, u32)>,
+) -> Result<Program, Error> {
     let mut env = Env::new();
     // Seed canvas-relative variables so authors can position with `cx`/`cy`/
     // `w`/`h` and stay canvas-independent. A later `let w = ...` may shadow them.
-    let (cw, ch) = prog
-        .stmts
-        .iter()
-        .find(|s| s.ctrl.is_none() && s.name == "canvas")
-        .map(|s| canvas_dims(&s.args, s.name_span))
-        .transpose()?
-        .unwrap_or((1280, 720));
+    let (cw, ch) = match canvas_override {
+        Some(size) => size,
+        None => prog
+            .stmts
+            .iter()
+            .find(|s| s.ctrl.is_none() && s.name == "canvas")
+            .map(|s| canvas_dims(&s.args, s.name_span))
+            .transpose()?
+            .unwrap_or((1280, 720)),
+    };
     env.insert("w".into(), cw as f32);
     env.insert("h".into(), ch as f32);
     env.insert("cx".into(), cw as f32 / 2.0);
@@ -81,23 +96,55 @@ pub fn canvas_dims(exprs: &[Expr], _span: Span) -> Result<(u32, u32), Error> {
     Ok((w.max(1.0) as u32, h.max(1.0) as u32))
 }
 
+/// Resolve a command-line canvas value such as `portrait`, `4:5`, `square`,
+/// `16:9`, or `1080x1920` into logical pixels.
+pub fn canvas_override_dims(spec: &str) -> Result<(u32, u32), String> {
+    let clean = spec.trim().to_ascii_lowercase();
+    if let Some(size) = canvas_preset_dims(&clean) {
+        return Ok(size);
+    }
+    if let Some((w, h)) = clean.split_once('x') {
+        let w: u32 = w
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid width in `{spec}`"))?;
+        let h: u32 = h
+            .trim()
+            .parse()
+            .map_err(|_| format!("invalid height in `{spec}`"))?;
+        if w == 0 || h == 0 {
+            return Err("canvas width and height must be greater than zero".into());
+        }
+        return Ok((w, h));
+    }
+    Err(format!(
+        "unknown format `{spec}` — try portrait, 4:5, square, 16:9, or WIDTHxHEIGHT"
+    ))
+}
+
 /// Named canvas shapes so authors pick a format, not raw pixels.
 fn canvas_preset(name: &str, span: Span) -> Result<(u32, u32), Error> {
-    Ok(match name.trim().to_ascii_lowercase().as_str() {
-        "16:9" | "widescreen" | "720p" => (1280, 720),
+    let clean = name.trim().to_ascii_lowercase();
+    canvas_preset_dims(&clean).ok_or_else(|| {
+        Error::new(
+            format!(
+                "unknown canvas preset {clean:?} — try 16:9, 1080p, 4k, square, portrait, 4:5, 4:3, or give width, height"
+            ),
+            span,
+        )
+    })
+}
+
+fn canvas_preset_dims(name: &str) -> Option<(u32, u32)> {
+    Some(match name {
+        "16:9" | "widescreen" | "landscape" | "720p" => (1280, 720),
         "1080p" | "fullhd" | "hd" => (1920, 1080),
         "4k" | "2160p" => (3840, 2160),
         "square" | "1:1" => (1080, 1080),
         "portrait" | "9:16" | "vertical" | "story" | "reel" => (1080, 1920),
+        "4:5" | "feed" => (1080, 1350),
         "4:3" => (1280, 960),
-        other => {
-            return Err(Error::new(
-                format!(
-                    "unknown canvas preset {other:?} — try 16:9, 1080p, 4k, square, portrait, 4:3, or give width, height"
-                ),
-                span,
-            ))
-        }
+        _ => return None,
     })
 }
 
@@ -545,5 +592,40 @@ mod tests {
     fn runaway_loop_is_bounded() {
         // a range far past MAX_ITERS must error, not hang
         assert!(expand(&parse("for i in 0..99999999 { dot(d{i}, (0,0), 1); }").unwrap()).is_err());
+    }
+
+    #[test]
+    fn canvas_override_seeds_responsive_values_and_conditionals() {
+        let src = "canvas(1280,720);\n\
+                   if h > w { dot(layout,(cx,cy),9); }\n\
+                   else { dot(layout,(w-10,h-20),4); }";
+        let prog = parse(src).unwrap();
+
+        let portrait = expand_with_canvas(&prog, Some((1080, 1920))).unwrap();
+        let dot = portrait.stmts.iter().find(|s| s.name == "dot").unwrap();
+        match dot.args[1].kind {
+            ExprKind::Pair(x, y) => assert_eq!((x, y), (540.0, 960.0)),
+            ref other => panic!("expected portrait point, got {other:?}"),
+        }
+        assert_eq!(num(&dot.args[2]), 9.0);
+
+        let landscape = expand_with_canvas(&prog, Some((1920, 1080))).unwrap();
+        let dot = landscape.stmts.iter().find(|s| s.name == "dot").unwrap();
+        match dot.args[1].kind {
+            ExprKind::Pair(x, y) => assert_eq!((x, y), (1910.0, 1060.0)),
+            ref other => panic!("expected landscape point, got {other:?}"),
+        }
+        assert_eq!(num(&dot.args[2]), 4.0);
+    }
+
+    #[test]
+    fn command_line_canvas_specs_cover_social_formats_and_pixels() {
+        assert_eq!(canvas_override_dims("portrait").unwrap(), (1080, 1920));
+        assert_eq!(canvas_override_dims("4:5").unwrap(), (1080, 1350));
+        assert_eq!(canvas_override_dims("square").unwrap(), (1080, 1080));
+        assert_eq!(canvas_override_dims("16:9").unwrap(), (1280, 720));
+        assert_eq!(canvas_override_dims("1440x2560").unwrap(), (1440, 2560));
+        assert!(canvas_override_dims("0x1920").is_err());
+        assert!(canvas_override_dims("cinema").is_err());
     }
 }

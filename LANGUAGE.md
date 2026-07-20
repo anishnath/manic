@@ -47,7 +47,7 @@ a beat written above its declaration.
 |---|---|
 | `title("...")` | window title + the masthead shown on every frame |
 | `canvas(w, h)` | logical canvas size in pixels (default `1280, 720`). Origin `(0,0)` is top-left; x → right, y → down |
-| `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:3"` |
+| `canvas("preset")` | pick a format instead of pixels: `"16:9"` (default), `"1080p"`, `"4k"`, `"square"` (1:1), `"portrait"` (9:16), `"4:5"` (feed), `"4:3"` |
 | `template("name")` | the overall look. `"mono"` is the **default** when omitted: black-and-white editorial on near-black with subtle glow (aliases `monochrome`, `blackwhite`, `black-white`, `bw`). `"plain"` keeps the original neon palette; `"terminal"` adds neon window chrome; `"paper"` is ink on cream; `"blueprint"` is white/cyan on navy; `"shorts"` is a restrained colour Creator surface. Each remaps every named semantic colour (`cyan`/`magenta`/`lime`/`fg`/`dim`/`panel`/…). Bespoke `hue(...)` colours pass through. Override the DSL choice for one render with `--template <name>`. |
 | `masthead("left", ["right"])` | your own header text in the top corners (shown by `terminal`). Empty by default — no engine branding is ever baked in. |
 
@@ -63,6 +63,19 @@ canvas("square");
 text(title, (cx, cy), "Hello");       // always centred
 dot(corner, (cx - w/4, cy - h/4));    // relative placement
 ```
+
+Override that logical canvas for one check, preview, still, or recording with
+`--canvas portrait|4:5|square|16:9|WIDTHxHEIGHT`. The override is applied before
+the computation layer, so the responsive variables and `if h > w { ... }`
+layout branches see the requested format. Without the flag, `canvas(...)`
+behaves exactly as authored.
+
+For a publishing pass, `manic check FILE.manic --canvas all` rebuilds portrait,
+4:5 feed, square, and 16:9 landscape and checks the settled state of each named
+stage. It reports canvas overflow, Creator safe-area overflow, substantial
+content overlap, and unreadably small text/notation with the format, stage,
+time, entity, and a suggested fix. Ordinary `manic check FILE.manic` remains a
+parse-and-timeline validation only.
 
 ---
 
@@ -168,6 +181,9 @@ address.
 |---|---|
 | `text(id, (x,y), "str")` | text centred at `(x,y)`, mono, size 28 |
 | `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` | a numeric readout; animate with `to(id, value, target)` so it counts live |
+| `parameter(id, (x,y), initial, min, max, ["label"], [decimals])` | a visible bounded creator value: numeric readout + native track/dot widget. Animate its `value`; the range clamps the journey. All widget parts carry tag `{id}.widget` |
+| `bind(parameter, target, property, "formula")` | connect live parameter `p` to `x`, `y`, `opacity`, `scale`, `angle`, `hue`, `value`, `trace`, or a plot `formula`. A plot formula also has coordinate `x` |
+| `bind(parameter, target, property, from, to)` | linearly map the parameter's declared min/max to responsive output endpoints; ideal for positions using `w`/`h`/`cx`/`cy` |
 | `caption(id, "some words", (x,y), [size], [color])` | lays words out in a centred row as `{id}.w0…` (tagged bare `{id}` + `{id}.words`); `show`/`draw`/`hidden(id)` broadcast over the whole caption, or animate with `karaoke`/`wordpop` |
 | `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
 | `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
@@ -279,6 +295,34 @@ and recordings. `wander` occupies its requested duration, so put it in `par`
 with the story beats it should accompany. A `link` follows `move`d endpoints;
 `flow` is transient emphasis and does not alter the path itself.
 
+### Parameter journeys
+
+Declare one meaningful scalar, connect it to the persistent world once, then
+animate only that value inside named steps:
+
+```manic
+parameter(a, (cx,120), -1.2, -1.5, 1.5, "a", 2);
+plot(curve, (cx,500), 90, 45, "x*x", (-3,3));
+counter(result, (cx,800), 0, 2, "a² = ", "");
+
+bind(a, curve, formula, "p*x*x");
+bind(a, result, value, "p*p");
+
+step("flatten") { to(a, value, 0, 2, smooth); }
+step("opens-up") { to(a, value, 1.25, 2, smooth); }
+```
+
+Formula bindings use `p` for the live parameter. A bound plot uses both `x`
+(plot coordinate) and `p`; its existing tangent, normal, slope, area, integral,
+and moving-mark views update from the new function automatically. Range
+bindings map the parameter min/max onto two ordinary numeric expressions, so
+`bind(a, point, x, w*0.2, w*0.8)` stays responsive.
+
+Bindings are pure per-frame connections: seeking and recording are
+deterministic. They target existing 2-D properties and formula plots; they do
+not silently rerun expensive build-time constructors or change generated
+entity counts. See `examples/parameter-journeys.manic`.
+
 ### Animate anything — `to` / `set`
 
 The named verbs above are ergonomic shortcuts. When you want to animate a
@@ -314,9 +358,24 @@ however you like.
 | `wait(secs)` / `beat(secs)` | leave a gap (narration room); advances the cursor |
 | `section("Title")` | a neon banner card + a jump marker (keys 1–9 in preview) |
 | `mark("name")` | a named beat marker exported to `markers.json` |
+| `step("name") { ... }` | a named reactive world transition: children start together, unmentioned entities persist, and the start is exported as a marker |
 | `par { ... }` | run the inner beats **at the same time** (duration = longest) |
 | `seq { ... }` | run the inner beats **one after another** |
 | `stagger(d) { ... }` | run in parallel, each starting `d` seconds after the previous |
+
+`step` is the story-level form of `par`: give the world's next state a unique,
+readable name and place its changes inside. Its duration is the longest child.
+Use a nested `seq` when part of the step needs internal order; named steps stay
+top-level so their exported timestamps remain unambiguous.
+
+```manic
+step("explain") {
+  rewrite(work, `f'(x)=2x`, 0.9, smooth);
+  to(tangent, x, 2.5, 2.0, smooth);
+  to(slopeValue, x, 2.5, 2.0, smooth);
+  say(caption, "The formula, tangent and readout change together.");
+}
+```
 
 Blocks nest, and may contain verbs, `wait`, other blocks, and **control
 constructs** (`for` / `if` / macro calls — which expand into verbs). They may

@@ -11,6 +11,7 @@
 title("Reactive Mathematics — One Language, Every Notation");
 canvas("9:16");
 template("shorts");
+watermark(manicMark, (w*0.895-100, h*0.075+24), "Made With Manic");
 
 creator(me, "@anish2good name=Notation_Lab tagline=Every_symbol_can_move yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan secondary=magenta footer=social cta=Create_your_own safe=reels");
 socials(me);

@@ -5,6 +5,8 @@ and it pulses once.
 
 > Here primarily for vertical social video? Jump to
 > [Create a polished Reel](creator-reels.md), the complete Creator Kit workflow.
+> Then use [Reactive stories](creator-reactive.md) to keep equations, plots,
+> diagrams, and captions synchronized across each explanation beat.
 
 ```manic
 {{#include ../samples/hello.manic}}

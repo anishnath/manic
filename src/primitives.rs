@@ -157,6 +157,47 @@ pub struct Link {
 /// domain-agnostic (the core just calls the hook; kits supply the geometry).
 pub type DeriveFn = fn(&mut Entity, &[Vec2]);
 
+/// A visible creator parameter. The entity itself is a live [`Counter`]; the
+/// range keeps authored journeys honest and drives its small track widget.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Parameter {
+    pub min: f32,
+    pub max: f32,
+}
+
+/// A target property controlled by a creator parameter through [`bind`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundProperty {
+    X,
+    Y,
+    Opacity,
+    Scale,
+    Rot,
+    Hue,
+    Value,
+    Trace,
+    Formula,
+}
+
+/// How a parameter value maps onto one target property.
+#[derive(Debug, Clone)]
+pub enum ParameterMap {
+    /// Map the parameter's declared min/max onto these output endpoints.
+    Range { from: f32, to: f32 },
+    /// Evaluate a formula where `p` is the live parameter. Plot-formula
+    /// bindings additionally expose the plotted coordinate as `x`.
+    Formula(crate::kits::math::expr::Node),
+}
+
+/// One pure per-frame connection created by `bind(parameter,target,...)`.
+#[derive(Debug, Clone)]
+pub struct ParameterBinding {
+    pub source: String,
+    pub target: String,
+    pub property: BoundProperty,
+    pub map: ParameterMap,
+}
+
 /// One drawable object in a [`crate::scene::Scene`].
 #[derive(Debug, Clone)]
 pub struct Entity {
@@ -227,6 +268,10 @@ pub struct Entity {
     /// `prefix + value + suffix`. Animate `value` via
     /// [`crate::timeline::Prop::Value`] and the text updates each frame.
     pub counter: Option<Counter>,
+    /// If set, this counter is a bounded creator parameter. Animate its normal
+    /// `value` property; bindings and the native widget resolve from it each
+    /// frame without accumulating state.
+    pub parameter: Option<Parameter>,
     /// If set, `(from, to, spin_deg)` for a shape morph: two outline point-sets
     /// (same length) and a winding angle. Animate [`crate::timeline::Prop::Morph`]
     /// `0→1` to blend the `Polyline` between the outlines, rotating by `spin_deg`
@@ -241,6 +286,9 @@ pub struct Entity {
     /// `slope`, or `area`). Recomputed from its moving parameter `x`, animatable
     /// via `to(id, x, …)`.
     pub graph_view: Option<GraphView>,
+    /// Source plot id for a graph view. This lets a parameter-bound plot push
+    /// its changing formula into tangents, areas, slopes, and markers too.
+    pub graph_source: Option<String>,
 }
 
 /// Where a [`GraphFn`]'s values come from.
@@ -248,6 +296,12 @@ pub struct Entity {
 pub enum GraphSrc {
     /// A compiled formula in `x` (from `plot`).
     Expr(crate::kits::math::expr::Node),
+    /// A live two-variable formula: plot coordinate `x` plus creator parameter
+    /// `p`. `bind(param, plot, formula, "...")` updates only `p` each frame.
+    ParameterExpr {
+        node: crate::kits::math::expr::Node,
+        p: f32,
+    },
     /// A numerically-sampled curve (from `deriv`/`accum`): ascending `xs` with
     /// matching `ys`, evaluated by linear interpolation. This makes derived
     /// curves first-class — you can `tangent`/`slope`/`area` them too.
@@ -275,6 +329,7 @@ impl GraphFn {
     pub fn y(&self, x: f32) -> f32 {
         match &self.src {
             GraphSrc::Expr(n) => n.eval(x, 0.0),
+            GraphSrc::ParameterExpr { node, p } => node.eval(x, *p),
             GraphSrc::Samples { xs, ys } => interp(xs, ys, x),
         }
     }
@@ -542,6 +597,18 @@ impl GraphView {
             | GraphView::Mark { graph, .. } => graph,
         }
     }
+    /// Replace the source graph while keeping this view's own moving parameter
+    /// and layout. Parameter-bound plots use this to keep analysis views live.
+    pub fn set_graph(&mut self, next: GraphFn) {
+        match self {
+            GraphView::Tangent { graph, .. }
+            | GraphView::Normal { graph, .. }
+            | GraphView::Slope { graph, .. }
+            | GraphView::Area { graph, .. }
+            | GraphView::Integral { graph, .. }
+            | GraphView::Mark { graph, .. } => *graph = next,
+        }
+    }
     /// Line-segment endpoints `(tail, head)` for `Tangent`/`Normal`, centred on
     /// the contact point (`None` for the readout/area forms). Both endpoints
     /// collapse to the contact point when the slope is undefined
@@ -676,10 +743,12 @@ impl Entity {
             derive: None,
             hue: None,
             counter: None,
+            parameter: None,
             morph: None,
             type_cursor: false,
             graph: None,
             graph_view: None,
+            graph_source: None,
         }
     }
 }

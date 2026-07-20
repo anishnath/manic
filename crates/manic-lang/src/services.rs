@@ -23,8 +23,8 @@ use crate::parser::parse;
 
 /// Control-flow / meta names handled by the lowerer, not the registry.
 const RESERVED_CONTROL: &[&str] = &[
-    "par", "seq", "stagger", "timed", "during", "section", "wait", "beat", "mark", "title",
-    "canvas", "template", "masthead",
+    "par", "seq", "stagger", "step", "timed", "during", "section", "wait", "beat", "mark",
+    "title", "canvas", "template", "masthead",
 ];
 
 // ---- output shapes --------------------------------------------------------
@@ -93,7 +93,7 @@ fn builtin_names() -> Vec<&'static str> {
 }
 
 fn classify_ident(name: &str, is_call: bool, builtins: &[&str]) -> &'static str {
-    if KEYWORDS.contains(&name) {
+    if KEYWORDS.contains(&name) || (is_call && RESERVED_CONTROL.contains(&name)) {
         "keyword"
     } else if is_call {
         if builtins.contains(&name) {
@@ -247,6 +247,42 @@ fn validate_stmt(
     out: &mut Vec<Diagnostic>,
 ) {
     let name = s.name.as_str();
+    if name == "step" {
+        let (start, len) = range(starts, &s.name_span);
+        let problem = if s.args.len() != 1 {
+            Some("`step` needs exactly one string name".to_string())
+        } else {
+            match &s.args[0].kind {
+                ExprKind::Str(value) if value.trim().is_empty() => {
+                    Some("`step` needs a non-empty stage name".to_string())
+                }
+                ExprKind::Str(_) => None,
+                _ => Some("`step` name must be a string".to_string()),
+            }
+        }
+        .or_else(|| match &s.block {
+            None => Some("`step` needs a `{ ... }` block".to_string()),
+            Some(block) if block.is_empty() => {
+                Some("`step` needs at least one timeline action".to_string())
+            }
+            Some(_) => None,
+        });
+        if let Some(message) = problem {
+            out.push(Diagnostic {
+                start,
+                len,
+                severity: "error",
+                message,
+                fix: None,
+            });
+        }
+        if let Some(block) = &s.block {
+            for inner in block {
+                validate_stmt(inner, cat, names, starts, out);
+            }
+        }
+        return;
+    }
     if RESERVED_CONTROL.contains(&name) {
         return; // engine-handled; not in the catalog
     }
@@ -448,6 +484,15 @@ pub fn complete(src: &str, offset: u32) -> Vec<Completion> {
                     doc: String::new(),
                 });
             }
+            if starts_with("step") {
+                out.push(Completion {
+                    label: "step".to_string(),
+                    kind: "snippet",
+                    insert: "step(\"name\") {\n  \n}".to_string(),
+                    detail: "step(\"name\") { ... }".to_string(),
+                    doc: "named reactive world transition; children animate together".to_string(),
+                });
+            }
             out
         }
         // inside a call — offer values appropriate to the current parameter
@@ -559,6 +604,39 @@ mod tests {
         let src = "for i in 0..3 { dot(d{i}, (0,0), 2); }";
         let toks = tokenize(src);
         assert_eq!(kinds_at(&toks, src, "for"), Some("keyword"));
+    }
+
+    #[test]
+    fn reactive_step_is_an_editor_keyword_and_completion() {
+        let src = "step(\"explain\") { wait(1); }";
+        assert_eq!(kinds_at(&tokenize(src), src, "step"), Some("keyword"));
+        assert!(check(src).is_empty(), "step should be editor-valid");
+        assert!(complete("ste", 3).iter().any(|c| {
+            c.label == "step" && c.insert.contains("step(\"name\")")
+        }));
+        // A bare `step` remains available as the named Heaviside plot function.
+        let plot = "plot(f,(0,0),80,60,step);";
+        assert_ne!(kinds_at(&tokenize(plot), plot, "step"), Some("keyword"));
+        assert!(check("step(\"\") { wait(1); }")
+            .iter()
+            .any(|d| d.message.contains("non-empty")));
+        assert!(check("step(\"missing\");")
+            .iter()
+            .any(|d| d.message.contains("needs a `{ ... }` block")));
+    }
+
+    #[test]
+    fn parameter_journey_vocabulary_is_editor_valid_and_completable() {
+        let src = "parameter(a,(180,90),1,-2,2,\"a\",1);\n\
+                   plot(f,(640,360),80,40,\"x*x\",4);\n\
+                   dot(d,(200,500));\n\
+                   bind(a,f,formula,\"p*x*x\");\n\
+                   bind(a,d,x,200,1000);\n\
+                   step(\"opens down\") { to(a,value,-1,1,smooth); }";
+        assert!(check(src).is_empty(), "parameter journey should be editor-valid");
+        assert_eq!(kinds_at(&tokenize(src), src, "parameter"), Some("builtin"));
+        assert!(complete("para", 4).iter().any(|item| item.label == "parameter"));
+        assert!(complete("bin", 3).iter().any(|item| item.label == "bind"));
     }
 
     #[test]

@@ -9,6 +9,7 @@
 title("From 1 + 1 to a PhD in Mathematics");
 canvas("9:16");
 template("shorts");
+watermark(manicMark, (w*0.895-100, h*0.075+24), "Made With Manic");
 
 creator(me, "@anish2good name=Math_Journey tagline=Stay_curious yt=zarigatongy x=@anish2good web=8gwifi.org/manic accent=cyan secondary=magenta footer=social cta=Keep_learning safe=reels");
 socials(me);

@@ -39,6 +39,7 @@
 //!   and rings.
 
 pub mod animate;
+pub mod audit;
 pub mod branding;
 pub mod easing;
 pub mod geom;
@@ -73,6 +74,23 @@ pub fn v(x: f32, y: f32) -> Vec2 {
 pub fn parse(src: &str) -> Result<movie::Movie, lang::diag::Error> {
     let mut movie = lang::lower::lower(src, &kits::default_registry())?;
     movie.typeset_inline_math(); // `$…$` labels → typeset equations (holistic LaTeX)
+    Ok(movie)
+}
+
+/// Parse one source for a different logical canvas without editing the file.
+/// Responsive `w`/`h`/`cx`/`cy` values and build-time layout branches see this
+/// size before the scene is constructed.
+pub fn parse_with_canvas(
+    src: &str,
+    width: u32,
+    height: u32,
+) -> Result<movie::Movie, lang::diag::Error> {
+    let mut movie = lang::lower::lower_with_canvas(
+        src,
+        &kits::default_registry(),
+        Some((width.max(1), height.max(1))),
+    )?;
+    movie.typeset_inline_math();
     Ok(movie)
 }
 

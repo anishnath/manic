@@ -9,6 +9,7 @@ turn "then, then, then" into "together" or "cascading".
 | `par { … }` | all at the same instant | reveal a group at once |
 | `seq { … }` | one after another (explicit) | grouping inside a `par` |
 | `stagger(d) { … }` | each one `d` seconds after the last | cascades / waves |
+| `step("name") { … }` | all at once, with a named exported start | change one reactive world across representations |
 
 ```manic
 show(a);  show(b);              // a, THEN b
@@ -45,6 +46,26 @@ mark("beat-3");         // a named timestamp for your editor
 
 `wait` is your friend for pacing — a beat of stillness after something lands
 reads far better than rushing to the next move.
+
+## Named reactive steps
+
+Use `step` when a beat represents the world's **next conceptual state**, not
+just anonymous timing. Its children start together like `par`; its duration is
+the longest child; anything not mentioned remains exactly as it was. The unique
+name is written to `markers.json`, which makes the story seekable today and
+gives future format/export tools semantic chapter boundaries.
+
+```manic
+step("explain") {
+  rewrite(work, `f'(x)=2x`, 0.9, smooth);
+  to(tangent, x, 2.5, 2.0, smooth);
+  to(slopeValue, x, 2.5, 2.0, smooth);
+  say(caption, "Every representation changes together.");
+}
+```
+
+Steps are top-level and names must be non-empty and unique. Put `seq { … }`
+inside a step when a small part needs ordered choreography.
 
 ## Generic Timing v2 — one clock for any scene
 

@@ -227,6 +227,34 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "parameter",
+            Ctor,
+            "std",
+            "a visible bounded value for a smooth multi-visual journey",
+            &[
+                ("id", Name, R),
+                ("at", Point, R),
+                ("initial", Num, R),
+                ("min", Num, R),
+                ("max", Num, R),
+                ("label", Str, O),
+                ("decimals", Num, O),
+            ],
+        ),
+        spec(
+            "bind",
+            Ctor,
+            "std",
+            "connect a parameter to an entity property or plot formula",
+            &[
+                ("parameter", Ident, R),
+                ("target", Ident, R),
+                ("property", Name, R),
+                ("formula_or_from", Str, R),
+                ("to", Num, O),
+            ],
+        ),
+        spec(
             "cursor",
             Ctor,
             "std",
@@ -2452,8 +2480,10 @@ pub const CANVAS_PRESETS: &[&str] = &[
     "4k",
     "square",
     "portrait",
+    "4:5",
     "4:3",
     "widescreen",
+    "landscape",
     "720p",
     "fullhd",
     "hd",
@@ -2463,6 +2493,7 @@ pub const CANVAS_PRESETS: &[&str] = &[
     "vertical",
     "story",
     "reel",
+    "feed",
 ];
 
 /// `template(...)` / `--template` names (primary + aliases).

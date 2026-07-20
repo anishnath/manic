@@ -26,6 +26,18 @@ family of vertical translations. Uses `rewrite`, not hand-positioned formula pie
 
 <div class="manic-video" data-video="ex-reactive-integral"></div>
 
+## reactive-world
+
+The foundation for creator-reactive stories: five named `step` blocks keep one curve,
+equation, tangent, live slope, derivative plot and caption synchronized. Each step is
+also exported as a marker for seeking and future multi-format publishing.
+
+```manic
+{{#include ../../examples/reactive-world.manic}}
+```
+
+<div class="manic-video" data-video="ex-reactive-world"></div>
+
 ## sine_wave
 
 `axes` + `plot`, a curve traced on, then vectors.

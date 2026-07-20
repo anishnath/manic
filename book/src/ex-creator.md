@@ -15,6 +15,30 @@ professional mono styling, creator identity, timeline markers and a focused end 
 
 <div class="manic-video" data-video="ex-perfect-reel"></div>
 
+## reactive-multiformat
+
+One named reactive story rendered as portrait, 4:5 feed, square, or landscape with the
+`--canvas` override. Responsive variables and layout branches reflow before construction,
+while the same steps, timing, equation continuity and creator identity remain intact.
+
+```manic
+{{#include ../../examples/reactive-multiformat.manic}}
+```
+
+<div class="manic-video" data-video="ex-reactive-multiformat"></div>
+
+## parameter-journeys
+
+One visible parameter drives a quadratic plot, its live tangent and slope, a geometric
+position, scale and a derived numeric readout. Named steps animate only the value; `bind`
+keeps every representation continuous and the source reflows across all four formats.
+
+```manic
+{{#include ../../examples/parameter-journeys.manic}}
+```
+
+<div class="manic-video" data-video="ex-parameter-journeys"></div>
+
 ## creator-v2-options-socials
 
 The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D

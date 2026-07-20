@@ -4,7 +4,7 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 
 - [Algorithms & data structures](ex-algorithms.md) — 6 examples
 - [Graphs](ex-graphs.md) — 5 examples
-- [Calculus & functions](ex-calculus.md) — 20 examples
+- [Calculus & functions](ex-calculus.md) — 21 examples
 - [Linear algebra & tables](ex-linalg.md) — 12 examples
 - [Statistics & probability](ex-stats.md) — 13 examples
 - [Physics — simulations](ex-physics.md) — 53 examples
@@ -14,6 +14,6 @@ Every animation in `examples/`, by topic — **the code and the clip for each**.
 - [Transforms & morphing](ex-transforms.md) — 6 examples
 - [Text & UI](ex-text.md) — 8 examples
 - [Generative & recursive](ex-generative.md) — 10 examples
-- [Creator formats — responsive social video](ex-creator.md) — 14 examples
+- [Creator formats — responsive social video](ex-creator.md) — 16 examples
 - [Boolean shapes](ex-boolean.md) — 1 example
 - [3D scenes](ex-3d.md) — 12 examples

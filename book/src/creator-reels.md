@@ -22,7 +22,10 @@ This chapter gives one dependable production recipe. Start here, then use the
 
 For Shorts or TikTok, change both safe-area declarations to `safe=shorts` or
 `safe=tiktok`. The same source can also be reframed for `4:5`, `square`, or
-`16:9`; the Creator regions reflow automatically.
+`16:9`; the Creator regions reflow automatically. Use `--canvas 4:5`,
+`--canvas square`, or `--canvas 16:9` at preview/record time so the file stays
+unchanged. The [Reactive stories](creator-reactive.md#publish-one-story-in-four-formats)
+chapter shows the full workflow and the responsive manual-layout pattern.
 
 ## 1. Write for a phone, not a slide
 
@@ -136,6 +139,7 @@ native timer, a signature footer, timeline markers, and a final end card:
 
 ```sh
 manic check examples/perfect-reel.manic
+manic check examples/perfect-reel.manic --canvas all
 manic examples/perfect-reel.manic
 
 # Inspect representative phone frames: hook, countdown, and answer hold.
@@ -155,6 +159,8 @@ or captions in an editor.
 
 Before publishing, check:
 
+- Does `manic check your-file.manic --canvas all` pass portrait, feed, square,
+  and landscape? See [Visual checks](creator-visual-checks.md) for fixes.
 - Can the hook be understood during the first beat?
 - Is every important word and the CTA inside the selected safe area?
 - Is there one obvious focal point, with no competing motion?
@@ -168,4 +174,6 @@ Once those pass, keep the same profile, motion, colour, and closing pattern
 across the series. Consistency will make the next Reel both faster to produce
 and easier to recognise.
 
-Next: [Explore every Creator control and format variant →](ex-creator.md)
+Next: [Turn one polished scene into a reactive story →](creator-reactive.md)
+
+Reference: [Explore every Creator control and format variant](ex-creator.md).

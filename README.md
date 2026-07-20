@@ -15,6 +15,11 @@ pulleys, and more), **geometry** (olympiad constructions), and a broad
 hash maps, Dijkstra); the architecture is domain-agnostic so new domains plug in
 without touching the core.
 
+Creator stories can also expose one bounded value and connect several views
+without rebuilding the scene: `parameter(a,...)`,
+`bind(a,curve,formula,"p*x*x")`, then ordinary named `step`s animate only
+`to(a,value,...)`. See [`examples/parameter-journeys.manic`](examples/parameter-journeys.manic).
+
 ```
 title("The Sine Wave");
 canvas(1280, 720);
@@ -36,6 +41,9 @@ cargo run --bin manic -- examples/sine_wave.manic
 
 # parse + report errors, no window
 cargo run --bin manic -- check examples/sine_wave.manic
+
+# publishing audit: settled stages across portrait, feed, square, and landscape
+cargo run --bin manic -- check examples/reactive-multiformat.manic --canvas all
 
 # export one still frame at t = 2.6s
 cargo run --bin manic -- examples/sine_wave.manic --still 2.6
@@ -59,7 +67,7 @@ default is `studio`.
 |---|---|---|
 | `studio` *(default)* | 1080p, 60fps, MP4 | ✅ intro + watermark |
 | `test` | 720p, 30fps, fast | ❌ (for quick checks) |
-| `reel` | vertical, branded — pair with `canvas("9:16")` | ✅ |
+| `reel` | vertical, branded — pair with `canvas("9:16")` or `--canvas portrait` | ✅ |
 
 ```sh
 cargo run --release --bin manic -- examples/hashmap.manic --record out                 # studio (branded)
@@ -82,6 +90,7 @@ clean for iteration). Turn it off with `--no-brand`.
 | `--preset NAME` | render preset: `studio` (default) · `test` · `reel` |
 | `--no-brand` | disable the branding intro + watermark |
 | `--record DIR` | render to `DIR/out.mp4` (ffmpeg pipe; deterministic, fixed timestep) |
+| `--canvas FORMAT` | reframe one responsive source before layout: `portrait` · `4:5` · `square` · `16:9` · `WIDTHxHEIGHT` |
 | `--fps N` | output frame rate (overrides the preset) |
 | `--scale F` | supersampling; `1.5` → true 1080p from a 720p canvas, `2` → 1440p |
 | `--from S --to S` | record only a time range (clips) |
@@ -92,6 +101,25 @@ clean for iteration). Turn it off with `--no-brand`.
 | `--still S` | export one PNG at time `S` and exit |
 
 Flags override the preset — e.g. `--preset studio --gif` records a branded GIF.
+
+`--canvas` is a layout override, not an output-quality preset. It changes the
+logical canvas before `w`, `h`, `cx`, `cy`, and build-time layout branches are
+evaluated, so one responsive story can produce each platform version:
+
+```sh
+manic examples/reactive-multiformat.manic --canvas portrait --record out-reel --preset reel
+manic examples/reactive-multiformat.manic --canvas 4:5     --record out-feed
+manic examples/reactive-multiformat.manic --canvas square  --record out-square
+manic examples/reactive-multiformat.manic --canvas 16:9    --record out-lesson
+```
+
+Before recording every format, run
+`manic check examples/reactive-multiformat.manic --canvas all`. It audits the
+settled state of each named stage for canvas and Creator-safe-area overflow,
+substantial content overlaps, and unreadably small text/notation. Diagnostics
+name the format, stage, time, and entity and return a failing status until the
+layout is clean. Ordinary `manic check` remains the fast parse-and-validation
+path.
 
 Recording also writes `DIR/markers.json` — section and `mark(...)` timestamps
 for lining narration up in an editor.

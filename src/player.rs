@@ -17,6 +17,7 @@
 //! - `--from S --to S` record a time range (clips for social posts)
 //! - `--frames N`      hard frame cap (smoke tests)
 //! - `--still S`       export the single frame at time S as PNG and exit
+//! - `--canvas FORMAT`  handled by the CLI before lowering; reframe responsive source
 //! - `--alpha`         transparent background, no chrome, PNG sequence
 //! - `--png`           force PNG sequence instead of the ffmpeg pipe
 //! - `--gif`           pipe frames into out.gif instead of out.mp4

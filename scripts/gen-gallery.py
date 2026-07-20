@@ -51,6 +51,10 @@ SECTIONS = [
     "The reactive-math gold example: integration by parts stays one continuous equation,\n"
     "then a plot verifies that the antiderivative's slope is the integrand and `+C` is a\n"
     "family of vertical translations. Uses `rewrite`, not hand-positioned formula pieces."),
+   ("reactive-world",
+    "The foundation for creator-reactive stories: five named `step` blocks keep one curve,\n"
+    "equation, tangent, live slope, derivative plot and caption synchronized. Each step is\n"
+    "also exported as a marker for seeking and future multi-format publishing."),
    ("sine_wave", "`axes` + `plot`, a curve traced on, then vectors."),
    ("function_graph", "Plot an expression straight from a formula string."),
    ("area_under_curve", "Riemann rectangles sweeping to the integral."),
@@ -552,6 +556,14 @@ SECTIONS = [
    ("perfect-reel",
     "The gold-path production starter: phone-safe composition, real LaTeX, exact pacing,\n"
     "professional mono styling, creator identity, timeline markers and a focused end card."),
+   ("reactive-multiformat",
+    "One named reactive story rendered as portrait, 4:5 feed, square, or landscape with the\n"
+    "`--canvas` override. Responsive variables and layout branches reflow before construction,\n"
+    "while the same steps, timing, equation continuity and creator identity remain intact."),
+   ("parameter-journeys",
+    "One visible parameter drives a quadratic plot, its live tangent and slope, a geometric\n"
+    "position, scale and a derived numeric readout. Named steps animate only the value; `bind`\n"
+    "keeps every representation continuous and the source reflows across all four formats."),
    ("creator-v2-options-socials",
     "The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D\n"
     "cards, uniform correct-state spacing, and native YouTube/X/web identity lockups."),
@@ -642,6 +654,9 @@ SECTIONS = [
 SUMMARY_PRE = [
  "- [Getting started](getting-started.md)",
  "- [Create a polished Reel](creator-reels.md)",
+ "- [Reactive stories — change the idea, not the scene](creator-reactive.md)",
+ "- [Visual checks — review every format](creator-visual-checks.md)",
+ "- [Parameter journeys — one value, many views](creator-parameters.md)",
  "- [Shapes — the cast](shapes.md)",
  "- [Verbs — bringing it to life](verbs.md)",
  "- [Timing — flow, named phases & clocks](timing.md)",

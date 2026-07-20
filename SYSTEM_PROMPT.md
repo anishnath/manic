@@ -32,7 +32,7 @@ This document is the authoritative spec for generation; follow it exactly.
 
 ```
 title("A Short Title");
-canvas("16:9");            // or "square" / "portrait" / "1080p" / (w, h)
+canvas("16:9");            // or "square" / "portrait" / "4:5" / "1080p" / (w, h)
 
 // --- cast (constructors): declare entities at t = 0 ---
 text(head, (cx, 90), "what this shows");  display(head);  color(head, cyan);  hidden(head);
@@ -43,6 +43,15 @@ show(head, 0.5);
 
 After `canvas`, four variables exist: `w`, `h`, `cx` (=w/2), `cy` (=h/2). Use
 them for placement so the scene is canvas-independent.
+
+When the user wants one story in several formats, keep one source and use the
+CLI override `--canvas portrait|4:5|square|16:9|WIDTHxHEIGHT`. Write positions
+with the responsive variables and use a small build-time `if h > w { ... }
+else { ... }` only when the composition genuinely needs to reflow. Do not copy
+the story timeline into separate format files. Before publishing, run
+`manic check FILE.manic --canvas all`; fix every reported format/stage/entity
+with responsive placement, shorter or wrapped copy, a larger readable size, or
+the correct Creator safe profile.
 
 ## 3. The three statement groups
 
@@ -152,13 +161,15 @@ Constructors and timeline may be written in any order.
 ## 5. Vocabulary
 
 ### Setup / structure
-`title("s")` · `canvas(w,h)` or `canvas("16:9"|"square"|"portrait"|"1080p"|"4k"|"4:3")`
+`title("s")` · `canvas(w,h)` or `canvas("16:9"|"square"|"portrait"|"4:5"|"1080p"|"4k"|"4:3")`
 · `template("mono")` (default when omitted: black-and-white editorial) /
 `"plain"` (original neon, no chrome) / `"terminal"` (neon window chrome) /
 `"paper"` (ink on cream) / `"blueprint"` (white-cyan on navy) /
 `"shorts"` (dark creator studio) — each retints named colours ·
 `masthead("left",["right"])` (optional header text; empty by default) ·
 `section("Title")` · `wait(secs)` / `beat(secs)` · `mark("name")` ·
+`step("name") { ... }` (named reactive world transition: children run together,
+unmentioned entities persist, unique top-level name exported as a marker) ·
 `par { }` (together) · `seq { }` (in order) · `stagger(d) { }` (each d s after previous)
 
 ### Generic Timing v2
@@ -174,6 +185,11 @@ log10 log2 sqrt abs floor ceil round sign`. Id interpolation: `name{expr}`.
 
 ### Constructors (std)
 `text(id,(x,y),"s")` · `counter(id,(x,y),value,[dec],["pre"],["suf"])` ·
+`parameter(id,(x,y),initial,min,max,["label"],[decimals])` creates a visible
+bounded value (readout + track/dot, tagged `{id}.widget`) ·
+`bind(parameter,target,property,"formula")` connects live `p` to `x|y|opacity|scale|angle|hue|value|trace|formula`; a plot formula also has coordinate `x` ·
+`bind(parameter,target,property,from,to)` maps parameter min/max to two output
+endpoints (use responsive `w`/`h` expressions for positions) ·
 `caption(id,"the words",(x,y),[size],[color])` (word row → `{id}.w0…`, tagged bare
 `{id}` + `{id}.words`; `show(id)`/`draw(id)`/`hidden(id)` broadcast over the whole
 caption; or animate with `karaoke(id,[delay],[color])` = highlight in sequence,
@@ -461,6 +477,11 @@ automatically on export (branded presets); branding is not part of the DSL.
 - **Stagger a group in one by one**: `stagger(0.05) { for i in 0..n { show(p{i}); } }`.
 - **Live number**: `counter(t,(x,y),0,2,"total = ","");` then
   `to(t, value, sum(i in 0..n : f(i)), 1.5);`.
+- **Parameter journey**: declare one `parameter`, connect its representations
+  once with `bind`, then use named `step`s containing only
+  `to(parameter,value,case,dur,smooth)`. In binding formulas `p` is the live
+  value; a bound plot formula also has `x`. Keep one primary parameter per short
+  scene and never rebuild each case as a separate world.
 - **Per-item colour**: `hue(p{i}, 360*i/n);`.
 - **Narration**: keep a `text(cap,(cx, h-60),"");` and drive it with
   `say(cap, "...")` between beats.
@@ -549,4 +570,5 @@ automatically on export (branded presets); branding is not part of the DSL.
 - [ ] Simultaneous motion wrapped in `par`.
 - [ ] Only palette colours (or `hue`); no LaTeX; explicit `*` between two names/constants (`xv*sx`, **never** `xvsx` — glued letters = one identifier).
 - [ ] Positions use `cx`/`cy`/`w`/`h` where sensible.
+- [ ] Multi-format creator work passes `manic check FILE.manic --canvas all`.
 - [ ] Output is pure manic source (no prose, no fences unless asked).

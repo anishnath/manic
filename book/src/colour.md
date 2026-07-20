@@ -68,12 +68,16 @@ move(p, (900, 400), 0.8, smooth);   // usually what you want
 `canvas(...)` sets the frame. Give it a preset or explicit pixels:
 
 ```manic
-canvas("16:9");        // 1280x720  (also: 1080p, 4k, square, portrait/9:16, 4:3)
+canvas("16:9");        // 1280x720  (also: 4:5, square, portrait/9:16, 4:3, 1080p, 4k)
 canvas(1280, 720);     // explicit
 ```
 
 `portrait` / `9:16` is 1080×1920 — pair it with the `reel` render preset for
 vertical / social clips.
+
+Use `--canvas portrait|4:5|square|16:9|WIDTHxHEIGHT` to reframe one responsive
+source without changing its `canvas(...)` line. The override is applied before
+`w`, `h`, `cx`, `cy`, and build-time layout branches are evaluated.
 
 ## Templates — the whole look
 

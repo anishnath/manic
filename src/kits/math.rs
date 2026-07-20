@@ -308,7 +308,7 @@ pub(crate) mod expr {
             }
             match id.as_str() {
                 "x" | "t" | "u" => Ok(Node::Var),
-                "y" | "v" => Ok(Node::VarY),
+                "y" | "v" | "p" => Ok(Node::VarY),
                 "pi" => Ok(Node::Num(std::f32::consts::PI)),
                 "e" => Ok(Node::Num(std::f32::consts::E)),
                 "tau" => Ok(Node::Num(std::f32::consts::TAU)),
@@ -316,7 +316,7 @@ pub(crate) mod expr {
                     // `pit` / `vv` / `piu` — adjacent names glued without `*`.
                     // If the name splits cleanly into known ones, suggest it.
                     fn split_glue(id: &str) -> Option<String> {
-                        let names = ["tau", "pi", "x", "y", "t", "u", "v", "e"];
+                        let names = ["tau", "pi", "x", "y", "t", "u", "v", "p", "e"];
                         let mut rest = id;
                         let mut parts = Vec::new();
                         while !rest.is_empty() {
@@ -331,7 +331,7 @@ pub(crate) mod expr {
                             "unknown name `{id}` — did you mean `{s}`? put `*` between names"
                         ),
                         None => format!(
-                            "unknown name `{id}` (use x/y, t, u/v, pi, e, tau, or a function)"
+                            "unknown name `{id}` (use x/y, t, u/v, p, pi, e, tau, or a function)"
                         ),
                     })
                 }
@@ -763,6 +763,7 @@ fn line_view(
     color: Color,
 ) -> Result<(), Error> {
     let id = a.ident(0)?;
+    let source = a.ident(1)?;
     let graph = fetch_graph(s, a, 1, who)?;
     let x = a.num(2)?;
     let half = a.opt_num(3)?.unwrap_or(120.0) * 0.5;
@@ -780,6 +781,7 @@ fn line_view(
     let mut e = Entity::new(id.clone(), Shape::Line { to: head }, pos, color);
     e.stroke.width = 3.0;
     e.graph_view = Some(gv);
+    e.graph_source = Some(source);
     e.tags.push(id);
     s.add(e);
     Ok(())
@@ -805,6 +807,7 @@ fn c_normal(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// Animate `to(id, x, target, dur)` and the readout climbs/falls with the curve.
 fn c_slope(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
+    let source = a.ident(1)?;
     let graph = fetch_graph(s, a, 1, "slope")?;
     let x = a.num(2)?;
     let off = a.pair(3).unwrap_or(Vec2::new(16.0, -20.0));
@@ -828,6 +831,7 @@ fn c_slope(s: &mut Scene, a: &Args) -> Result<(), Error> {
     e.font = FontKind::MonoBold;
     e.counter = Some(counter);
     e.graph_view = Some(gv);
+    e.graph_source = Some(source);
     e.tags.push(id);
     s.add(e);
     Ok(())
@@ -839,6 +843,7 @@ fn c_slope(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// `area` sweep — and the number climbs to the true integral.
 fn c_integral(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
+    let source = a.ident(1)?;
     let graph = fetch_graph(s, a, 1, "integral")?;
     let av = a.num(2)?;
     let bv = a.num(3)?;
@@ -871,6 +876,7 @@ fn c_integral(s: &mut Scene, a: &Args) -> Result<(), Error> {
     e.font = FontKind::MonoBold;
     e.counter = Some(counter);
     e.graph_view = Some(gv);
+    e.graph_source = Some(source);
     e.tags.push(id);
     s.add(e);
     Ok(())
@@ -882,6 +888,7 @@ fn c_integral(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// collapsed (`area(r, f, 1, 1)`) and animate the right bound: `to(r, x, 4, 3)`.
 fn c_area(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
+    let source = a.ident(1)?;
     let graph = fetch_graph(s, a, 1, "area")?;
     let av = a.num(2)?;
     let bv = a.num(3)?;
@@ -897,6 +904,7 @@ fn c_area(s: &mut Scene, a: &Args) -> Result<(), Error> {
     e.opacity = 0.30;
     e.stroke.fill = true;
     e.graph_view = Some(gv);
+    e.graph_source = Some(source);
     e.tags.push(id);
     s.add(e);
     Ok(())
@@ -1066,6 +1074,7 @@ fn c_taylor(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// removable hole, e.g. `sin(x)/x` at 0).
 fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
+    let source = a.ident(1)?;
     let g = fetch_graph(s, a, 1, "limit")?;
     let at = a.num(2)?;
     let color = if a.len() > 3 {
@@ -1181,6 +1190,7 @@ fn c_limit(s: &mut Scene, a: &Args) -> Result<(), Error> {
         graph: g,
         x: start,
     });
+    dot.graph_source = Some(source);
     dot.tags.push(id);
     s.add(dot);
     Ok(())
