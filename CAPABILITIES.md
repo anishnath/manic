@@ -6,9 +6,22 @@ Asymptote example corpus (520 `.asy` files: 117 `geometry/`, ~197
 `grid3`, plus generative folders) and the Manim references. Usage counts below
 are occurrences across the `geometry/` samples.
 
+Status vocabulary used throughout this ledger:
+
+- **✅ Shipped** — implemented, documented, tested, and represented by an example.
+- **🟡 Foundation** — useful production surface exists, with explicitly listed
+  layers still open.
+- **⬜ Future** — accepted gap, not yet scheduled or promised as vocabulary.
+- **🅿️ Parked** — deliberately deferred because correctness, scope, or teaching
+  cost currently outweighs creator value.
+
+The creator roadmap and the **Active work queue** below are authoritative.
+Detailed benchmark/domain sections retain evidence and design context; they do
+not create a second competing roadmap.
+
 ## Creator-first roadmap — priority order
 
-These are the next five product directions, ordered by dependency and creator
+These are the five priority product directions, ordered by dependency and creator
 leverage. They are deliberately generic: each should strengthen every subject
 without adding a separate vocabulary for algebra, chemistry, biology, physics,
 or social video.
@@ -16,16 +29,16 @@ or social video.
 1. **Reactive worlds.** Declare a visual world once, then describe the next
    state of several existing entities together. Unmentioned entities persist;
    equations, plots, diagrams, labels, values, and the camera change in one
-   continuous beat. **Foundation shipped ✅ (2026-07):** a named `step("name") { ... }`
+   continuous beat. **🟡 Foundation (2026-07):** a named `step("name") { ... }`
    block coordinates ordinary verbs in parallel and exports its start as a
    marker, while `rewrite` remains the structured equation transition. Empty,
    duplicate, and nested names fail clearly; stateless seeking and ordinary
    non-step timelines remain unchanged. See `examples/reactive-world.manic`.
 2. **Named story stages.** Make `question → intuition → experiment → proof →
    takeaway` first-class project structure. Stages must be readable in source,
-   seekable in preview, and reusable by recording/publishing tools. **Shipped ✅
-   (2026-07):** `step("name") { ... }` remains the only authoring vocabulary,
-   while its metadata is promoted throughout the workflow:
+   seekable in preview, and reusable by recording/publishing tools. **✅ Engine
+   and CLI shipped (2026-07):** `step("name") { ... }` remains the only authoring
+   vocabulary, while its metadata is promoted throughout the workflow:
    `manic stages FILE.manic` reports start/end/duration, `--stage NAME` previews
    or records exactly one stage, and inclusive `--from-stage` / `--to-stage`
    ranges export story slices. Live preview starts and restarts at the selected
@@ -33,9 +46,13 @@ or social video.
    and uses number keys for direct stage jumps. Recording metadata is filtered,
    clipped, and shifted to the selected source range while retaining original
    `source_t` positions. No duplicate scene or timestamp DSL is introduced.
+   **🟡 Production integration remains:** expose the same stage manifest and
+   optional selection through a public runtime/backend request API so browser
+   users never need CLI flags. A file-only run already shows the stage strip and
+   plays the complete story.
 3. **One story, multiple formats.** Reframe the same semantic stages for Reels,
    Shorts, landscape lessons, square posts, slides, thumbnails, and stills—same
-   content identity, format-specific layout and pacing. **Foundation shipped ✅
+   content identity, format-specific layout and pacing. **🟡 Foundation
    (2026-07):** `--canvas portrait|4:5|square|16:9|WIDTHxHEIGHT` overrides the
    logical canvas before expansion, so `w`/`h`/`cx`/`cy`, macros, and build-time
    layout branches reflow one source while named `step` markers and timing stay
@@ -44,7 +61,7 @@ or social video.
 4. **Visual correctness checks.** Detect unsafe-region overflow, overlaps,
    detached labels/links, unreadably fast changes, and equation/plot mismatches
    before publishing. Diagnostics should explain the problem and point to the
-   responsible stage/entity. **Foundation shipped ✅ (2026-07):**
+   responsible stage/entity. **🟡 Foundation (2026-07):**
    `manic check FILE.manic --canvas all` rebuilds portrait, 4:5 feed, square,
    and 16:9 landscape, then audits the settled state of every named stage for
    canvas overflow, Creator safe-area overflow, substantial content overlap,
@@ -54,7 +71,7 @@ or social video.
    camera/3D bounds, and equation/plot semantic agreement remain future layers.
 5. **Parameter journeys.** Let creators expose meaningful parameters and animate
    a family of cases—quadratic coefficients, damping, sample size, equilibrium,
-   geometry inputs—without duplicating the story. **Shipped ✅
+   geometry inputs—without duplicating the story. **✅ Core shipped
    (2026-07):** `parameter(id,(x,y),initial,min,max,[label],[decimals])` creates
    a visible bounded control, while `bind(parameter,target,property,...)` maps
    it either through responsive numeric endpoints or a formula in live `p`.
@@ -68,6 +85,21 @@ or social video.
    audits. Expensive build-time constructor changes (re-simulating a physics
    system or changing generated object count) and live measured-geometry
    bindings remain future extensions rather than hidden magic.
+
+### Active work queue
+
+This is the single current priority list. Work below it is reference backlog,
+not an instruction to implement everything.
+
+| Priority | Status | Work | Creator value |
+|---|---|---|---|
+| P0 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
+| P1 | 🟡 | **Visual audit layers** — transition-path collisions, detached dynamic links, reading speed, camera/3D bounds, and equation/plot semantic agreement. | Prevents bad exports, not merely bad settled frames. |
+| P1 | 🟡 | **Multi-format composition** — reusable layout policies, format-specific pacing, thumbnail/still framing, and UI-controlled output variants. | Turns one semantic story into a dependable publishing system. |
+| P2 | ⬜ | **General bounds + relative placement** — reusable entity/group bounding boxes, framing, edge origins, and `next_to`-style layout. | Removes manual coordinates and unlocks reliable automatic composition. |
+| P2 | ⬜ | **Live geometry measurements** — bind derived lengths, angles, positions, and areas into counters/labels. | Makes olympiad, engineering, and interactive diagrams numerically truthful. |
+| P2 | ⬜ | **Move along path + nonlinear remapping** — let arbitrary entities follow existing paths; later deform grids/curves through a general map. | Covers orbit, tracing, winding, signal flow, and advanced transformation stories with small vocabulary. |
+| P3 | ⬜ | **Typography/look extensions** — selectable bundled fonts, then an optional chalkboard/sketch renderer. | Broadens creator identity without changing story semantics. |
 
 ### Future creator support
 
@@ -223,19 +255,17 @@ stretches via the `To` prop), `Polygon`, `Polyline`, `Arc`
 - **Projected labels** — `pin3(label, point3 | entity3)` binds an existing 2D
   `text`/`label` to a 3D position; a world→screen projection reprojects it every
   frame, so the label stays glued as the camera orbits (or the target entity
-  moves). This is the reusable hook behind future ticked/numbered 3D axes.
+  moves). The same hook powers the shipped ticked/numbered `axes3` labels.
 - **Reference** — `examples/three_d.manic` exercises the camera, depth,
   primitives, axes, transforms, a pinned label, and hybrid 2D/3D composition.
 
-## Gaps
+## Coverage audit and remaining gaps
 
-### Implemented on `codex/generic-motion-vocabulary` — compact generic motion
+### Compact generic motion — shipped ✅
 
-The `codex/generic-motion-vocabulary` branch closes a creator-facing gap exposed
-by the Zeroth-Law reference animation: manic can already render the result, but
-authors currently have to hand-place and hand-animate dozens of dots and fake
-motion along curved connections. That violates the product goal of a small,
-readable language for non-programmers.
+The generic-motion slice closes a creator-facing gap exposed by the Zeroth-Law
+reference animation: authors no longer have to hand-place dozens of dots or fake
+motion along curved connections. The vocabulary stays domain-neutral and small.
 
 This slice deliberately adds only three domain-neutral words and exposes one
 existing engine concept:
@@ -274,7 +304,7 @@ system with emitters, forces, collisions, or dozens of knobs. Further
 3Blue1Brown-derived work must clear the same gate: recur across several lessons,
 replace substantial manual scripting, and remain teachable in one sentence.
 
-The first implementation keeps the containment promise exact: circles and
+The shipped implementation keeps the containment promise exact: circles and
 rectangles are convex, so both the sampled positions and every tween between
 them stay inside. Concave-region path planning, collisions, emitters, forces,
 and physics remain intentionally outside this small primitive. Dedicated tests
@@ -409,7 +439,7 @@ equation terms keep their colors, unchanged algebra pieces retain identity
 while only the rewritten terms animate, the explicit Manic watermark persists,
 and the final curve/formula agree.
 
-### Geometry (olympiad) — largely covered now
+### Geometry (olympiad) — 🟡 Foundation
 Done (all **dynamic** unless noted): `meet` (line∩line), **`linecircle`**
 (line∩circle), **`circlecircle`** (circle∩circle) — the last two output two
 points `{id}0/1`; **`tangent`** (two touch-points from an external point); **`commontangent`**
@@ -426,7 +456,6 @@ on them so the radius stays dynamic. Examples `examples/tangents.manic`.
 **Conics complete:** `ellipse`, `parabola` (vertex + width/height), `hyperbola`
 (two branches `{id}.r`/`{id}.l`) — see `examples/conics.manic`.
 Still missing (minor):
-- **Rotate a whole construction** at once (you can `rotpoint` each vertex).
 - **Point-on-curve by arc-length** (`between` covers relative position on a
   segment; arc-length along an arbitrary path is not done).
 - Foci/directrix as *constructed* elements of a conic (the conics are drawn
@@ -436,28 +465,31 @@ Still missing (minor):
   `counter` readout + `value` track cover *animated* / computed numbers; what's
   still missing is binding one to a *live geometry measurement* (a length that
   updates as a vertex is dragged) — would wire the `derive` hook into a counter.
+Whole tagged constructions already rotate through `transform(group, origin,
+a,b,c,d,...)` with a rotation matrix; no geometry-specific verb is needed.
 
-### Graphing (math) — partial
+### Graphing (math) — 🟡 Foundation
 - Expression plots DONE — `plot` takes a formula string in `x`/`t`
   (`"cos(x) + 0.5*cos(7*x)"`, arithmetic + ~20 functions), manic's
-  `FunctionGraph`. (`arrowfield` still takes named fields only — its lambda
-  would want the same evaluator extended to two variables.)
+  `FunctionGraph`. `arrowfield` still deliberately takes a small set of named
+  vector fields; an authored two-component field expression remains future.
 - `plot` range may be a scalar `domain` (symmetric) or an explicit `(x0, x1)`
   pair (one-sided) — `plot(g,(cx,cy),200,52,"x*x",(0,2.5))`.
 - Coordinate frames done: `axes` (ticks + integer labels), `plane`/
   `numberplane`, `complexplane`, `polarplane`, plus foundational `axes3` and
-  `grid3`. Still missing: custom tick-label values / non-integer steps,
-  per-axis limits, multiple styled axes, and labelled/ticked 3D axes.
-- **Area under a curve** works today via Riemann rectangles (`rect` bars under
-  a `plot`) — see `examples/area_under_curve.manic` (midpoint sum converging to
-  the integral). No smooth `Region`-based fill of the exact area yet, and — with
-  no loops — the bars must be enumerated (that example is generated). No
-  legends or data/scatter plots.
+  `grid3`. `axes3` already ships projected tick labels. Still missing: custom
+  2-D tick-label values/non-integer steps, per-axis limits, and multiple styled
+  axes in one constructor.
+- **Area under a curve** ships both as the generic filled `area` graph view and
+  as authored Riemann rectangles; `for` loops generate the converging bars in
+  `examples/area_under_curve.manic`. Generic legends and an author-facing
+  scatter/data-series constructor remain open (the stats kit has specialized
+  scatter views such as `correlation`).
 - Vector fields: `arrowfield` done; **`StreamLines`** (flowing-agent traces)
   not done — needs a flow simulation + the animation flow (a good fit for a
   future updater-driven feature).
 
-### Transforms / morphing (Manim `Transform` family)
+### Transforms / morphing — ✅ Shipped core
 Two kinds: **property** transforms (position, endpoint, colour, scale, rotation,
 opacity, trace, hue, value) — all covered; and **geometry** transforms — a
 linear map of space (`transform`), outline shape-morph (`morph`, with winding),
@@ -508,7 +540,7 @@ and entity `copy` — now covered too. Essentially the whole family; only
 - **Known `morph` limits:** naive index correspondence (mismatched topologies /
   holes can twist), and it can't morph *filled* regions or text glyphs.
 
-### Creation / reveal (Manim `Creation` family)
+### Creation / reveal — 🟡 Foundation
 Built on manic's `trace` property (draw-on for strokes = fraction of path/
 outline traced with fills fading in; for text = typewriter char count).
 
@@ -541,7 +573,7 @@ outline traced with fills fading in; for text = typewriter char count).
     follows a curve) + the entrance/initial-state machinery (the Growing
     `growin`/`popin` cheap win). Fakeable today by loop-placing offsets + `move`.
 
-### Growing (Manim `Growing` family)
+### Growing — 🟡 Composable foundation
 manic can animate `scale`, `spin`, and the line/arrow endpoint (`grow`), but has
 no modifier to set an *initial* scale and no bounding box — so "appear by growing
 out of nothing" and edge/point origins are scriptable rather than one call.
@@ -810,16 +842,18 @@ evaluator can reach the scene.
     (`x² + 2x + 1`, stacked fractions). ASCII (`x^2 + 2*x + 1`) undercuts the
     teaching benefit for the non-programmer audience.
 
-**LaTeX / math typesetting — Phase 1 SHIPPED ✅ (2026-07), on [RaTeX](https://github.com/erweixin/RaTeX), a CORE capability for ALL kits.**
+**LaTeX / math typesetting — shipped ✅ (2026-07), on [RaTeX](https://github.com/erweixin/RaTeX), a core capability for all kits.**
 `equation(id,(x,y),`latex`,[size])` typesets KaTeX-grade LaTeX (fractions, roots,
 exponents, Greek, big operators) as a white-on-transparent PNG (RaTeX `embed-fonts`
 → self-contained binary, no font install), drawn via `Shape::Image { tint: true }`
 so it takes the template colour and `color`/`recolor` work. LaTeX goes in **backtick
 raw strings** (new lexer literal `` `...` ``) so `\frac`/`\theta`/`\neq` survive.
-Verified by render (`examples/equation.manic`); 177 tests. Remaining: Phase 2
-(DisplayList → native manic glyph/rule entities for draw-on animation + vector
-scaling), then migrate kit ASCII labels and drop the old "No LaTeX" gotcha (done in
-SYSTEM_PROMPT). Original decision + survey below.
+Display equations, inline `$...$` math, mixed text/math, semantic token colours,
+and item-matched equation rewrites all ship. Equations are rasterized at output
+scale, so ordinary `draw`/`fade`/`move`/`scale`/`recolor` animation remains crisp
+at the target resolution. Native vector glyph/rule entities are an optional future
+extension for calligraphic stroke-level draw-on, not a blocker for production use.
+The original renderer decision is recorded below.
 
 **Decision detail — adopt RaTeX, a CORE capability for ALL kits (not just creator):**
 Every kit currently emits ASCII math (`x^2`, `pi*r^2*h`, `3600/47`, geo labels) — it
@@ -830,8 +864,9 @@ Typst is overkill. **RaTeX** is pure-Rust, MIT, KaTeX-grade (>99.5% coverage), a
 decomposed into `ratex-parser → ratex-layout → DisplayList → ratex-render`.
 **Spike-validated** (2026-07, in-repo throwaway): the pipeline fetches, builds, and
 renders textbook-quality output here (quadratic formula, Σ with limits, √ vinculum,
-π/∠/°). Fonts = 20 KaTeX TTFs, 540 KB, MIT — bundle via `include_bytes!`. Plan:
-- **Phase 1 (fast):** `ratex-render` PNG → an `equation(id,(x,y),"latex",[size])`
+π/∠/°). Fonts = 20 KaTeX TTFs, 540 KB, MIT — bundle via `include_bytes!`.
+Implementation record:
+- **Phase 1 ✅:** `ratex-render` PNG → an `equation(id,(x,y),"latex",[size])`
   builtin using manic's existing `Shape::Image`. Full coverage immediately; bitmaps
   (fade/scale/move). Includes (both REQUIRED for Phase 1 to render at all):
   - **Bundle the fonts INTO the binary** — `include_bytes!` the 20 KaTeX TTFs
@@ -842,32 +877,31 @@ renders textbook-quality output here (quadratic formula, Σ with limits, √ vin
     Self-contained across EC2 headless, both Linux cross-builds, and WASM.
   - Render transparent-bg + template-fg colour (recolour DisplayList items; default
     is black-on-white).
-- **Phase 2 (native, the manic way):** consume the `DisplayList` → emit manic glyph +
-  rule entities (bundled KaTeX fonts) → equations become first-class, theme-coloured,
-  **drawn-on stroke by stroke**. Same layout, native rendering.
-- **Bonus:** `ratex-wasm` gives the SAME engine in the playground editor → preview
-  matches the render exactly.
-Once shipped, retire the "No LaTeX" gotcha and migrate kit equation labels off ASCII.
+- **Inline and mixed notation ✅:** `$...$` spans render inside ordinary text, with
+  baseline-aware layout and semantic colouring.
+- **Reactive rewrites ✅:** matched equation items persist while only changed terms
+  enter, leave, or move; unmatched/full-form fallback remains available.
+- **Future ⬜:** consume the `DisplayList` as native manic glyph + rule entities for
+  vector scaling and calligraphic stroke-level draw-on. A matching browser preview
+  may use the same RaTeX pipeline when a renderer is added to the editor.
 - **Probability and statistics** — ✅ *shipped* — deterministic (seeded) sampling,
   distributions, regression, histograms, and confidence intervals broadened the
   engine into data and algorithm explainers while retaining reproducible recordings.
 
-Recommended order: **robust predicates/root finding → linear algebra →
-calculus/numerical methods → constraints/optimisation → symbolic algebra**.
 *Status (2026-07):* root-finding, **calculus/numerical methods**, **linear algebra**
 (2D Tiers 1–3 + the core 3D forms), and **statistics & probability** (Tiers 1–5)
-are all **shipped** — we took calculus ahead of linear algebra, then added the
-stats rung. **The active next rung is constraints/optimisation** (then symbolic
-algebra); the robust-predicates/numerical-geometry work remains valuable
-groundwork underneath both. Each layer should expose computed values to the
-existing timeline, counters, plots, geometry, and 3D scene rather than becoming
-a separate math subsystem.
+ship. Constraints/optimisation and robust numerical geometry remain accepted
+future math work; symbolic algebra stays parked because of its much larger
+correctness and product scope. These domain items do not outrank the creator
+queue above. Any later layer should expose computed values to the existing
+timeline, counters, plots, geometry, and 3D scene instead of becoming a separate
+math subsystem.
 Typography is complementary but separate: LaTeX makes mathematics readable;
 the capabilities above make it behave correctly.
 
-### Physics — a new domain (in progress) 🚧
+### Physics — mechanics and waves shipped; advanced domains future
 
-Physics is the natural **next domain** (alongside `algo` and the math family — see
+Physics is a major shipped domain (alongside `algo` and the math family — see
 manic's "domain-agnostic core + pluggable kits" thesis), and it is exceptionally
 well-timed: physics *is* applied calculus, and the calculus/ODE substrate already
 ships. **Unifying idea:** a system **evolves under forces/rules**; show the motion
@@ -910,15 +944,15 @@ physics videos).
 | phase / time views | `plot` (x(t), v(t), E(t), phase portrait) | reuse |
 | `worldRect` | plot-style screen mapping (pixels-per-metre) | reuse |
 
-**Open decisions:**
+**Design boundaries:**
 - **World units** — physics has real units (m, s, kg); needs a world→screen scale
   like `plot`'s mapping. `worldRect` in every sim already supplies it. Small.
-- **One kit or several** — start with a single `physics` kit (like `stats`), split
-  by category later (mechanics / E&M / waves) if it grows.
-- **Sim spec in-engine vs authored** — likely a declarative sim registry in the kit
-  (mirroring the JS specs), with the author choosing which to stage + how to pace it.
+- **One kit or several** — the shipped mechanics/waves simulations use one
+  `physics` kit; genuinely different later domains may split out.
+- **Sim spec in-engine vs authored** — the shipped simple interface is a named
+  simulation registry. A general authored-system layer remains future.
 
-**SHIPPED so far (35 sims):**
+**Shipped inventory (34 named simulations):**
 - **Pendulum family ✅ COMPLETE:** pendulum, double-pendulum⭐, spring-pendulum,
   kapitza, cart-pendulum, compare-pendulum.
 - **Spring family ✅ COMPLETE:** spring, vertical-spring, spring-incline, bungee,
@@ -932,14 +966,14 @@ physics videos).
   **loop-track** (ramp → vertical loop-the-loop — the curved-track solver).
 - **Other mechanics:** piston, molecule, robot-arm, drop-mass, raft-cm,
   brachistochrone.
-- **Collisions ✅ (started):** a shared 1-D impulse resolver `collide_1d` (elastic/inelastic, restitution e), event-driven; **newtons-cradle**, **collide-blocks** (elastic/inelastic + walls), **bullet-block** (embed) all ship on it. Remaining: billiards (needs a 2-D impulse extension).
+- **Collisions ✅ (1-D core):** a shared impulse resolver `collide_1d` (elastic/inelastic, restitution e), event-driven; **newtons-cradle**, **collide-blocks** (elastic/inelastic + walls), **bullet-block** (embed) all ship on it. Remaining: billiards (needs a 2-D impulse extension).
 - **Waves ✅:** string-wave (the discretised wave equation — N masses on springs,
   fixed ends; a plucked pulse travels and reflects).
 All on the one `Sim` trait + n-dim RK4 + the four generic views (plus the
 build-time energy/kinematic solvers for the event/curved-track cases). Textbook
 rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
 
-**⬜ TODO — physics sims not yet built (deferred, pick up later):**
+**⬜ Deferred physics domains/simulations:**
 - ⬜ **cart-pole** — needs a balancing controller (LQR/PD gains to tune).
 - ⬜ **quadrotor** — 13-var control system.
 - ⬜ **billiards** — 2-D collision; needs a 2-D impulse extension of `collide_1d`.
@@ -967,16 +1001,16 @@ rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
   `circuit/` MNA simulator + `pycharge/` relativistic-EM subsystems — their own
   future domains, **not** RK4 point-mechanics.
 
-**Why now:** it is mostly *reuse* (integrator generalization + drawables that exist)
+**Why it fit:** it is mostly *reuse* (integrator generalization + drawables that exist)
 sitting on a *ready, tuned* physics corpus; the double pendulum alone is a
 standout demo; and it visibly *depends on* the shipped calculus/ODE core — the same
 "the diagram is true, not drawn" thesis, applied to motion.
 
-#### Design — "adapt, simulate, connect"
+#### Architecture — "adapt, simulate, connect"
 
 **Unifying model:** *a simulation = named state + their time-derivatives + a map
-from state → drawables — all expressed with the formula strings manic already
-evaluates.* That single model gives two layers of ease and three integration seams.
+from state → drawables.* The shipped named-simulation layer supplies the simple
+surface today; a formula-authored builder remains a possible future layer.
 
 **Layer 1 — named sims (adapt-by-tweaking), for everyone.** The ~20 goldmine RK4
 sims ship as named builtins; a non-programmer picks one and changes numbers/presets
@@ -986,8 +1020,9 @@ pendulum(p, center, length: 2, gravity: 9.81, angle0: 60);
 draw(p);   // an ordinary entity → animate on the timeline
 ```
 
-**Layer 2 — the system builder (author-your-own), for the creative user.** The same
-pendulum from its equations — you write the *math*, not the plumbing:
+**Future Layer 2 — a system builder (author-your-own).** This conceptual surface
+would express the same pendulum from equations—the author writes the math, not
+the plumbing. It is design context, not currently accepted DSL:
 ```
 system(s, center, scale: 120);
 state(s, "theta", 60);  state(s, "omega", 0);
@@ -1010,53 +1045,27 @@ simulate(s, 12);                           // pre-integrate 12 s (RK4, determini
    portrait via the `trajectory` plotter; damped spring → `leastsquares` the decay
    envelope; orbit → swept `area` = Kepler's 2nd law. One file, two kits, no glue.
 
-**Adaptation ladder (why it's "easy"):** 1. tweak a preset/param → 2. restyle / add
-a trail or force arrows → 3. override one equation of a built-in → 4. author a new
-system from `state`+`flow`. Rung 1 needs no physics.
+**Adaptation ladder:** today authors can tweak a preset/parameter, restyle it, and
+add trails, views, or force arrows. Equation overrides and a general
+`state`+`flow` system remain future possibilities. The first rung needs no physics
+knowledge.
 
-**Scope decisions (agreed):** ship **named sims + a minimal builder** in v1; builder
-surface = `state`/`flow`/`body`/`rod`/`vector`/`energy`/`simulate` (collisions /
-constraints later); **one `physics` kit** (split by category only if it grows);
-**pendulum is the flagship** (cleanest teaching arc), double-pendulum the wow demo.
+**Scope status:** the named-simulation layer, n-dimensional deterministic RK4,
+generic playback data, and reusable phase/well/time/energy views ship. The
+pendulum remains the flagship and the double pendulum the chaos demo. A general
+author-defined `state`/`flow` system builder was explored but is not part of the
+current DSL; it should be added only when a creator use case justifies that extra
+vocabulary.
 
-#### What needs to be done (ordered)
+#### Remaining physics work
 
-1. ✅ **Generalize RK4 → n-dim** — `src/ode.rs`: generic `rk4_step`/`euler_step`,
-   `integrate` (every step) and `integrate_sampled` (**substep control** — sim at a
-   fine `dt`, emit at frame resolution) over an n-vector state with an
-   `eval(state, deriv)` closure (modeled on the well-tested `core/solver.js`).
-   Reused scratch (no per-step alloc); stops on non-finite. **Time-dependent
-   forcing** supported via the clock-variable trick (`d[TIME]=1`) — driven/damped
-   systems just carry time in the state. Unit-tested against analytic truth (exp
-   decay = e⁻ᵗ; SHO tracks cos/−sin + conserves energy; driven `y'=cos(t)`⇒sin;
-   convergence order as `dt` halves; **determinism**; sampled/substep consistency;
-   blow-up stops early). The 2-var `rk4_path` (trajectory) now delegates to it — the
-   n = 2 special case (dedup + validation). 8 tests; 116 engine tests green, no
-   regression.
-2. **Extend the formula evaluator to named variables** — today `expr::Node::eval`
-   is 2-var (`x`,`y`); physics needs evaluation over an arbitrary named-state env
-   (`theta`,`omega`,…, plus `let` params). This is what lets `flow`/`body` take
-   formula strings.
-3. **Sim-container entity + `time` playback param** — holds the sampled tracks and
-   a playback cursor (mirror `plot`'s `PlotX` / `trajectory`'s pre-integration), so
-   `to(s, time, …)` drives every bound body/vector/plot.
-4. **Shared world-units mapping with `plot`** — the math↔physics seam (pixels-per-
-   metre == `GraphView`).
-5. 🚧 **Named-sim registry** — transcribe the goldmine specs
-   (`evaluate`/`energy`/`trailPoint`/`vectors`/`worldRect`/`presets`) into the kit.
-   *Started:* `src/kits/physics.rs` has the declarative **`Sim` trait**
-   (`state0`/`deriv`/`energy`/`body`) + `simulate()` (bridges to `crate::ode`) +
-   the first sim **`Pendulum`** (simple/damped/driven, clock-variable time),
-   physics-checked (reproduces 2π√(L/g); conserves energy undamped; damping bleeds
-   it) — 3 tests. No builtin registered yet. NB: Layer-1 named sims are Rust
-   closures, so task ② (formula evaluator) is **not** needed for them — only for
-   the Layer-2 builder.
-6. **Builder builtins** — `system`/`state`/`flow`/`body`/`rod`/`vector`/`energy`/
-   `simulate` in a new `src/kits/physics.rs`.
-7. **Math-seam demos + examples + a lesson** (pendulum flagship; the combo demos).
-8. **Checklist wiring per builtin** — catalog + LANGUAGE + SYSTEM_PROMPT +
-   CAPABILITIES + tests + example + WASM rebuild + UI snapshot (the builtin
-   checklist).
+- ⬜ Share a first-class world-units/coordinate mapping with `plot`, so a
+  simulation and its mathematical graph can inhabit exactly the same frame.
+- ⬜ Add 2-D collision impulses before the deferred billiards simulation.
+- ⬜ Treat E&M, thermodynamics, fluids, controls, and circuit simulation as
+  separate domain increments rather than expanding point mechanics indefinitely.
+- ⬜ Consider an authored `system` builder later; named sims remain the simple,
+  non-programmer-first interface today.
 
 **Layer-1 status — the pendulum swings end-to-end.** ✅ The first named sim is
 *shipped* as two builtins: **`pendulum(id,(cx,cy),[length],[angle0],[unit],
@@ -1073,9 +1082,9 @@ bars `{id}.ke`/`{id}.pe` (cyan/magenta, normalised to initial total energy so a
 damped swing visibly bleeds energy) with labels, tagged `{id}.overlays`. **Args
 are minimal-required:** only `id` is mandatory — `center` (default `(640,200)`),
 `length`, `angle0`, `unit`, `damping` all default, so `pendulum(p); swing(p)`
-works. `examples/pendulum.manic` renders deterministically. Registered,
-catalog-matched, arity-audited, editor-checked; 124 engine + 36 manic-lang tests
-green; WASM rebuilt+copied; docs synced.
+works. `examples/pendulum.manic` renders deterministically. The surface is
+registered, catalog-matched, arity-audited, editor-checked, and covered by the
+workspace regression suite; docs are synced.
 **Generic view layer shipped.** A sim's ctor now stores a reusable `SimData`
 (raw state trajectory + `(KE,PE)` per frame + `dt` + var labels + phase/pos-var
 metadata + a sampled well curve; in `scene.rs`), and **opt-in view builtins read
@@ -1114,15 +1123,14 @@ opts out of a view just by leaving its metadata empty). `examples/double-pendulu
 `springincline`, `bungee` (one-sided cord), `resonance` (driven), `doublespring`
 (coupled/beating), `seriesparallel` (series vs parallel), `carsuspension`
 (quarter-car on a scrolling road) — springs drawn with the real stretching `Coil`
-primitive. **13 sims total**; each is ~a struct + a ctor; all inherit the four
-views where they apply (driven/4-D/multi-body sims skip `well`; multi-body sims
-skip the single-body overlays and compute their energy series inline). ~17 physics
-examples in the gallery. **Remaining Layer-1 polish:** a shared world→screen map
-with `plot` (so a sim + a graph share coordinates). A dedicated time-indexed
-playback `Prop` stays a future optimization if the per-frame track chain proves
-heavy.
+primitive. The complete shipped inventory is maintained above; each simulation is
+roughly a struct plus a constructor and inherits the generic views where applicable.
+Driven, higher-dimensional, and multi-body simulations opt out of views that do
+not fit. A shared world→screen map with `plot` remains the meaningful Layer-1
+polish item. A dedicated time-indexed playback `Prop` is only a future optimization
+if the current per-frame track chain proves heavy.
 
-### Optics — a new kit (planned) 🚧
+### Optics — shipped ✅
 
 **The theme is manic, not lens design.** The goldmine
 (`crypto-tool/src/main/webapp/physics/js/optical-designer-{model,trace,render}.js`)
@@ -1155,7 +1163,7 @@ precedent as the physics `run`.
 - `src/kits/optics/builtins.rs` — the author-facing ctors (`refract`/`lens`/`prism`/
   `achromat`), each emitting entities + a sweep playback track.
 
-**Builtins — first milestone (through dispersion):**
+**Core builtins:**
 | builtin | non-programmer's mental model | physics underneath |
 |---|---|---|
 | `refract(id,[n1],[n2],[angle])` | "a light ray bends crossing into glass/water" | 2-D Snell + TIR cutoff; sweep `angle` → watch TIR switch on |
@@ -1167,7 +1175,7 @@ precedent as the physics `run`.
 A small named **glass catalog** (`bk7`, `sf11`, `f2`, `water`, `diamond`, …) selects
 Sellmeier coefficients by name, so authors never touch numbers.
 
-**Tiers (build one at a time):**
+**Implementation tiers:**
 - **T1 · foundations:** ✅ **`refract`** (Snell + TIR sweep — the modular kit
   `src/kits/optics/{mod,trace,builtins}.rs`; sweeps the incidence angle via a
   `SimData` playback replayed by `run`; `examples/refraction.manic`), ✅ **`lens`**
@@ -1219,7 +1227,7 @@ Sellmeier coefficients by name, so authors never touch numbers.
   a point for the doublet, RMS read-out + ideal-point marker; `examples/spot-diagram.manic`).
   Both share `optics::builtins::analyze_preset` (rotationally-symmetric on-axis
   transverse-aberration trace) and scale to the singlet so the correction reads.
-  ⬜ off-axis field points (coma/astigmatism) + Airy-disk overlay still open.
+  Off-axis field points and the Airy-disk overlay ship through `fieldspot` above.
 
 **Why it fits:** a beautiful, genuinely-physical domain (the rainbow is *earned* by
 `n(λ)`, the focus is *earned* by Snell), tiny author surface, and it reuses every
@@ -1284,7 +1292,7 @@ and together make 3D genuinely usable for explainers; #3 brings the `graph3`
 corpus within reach off the existing `plot` sampler. #4/#5 are the orthogonal
 "real 3D engine" work — big, and only needed once the legible-diagram cases land.
 
-### Generative / repetitive — loops + variables + arithmetic DONE
+### Generative / repetitive — ✅ Shipped
 manic now has a computation layer, evaluated before the scene is built:
 - **`let name = expr;`** numeric variables;
 - **arithmetic** (`+ - * / ^`, unary `-`, parens, `pi`/`e`/`tau`, ~20 functions)
@@ -1312,54 +1320,40 @@ moving entity's actual length/angle). General authored scalar binding now ships
 through `parameter` + `bind`; measurement needs the `derive` hook to feed a
 counter from geometry rather than from an authored parameter.
 
-### Typography
-- No LaTeX / math typesetting (`$…$`, `\frac`, matrices) — mono text only.
-  **Approach under evaluation** (not yet decided):
-  - **ReX** (`rex` crate) — pure-Rust math-mode LaTeX; lays out with an
-    OpenType MATH font and emits glyph outlines + rules through a backend trait,
-    so equations become ordinary manic paths (draw-on / color / glow for free).
-    Self-contained; a subset of LaTeX; some API churn to track.
-  - **`pulldown-latex`** — pure-Rust LaTeX-math → MathML; would need a MathML
-    render step.
-  - **Full TeX** (`latex` + `dvisvgm` → SVG → paths) — 100% fidelity but a
-    per-user system dependency; possible as an *optional* backend when TeX is
-    present, falling back to a pure-Rust path otherwise.
-  - **mathtext-lite** — homegrown Unicode + super/subscript + `\frac`/`\sqrt`
-    layout; least fidelity, zero deps, keeps the mono look.
-- **Custom / selectable fonts — planned, not yet designed.** Today all text is
+### Typography — math shipped; font choice remains future
+- ✅ **LaTeX / math typesetting:** display equations, inline `$…$`, fractions,
+  matrices, mixed text/math, semantic colouring, and reactive rewrites ship on
+  the bundled RaTeX renderer described above.
+- ⬜ **Native equation outlines:** optional future glyph/rule geometry for
+  calligraphic stroke-level draw-on and resolution-independent authoring.
+- ⬜ **Custom / selectable fonts — planned, not yet designed.** Today all text is
   IBM Plex Mono (regular/bold/display). A future capability: let the author pick
   fonts (per entity or globally) and load user-supplied font files. Tracked here
   so it isn't lost; no timeline yet. (Also unblocks a non-serif look for any
   future LaTeX backend.)
 
-## What's required next & how to address it
+## Engine extensions behind the active queue
 
-The gaps above are the *symptoms*; this is the *plan*. **Guiding principle:
-extend a few existing mechanisms so each covers a whole cluster of missing
-features — do NOT add one builtin per Manim/Asymptote class.** Almost every gap
-found so far maps onto one of six foundational extensions:
+The top-level **Active work queue** is authoritative. This dependency view maps
+that product work to reusable engine mechanisms; it is not a second roadmap.
+The guiding principle remains to extend a small number of general mechanisms,
+not introduce one builtin for every reference-library animation.
 
-| # | Requirement | How to address (extend what) | Effort | Unlocks |
-|---|---|---|---|---|
-| 1 | **Entity bounding box** | Add a `bbox(entity)` in the engine, reusing the shape→points extraction already in `geom.rs` (used for boolean ops). | Small | `Brace(mobject)`, `GrowFromEdge`/`FromPoint`, `FocusOn`/`Circumscribe`, `next_to`-style relative placement, group framing. |
-| 2 | **Entrance verbs** | New `growin`/`popin` verb + an initial-`scale` modifier (scale 0→1 about the anchor), on top of the existing `scale`/`spin`. | Tiny | `GrowFromCenter`, `SpinInFromNothing`, clean "appear from nothing". |
-| 3 | **Move-along-path** | Extend the `Pos` track / `derive` updater to interpolate along a `Curve`/`Polyline` (both already exist) instead of a straight line. | Medium | `MoveAlongPath`, `SpiralIn`, orbit, and a **point riding a plotted curve** (tangent/particle — key for calculus). |
-| 4 | **Linear-transform verb** | `transform(group, a,b,c,d)` that applies a 2×2 matrix to a tagged group over time — formalises what the loop layer can already compute (`M·p` per point). | Medium | `ApplyMatrix`, linear-algebra viz (grid shear, eigenvectors, det-as-area); stepping stone to `ApplyComplexFunction` (pass a formula). |
-| 5 | **Live geometry readout** | Wire the `derive` hook to feed a `counter`'s `value` (both already exist) so a measured length/angle updates as inputs move. | Small | Olympiad numeric labels (`distance`, `markangle` value), any dragged-measurement display. |
-| 6 | **Shape-morph (point sampling)** | Give primitives a sampled-point form + a correspondence rule — genuinely new machinery. | Large | `Transform`/`ReplacementTransform`/`TransformFromCopy`, calligraphic `Write`, morphing plots. **Deferred** — its everyday use (A→B) is fakeable with crossfade/redraw today. |
+| Priority | Requirement | Engine direction | Unlocks |
+|---|---|---|---|
+| P0 | **Production runtime contract** | Expose stage selection and time ranges through a stable runtime API with full-movie defaults. | UI/backend rendering of named stages without hidden CLI flags. |
+| P1 | **Visual audit layers** | Add structural, resolved, and rendered-frame checks on top of the existing baseline auditor. | Safer automated generation and clearer creator diagnostics. |
+| P1 | **Multi-format composition** | Make responsive regions, safe zones, typography, and pacing adapt across portrait, square, and landscape. | One story authored once and delivered to Shorts, posts, and lessons. |
+| P2 | **General bounds + relative placement** | Promote the kit-level bbox work into a reliable engine service with anchors and group-aware placement. | `next_to`-style layout, framing, braces, collision avoidance, and responsive composition. |
+| P2 | **Live geometry measurements** | Feed derived lengths/angles/areas into counters, equations, and bindings. | Truthful readouts on moving geometry and simulations. |
+| P2 | **Path motion + nonlinear remapping** | Let position tracks sample curves and let groups transform through authored functions. | Curve-following particles, orbits, deformation, and richer calculus/linear-algebra explanations. |
+| P3 | **Typography and look extensions** | Add selectable fonts, native equation outlines, and optional sketch styling. | More author identity and calligraphic math without changing scene semantics. |
 
-Recommended order: **2 → 1 → 5 → 3 → 4**, leaving **6** deferred. Items 1, 2,
-and 5 are small and reuse machinery that already exists; together with 3 they
-close most of the Growing / Creation / Indication gaps *and* deliver the
-calculus "point on a curve" move — a dozen-plus Manim animations from a handful
-of modest extensions. Two prerequisites recur and are the real leverage:
-**bounding box (#1)** and **path-motion (#3)**.
+Linear transforms, general 2-D shape morphing, LaTeX rendering and rewrites,
+composable scale/spin entrance effects, and the prioritized 3-D roadmap already
+ship; they are no longer listed as missing foundations.
 
-Separately tracked, larger and orthogonal: **LaTeX/math typesetting** (approach
-under evaluation, see Typography), **selectable fonts**, and the advanced 3D
-geometry/rendering work listed above.
-
-### Stateful structures — done (mutating verbs)
+### Stateful structures — ✅ Shipped
 
 The timeline is a pure function of `t`, so an ordinary verb sees only the base
 scene: a *chain* of swaps would each read stale positions. This is now solved
@@ -1382,7 +1376,7 @@ render-time state.
 
 See `examples/bubble_sort.manic` — real in-place sort, no `say`.
 
-## Presets & branding (output)
+## Presets & branding — ✅ Shipped
 
 **Shipped.** Rendering is driven by named **presets** (`--preset <name>`) — the
 baseline for quality, frame rate, container, and branding; any runtime flag
@@ -1444,7 +1438,7 @@ pile of skins. Its shipped core contains three ordered slices:
 - Motion recipes: `calm`, `studio`, `punch`, and `cut`, with timing derived from
   the requested `run` duration rather than hard-coded absolute beats.
 
-Proposed v2 authoring surface (the exact accepted keys are documented by parser
+Representative v2 authoring surface (accepted keys are documented by parser
 errors and tests):
 
 ```manic
@@ -1503,9 +1497,9 @@ words and entity ids remain; ✅ v2 `layout`/`density`/`timer`/`motion`/`safe`/
 guarded at four); ✅ optional `explain`; ✅ expanded creator profile, four footer
 styles and hidden `endcard`; ✅ improved `figure` bounds for paths/text/images/
 equations plus live-dependency diagnostics; ✅ catalog, prompt, book, gallery and
-`examples/creator-v2.manic` updated. Sixteen Creator/Timing tests cover the v2
-surface, including all four aspect ratios and generic named phases; the complete
-193-test library suite passes.
+`examples/creator-v2.manic` updated. Creator/Timing regression coverage includes
+all four aspect ratios and generic named phases, and the full workspace suite
+passes.
 Question, choices/countdown, reveal, end-card, square and landscape frames were
 rendered and visually inspected. That visual pass caught and fixed translucent
 corner overdraw, timer/explanation collision, and narrow-card text overflow.
@@ -1558,8 +1552,8 @@ polishes the high-frequency authored surfaces that should work from DSL alone:
 Parser/layout/compatibility coverage includes label modes, semantic tags,
 five-choice centring, canonical social aliases, exact profile values, and the
 unknown-platform fallback. The mdBook, builtin catalog, system prompt, and
-Creator/Reel examples document the same shipped surface. The complete 196-test
-library suite passes, including editor validation for every shipped example.
+Creator/Reel examples document the same shipped surface. The full workspace
+suite passes, including editor validation for every shipped example.
 
 ### Timing v2 core — generic + Creator adapters shipped ✅ (2026-07)
 
@@ -1592,11 +1586,11 @@ but separates **choreography** from **timer appearance**:
 Delivered with exact generic/quiz phase and counter tests, backward
 compatibility, catalog and prompt coverage, a non-quiz physics example,
 dedicated portrait/square/landscape examples, and the six-look comparison
-gallery. All 193 tests pass. Mid-countdown frames were rendered and
+gallery. The full workspace suite passes. Mid-countdown frames were rendered and
 visually inspected at 9:16, 1:1, and 16:9; that review also corrected horizontal
 timer digit/label spacing so segmented and bar looks stay inside their regions.
 
-## Creator format templates — manic for social creators (v1 shipped)
+## Creator format templates — v1 shipped ✅
 
 **A new audience: content creators, not just domain educators.** Every kit so far
 adds a *domain* (math, physics, optics). This is **orthogonal** — a *format* layer:
@@ -1678,16 +1672,16 @@ the physics sims followed.
    Engine-only (no browser preview — the WASM front-end has no macroquad). The
    quiz POC keeps its *drawn* vector social icons (no trademark PNGs bundled),
    but a creator can now drop their own real logo/avatar in via `image(...)`.
-2. **Format templates** — `quiz` first; then a family: `countdown` (N→0 hype),
+3. **Format templates** — `quiz` first; then a family: `countdown` (N→0 hype),
    `factcard` (hook → fact → source), `listicle` (top-N reveal), `thisorthat`
    (A-vs-B poll), `hotseat` (rapid Q&A). One builtin per format.
-3. **Shorts safe-zones** — a portrait layout that keeps content clear of the
+4. **Shorts safe-zones** — a portrait layout that keeps content clear of the
    platform UI (bottom action bar, right rail, top clock): a `safezone` helper or
    an automatic inset the templates respect.
-4. **A creator profile** — `creator(id, handle, x, yt, ig, tiktok, accent, logo)`
+5. **A creator profile** — `creator(id, handle, x, yt, ig, tiktok, accent, logo)`
    set once (or in a small reusable file) and reused across every video; drives
    the `socials` footer + accent colour. Extends the brand kit.
-5. **A `shorts` theme/preset** — punchy caption sizing, bold outlines, high
+6. **A `shorts` theme/preset** — punchy caption sizing, bold outlines, high
    contrast for tiny phone screens, safe-zone insets on by default.
 
 **SHIPPED so far (`src/kits/creator.rs`):** ✅ **`creator(id, "spec")`** — a reusable
@@ -1752,41 +1746,24 @@ headless `--still` PNG export.
 > like countdown/factcard/listicle/this-or-that) before calling them production —
 > expect the first cut to need prompt tuning, and budget for it.
 
-**Two layers (mirrors the physics kit's Layer 1 / Layer 2):**
-- **Layer 1 — named templates**, for creators: pick `quiz`/`countdown`/…, fill the
-  slots, `run`. Zero design skill.
-- **Layer 2 — author-your-own template**, for designers: define a reusable format
-  (named slots + layout + a default timeline) with `def` + parameters, so a studio
-  ships its own branded template and reuses it across a channel.
-
-**Decided (locked):**
-- **Content input — freedom + easy:** primarily **builder verbs** (`quiz(q,"?")`
-  then `option(q,"text"[,correct])`) so a creator gets full freedom — any number of
-  options, per-option media later — AND an **easy one-liner shorthand**
-  (`quiz(q,"?","A","B","C","D",answer:2)`) for the common 4-option case. Both map
-  to the same quiz structure.
-- **Branding — a reusable creator profile:** `creator(id, handle, x, yt, ig,
-  tiktok, accent, logo)` set once, ideally in a small file a channel reuses across
-  every video; `socials(id)` drops the safe-zone footer. One place to edit brand.
-- **A new `creator` kit** (`src/kits/creator.rs`), separate from `brand` (which
-  stays about manic's own watermark/intro). Holds `creator`/`socials`/`quiz` +
-  the shared UI components + `safezone`.
-- **First deliverable — the full `quiz` Short end-to-end** (9:16 layout · question
-  · option cards · countdown ring+digit · time-out reveal · socials footer), as
-  the proof of the whole format; the reusable components (`countdown`/`choices`/
-  `reveal`/`socials`) fall out of it and get exposed standalone.
-
-**First-build sequence (when we start):** `creator` kit skeleton + `creator`
-profile + `socials` footer → `safezone` insets for 9:16 → `countdown` (Counter
-`Value` + `Arc` sweep) → `choices`/`card` (A–D option cards) → `reveal`
-(highlight-correct/dim-others) → the `quiz` template (both input paths) + `run`
-beat → a `shorts` theme → one example + book gallery + the builtin checklist.
+**Current authoring model:**
+- **Named components for creators:** start with `quiz(q,"question"[,"spec"])`,
+  add each `option(q,"text"[,correct])`, then `run(q[,dur])`. Standalone
+  `countdown`, generic `timing`, native `socials`, safe areas, and end cards use
+  the same Creator system. A multi-option `quiz(...)` shorthand is not part of
+  the current DSL.
+- **Composition for studios:** ordinary `def` macros and parameters can package a
+  channel's preferred components and timeline without introducing a second
+  template language.
+- **Reusable identity:** `creator(id,"spec")` stores the channel profile once;
+  `socials(id)` and `endcard(id)` consume it. The `creator` kit remains separate
+  from engine branding, which owns Manic's watermark and pre-roll.
 
 **Why it fits:** the same "fill it in, get a correct animation" promise aimed at a
 huge new audience; ~80% composition of shipped primitives; and the quiz Short
 alone is a proven, repeatable viral format — a creator can make one a day.
 
-## Templates / themes
+## Templates / themes — ✅ Shipped
 
 **Shipped.** The look is a selectable **template**, chosen with
 `template("name")` (or `--template <name>` at render time). Chrome is driven by
@@ -1812,8 +1789,9 @@ Creator/Reel recommendations, and phone-size review tips. Getting Started,
 Colour & Style, Creator formats, the Reel gold path, and the introduction link
 back to the same guide.
 
-**Runtime palette DONE.** Each template carries a `style::Palette` (bg/fg/cyan/
-magenta/lime/gold/red/orange/blue/dim/panel). The engine still bakes neon everywhere; the renderer
+**Runtime palette shipped.** Each template carries a `style::Palette` (bg/fg/cyan/
+magenta/lime/gold/red/orange/blue/dim/panel). Constructors emit semantic named
+colours, and the renderer
 **remaps** each palette colour to the active template's at draw time
 (`Palette::remap`, in `draw_entity`), so `--template` retints **content** too,
 while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`
@@ -1822,7 +1800,7 @@ while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`
 **Masthead is author-set** (`masthead(...)`), empty by default — no
 `manic ~ %` / `60FPS` branding is baked into any template.
 
-**Per-template glow + CRT DONE.** Each template has a `glow` multiplier (applied
+**Per-template glow + CRT shipped.** Each template has a `glow` multiplier (applied
 to every entity's halo at render) and a `crt` default. `plain`/`terminal` glow
 = 1 (neon), `mono` = 0.35 (subtle), `shorts` = 0.65, and
 `paper`/`blueprint` = 0 (crisp, flat — right for print). `--crt` still forces
@@ -1832,7 +1810,7 @@ the post-process on regardless of the template default.
 bundled — the separate "selectable fonts" work); more palettes; a `minimal`
 chrome level exposed as a template.
 
-### Hand-drawn / chalkboard look (planned, undecided)
+### Hand-drawn / chalkboard look — ⬜ Future
 Requested idea: make the output *look* hand-drawn — chalk on a blackboard,
 student/teacher style — not just clean neon geometry. Two independent layers:
 - **Chalkboard colours** — a `chalkboard` **template** (dark slate bg + chalky
@@ -1860,7 +1838,7 @@ Chrome and engine branding are independent. `mono`, `plain`, `paper`,
 window treatment. Recording-preset branding remains separately controllable
 with `--no-brand`.
 
-## Web / editor language services — **shipped** (prototype UI)
+## Web / editor language services — ✅ Shipped prototype
 
 The editor half of the beta: a browser-loadable build of manic's **language
 front-end** that powers an in-page code editor — **syntax highlighting**,
@@ -1871,7 +1849,7 @@ what the renderer would say.
 **Status.** All four phases done:
 1. `manic-lang` — a macroquad-free workspace crate (lexer/parser/ast/diag),
    publishable, native engine unchanged (depends on it via a re-export).
-2. **catalog** — `BuiltinSpec` for all 130 builtins + fixed vocab, kept honest by
+2. **catalog** — `BuiltinSpec` for every registered builtin + fixed vocab, kept honest by
    a test asserting the catalog == the live registry (zero drift).
 3. **expand** extracted into `manic-lang` (so the browser runs `let`/`for`/`def`).
 4. **WASM API** — `tokenize` / `check` / `complete` (`crates/manic-lang/src/services.rs`,
@@ -1879,22 +1857,22 @@ what the renderer would say.
    `wasm-pack` (~190 KB), plus a throwaway HTML/JS harness in `web/` (see
    `web/README.md`). The real editor UI is a separate, later design.
 
-All service logic is unit-tested natively (31 `manic-lang` tests) and verified
+All service logic is unit-tested natively and verified
 end-to-end through the compiled WASM. What follows is the design rationale.
 
 ### Approach — compile the Rust front-end to WASM (single source of truth)
 
-**Do not re-port the parser to JavaScript.** A hand-written JS parser would drift
+The parser is intentionally not re-ported to JavaScript. A hand-written JS parser would drift
 from the Rust engine, and the whole point is that what the editor validates is
-*exactly* what renders. Instead compile the existing Rust lexer / parser /
-expander to `wasm32-unknown-unknown` and expose a thin JS/TS API. One grammar,
+*exactly* what renders. The existing Rust lexer/parser/expander compiles to
+`wasm32-unknown-unknown` and exposes a thin JS/TS API. One grammar,
 one lexer, one set of diagnostics — no divergence, and new builtins light up in
 the editor the moment they're added to the engine.
 
-### Prerequisite refactor — a macroquad-free `lang-core`
+### Architecture — a macroquad-free `lang-core`
 
-The renderer pulls in macroquad (graphics), which shouldn't compile into a
-headless parser. Split the pure front-end into a crate/feature with no macroquad
+The renderer pulls in macroquad (graphics), which does not belong in a headless
+parser. The pure front-end is split into a crate/feature with no macroquad
 dependency:
 - **in**: `lexer`, `parser`, `ast`, the **`expand`** pass of `lower`
   (`let`/`for`/`if`/`def`/reductions/interpolation — pure arithmetic over the
@@ -1908,17 +1886,15 @@ This is the one real structural cost — and it cleanly separates "language" fro
 
 ### The builtin catalog (the key new artifact)
 
-Autocomplete + arg-checking need machine-readable specs for every builtin; today
-those live in doc comments and hand-written `a.ident(0)?`/`a.num(1)?` calls.
-Introduce a structured catalog —
+Autocomplete and argument checking use machine-readable specs for every builtin
+instead of relying only on doc comments and hand-written
+`a.ident(0)?`/`a.num(1)?` calls. The structured catalog is:
 `BuiltinSpec { name, kind: ctor|verb|mut_verb, params:[{name, ty:
 name|num|str|point|color|ease|ident, optional}], summary, kit }` — plus the fixed
 vocabularies already in the engine: **colors** (`fg void cyan magenta lime dim
 panel`), **easings**, **canvas presets**, **template names**, **reserved vars**
-(`w h cx cy pi e tau`). Source of truth: generate it where kits already register
-(a registration macro that records the signature next to the fn, or a build step
-emitting catalog JSON consumed by *both* Rust checks and the WASM API) so it
-can't drift.
+(`w h cx cy pi e tau`). A catalog-vs-live-registry test keeps the source aligned
+with executable registration so it cannot drift.
 
 ### WASM API (thin)
 
@@ -1952,11 +1928,10 @@ render (a circle radius overflowing the canvas). Full validation still comes fro
 `manic check` / a render. A WASM **renderer** (macroquad → WebGL) is a separate,
 larger future step.
 
-### Effort / order
+### Implementation order — completed
 
-Catalog + registration macro (medium, touches each kit once) → `lang-core` split
-(medium; the front-end is already fairly decoupled) → WASM API + build (small) →
-editor glue (small–medium).
+Catalog alignment → `lang-core` split → WASM API/build → editor glue. The separate
+full browser renderer remains outside this completed language-service slice.
 
 ## Where manic is ahead of Asymptote
 - A **first-class animation timeline** — asy `animate` stitches frames; manic
