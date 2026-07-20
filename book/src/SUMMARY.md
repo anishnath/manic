@@ -10,6 +10,7 @@
 - [Parameter journeys — one value, many views](creator-parameters.md)
 - [Shapes — the cast](shapes.md)
 - [Verbs — bringing it to life](verbs.md)
+- [Motion graphics — move ideas, not layers](motion-graphics.md)
 - [Timing — flow, named phases & clocks](timing.md)
 - [Templates — choose the whole visual system](templates.md)
 - [Colour & style](colour.md)

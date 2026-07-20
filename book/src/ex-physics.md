@@ -17,6 +17,18 @@ potential-energy well, and energy over time (`pendulum` + `phase`/`timegraph`/
 
 <div class="manic-video" data-video="ex-pendulum"></div>
 
+## second-law-thermodynamics
+
+Why entropy only grows, in five vignettes: gas particles mixing into far more
+microstates, heat flowing until two sides equalize, free expansion into new volume,
+a heat engine that must dump waste heat, and the reversible-vs-irreversible limit.
+
+```manic
+{{#include ../../examples/second-law-thermodynamics.manic}}
+```
+
+<div class="manic-video" data-video="ex-second-law-thermodynamics"></div>
+
 ## timing-v2-scene
 
 Generic Timing v2 controlling an ordinary physics scene: one named-phase clock schedules

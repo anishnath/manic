@@ -65,6 +65,8 @@ morphing, an ordered ring, and a brief final settle:
 {{#include ../../examples/motion-graphics.manic}}
 ```
 
+<div class="manic-video" data-video="ex-motion-graphics"></div>
+
 Run it with:
 
 ```bash

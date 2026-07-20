@@ -212,6 +212,10 @@ SECTIONS = [
     "velocity arrow + KE/PE bars), the phase portrait (θ vs ω), a time series, the\n"
     "potential-energy well, and energy over time (`pendulum` + `phase`/`timegraph`/\n"
     "`well`/`energygraph` + `swing`)."),
+   ("second-law-thermodynamics",
+    "Why entropy only grows, in five vignettes: gas particles mixing into far more\n"
+    "microstates, heat flowing until two sides equalize, free expansion into new volume,\n"
+    "a heat engine that must dump waste heat, and the reversible-vs-irreversible limit."),
    ("timing-v2-scene",
     "Generic Timing v2 controlling an ordinary physics scene: one named-phase clock schedules\n"
     "the intro, pendulum motion and finish independently from its native timer look."),
@@ -664,6 +668,7 @@ SUMMARY_PRE = [
  "- [Parameter journeys — one value, many views](creator-parameters.md)",
  "- [Shapes — the cast](shapes.md)",
  "- [Verbs — bringing it to life](verbs.md)",
+ "- [Motion graphics — move ideas, not layers](motion-graphics.md)",
  "- [Timing — flow, named phases & clocks](timing.md)",
  "- [Templates — choose the whole visual system](templates.md)",
  "- [Colour & style](colour.md)",
