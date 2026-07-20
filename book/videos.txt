@@ -51,7 +51,7 @@ ex-graph|pLvJblT7zwg|Draw a Graph in One Line — manic
 ex-graph_moving|kthOKyJndtg|Drag a Node, the Edges Follow — manic
 ex-bfs_dfs|GbNBlQd1fR0|BFS vs DFS in One Video — manic
 ex-dijkstra|UOjIHugt4o8|Dijkstra's Algorithm, Visualized — manic
-ex-cubic-graphs|PLACEHOLDER|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
+ex-cubic-graphs|Z2nD3nRSFDk|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
 
 # ---- examples: calculus & functions ----
 ex-sine_wave|HSC_hssuHd0|Plotting sin(x) From Scratch — manic
@@ -66,7 +66,7 @@ ex-spline|luCo9NmmbaA|A Smooth Curve Through Any Points — manic
 ex-trajectory|-QeYAZ2GHVQ|Phase Portrait: Flowing Into a Spiral — manic
 ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integral — manic
 ex-reactive-integral|MRq5QHnHQxI|Integration by Parts as One Continuous Equation — manic
-ex-reactive-world|PLACEHOLDER|One World, Five Reactive Steps — The Derivative Lives on the Curve — manic
+ex-reactive-world|2dkQBwy9wMU|One World, Five Reactive Steps — The Derivative Lives on the Curve — manic
 ex-inverse-derivatives|-HEjdSVXdXc|Why Inverse Functions Have Reciprocal Slopes — manic
 ex-derivative-of-ln-x|kFUnbvkE4m4|Why d/dx ln(x) = 1/x — Turn the Coordinate Plane Over — manic
 ex-band|-VZZulWKHr8|The Area Between Two Curves, Visualized — manic
@@ -121,8 +121,8 @@ ex-nine_point|haZ7x-91B6c|The Nine-Point Circle — manic
 ex-conics|x3vqdu40MTc|Ellipse, Parabola, Hyperbola — manic
 
 # ---- examples: transforms & morphing ----
-ex-reactive-math-journey|PLACEHOLDER|From 1 + 1 to a PhD — The Journey of Mathematics — manic
-ex-reactive-math-notation|PLACEHOLDER|13 Scientific Worlds, One Reactive Equation — manic
+ex-reactive-math-journey|UQvB8Ev1mHY|From 1 + 1 to a PhD — The Journey of Mathematics — manic
+ex-reactive-math-notation|D0a0IEm3T-w|13 Scientific Worlds, One Reactive Equation — manic
 ex-quadratic-formula-continuity|sAsTXoN0OaQ|The Quadratic Formula, Rewritten Without Cuts — manic
 ex-transforms|PnUfeUvkYHM|Apply a Matrix to Anything — manic
 ex-transform_copy|KSnLLXpooo0|Copy + Transform — manic
@@ -247,8 +247,8 @@ ex-quiz-euler|N8vC0qFYcHA|I Built This Geometry Quiz Short in 12 Lines — manic
 ex-quiz-skins|zXoo9_IWEiI|4 Quiz-Short Designs From ONE Line of Code — manic
 ex-creator-v2|cmcE91c2O18|Creator Kit v2 — One Responsive Quiz Across Every Social Format
 ex-perfect-reel|_FAxmFXPEbU|Make a Perfect Math Reel From One Script — manic
-ex-reactive-multiformat|PLACEHOLDER|One Story, Four Formats — Reframe a Reactive Manic Video
-ex-parameter-journeys|PLACEHOLDER|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
+ex-reactive-multiformat|U83NHmhLKpM|One Story, Four Formats — Reframe a Reactive Manic Video
+ex-parameter-journeys|ui5eqJDyLtk|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
 ex-creator-v2-options-socials|Q32jTgInMrk|Professional Quiz Options + Native Social Icons — manic
 ex-creator-v2-timing|Web996n1Dn4|Control Every Beat of a Quiz Reel — Creator Timing v2
 ex-creator-v2-timers|3fyL67oDgZA|Six Professional Countdown Designs, One Timing System — manic
