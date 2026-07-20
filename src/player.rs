@@ -7,7 +7,8 @@
 //! recorded output.
 //!
 //! Live controls: `Space` pause, `←/→` frame step, `,`/`.` ±1 s, `1`–`9`
-//! section jump, `F` / `Ctrl+Cmd+F` fullscreen, `R` restart, drag bottom bar to scrub.
+//! stage jump, clickable stage strip, `F` / `Ctrl+Cmd+F` fullscreen, `R`
+//! restart, drag bottom bar to scrub. With no named stages, digits use sections.
 //! The HUD is live-only.
 //!
 //! CLI flags (after `--`):
@@ -15,6 +16,8 @@
 //! - `--fps N`         output frame rate (default 60)
 //! - `--scale F`       supersampling (default 1.5 recorded → 1080p, 1 live)
 //! - `--from S --to S` record a time range (clips for social posts)
+//! - `--stage NAME`     preview/record exactly one named story stage
+//! - `--from-stage NAME --to-stage NAME` inclusive named story range
 //! - `--frames N`      hard frame cap (smoke tests)
 //! - `--still S`       export the single frame at time S as PNG and exit
 //! - `--canvas FORMAT`  handled by the CLI before lowering; reframe responsive source
@@ -31,6 +34,7 @@ use crate::record::Recorder;
 use crate::render::{self, View};
 use crate::style::{self, Fonts};
 
+#[derive(Debug)]
 pub(crate) struct Opts {
     pub record: Option<String>,
     pub fps: u32,
@@ -38,7 +42,11 @@ pub(crate) struct Opts {
     pub scale: f32,
     pub still: Option<f32>,
     pub from: f32,
+    pub from_set: bool,
     pub to: Option<f32>,
+    pub stage: Option<String>,
+    pub from_stage: Option<String>,
+    pub to_stage: Option<String>,
     pub alpha: bool,
     pub png: bool,
     pub gif: bool,
@@ -52,8 +60,12 @@ pub(crate) struct Opts {
     pub brand_end: bool,
 }
 
-pub(crate) fn parse_opts() -> Opts {
+pub(crate) fn parse_opts() -> Result<Opts, String> {
     let args: Vec<String> = std::env::args().collect();
+    parse_opts_from(&args)
+}
+
+fn parse_opts_from(args: &[String]) -> Result<Opts, String> {
 
     // pre-scan the preset + branding toggle so they seed the defaults below
     let mut preset_name = String::from("studio");
@@ -85,7 +97,11 @@ pub(crate) fn parse_opts() -> Opts {
         scale: 0.0,
         still: None,
         from: 0.0,
+        from_set: false,
         to: None,
+        stage: None,
+        from_stage: None,
+        to_stage: None,
         alpha: false,
         png: false,
         gif: preset.gif,
@@ -95,10 +111,11 @@ pub(crate) fn parse_opts() -> Opts {
         brand_end: true, // default: branding plays as an OUTRO (`--intro` for front)
     };
     let mut i = 1;
-    let value = |args: &[String], i: usize, flag: &str| -> String {
-        args.get(i + 1)
-            .unwrap_or_else(|| panic!("{flag} expects a value"))
-            .clone()
+    let value = |args: &[String], i: usize, flag: &str| -> Result<String, String> {
+        match args.get(i + 1) {
+            Some(value) if !value.starts_with("--") => Ok(value.clone()),
+            _ => Err(format!("{flag} expects a value")),
+        }
     };
     while i < args.len() {
         match args[i].as_str() {
@@ -111,35 +128,67 @@ pub(crate) fn parse_opts() -> Opts {
                 }
             }
             "--fps" => {
-                opts.fps = value(&args, i, "--fps").parse().expect("--fps: number");
+                opts.fps = value(args, i, "--fps")?
+                    .parse()
+                    .map_err(|_| "--fps expects a positive whole number".to_string())?;
+                if opts.fps == 0 {
+                    return Err("--fps expects a positive whole number".into());
+                }
                 i += 1;
             }
             "--scale" => {
-                opts.scale = value(&args, i, "--scale").parse().expect("--scale: number");
+                opts.scale = value(args, i, "--scale")?
+                    .parse()
+                    .map_err(|_| "--scale expects a finite number".to_string())?;
+                if !opts.scale.is_finite() {
+                    return Err("--scale expects a finite number".into());
+                }
                 i += 1;
             }
             "--frames" => {
                 opts.max_frames = Some(
-                    value(&args, i, "--frames")
+                    value(args, i, "--frames")?
                         .parse()
-                        .expect("--frames: number"),
+                        .map_err(|_| "--frames expects a whole number".to_string())?,
                 );
                 i += 1;
             }
             "--still" => {
                 opts.still = Some(
-                    value(&args, i, "--still")
+                    value(args, i, "--still")?
                         .parse()
-                        .expect("--still: seconds"),
+                        .map_err(|_| "--still expects seconds".to_string())?,
                 );
+                if opts.still.is_some_and(|still| !still.is_finite()) {
+                    return Err("--still expects finite seconds".into());
+                }
                 i += 1;
             }
             "--from" => {
-                opts.from = value(&args, i, "--from").parse().expect("--from: seconds");
+                opts.from = value(args, i, "--from")?
+                    .parse()
+                    .map_err(|_| "--from expects seconds".to_string())?;
+                opts.from_set = true;
                 i += 1;
             }
             "--to" => {
-                opts.to = Some(value(&args, i, "--to").parse().expect("--to: seconds"));
+                opts.to = Some(
+                    value(args, i, "--to")?
+                        .parse()
+                        .map_err(|_| "--to expects seconds".to_string())?,
+                );
+                i += 1;
+            }
+            "--stage" => {
+                opts.stage = Some(value(args, i, "--stage")?);
+                i += 1;
+            }
+            "--from-stage" => {
+                opts.from_stage = Some(value(args, i, "--from-stage")?);
+                i += 1;
+            }
+            "--to-stage" => {
+                opts.to_stage = Some(value(args, i, "--to-stage")?);
                 i += 1;
             }
             "--alpha" => opts.alpha = true,
@@ -149,10 +198,11 @@ pub(crate) fn parse_opts() -> Opts {
             "--outro" | "--brand-end" => opts.brand_end = true,
             "--intro" | "--brand-front" => opts.brand_end = false,
             "--template" | "--theme" => {
-                opts.template = Some(value(&args, i, "--template"));
+                opts.template = Some(value(args, i, "--template")?);
                 i += 1;
             }
             "--preset" => {
+                let _ = value(args, i, "--preset")?;
                 i += 1; // already handled in the pre-scan
             }
             "--no-brand" | "--nobrand" => {} // already handled in the pre-scan
@@ -169,7 +219,189 @@ pub(crate) fn parse_opts() -> Opts {
     }
     // branding: recorded output only, under a branded preset, unless --no-brand
     opts.branded = preset.branded && !no_brand && opts.record.is_some();
-    opts
+    Ok(opts)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PlaybackWindow {
+    pub from: f32,
+    pub to: f32,
+    pub label: Option<String>,
+}
+
+impl PlaybackWindow {
+    fn duration(&self) -> f32 {
+        self.to - self.from
+    }
+
+    fn progress(&self, t: f32) -> f32 {
+        let duration = self.duration();
+        if !duration.is_finite() || duration <= 0.0 || !t.is_finite() {
+            return 0.0;
+        }
+        ((t - self.from) / duration).clamp(0.0, 1.0)
+    }
+
+    fn time_at(&self, fraction: f32) -> f32 {
+        let duration = self.duration();
+        if !duration.is_finite() || duration <= 0.0 || !fraction.is_finite() {
+            return self.from;
+        }
+        self.from + fraction.clamp(0.0, 1.0) * duration
+    }
+
+    fn settle_time(&self, t: f32) -> (f32, bool) {
+        if !t.is_finite() {
+            return (self.from, true);
+        }
+        if t >= self.to {
+            (self.to, true)
+        } else {
+            (t.max(self.from), false)
+        }
+    }
+}
+
+fn visible_stage_ranges(
+    stages: &[crate::movie::StoryStage],
+    playback: &PlaybackWindow,
+) -> Vec<crate::movie::StoryStage> {
+    stages
+        .iter()
+        .filter(|stage| stage.end > playback.from && stage.start < playback.to)
+        .cloned()
+        .collect()
+}
+
+fn stage_span(stage: &crate::movie::StoryStage, playback: &PlaybackWindow) -> (f32, f32) {
+    (
+        playback.progress(stage.start.max(playback.from)),
+        playback.progress(stage.end.min(playback.to)),
+    )
+}
+
+fn active_stage_index(
+    stages: &[crate::movie::StoryStage],
+    t: f32,
+    playback: &PlaybackWindow,
+) -> Option<usize> {
+    stages
+        .iter()
+        .position(|stage| {
+            t >= stage.start.max(playback.from) && t < stage.end.min(playback.to)
+        })
+        .or_else(|| {
+            stages
+                .last()
+                .filter(|stage| t >= playback.to && stage.end >= playback.to)
+                .map(|_| stages.len() - 1)
+        })
+}
+
+fn stage_index_at_fraction(
+    stages: &[crate::movie::StoryStage],
+    playback: &PlaybackWindow,
+    fraction: f32,
+) -> Option<usize> {
+    let fraction = fraction.clamp(0.0, 1.0);
+    stages.iter().enumerate().find_map(|(index, stage)| {
+        let (start, end) = stage_span(stage, playback);
+        let is_last = index + 1 == stages.len();
+        (fraction >= start && (fraction < end || (is_last && fraction <= end)))
+            .then_some(index)
+    })
+}
+
+fn named_stage(movie: &Movie, name: &str) -> Result<crate::movie::StoryStage, String> {
+    if let Some(stage) = movie.stage_range(name) {
+        return Ok(stage);
+    }
+    let candidates: Vec<String> = movie
+        .stage_ranges()
+        .into_iter()
+        .map(|stage| stage.name)
+        .collect();
+    let hint = crate::namehint::nearest_name(name, &candidates)
+        .map(|near| format!(" Did you mean `{near}`?"))
+        .unwrap_or_default();
+    if candidates.is_empty() {
+        Err("this movie has no named stages; add `step(\"name\") { ... }`".into())
+    } else {
+        Err(format!(
+            "unknown stage `{name}`.{hint} Available stages: {}",
+            candidates.join(", ")
+        ))
+    }
+}
+
+pub(crate) fn playback_window(
+    movie: &Movie,
+    opts: &Opts,
+    timeline_end: f32,
+) -> Result<PlaybackWindow, String> {
+    if !timeline_end.is_finite() || timeline_end <= 0.0 {
+        return Err("the movie timeline must have a finite positive duration".into());
+    }
+    if !opts.from.is_finite() || opts.to.is_some_and(|to| !to.is_finite()) {
+        return Err("numeric `--from`/`--to` values must be finite seconds".into());
+    }
+    let uses_named_range =
+        opts.stage.is_some() || opts.from_stage.is_some() || opts.to_stage.is_some();
+    if uses_named_range && (opts.from_set || opts.to.is_some()) {
+        return Err(
+            "use either named stage ranges (`--stage`/`--from-stage`/`--to-stage`) or numeric `--from`/`--to`, not both"
+                .into(),
+        );
+    }
+    if opts.stage.is_some() && (opts.from_stage.is_some() || opts.to_stage.is_some()) {
+        return Err("`--stage NAME` already selects one complete stage; do not combine it with `--from-stage` or `--to-stage`".into());
+    }
+
+    if let Some(name) = opts.stage.as_deref() {
+        let stage = named_stage(movie, name)?;
+        return Ok(PlaybackWindow {
+            from: stage.start,
+            to: stage.end,
+            label: Some(stage.name),
+        });
+    }
+
+    if uses_named_range {
+        let from = match opts.from_stage.as_deref() {
+            Some(name) => named_stage(movie, name)?.start,
+            None => 0.0,
+        };
+        // `--to-stage` is inclusive: export through the end of that stage.
+        let to = match opts.to_stage.as_deref() {
+            Some(name) => named_stage(movie, name)?.end,
+            None => movie.content_duration(),
+        };
+        if to <= from {
+            return Err(format!(
+                "the selected stage range is backwards or empty ({from:.2}s..{to:.2}s)"
+            ));
+        }
+        let label = match (&opts.from_stage, &opts.to_stage) {
+            (Some(a), Some(b)) => Some(format!("{a} → {b}")),
+            (Some(a), None) => Some(format!("{a} → end")),
+            (None, Some(b)) => Some(format!("start → {b}")),
+            (None, None) => None,
+        };
+        return Ok(PlaybackWindow { from, to, label });
+    }
+
+    let from = opts.from.clamp(0.0, timeline_end);
+    let to = opts.to.unwrap_or(timeline_end).clamp(0.0, timeline_end);
+    if to <= from {
+        return Err(format!(
+            "the selected time range is backwards or empty ({from:.2}s..{to:.2}s)"
+        ));
+    }
+    Ok(PlaybackWindow {
+        from,
+        to,
+        label: None,
+    })
 }
 
 const CRT_VERT: &str = r#"#version 100
@@ -239,9 +471,8 @@ fn fullscreen_pressed() -> bool {
         || (command_down && control_down && is_key_pressed(KeyCode::F))
 }
 
-pub async fn run_loop(mut movie: Movie) {
+pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
     let fonts = Fonts::load();
-    let opts = parse_opts();
     // CLI template override (e.g. `--template terminal`)
     if let Some(name) = &opts.template {
         match crate::style::Template::by_name(name) {
@@ -258,6 +489,10 @@ pub async fn run_loop(mut movie: Movie) {
         crate::branding::add_watermark(&mut movie);
     }
     let (mut base, mut timeline) = movie.finalize();
+    let playback = playback_window(&movie, &opts, timeline.dur)
+        .expect("stage/time range was validated before the preview window opened");
+    let stage_ranges = movie.stage_ranges();
+    let visible_stages = visible_stage_ranges(&stage_ranges, &playback);
     let title = movie.title.clone();
     let intro_tpl = crate::style::Template::plain();
     let intro: Option<(crate::scene::Scene, crate::timeline::Timeline)> = if opts.branded {
@@ -551,11 +786,11 @@ pub async fn run_loop(mut movie: Movie) {
                 next_frame().await;
             }
         }
-        let end_t = opts.to.unwrap_or(timeline.dur).min(timeline.dur);
-        let total = (((end_t - opts.from).max(0.0) * opts.fps as f32).ceil() as u32)
+        let end_t = playback.to.min(timeline.dur);
+        let total = (((end_t - playback.from).max(0.0) * opts.fps as f32).ceil() as u32)
             .min(opts.max_frames.unwrap_or(u32::MAX));
         for f in 0..total {
-            let t = opts.from + f as f32 / opts.fps as f32;
+            let t = playback.from + f as f32 / opts.fps as f32;
             render_at(&base, &timeline, &movie.template, t);
             let img = capture(&crt); // top-down already — correct for ffmpeg
             rec.capture(&img);
@@ -571,12 +806,18 @@ pub async fn run_loop(mut movie: Movie) {
                 next_frame().await;
             }
         }
-        rec.finish(&movie.sections, &movie.marks);
+        rec.finish_range(
+            &movie.sections,
+            &movie.marks,
+            &stage_ranges,
+            playback.from,
+            end_t,
+        );
         std::process::exit(0);
     }
 
     // ---- live preview ----
-    let mut t: f32 = 0.0;
+    let mut t: f32 = playback.from;
     let mut paused = false;
     let mut fullscreen = false;
     let frame_dt = 1.0 / opts.fps as f32;
@@ -604,7 +845,7 @@ pub async fn run_loop(mut movie: Movie) {
             t -= 1.0;
         }
         if is_key_pressed(KeyCode::R) {
-            t = 0.0;
+            t = playback.from;
         }
         let digits = [
             KeyCode::Key1,
@@ -619,24 +860,41 @@ pub async fn run_loop(mut movie: Movie) {
         ];
         for (i, key) in digits.iter().enumerate() {
             if is_key_pressed(*key) {
-                if let Some((st, _)) = movie.sections.get(i) {
-                    t = *st;
+                if let Some(stage) = visible_stages.get(i) {
+                    t = stage.start.max(playback.from);
+                } else if visible_stages.is_empty() {
+                    if let Some((st, _)) = movie.sections.get(i) {
+                        t = *st;
+                    }
                 }
             }
         }
 
         let (sw, sh) = (screen_width(), screen_height());
         let bar_y = sh - 26.0;
+        let nav_y = bar_y - if visible_stages.is_empty() { 0.0 } else { 24.0 };
         let (mx, my) = mouse_position();
         if is_mouse_button_down(MouseButton::Left) && my >= bar_y {
             paused = true;
-            t = (mx / sw).clamp(0.0, 1.0) * timeline.dur;
+            t = playback.time_at(mx / sw);
+        } else if is_mouse_button_pressed(MouseButton::Left)
+            && my >= nav_y
+            && my < bar_y
+        {
+            if let Some(index) = stage_index_at_fraction(&visible_stages, &playback, mx / sw) {
+                t = visible_stages[index].start.max(playback.from);
+                paused = true;
+            }
         }
 
         if !paused {
             t += get_frame_time();
         }
-        t = t.clamp(0.0, timeline.dur);
+        let (settled_t, reached_end) = playback.settle_time(t);
+        t = settled_t;
+        if reached_end {
+            paused = true;
+        }
 
         render_at(&base, &timeline, &movie.template, t);
 
@@ -664,17 +922,72 @@ pub async fn run_loop(mut movie: Movie) {
         }
 
         // ---- HUD (never recorded) ----
+        // Intervals are half-open so an exact boundary belongs to the stage
+        // beginning there. The selected range's final endpoint remains active
+        // for the final visible stage.
+        let active_stage_index = active_stage_index(&visible_stages, t, &playback);
+        if !visible_stages.is_empty() {
+            draw_rectangle(
+                0.0,
+                nav_y,
+                sw,
+                24.0,
+                Color::new(0.015, 0.015, 0.04, 0.94),
+            );
+            for (index, stage) in visible_stages.iter().enumerate() {
+                let (start, end) = stage_span(stage, &playback);
+                let (x0, x1) = (sw * start, sw * end);
+                let active = active_stage_index == Some(index);
+                draw_rectangle(
+                    x0 + 1.0,
+                    nav_y + 1.0,
+                    (x1 - x0 - 2.0).max(1.0),
+                    22.0,
+                    if active {
+                        Color::new(0.10, 0.30, 0.36, 0.96)
+                    } else {
+                        Color::new(0.05, 0.06, 0.10, 0.92)
+                    },
+                );
+                let max_chars = ((x1 - x0 - 16.0) / 7.0).floor().max(1.0) as usize;
+                let mut label: String = stage.name.chars().take(max_chars).collect();
+                if stage.name.chars().count() > max_chars && max_chars > 1 {
+                    label.pop();
+                    label.push('…');
+                }
+                draw_text_ex(
+                    &format!("{} {label}", index + 1),
+                    x0 + 6.0,
+                    nav_y + 16.0,
+                    TextParams {
+                        font: fonts.mono.as_ref(),
+                        font_size: 12,
+                        color: if active { style::FG } else { style::DIM },
+                        ..Default::default()
+                    },
+                );
+            }
+        }
         draw_rectangle(0.0, bar_y, sw, 26.0, Color::new(0.02, 0.02, 0.05, 0.9));
-        draw_rectangle(0.0, bar_y, sw * (t / timeline.dur), 3.0, style::MAGENTA);
-        for (st, _) in &movie.sections {
-            draw_rectangle(sw * (st / timeline.dur) - 1.0, bar_y, 2.0, 8.0, style::CYAN);
+        let progress = playback.progress(t);
+        draw_rectangle(0.0, bar_y, sw * progress, 3.0, style::MAGENTA);
+        for stage in &visible_stages {
+            let x = sw * stage_span(stage, &playback).0;
+            draw_rectangle(x - 1.0, bar_y, 2.0, 8.0, style::CYAN);
         }
         let frame_no = (t * opts.fps as f32).round() as u32;
+        let current_stage = active_stage_index
+            .and_then(|index| visible_stages.get(index))
+            .map(|stage| stage.name.as_str())
+            .unwrap_or("—");
+        let selection = playback.label.as_deref().unwrap_or("full story");
         let hud = format!(
-            "{}  t={:6.2}s  frame={:5}  [space] play/pause  [</>] step  [,/.] +/-1s  [1-9] sections  [F] fullscreen  [R] restart",
+            "{}  t={:6.2}s  frame={:5}  stage={}  range={}  [space] play/pause  [1-9] stages  [R] restart",
             if paused { "PAUSED " } else { "PLAYING" },
             t,
-            frame_no
+            frame_no,
+            current_stage,
+            selection,
         );
         draw_text_ex(
             &hud,
@@ -691,5 +1004,247 @@ pub async fn run_loop(mut movie: Movie) {
         );
 
         next_frame().await;
+    }
+}
+
+#[cfg(test)]
+mod stage_tests {
+    use super::{
+        active_stage_index, parse_opts_from, playback_window, stage_index_at_fraction,
+        stage_span, visible_stage_ranges, Opts, PlaybackWindow,
+    };
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_string()).collect()
+    }
+
+    fn opts() -> Opts {
+        Opts {
+            record: None,
+            fps: 60,
+            max_frames: None,
+            scale: 1.0,
+            still: None,
+            from: 0.0,
+            from_set: false,
+            to: None,
+            stage: None,
+            from_stage: None,
+            to_stage: None,
+            alpha: false,
+            png: false,
+            gif: false,
+            crt: false,
+            template: None,
+            branded: false,
+            brand_end: true,
+        }
+    }
+
+    fn staged_movie() -> crate::movie::Movie {
+        crate::parse(
+            "step(\"question\") { wait(1); } wait(0.5);\n\
+             step(\"experiment\") { wait(2); } wait(0.25);\n\
+             step(\"proof\") { wait(1); } wait(0.5);",
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn one_stage_and_inclusive_stage_ranges_resolve_to_exact_boundaries() {
+        let movie = staged_movie();
+        let mut one = opts();
+        one.stage = Some("experiment".into());
+        let window = playback_window(&movie, &one, 6.25).unwrap();
+        assert_eq!((window.from, window.to), (1.5, 3.75));
+        assert_eq!(window.label.as_deref(), Some("experiment"));
+
+        let mut range = opts();
+        range.from_stage = Some("experiment".into());
+        range.to_stage = Some("proof".into());
+        let window = playback_window(&movie, &range, 6.25).unwrap();
+        assert_eq!((window.from, window.to), (1.5, 5.25));
+        assert_eq!(window.label.as_deref(), Some("experiment → proof"));
+    }
+
+    #[test]
+    fn named_stage_selection_reports_typos_conflicts_and_backwards_ranges() {
+        let movie = staged_movie();
+        let mut typo = opts();
+        typo.stage = Some("experimnt".into());
+        let error = playback_window(&movie, &typo, 6.25).unwrap_err();
+        assert!(error.contains("Did you mean `experiment`"), "{error}");
+
+        let mut conflict = opts();
+        conflict.stage = Some("proof".into());
+        conflict.from_set = true;
+        assert!(playback_window(&movie, &conflict, 6.25)
+            .unwrap_err()
+            .contains("not both"));
+
+        let mut backwards = opts();
+        backwards.from_stage = Some("proof".into());
+        backwards.to_stage = Some("question".into());
+        assert!(playback_window(&movie, &backwards, 6.25)
+            .unwrap_err()
+            .contains("backwards or empty"));
+    }
+
+    #[test]
+    fn stage_hud_is_safe_without_stages_and_uses_one_side_of_each_boundary() {
+        let playback = PlaybackWindow {
+            from: 0.0,
+            to: 5.25,
+            label: None,
+        };
+        assert_eq!(active_stage_index(&[], playback.to, &playback), None);
+
+        let stages = staged_movie().stage_ranges();
+        assert_eq!(active_stage_index(&stages, 1.5, &playback), Some(1));
+        assert_eq!(active_stage_index(&stages, playback.to, &playback), Some(2));
+    }
+
+    #[test]
+    fn unstaged_transport_covers_scrub_progress_and_the_final_frame_headlessly() {
+        let movie = crate::parse("wait(4);").unwrap();
+        let playback = playback_window(&movie, &opts(), 5.0).unwrap();
+        let visible = visible_stage_ranges(&movie.stage_ranges(), &playback);
+
+        assert!(visible.is_empty());
+        assert_eq!(playback.time_at(-1.0), 0.0);
+        assert_eq!(playback.time_at(0.5), 2.5);
+        assert_eq!(playback.time_at(2.0), 5.0);
+        assert_eq!(playback.progress(-1.0), 0.0);
+        assert_eq!(playback.progress(2.5), 0.5);
+        assert_eq!(playback.progress(9.0), 1.0);
+        assert_eq!(playback.settle_time(-1.0), (0.0, false));
+        assert_eq!(playback.settle_time(5.0), (5.0, true));
+        assert_eq!(active_stage_index(&visible, 5.0, &playback), None);
+        assert_eq!(stage_index_at_fraction(&visible, &playback, 1.0), None);
+    }
+
+    #[test]
+    fn selected_stage_geometry_is_clipped_normalized_and_boundary_safe() {
+        let movie = staged_movie();
+        let mut selected = opts();
+        selected.stage = Some("experiment".into());
+        let playback = playback_window(&movie, &selected, 6.25).unwrap();
+        let visible = visible_stage_ranges(&movie.stage_ranges(), &playback);
+
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].name, "experiment");
+        assert_eq!(stage_span(&visible[0], &playback), (0.0, 1.0));
+        assert_eq!(stage_index_at_fraction(&visible, &playback, 0.0), Some(0));
+        assert_eq!(stage_index_at_fraction(&visible, &playback, 1.0), Some(0));
+
+        let all = PlaybackWindow {
+            from: 0.0,
+            to: 5.25,
+            label: None,
+        };
+        let visible = visible_stage_ranges(&movie.stage_ranges(), &all);
+        let boundary = all.progress(1.5);
+        assert_eq!(stage_index_at_fraction(&visible, &all, boundary), Some(1));
+    }
+
+    #[test]
+    fn invalid_numeric_ranges_are_rejected_and_helpers_remain_total() {
+        let movie = staged_movie();
+        let mut invalid = opts();
+        invalid.from = f32::NAN;
+        invalid.from_set = true;
+        assert!(playback_window(&movie, &invalid, 6.25)
+            .unwrap_err()
+            .contains("finite"));
+
+        invalid = opts();
+        invalid.to = Some(f32::INFINITY);
+        assert!(playback_window(&movie, &invalid, 6.25)
+            .unwrap_err()
+            .contains("finite"));
+        assert!(playback_window(&movie, &opts(), f32::NAN)
+            .unwrap_err()
+            .contains("finite positive"));
+
+        let zero = PlaybackWindow {
+            from: 2.0,
+            to: 2.0,
+            label: None,
+        };
+        assert_eq!(zero.progress(2.0), 0.0);
+        assert_eq!(zero.time_at(0.5), 2.0);
+        assert_eq!(zero.time_at(f32::NAN), 2.0);
+        assert_eq!(zero.settle_time(f32::NAN), (2.0, true));
+    }
+
+    #[test]
+    fn representative_shipped_movies_are_safe_at_transport_endpoints() {
+        let cases = [
+            (
+                "reactive-math-notation",
+                include_str!("../examples/reactive-math-notation.manic"),
+                false,
+            ),
+            ("sine-wave", include_str!("../examples/sine_wave.manic"), false),
+            (
+                "reactive-world",
+                include_str!("../examples/reactive-world.manic"),
+                true,
+            ),
+            (
+                "parameter-journeys",
+                include_str!("../examples/parameter-journeys.manic"),
+                true,
+            ),
+        ];
+
+        for (name, source, expects_stages) in cases {
+            let movie = crate::parse(source).unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            let timeline_end = movie.content_duration() + 1.0;
+            let playback = playback_window(&movie, &opts(), timeline_end)
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            let stages = visible_stage_ranges(&movie.stage_ranges(), &playback);
+
+            assert_eq!(!stages.is_empty(), expects_stages, "{name}");
+            assert_eq!(playback.progress(playback.from), 0.0, "{name}");
+            assert_eq!(playback.progress(playback.to), 1.0, "{name}");
+            assert_eq!(playback.settle_time(playback.to), (playback.to, true));
+            let _ = active_stage_index(&stages, playback.to, &playback);
+            let _ = stage_index_at_fraction(&stages, &playback, 1.0);
+        }
+    }
+
+    #[test]
+    fn cli_option_errors_are_reported_without_panics() {
+        for (values, expected) in [
+            (vec!["manic", "lesson.manic", "--stage"], "--stage expects"),
+            (
+                vec!["manic", "lesson.manic", "--stage", "--record"],
+                "--stage expects",
+            ),
+            (vec!["manic", "lesson.manic", "--fps", "0"], "positive"),
+            (vec!["manic", "lesson.manic", "--fps", "fast"], "positive"),
+            (vec!["manic", "lesson.manic", "--from", "soon"], "seconds"),
+            (vec!["manic", "lesson.manic", "--still", "NaN"], "finite"),
+            (vec!["manic", "lesson.manic", "--scale", "inf"], "finite"),
+        ] {
+            let error = parse_opts_from(&args(&values)).unwrap_err();
+            assert!(error.contains(expected), "{values:?}: {error}");
+        }
+
+        let parsed = parse_opts_from(&args(&[
+            "manic",
+            "lesson.manic",
+            "--stage",
+            "proof",
+            "--fps",
+            "30",
+            "--from",
+            "0",
+        ]))
+        .unwrap();
+        assert_eq!(parsed.stage.as_deref(), Some("proof"));
+        assert_eq!(parsed.fps, 30);
+        assert!(parsed.from_set);
     }
 }

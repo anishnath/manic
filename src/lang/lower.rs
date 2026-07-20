@@ -522,7 +522,7 @@ fn lower_top_timeline(movie: &mut Movie, s: &Stmt, registry: &Registry) -> Resul
                     a.span_of(0),
                 ));
             }
-            movie.mark(&name);
+            movie.stage(&name);
             movie.play(clip);
             Ok(())
         }

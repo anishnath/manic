@@ -23,8 +23,16 @@ or social video.
    non-step timelines remain unchanged. See `examples/reactive-world.manic`.
 2. **Named story stages.** Make `question → intuition → experiment → proof →
    takeaway` first-class project structure. Stages must be readable in source,
-   seekable in preview, and reusable by recording/publishing tools. The reactive
-   `step` foundation intentionally serves both priorities 1 and 2.
+   seekable in preview, and reusable by recording/publishing tools. **Shipped ✅
+   (2026-07):** `step("name") { ... }` remains the only authoring vocabulary,
+   while its metadata is promoted throughout the workflow:
+   `manic stages FILE.manic` reports start/end/duration, `--stage NAME` previews
+   or records exactly one stage, and inclusive `--from-stage` / `--to-stage`
+   ranges export story slices. Live preview starts and restarts at the selected
+   boundary, clamps scrubbing/playback to it, exposes a clickable stage strip,
+   and uses number keys for direct stage jumps. Recording metadata is filtered,
+   clipped, and shifted to the selected source range while retaining original
+   `source_t` positions. No duplicate scene or timestamp DSL is introduced.
 3. **One story, multiple formats.** Reframe the same semantic stages for Reels,
    Shorts, landscape lessons, square posts, slides, thumbnails, and stills—same
    content identity, format-specific layout and pacing. **Foundation shipped ✅

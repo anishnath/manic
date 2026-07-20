@@ -141,12 +141,20 @@ beat should have a name and meaning.
 ## Named steps are editing markers
 
 Every step name is automatically exported at the step's start in
-`markers.json`. Those semantic timestamps make it easier to:
+`markers.json` and becomes a first-class preview/recording boundary. Inspect the
+story or open one beat directly:
+
+```sh
+manic stages examples/reactive-world.manic
+manic examples/reactive-world.manic --stage find-the-flat-point
+```
+
+Those semantic boundaries make it easier to:
 
 - align narration, music, captions, and sound effects;
 - review or seek directly to a conceptual beat;
 - identify a clean hook, explanation, result, or takeaway;
-- prepare the same story for future multi-format publishing tools.
+- export one stage or an inclusive stage range without copying timestamps.
 
 Names must be non-empty, unique, and top-level. If you only need a timestamp
 without a reactive state change, use `mark("name")` instead.
@@ -211,4 +219,4 @@ keeps the semantic story unchanged.
 Start by copying `reactive-world.manic`, rename its steps around your idea, and
 replace one representation at a time. Keep the world; change the understanding.
 
-Next: [Review every format before publishing →](creator-visual-checks.md)
+Next: [Navigate and export the story by stage →](creator-stages.md)

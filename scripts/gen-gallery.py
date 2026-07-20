@@ -655,6 +655,7 @@ SUMMARY_PRE = [
  "- [Getting started](getting-started.md)",
  "- [Create a polished Reel](creator-reels.md)",
  "- [Reactive stories — change the idea, not the scene](creator-reactive.md)",
+ "- [Story stages — edit the idea, not the timestamp](creator-stages.md)",
  "- [Visual checks — review every format](creator-visual-checks.md)",
  "- [Parameter journeys — one value, many views](creator-parameters.md)",
  "- [Shapes — the cast](shapes.md)",

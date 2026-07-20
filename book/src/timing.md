@@ -52,8 +52,9 @@ reads far better than rushing to the next move.
 Use `step` when a beat represents the world's **next conceptual state**, not
 just anonymous timing. Its children start together like `par`; its duration is
 the longest child; anything not mentioned remains exactly as it was. The unique
-name is written to `markers.json`, which makes the story seekable today and
-gives future format/export tools semantic chapter boundaries.
+name is written to `markers.json` and becomes a first-class editing boundary:
+`manic stages FILE.manic` lists durations, `--stage NAME` previews or records
+one stage, and `--from-stage` / `--to-stage` export an inclusive arc.
 
 ```manic
 step("explain") {
@@ -66,6 +67,11 @@ step("explain") {
 
 Steps are top-level and names must be non-empty and unique. Put `seq { … }`
 inside a step when a small part needs ordered choreography.
+
+An authored `wait` after a step remains part of that stage until the next step
+begins. This lets a stage-only export keep the reading hold after its motion.
+See [Story stages](creator-stages.md) for the live navigator and publishing
+workflow.
 
 ## Generic Timing v2 — one clock for any scene
 

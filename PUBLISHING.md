@@ -49,6 +49,18 @@ recording. Ordinary `manic check` remains the fast syntax/timeline check.
 
 ## 4. Render the demo videos
 
+For a stage-specific social clip, inspect the semantic timeline and select by
+name rather than copying seconds:
+
+```sh
+manic stages examples/reactive-world.manic
+manic examples/reactive-world.manic --stage takeaway --record out-takeaway --preset reel
+manic examples/reactive-world.manic --from-stage question --to-stage see-the-derivative --record out-arc
+```
+
+`--to-stage` is inclusive. The recording's `markers.json` contains the selected
+source range plus clip-relative stage, section, and mark timing.
+
 Renders each row in `book/videos.txt` to `book/videos-out/<name>.mp4`, **unbranded**
 at 1080p/60 (`--preset studio --no-brand`). Incremental — re-renders only changed
 sources (`FORCE=1` to redo all):

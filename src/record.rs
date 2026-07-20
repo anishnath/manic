@@ -13,6 +13,8 @@ use std::process::{Child, Command, Stdio};
 
 use macroquad::texture::Image;
 
+use crate::movie::StoryStage;
+
 enum Sink {
     Png,
     Pipe { child: Child, output: PathBuf },
@@ -147,10 +149,36 @@ impl Recorder {
         self.frame
     }
 
-    /// Close the sink and write `markers.json` (sections + beat marks) for
-    /// narration alignment in the editor.
-    pub fn finish(mut self, sections: &[(f32, String)], marks: &[(f32, String)]) {
-        let markers = markers_json(self.fps, sections, marks);
+    /// Close the sink and write the historical whole-movie `markers.json`.
+    /// Kept for Rust API compatibility; the Manic player uses
+    /// [`Recorder::finish_range`] for stage-aware clip metadata.
+    pub fn finish(
+        self,
+        sections: &[(f32, String)],
+        marks: &[(f32, String)],
+    ) {
+        let markers = legacy_markers_json(self.fps, sections, marks);
+        self.finish_with_markers(markers);
+    }
+
+    /// Close the sink and write clip-relative `markers.json` (source range,
+    /// story stages, sections, and beat marks) for editor alignment.
+    pub fn finish_range(
+        self,
+        sections: &[(f32, String)],
+        marks: &[(f32, String)],
+        stages: &[StoryStage],
+        from: f32,
+        to: f32,
+    ) {
+        let markers = markers_json(self.fps, sections, marks, stages, from, to);
+        self.finish_with_markers(markers);
+    }
+
+    fn finish_with_markers(
+        mut self,
+        markers: String,
+    ) {
         let _ = std::fs::write(self.dir.join("markers.json"), markers);
 
         match &mut self.sink {
@@ -182,7 +210,11 @@ impl Recorder {
     }
 }
 
-fn markers_json(fps: u32, sections: &[(f32, String)], marks: &[(f32, String)]) -> String {
+fn legacy_markers_json(
+    fps: u32,
+    sections: &[(f32, String)],
+    marks: &[(f32, String)],
+) -> String {
     fn list(items: &[(f32, String)]) -> String {
         items
             .iter()
@@ -197,6 +229,51 @@ fn markers_json(fps: u32, sections: &[(f32, String)], marks: &[(f32, String)]) -
     )
 }
 
+fn markers_json(
+    fps: u32,
+    sections: &[(f32, String)],
+    marks: &[(f32, String)],
+    stages: &[StoryStage],
+    from: f32,
+    to: f32,
+) -> String {
+    fn list(items: &[(f32, String)], from: f32, to: f32) -> String {
+        items
+            .iter()
+            .filter(|(t, _)| *t >= from && *t < to)
+            .map(|(t, name)| {
+                format!(
+                    "    {{\"t\": {:.3}, \"source_t\": {t:.3}, \"name\": {:?}}}",
+                    t - from,
+                    name
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n")
+    }
+    let stage_list = stages
+        .iter()
+        .filter(|stage| stage.end > from && stage.start < to)
+        .map(|stage| {
+            let start = stage.start.max(from) - from;
+            let end = stage.end.min(to) - from;
+            format!(
+                "    {{\"t\": {start:.3}, \"end\": {end:.3}, \"duration\": {:.3}, \"source_t\": {:.3}, \"name\": {:?}}}",
+                (end - start).max(0.0),
+                stage.start,
+                stage.name,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!(
+        "{{\n  \"fps\": {fps},\n  \"source_range\": {{\"from\": {from:.3}, \"to\": {to:.3}, \"duration\": {:.3}}},\n  \"stages\": [\n{stage_list}\n  ],\n  \"sections\": [\n{}\n  ],\n  \"marks\": [\n{}\n  ]\n}}\n",
+        (to - from).max(0.0),
+        list(sections, from, to),
+        list(marks, from, to)
+    )
+}
+
 /// Mirror an image top-to-bottom in place (row-swap of RGBA pixels). Used to
 /// cancel `Image::export_png`'s internal flip so PNG frames land upright.
 fn flip_rows(img: &mut Image) {
@@ -207,5 +284,55 @@ fn flip_rows(img: &mut Image) {
         for i in 0..stride {
             img.bytes.swap(top + i, bot + i);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::markers_json;
+    use crate::movie::StoryStage;
+
+    #[test]
+    fn selected_recording_metadata_is_filtered_clipped_and_relative() {
+        let points = vec![
+            (0.0, "question".to_string()),
+            (2.0, "experiment".to_string()),
+            (4.0, "proof".to_string()),
+        ];
+        let stages = vec![
+            StoryStage {
+                name: "question".into(),
+                start: 0.0,
+                end: 2.0,
+            },
+            StoryStage {
+                name: "experiment".into(),
+                start: 2.0,
+                end: 4.0,
+            },
+            StoryStage {
+                name: "proof".into(),
+                start: 4.0,
+                end: 6.0,
+            },
+        ];
+        let raw = markers_json(30, &[], &points, &stages, 2.0, 5.5);
+        assert!(
+            raw.contains(
+                "\"source_range\": {\"from\": 2.000, \"to\": 5.500, \"duration\": 3.500}"
+            ),
+            "{raw}"
+        );
+        assert!(!raw.contains("\"name\": \"question\""), "{raw}");
+        assert!(
+            raw.contains("{\"t\": 0.000, \"source_t\": 2.000, \"name\": \"experiment\"}"),
+            "{raw}"
+        );
+        assert!(
+            raw.contains(
+                "{\"t\": 2.000, \"end\": 3.500, \"duration\": 1.500, \"source_t\": 4.000, \"name\": \"proof\"}"
+            ),
+            "{raw}"
+        );
     }
 }

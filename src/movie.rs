@@ -19,6 +19,22 @@ pub const CAMERA_ID: &str = "__cam";
 /// Reserved id of the optional animatable 3D orbit camera.
 pub const CAMERA3_ID: &str = "__cam3";
 
+/// One named `step(...)` resolved into an authored story interval. The final
+/// stage ends at the movie's content duration; earlier stages end where the
+/// next stage begins, so narration holds stay with the stage being absorbed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoryStage {
+    pub name: String,
+    pub start: f32,
+    pub end: f32,
+}
+
+impl StoryStage {
+    pub fn duration(&self) -> f32 {
+        (self.end - self.start).max(0.0)
+    }
+}
+
 /// If `s` (trimmed) is exactly one `$…$` span with no interior `$`, return the
 /// inner LaTeX. Phase 2a handles WHOLE-label math only (a caption that *is* a
 /// formula); mixed runs (`"KE = $\frac12 mv^2$"`) come in 2b. Returns `None` for
@@ -77,11 +93,15 @@ pub struct Movie {
     pub(crate) scene: Scene,
     placed: Vec<(f32, Clip)>,
     cursor: f32,
-    /// (time, name) markers — the player jumps to these with keys 1–9.
+    /// (time, name) visual section markers — the player uses these with keys
+    /// 1–9 only when the movie has no named story stages.
     pub sections: Vec<(f32, String)>,
     /// Named beat markers from [`Movie::mark`], exported to `markers.json`
     /// alongside recordings for narration alignment.
     pub marks: Vec<(f32, String)>,
+    /// Starts of authored `step("name")` story stages. These stay distinct from
+    /// generic marks so preview and publishing tools can expose story structure.
+    pub stages: Vec<(f32, String)>,
     /// The visual template (look/chrome). Defaults to `mono`.
     pub template: style::Template,
     section_n: usize,
@@ -110,6 +130,7 @@ impl Movie {
             cursor: 0.0,
             sections: Vec::new(),
             marks: Vec::new(),
+            stages: Vec::new(),
             template: style::Template::default(),
             section_n: 0,
         }
@@ -217,6 +238,48 @@ impl Movie {
     /// written to `markers.json` next to recorded frames.
     pub fn mark(&mut self, name: &str) {
         self.marks.push((self.cursor, name.to_string()));
+    }
+
+    /// Record a named story stage at the cursor while retaining the historical
+    /// generic marker export used by narration and editing integrations.
+    pub fn stage(&mut self, name: &str) {
+        self.stages.push((self.cursor, name.to_string()));
+        self.mark(name);
+    }
+
+    /// Duration of authored content before the timeline's internal final-frame
+    /// padding. This includes explicit waits and clips placed beyond the cursor.
+    pub fn content_duration(&self) -> f32 {
+        self.placed
+            .iter()
+            .fold(self.cursor, |end, (start, clip)| end.max(start + clip.dur))
+    }
+
+    /// Named story intervals in source order. A stage includes the hold after
+    /// its transition, ending at the next stage or the authored content end.
+    pub fn stage_ranges(&self) -> Vec<StoryStage> {
+        let content_end = self.content_duration();
+        self.stages
+            .iter()
+            .enumerate()
+            .map(|(index, (start, name))| StoryStage {
+                name: name.clone(),
+                start: *start,
+                end: self
+                    .stages
+                    .get(index + 1)
+                    .map(|(next, _)| *next)
+                    .unwrap_or(content_end)
+                    .max(*start),
+            })
+            .collect()
+    }
+
+    /// Find one named story stage exactly as authored.
+    pub fn stage_range(&self, name: &str) -> Option<StoryStage> {
+        self.stage_ranges()
+            .into_iter()
+            .find(|stage| stage.name == name)
     }
 
     /// Ids of all entities carrying `tag`. Pair with [`crate::animate::all`]:
@@ -336,9 +399,8 @@ impl Movie {
     pub fn finalize(&self) -> (Scene, Timeline) {
         let mut specs: Vec<TrackSpec> = Vec::new();
         let mut events: Vec<TextEvent> = Vec::new();
-        let mut end = self.cursor;
+        let end = self.content_duration();
         for (start, clip) in &self.placed {
-            end = end.max(start + clip.dur);
             for t in &clip.tracks {
                 let mut t = t.clone();
                 t.start += start;
@@ -457,6 +519,22 @@ mod validate_tests {
             vec![(0.0, "explain".into()), (0.8, "result".into())],
             "step starts are exported as deterministic markers"
         );
+        assert_eq!(movie.stages, movie.marks, "steps also retain story identity");
+        assert_eq!(
+            movie.stage_ranges(),
+            vec![
+                super::StoryStage {
+                    name: "explain".into(),
+                    start: 0.0,
+                    end: 0.8,
+                },
+                super::StoryStage {
+                    name: "result".into(),
+                    start: 0.8,
+                    end: 1.2,
+                },
+            ]
+        );
         assert!((movie.now() - 1.2).abs() < 1e-6, "step duration is its longest child");
 
         let (base, timeline) = movie.finalize();
@@ -478,6 +556,24 @@ mod validate_tests {
         let mid_fresh = timeline.apply(&base, 0.3).get("point").unwrap().pos;
         assert_eq!(mid_after_final, mid_fresh);
         assert!(mid_after_final.x > 100.0 && mid_after_final.x < 500.0);
+    }
+
+    #[test]
+    fn story_stage_ranges_include_their_following_reading_holds() {
+        let movie = crate::parse(
+            "step(\"question\") { wait(1); }\n\
+             wait(0.5);\n\
+             step(\"proof\") { wait(2); }\n\
+             wait(0.25);",
+        )
+        .unwrap();
+        let stages = movie.stage_ranges();
+        assert_eq!(stages.len(), 2);
+        assert_eq!((stages[0].start, stages[0].end), (0.0, 1.5));
+        assert_eq!((stages[1].start, stages[1].end), (1.5, 3.75));
+        assert!((stages[1].duration() - 2.25).abs() < 1e-6);
+        assert_eq!(movie.stage_range("proof"), Some(stages[1].clone()));
+        assert!(movie.stage_range("missing").is_none());
     }
 
     #[test]

@@ -358,7 +358,7 @@ however you like.
 | `wait(secs)` / `beat(secs)` | leave a gap (narration room); advances the cursor |
 | `section("Title")` | a neon banner card + a jump marker (keys 1–9 in preview) |
 | `mark("name")` | a named beat marker exported to `markers.json` |
-| `step("name") { ... }` | a named reactive world transition: children start together, unmentioned entities persist, and the start is exported as a marker |
+| `step("name") { ... }` | a named reactive world transition and first-class story stage: children start together, unmentioned entities persist, and the start is exported as a marker |
 | `par { ... }` | run the inner beats **at the same time** (duration = longest) |
 | `seq { ... }` | run the inner beats **one after another** |
 | `stagger(d) { ... }` | run in parallel, each starting `d` seconds after the previous |
@@ -376,6 +376,21 @@ step("explain") {
   say(caption, "The formula, tangent and readout change together.");
 }
 ```
+
+Stage names are also creator workflow controls—no timestamps need to be copied:
+
+```sh
+manic stages examples/reactive-world.manic
+manic examples/reactive-world.manic --stage find-the-flat-point
+manic examples/reactive-world.manic --stage see-the-derivative --record out-derivative
+manic examples/reactive-world.manic --from-stage measure-slope --to-stage takeaway --record out-arc
+```
+
+`manic stages` reports each start, end, and duration. A stage extends until the
+next `step`, so an authored `wait` after its transition is included as reading
+time. `--to-stage` is inclusive. In live preview the selected range controls
+restart and scrubbing, while the stage strip and keys `1`–`9` jump between its
+visible stages. Named ranges cannot be mixed with numeric `--from`/`--to`.
 
 Blocks nest, and may contain verbs, `wait`, other blocks, and **control
 constructs** (`for` / `if` / macro calls — which expand into verbs). They may

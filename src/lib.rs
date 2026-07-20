@@ -98,7 +98,17 @@ pub fn parse_with_canvas(
 ///
 /// Call this from a plain `fn main()` — no macroquad attribute needed.
 pub fn run(movie: movie::Movie) {
-    let opts = player::parse_opts();
+    let opts = match player::parse_opts() {
+        Ok(opts) => opts,
+        Err(message) => {
+            eprintln!("manic: {message}");
+            std::process::exit(2);
+        }
+    };
+    if let Err(message) = player::playback_window(&movie, &opts, movie.content_duration() + 1.0) {
+        eprintln!("manic: {message}");
+        std::process::exit(2);
+    }
     let conf = macroquad::window::Conf {
         window_title: movie.title.clone(),
         window_width: (movie.width as f32 * opts.scale) as i32,
@@ -109,7 +119,7 @@ pub fn run(movie: movie::Movie) {
         sample_count: 4,
         ..Default::default()
     };
-    macroquad::Window::from_config(conf, player::run_loop(movie));
+    macroquad::Window::from_config(conf, player::run_loop(movie, opts));
 }
 
 /// Everything a movie script needs: `use manic::prelude::*;`

@@ -45,6 +45,10 @@ cargo run --bin manic -- check examples/sine_wave.manic
 # publishing audit: settled stages across portrait, feed, square, and landscape
 cargo run --bin manic -- check examples/reactive-multiformat.manic --canvas all
 
+# inspect the story, then preview one named stage
+cargo run --bin manic -- stages examples/reactive-world.manic
+cargo run --bin manic -- examples/reactive-world.manic --stage find-the-flat-point
+
 # export one still frame at t = 2.6s
 cargo run --bin manic -- examples/sine_wave.manic --still 2.6
 
@@ -79,9 +83,11 @@ cargo run --release --bin manic -- examples/hashmap.manic --record out --preset 
 
 Recorded output under a branded preset automatically gets a short **intro**
 (the neon fractal tree grows while the `Manic` wordmark types in over
-<https://8gwifi.org/manic>) and a **"Made With Manic"** watermark. Branding is added by the engine — it's **never part of your
-`.manic` file** — and never appears in the live preview or `--still` (those stay
-clean for iteration). Turn it off with `--no-brand`.
+<https://8gwifi.org/manic>) and a **"Made With Manic"** watermark. Preset
+branding is added by the engine and need not appear in the `.manic` file; an
+author can still add an intentional in-scene `watermark(...)`. Automatic preset
+branding never appears in live preview or `--still`. Turn it off with
+`--no-brand`.
 
 ### Recording flags
 
@@ -93,7 +99,9 @@ clean for iteration). Turn it off with `--no-brand`.
 | `--canvas FORMAT` | reframe one responsive source before layout: `portrait` · `4:5` · `square` · `16:9` · `WIDTHxHEIGHT` |
 | `--fps N` | output frame rate (overrides the preset) |
 | `--scale F` | supersampling; `1.5` → true 1080p from a 720p canvas, `2` → 1440p |
-| `--from S --to S` | record only a time range (clips) |
+| `--stage NAME` | preview or record exactly one named `step` stage |
+| `--from-stage NAME --to-stage NAME` | select an inclusive story-stage range |
+| `--from S --to S` | record only a numeric time range (cannot mix with named ranges) |
 | `--gif` | write `DIR/out.gif` instead of mp4 |
 | `--png` / `--alpha` | PNG sequence (alpha = transparent, no chrome) |
 | `--template NAME` | look/chrome: `mono` (default) · `plain` · `terminal` · `paper` · `blueprint` · `shorts` |
@@ -121,8 +129,10 @@ name the format, stage, time, and entity and return a failing status until the
 layout is clean. Ordinary `manic check` remains the fast parse-and-validation
 path.
 
-Recording also writes `DIR/markers.json` — section and `mark(...)` timestamps
-for lining narration up in an editor.
+Run `manic stages FILE.manic` to inspect stage starts, ends, and durations before
+opening a window. Recording writes `DIR/markers.json` with the selected source
+range, clip-relative stage intervals, and filtered section/`mark(...)`
+timestamps for lining narration up in an editor.
 
 ### Live transport controls
 
@@ -131,10 +141,11 @@ for lining narration up in an editor.
 | `Space` | pause / play |
 | `←` `→` | step one frame |
 | `,` `.` | jump ±1 s |
-| `1`–`9` | jump to section markers |
+| `1`–`9` | jump to named story stages (sections when no stages exist) |
 | `F` / `F11` / `Ctrl`+`Cmd`+`F` | fullscreen |
-| `R` | restart |
-| drag bottom bar | scrub |
+| `R` | restart the selected stage/range |
+| click stage strip | jump directly to that stage |
+| drag bottom bar | scrub inside the selected stage/range |
 
 ## Documentation
 

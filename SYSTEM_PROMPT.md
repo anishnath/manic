@@ -168,8 +168,10 @@ Constructors and timeline may be written in any order.
 `"shorts"` (dark creator studio) — each retints named colours ·
 `masthead("left",["right"])` (optional header text; empty by default) ·
 `section("Title")` · `wait(secs)` / `beat(secs)` · `mark("name")` ·
-`step("name") { ... }` (named reactive world transition: children run together,
-unmentioned entities persist, unique top-level name exported as a marker) ·
+`step("name") { ... }` (named reactive world transition and creator stage:
+children run together, unmentioned entities persist, and the unique top-level
+name drives stage listing, preview/range recording, the live navigator, and
+marker export) ·
 `par { }` (together) · `seq { }` (in order) · `stagger(d) { }` (each d s after previous)
 
 ### Generic Timing v2
