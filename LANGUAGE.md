@@ -15,7 +15,7 @@ Arguments are:
 | kind | example |
 |---|---|
 | number | `40`, `-5`, `2.5` |
-| string | `"hello"` — keeps backslashes verbatim so **LaTeX works directly** (`"\frac{1}{2}"`, `"\theta"`); only `\"` (a literal quote) and `\\` are special. **`\n` is a hard line break** in `text`/`caption` (text also auto-wraps if you `wrap(id,w)`). Backticks `` `...` `` are also raw and additionally let the LaTeX contain a `"`. |
+| string | `"hello"` — keeps backslashes verbatim so single-line **LaTeX works directly** (`"\frac{1}{2}"`, `"\theta"`); only `\"` (a literal quote) and `\\` are special — so a LaTeX line break `\\` (in `aligned`/`cases`/`matrix`, or `\\[4pt]`) COLLAPSES in `"..."` and breaks the math. **For any LaTeX, prefer backticks `` `...` ``** — fully raw, every backslash (incl. `\\`) survives, and they can contain a `"`. **`\n` is a hard line break** in `text`/`caption` (text also auto-wraps if you `wrap(id,w)`). |
 | name | `A`, `cyan`, `smooth` (an entity id, color, easing, or function) |
 | point | `(300, 400)` — an `(x, y)` coordinate pair |
 | 3D point | `(2, -1, 3)` — an `(x, y, z)` coordinate triple |
