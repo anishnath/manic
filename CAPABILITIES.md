@@ -2961,3 +2961,147 @@ kit's success hinges on product decisions (aesthetic path, basemap, political
 stance) that aren't urgent while the physics domain and creator formats are the
 active queue. Revisit when a repeated creator demand for map reels justifies
 picking the forks above.
+
+## Crypto & Security kit — 🟢 Planned (next kit)
+
+> **Status: chosen direction, documented before building.** Uniquely aligned
+> with the platform: 8gwifi.org **is** a crypto/security tools site and hosts the
+> manic playground, so a crypto kit's output drops straight into the existing
+> audience + SEO with no cold start. There's also a **goldmine to mine** — the
+> `crypto-viz` visualizer already in crypto-tool (see below). The broader-audience
+> **Finance & Economics kit** is the planned follow-on (notes at the end).
+
+### Why this kit passes the fit test (all four)
+
+1. **Computed & truthful** — cryptography is pure *computed process* (modular
+   arithmetic, key schedules, hash rounds), never illustration. manic's core
+   strength; a crypto reel must show the *real* algorithm, not a hand-wave.
+2. **Animates a process** — every primitive is a step sequence begging to be
+   animated (key exchange, hash rounds, a handshake).
+3. **Demand** — security explainers are underserved and evergreen.
+4. **Audience alignment** — the one candidate where distribution already exists
+   (8gwifi). Turns a *tools* site into a *tools + explainers* site.
+
+### Design principle — reuse the global vocabulary; add words only when forced
+
+**This is the manic way, and it governs the whole kit.** A crypto scene is
+almost entirely *composition over the existing global vocabulary* — you do NOT
+add a builtin per algorithm. Add new vocabulary **only when the engine genuinely
+cannot express the thing**, and when you must, prefer a **global engine
+capability** (useful to every kit) over a crypto-specific word. Keep it easy DSL.
+
+- **Default = compose existing primitives.** A Diffie-Hellman or TLS scene is
+  two columns of `text`/`rect`, `arrow`s between them, values in `equation`/
+  `counter`, revealed with `par`/`seq`/`step` and `say`/`karaoke` captions. An
+  AES state or a hash bit-grid is a `matrix`/`table` whose cells `recolor`/`move`.
+  Block-chaining is `rect`s joined by `arrow`s. **None of that needs a new word.**
+- **A new *builtin* is the last resort**, justified only when a scene can't be
+  composed at all — and even then, prefer a thin template/macro over an engine
+  builtin.
+- **Real crypto-viz traces/captures supply the data**, so the kit rarely needs
+  the engine to *compute* crypto — it needs to *display* a trace it's given.
+
+### The goldmine — `crypto-viz` (reimagine, don't port)
+
+`crypto-tool/src/main/webapp/crypto-viz/` (`crypto-viz.js`, ~790 lines) is an
+existing web visualizer we can mine, exactly like the physics-sims goldmine:
+
+- **A validated algorithm catalog + step traces** — live (Docker API) and static
+  (pre-recorded) traces for RSA, AES, DES, Feistel, SHA/MD5 hashing, ECC/elliptic
+  curves, modular arithmetic, XOR/ciphers. The *logic and step order are already
+  correct* — reuse the truth, reimagine the presentation.
+- **Real captured protocol data** — actual `openssl -msg` **TLS 1.0/1.1/1.2/1.3
+  handshakes** and a gRPC/HTTP-2 unary call, as bundled JSON. Reuse verbatim: a
+  handshake reel driven by a *real* capture, not a mock.
+- **Proven visualization patterns** to translate into manic verbs:
+  `renderSwimlane` (client↔server message flow — TLS/protocols),
+  `renderTrace`/`renderStepInfo` (step-by-step algorithm state),
+  `renderTimeline`, `renderPlot`.
+
+Per `goldmine-reimagine-not-port`: take the **algorithm truth + real captures**
+faithfully, but **reimagine the presentation** as elevated animated reels in
+manic's voice — never a 1:1 UI copy of the web tool.
+
+### The scenes — and what they actually need (mostly nothing new)
+
+Each target scene, with an honest split of *reused existing vocabulary* vs. *the
+narrow thing (if any) the engine can't yet express*:
+
+| Scene | Built from existing vocab | Genuine gap (if any) |
+|---|---|---|
+| **Diffie-Hellman / RSA** | two-party columns (`text`/`rect`), `arrow`s, `equation`/`counter` values, `par`/`seq`/`step`, `say` | modular arithmetic (see below) |
+| **Hash avalanche / Merkle** | bit-grid = `matrix`/`table`, diff via `recolor`; tree = `rect`+`arrow` | the real hash *value* (feed a trace) |
+| **AES state / Feistel / DES** | 4×4 state = `matrix`; round steps = `recolor`/`move`/relabel cells | the round *data* (feed crypto-viz trace) |
+| **ECC point addition** | **`geo` kit** chord/tangent on a `plot`ted curve | none — pure reuse |
+| **TLS handshake / protocols** | client↔server swimlane = two columns + labelled `arrow`s + `seq`; real bundled captures as data | none (data-driven) |
+| **Blockchain / PoW / signatures** | chained `rect`s + `arrow`s + hash labels; tamper = `recolor` | the hash *value* (feed a trace) |
+
+The pattern: **the visuals are all existing vocabulary; the only thing the engine
+can't do is the crypto *math*, and that's supplied as data (crypto-viz traces),
+not computed in-engine.**
+
+### Genuine engine gaps — GLOBAL additions, not crypto builtins
+
+Where the engine truly falls short, fix it *globally* (every kit benefits), never
+as a crypto-specific word:
+
+- **Modulo operator `%` in expressions** — `BinOp` has only `+ - * / ^`; there is
+  no `%`. Modular arithmetic underpins DH/RSA/hashing. Add `%` to the lexer +
+  `BinOp` + evaluator: a tiny, **global** expression-language improvement (useful
+  to math/stats/generative too), not a crypto builtin. *This is the model for how
+  the kit should grow the engine.*
+- **Data/trace ingestion** — a general way to drive a scene from a bundled JSON
+  trace (the crypto-viz captures). If `data`/table ingestion can't already reach
+  it, this too is a **global** capability (physics/stats want it), not crypto-only.
+- Real hashing/AES *computation* is deliberately **out of scope for the engine** —
+  feed the pre-computed trace instead. Keeps the engine deterministic and small.
+
+### Synergies (reuse, near-zero new engine cost)
+
+- **`geo` kit** — ECC point addition is a chord/tangent construction; pure reuse.
+- **`creator` kit** — portrait reels, captions, badges, branding for the shorts.
+- **`stats`/plotting** — modular-arithmetic clock plots, difficulty curves.
+- **`std`** — most scenes are `matrix`/`rect`/`arrow`/`text` + `Shape::Image`
+  stickers animated with existing verbs; little to no bespoke rendering.
+
+### Flagship demo (the one-demo test)
+
+*"Watch Diffie-Hellman establish a shared secret,"* or *"flip one bit, watch the
+hash avalanche"* — both are short, punchy, reel-ready, screamingly on-brand for
+8gwifi, and provable from a plain AI prompt. If those generate cleanly, the kit
+works.
+
+### Correctness responsibility
+
+Unlike a decorative kit, a crypto kit that shows *wrong* math is actively
+harmful (mis-education on security). Discipline: drive scenes from the **real
+crypto-viz traces / captures** where possible, and unit-test the arithmetic
+(modular exponentiation, hash step counts) the way physics sims are validated.
+
+### Proposed phased roadmap (reuse-first at every phase)
+
+- **Phase 0 — the one true engine gap:** add the **global `%` operator** to the
+  expression language (lexer + `BinOp` + evaluator). Unblocks modular arithmetic
+  for every kit. This is the *only* engine change the flagships need.
+- **Phase 1 — the two flagships, composed from existing vocab:** Diffie-Hellman
+  (two-column `text`/`arrow`/`equation` + `seq`, values via `%`) and the hash
+  avalanche (`matrix` bit-grid + `recolor`, value from a trace). Portrait reel +
+  one template + AI-prompt validated end to end. **Goal: prove the kit with
+  little or no new vocabulary** — if a scene needs a builtin, that's a signal to
+  re-check whether existing primitives compose it first.
+- **Phase 2 — protocol swimlane:** TLS handshake as columns + labelled `arrow`s +
+  `seq`, driven by the real bundled captures (data ingestion, if not already
+  reachable). Version comparison.
+- **Phase 3 — ciphers & ECC:** AES state = `matrix` recolor sequence; Feistel/DES;
+  ECC point addition via the `geo` kit; RSA. Still composition-first.
+- **Phase 4 — blockchain & signatures**, plus a crypto-reel **template** shelf +
+  system-prompt training. Templates (macros over existing vocab), not builtins.
+
+### Broader-audience follow-on — Finance & Economics kit (after crypto)
+
+The planned *next* kit for raw creator volume (not platform-aligned, so it
+follows crypto): compound interest / loan amortization growth, candlestick
+charts, **options payoff diagrams**, supply/demand & elasticity, DCF/cash-flow,
+efficient frontier (synergy with `stats`). Perfectly quantitative → strong manic
+fit; biggest global creator niche. Documented here as the sequenced follow-on;
+detail it when crypto Phase 1 ships.
