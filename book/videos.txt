@@ -111,15 +111,15 @@ ex-bayes|YnqPXFlT-UI|Bayes' Theorem: Updating a Belief With Data — manic
 ex-probability|l9sqYflGPL8|A Probability Playground — Distributions, CI, Monte-Carlo & Random Walks — manic
 
 # ---- examples: machine learning ----
-ex-manic-ml-scalar-to-tensor|PLACEHOLDER|Scalar, Vector, Matrix, Tensor — How Data Gains Dimensions in Manic
-ex-manic-ml-activation-focus|PLACEHOLDER|Why ReLU? — One Activation Function Explained Visually in Manic
-ex-manic-ml-forward-pass|PLACEHOLDER|How a Neural Network Chooses — Follow One Real Forward Pass in Manic
-ex-manic-ml-learning-step|PLACEHOLDER|How One Mistake Teaches a Neural Network — Loss, Gradients and Learning in Manic
-ex-manic-ml-cnn-edge-story|PLACEHOLDER|How a CNN Finds Edges — Convolution and Max Pooling Visualized in Manic
-ex-manic-ml-token-embedding|PLACEHOLDER|How Words Gain Position — Tokenization and Embeddings Visualized in Manic
-ex-manic-ml-transformer-attention|PLACEHOLDER|How Self-Attention Finds Context — One Transformer Head Visualized in Manic
-ex-manic-ml-transformer-block|PLACEHOLDER|Inside One Transformer Block — Attention, Residuals and MLP Visualized in Manic
-ex-manic-ml-logits-sampling|PLACEHOLDER|How a Transformer Chooses Its Next Word — Temperature and Sampling Visualized in Manic
+ex-manic-ml-scalar-to-tensor|GkguFn1qB_k|Scalar, Vector, Matrix, Tensor — How Data Gains Dimensions in Manic
+ex-manic-ml-activation-focus|zW0wHsaASl0|Why ReLU? — One Activation Function Explained Visually in Manic
+ex-manic-ml-forward-pass|VjRF8VpjhR8|How a Neural Network Chooses — Follow One Real Forward Pass in Manic
+ex-manic-ml-learning-step|tdCuY1FKrXI|How One Mistake Teaches a Neural Network — Loss, Gradients and Learning in Manic
+ex-manic-ml-cnn-edge-story|hAbU0m_Qieg|How a CNN Finds Edges — Convolution and Max Pooling Visualized in Manic
+ex-manic-ml-token-embedding|0a5ePmj6GCU|How Words Gain Position — Tokenization and Embeddings Visualized in Manic
+ex-manic-ml-transformer-attention|1qXzB4e0Ksg|How Self-Attention Finds Context — One Transformer Head Visualized in Manic
+ex-manic-ml-transformer-block|Ev1tY_0MHmg|Inside One Transformer Block — Attention, Residuals and MLP Visualized in Manic
+ex-manic-ml-logits-sampling|9LsIXokfnfc|How a Transformer Chooses Its Next Word — Temperature and Sampling Visualized in Manic
 
 # ---- examples: vectors, fields & coordinates ----
 ex-vector_field|k79A0njUBr4|A Vector Field, Coloured by Force — manic
