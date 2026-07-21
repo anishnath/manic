@@ -52,7 +52,9 @@ network(net, (cx, cy), "3 6 4 3", "relu tanh softmax", 820, 350, 21);
 forward(net, "0.15 0.92 0.38", 4.2, smooth);
 loss(net, "1 0 0", crossentropy, 1.5, smooth);
 backward(net, 3.2, smooth);
+checkpoint(beforeUpdate, net);
 update(net, 0.18, 2.3, smooth);
+restore(net, beforeUpdate, 2.3, smooth); // exact rollback, not general unlearning
 
 tensor(image, (260, 340), "0 0 1; 0 1 1; 0 0 1", 44);
 kernel(edge, (560, 340), "-1 0 1; -2 0 2; -1 0 1", 44);

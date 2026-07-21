@@ -230,8 +230,9 @@ SECTIONS = [
    ("manic-ml-learning-step",
     "One complete supervised learning beat on a persistent network: predict, compare with a "
     "target using cross-entropy, send exact reverse-mode gradients backward, update every "
-    "weight and bias, then recompute the same input. `loss`, `backward`, and `update` expose "
-    "the mathematics without turning the DSL into a training framework."),
+    "weight and bias, then restore the exact pre-update checkpoint. `loss`, `backward`, "
+    "`checkpoint`, `update`, and `restore` expose both learning and truthful rollback without "
+    "pretending that rollback is general machine unlearning."),
    ("manic-ml-cnn-edge-story",
     "A tiny image becomes an edge-response feature map and then a pooled summary. The shared "
     "`scan` choreography keeps each receptive field, kernel/operator, arithmetic line, and "

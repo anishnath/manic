@@ -162,6 +162,7 @@ softmax. The output bars and percentages are derived from that result.
 forward(net, "0.15 0.92 0.38", 3.2, smooth);
 loss(net, "1 0 0", crossentropy, 1.5, smooth);
 backward(net, 3.2, smooth);
+checkpoint(beforeUpdate, net);
 update(net, 0.18, 2.3, smooth);
 ```
 
@@ -181,6 +182,28 @@ The optional loss kind defaults to cross-entropy for a softmax output and MSE
 otherwise. The default learning rate is `0.15`. A learning rate is not a visual
 speed: changing it changes the mathematics, and a large value can truthfully
 increase the loss.
+
+## Undo one authored update exactly
+
+Place a checkpoint after the prediction has been compared with its target and
+before the parameter update. It takes no timeline time:
+
+```manic
+backward(net, 3.2, smooth);
+checkpoint(beforeUpdate, net);
+update(net, 0.18, 2.3, smooth);
+restore(net, beforeUpdate, 2.3, smooth);
+```
+
+`checkpoint` saves every weight and bias plus the current layer values,
+prediction, target, and loss. `restore` reverses the visible flow and returns
+all of them to that exact saved state. It also clears active gradients; call
+`backward` again before attempting another update.
+
+This is precise **checkpoint rollback**. It is useful for explaining what one
+gradient step changed, comparing before and after, or showing an undo action.
+It is not general machine unlearning: restoring a saved state does not prove
+that a data point's influence was removed from an otherwise trained model.
 
 ## From pixels to feature maps
 
@@ -403,6 +426,9 @@ vector; show it as the output activation of a `network` instead.
 - `update` shows the gradient direction first, then restores edge styling from
   the new weights and recomputes every node. Its final status preserves the old
   and new loss so the claimed learning outcome is inspectable.
+- `restore` sends one readable reverse pulse through the same graph, settles
+  edge styling from the saved weights, and restores the saved output bars and
+  loss without rebuilding the network.
 
 ## Compose it like any other Manic scene
 
@@ -459,14 +485,17 @@ For a learning story, keep the causal order clear:
 step("predict") { forward(net, "0.15 0.92 0.38", 3.2); }
 step("compare") { loss(net, "1 0 0", crossentropy, 1.5); }
 step("credit")  { backward(net, 3.2); }
+checkpoint(beforeUpdate, net);
 step("learn")   { update(net, 0.18, 2.3); }
+step("unlearn") { restore(net, beforeUpdate, 2.3); }
 ```
 
 Calling `forward` with a new input starts a fresh learning beat and clears the
 old target/gradient state. After `update`, another `backward` may compute fresh
 gradients for the updated parameters and the same retained target. Every
 `update` still requires a preceding `backward`; there is no invisible optimizer
-loop.
+loop. Name a `restore` step “rollback” or explain its exact boundary if you use
+the playful label “unlearn”.
 
 ## Current boundary
 

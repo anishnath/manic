@@ -725,6 +725,8 @@ recording, and named-stage exports agree.
 | `loss(network, "t1 t2 ...", [kind], [duration], [ease])` | compares the latest forward output with an equally sized finite target. `kind` is `crossentropy` or `mse`. Cross-entropy requires a non-negative target distribution summing to 1 and a softmax output; otherwise use mean-squared error. With a softmax output, omitted kind defaults to cross-entropy; other outputs default to MSE. |
 | `backward(network, [duration], [ease])` | requires `forward` then `loss`, computes exact reverse-mode node/weight/bias gradients, and sends progressive focus from output back toward the input. Gradient sign and magnitude drive the temporary edge emphasis. |
 | `update(network, [learning_rate], [duration], [ease])` | requires `backward`, applies `parameter -= learning_rate * gradient` to every weight and bias, then recomputes the same input and loss. Default learning rate is `0.15`. The final bars/readouts are the actual updated result. |
+| `checkpoint(id, network)` | after `forward` and `loss`, saves that network's exact weights, biases, prediction, target, and loss. It takes no timeline time and intentionally does not preserve active gradient badges. |
+| `restore(network, checkpoint, [duration], [ease])` | animates all parameters, node values, output bars, targets, and loss back to the exact saved state. The default duration is `2.3`. This is authored rollback of a checkpoint—not dataset-level machine unlearning. |
 | `tensor(id, (cx,cy), "rows | channels", [cell], [color])` | creates a finite numeric grid. Separate rows with `;`, entries with spaces/commas, and channels with `|`. All rows and channels must share one shape. |
 | `kernel(id, (cx,cy), "rows | input channels", [cell], [color])` | creates a convolution kernel. It must have exactly as many channels as the input tensor used by `convolve`. Multiple feature detectors are authored as multiple kernels and outputs, keeping each scan explainable. |
 | `convolve(id, input, kernel, (cx,cy), [stride], [padding], [bias], [activation], [cell])` | computes one feature map with zero padding, positive integer stride, finite bias, and optional cellwise `linear`, `relu`, `sigmoid`, or `tanh`. All input channels contribute to every output cell. |
@@ -772,17 +774,22 @@ network(net, (cx, cy), "3 6 4 3", "relu tanh softmax", 820, 350, 21);
 forward(net, "0.15 0.92 0.38", 4.2, smooth);
 loss(net, "1 0 0", crossentropy, 1.5, smooth);
 backward(net, 3.2, smooth);
+checkpoint(beforeUpdate, net);
 update(net, 0.18, 2.3, smooth);
+restore(net, beforeUpdate, 2.3, smooth);
 ```
 
 This is one explicit supervised learning step, not a hidden optimizer loop.
 `loss` keeps target readouts under the output bars; `backward` reuses the same
 edges in reverse; `update` leaves a truthful before/after loss in the status
-strip. A second update requires another `backward`, so a creator can pause and
-explain every correction. The ML kit does not import arbitrary framework
-models or train a large network. Use it for small educational models whose
-computation should be inspectable. ML3 extends the same truthful, stateless
-approach to convolution and pooling.
+strip. `checkpoint` is written after the comparison (or after `backward`) and
+before `update`; `restore` later reverses the visible flow and recovers that
+state exactly. Restoring clears gradients, so another update requires another
+`backward`. A checkpoint can prove that one authored step was undone, but it
+does not prove that training data was removed from a model. The ML kit does not
+import arbitrary framework models or train a large network. Use it for small
+educational models whose computation should be inspectable. ML3 extends the
+same truthful, stateless approach to convolution and pooling.
 
 ML5 keeps the journey from text to model input equally compact:
 

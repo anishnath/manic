@@ -124,7 +124,7 @@ Manic keeps the visual world continuous**.
 
 ## Manic ML kit — active implementation
 
-**Status: ✅ ML1 feed-forward, ML2 learning, ML3 tensor/CNN foundations, ML4
+**Status: ✅ ML1 feed-forward, ML2 learning + exact rollback, ML3 tensor/CNN foundations, ML4
 single-head attention, ML5 token/embedding foundations, ML6 complete
 transformer blocks, and ML7 exact decoding implemented locally.**
 The kit makes an ML computation
@@ -200,6 +200,10 @@ Keep the first surface near these nouns and verbs:
   reverse-mode gradients travel over the persistent graph, then one explicit
   gradient-descent update changes every weight/bias and recomputes the same
   input, output, and loss. No hidden training loop or optimizer catalogue.
+- `checkpoint` and `restore` — **ML2 implemented** for one exact authored
+  rollback: save weights, biases, prediction, target, and loss before an update,
+  then restore every saved value with deterministic reverse-flow animation.
+  This is explicitly not dataset-level machine unlearning.
 - `scan` — **ML3 implemented** as one shared stateless animation for a
   convolution or pooling window: the source region, operator, truthful
   arithmetic summary, selected maximum, and output cell stay linked.
@@ -256,6 +260,10 @@ entities.
   update as separate visual beats.
 - ✅ Verify representative gradients against finite differences and ensure the
   animation ends on the exact computed values.
+- ✅ Add zero-time supervised checkpoints and exact animated restore of weights,
+  biases, node values, output bars, targets, and loss. Restored state clears
+  gradients and requires another `backward` before updating; documentation
+  distinguishes rollback from dataset-level unlearning.
 - ✅ Ship a responsive creator story, language/system-prompt/mdBook guidance,
   gallery and publishing metadata, order/target/hyperparameter diagnostics, and
   direct-seeking regression coverage.
@@ -1377,8 +1385,10 @@ and entity `copy` — now covered too. Essentially the whole family; only
 - **Partial (expressible, no dedicated builtin):**
   - `FadeTransform` / `FadeTransformPieces` → crossfade `par { fade(a); show(b); }`
     — not point-matched.
-  - `Restore` → the revert machinery exists internally (`pulse`/`flash`
-    auto-restore) but there is no user-facing `save`/`restore` verb.
+  - Generic entity `Restore` → `checkpoint`/`restore` now ships for exact ML
+    network rollback, while `pulse`/`flash` still auto-restore visual state.
+    There is not yet a generic entity `save`/`restore` snapshot across every
+    shape and property.
   - `ApplyPointwiseFunction[ToCenter]`, `ApplyComplexFunction` → expressible over
     a **set of dots** via the loop+expression layer (compute `f(z)` per point and
     `to` it); `transform` covers only the *linear* (2×2) case, not a general

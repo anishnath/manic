@@ -2520,6 +2520,25 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             ],
         ),
         spec(
+            "checkpoint",
+            MutVerb,
+            "ml",
+            "save one network's exact parameters, prediction, target, and loss for a later rollback",
+            &[("id", Name, R), ("network", Ident, R)],
+        ),
+        spec(
+            "restore",
+            MutVerb,
+            "ml",
+            "animate and exactly restore a checkpointed network state; this is rollback, not dataset-level unlearning",
+            &[
+                ("network", Ident, R),
+                ("checkpoint", Ident, R),
+                ("dur", Num, O),
+                ("ease", Ease, O),
+            ],
+        ),
+        spec(
             "tensor",
             Ctor,
             "ml",

@@ -36,7 +36,7 @@ A creator-first neural-network story: introduce the ReLU activation, reveal a se
 
 ## manic-ml-learning-step
 
-One complete supervised learning beat on a persistent network: predict, compare with a target using cross-entropy, send exact reverse-mode gradients backward, update every weight and bias, then recompute the same input. `loss`, `backward`, and `update` expose the mathematics without turning the DSL into a training framework.
+One complete supervised learning beat on a persistent network: predict, compare with a target using cross-entropy, send exact reverse-mode gradients backward, update every weight and bias, then restore the exact pre-update checkpoint. `loss`, `backward`, `checkpoint`, `update`, and `restore` expose both learning and truthful rollback without pretending that rollback is general machine unlearning.
 
 ```manic
 {{#include ../../examples/manic-ml-learning-step.manic}}

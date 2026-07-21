@@ -172,6 +172,11 @@ pub struct Scene {
     /// ordinary deterministic tracks without turning the renderer into an ML
     /// runtime.
     pub ml_networks: HashMap<String, crate::kits::ml::MlNetworkData>,
+    /// Exact authored snapshots of small ML networks. `checkpoint` records one
+    /// after a supervised comparison; `restore` later lowers the rollback to
+    /// ordinary timeline tracks and replaces the build-time arithmetic state.
+    /// The renderer never reads this map.
+    pub ml_network_checkpoints: HashMap<String, crate::kits::ml::MlNetworkCheckpointData>,
     /// Numeric grids and convolution/pooling scan plans retained by ML3. The
     /// renderer still sees ordinary rectangles/text; these maps only let the
     /// DSL compute derived values and emit deterministic scan tracks.

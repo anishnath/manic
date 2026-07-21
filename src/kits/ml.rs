@@ -11,7 +11,9 @@
 //!
 //! - `loss` compares the current output with an authored target;
 //! - `backward` computes exact reverse-mode gradients;
-//! - `update` applies gradient descent and recomputes the prediction.
+//! - `update` applies gradient descent and recomputes the prediction;
+//! - `checkpoint` + `restore` make one exact rollback visible without claiming
+//!   to perform general machine unlearning.
 //!
 //! The kit does not attempt to be a training framework. Model arithmetic is
 //! computed once while lowering and emitted as ordinary stateless timeline
@@ -161,6 +163,15 @@ pub struct MlNetworkData {
     pub last_loss: Option<MlLossData>,
     pub last_gradients: Option<MlGradientData>,
     pub last_update: Option<MlUpdateData>,
+}
+
+/// One exact, build-time network snapshot retained by `checkpoint`. It is
+/// intentionally tied to the originating network: the compact vocabulary
+/// teaches rollback of a known learning step, not model-file serialization.
+#[derive(Debug, Clone)]
+pub struct MlNetworkCheckpointData {
+    pub network: String,
+    pub state: MlNetworkData,
 }
 
 fn split_words(src: &str) -> impl Iterator<Item = &str> {
@@ -872,6 +883,47 @@ fn c_network(scene: &mut Scene, args: &Args) -> Result<(), Error> {
         },
     );
     Ok(())
+}
+
+/// `checkpoint(id, network)`
+///
+/// Capture the parameters plus the latest prediction/target/loss. Active
+/// gradient badges are deliberately not part of the saved state: after a
+/// restore, a creator must call `backward` again before another `update`.
+fn v_checkpoint(scene: &mut Scene, args: &Args) -> Result<Clip, Error> {
+    args.max(2)?;
+    let checkpoint = args.ident(0)?;
+    let network = args.ident(1)?;
+    if scene.ml_network_checkpoints.contains_key(&checkpoint) {
+        return Err(Error::new(
+            format!("ML checkpoint `{checkpoint}` already exists"),
+            args.span_of(0),
+        ));
+    }
+    let mut state = scene.ml_networks.get(&network).cloned().ok_or_else(|| {
+        Error::new(
+            format!("`{network}` is not an ML network to checkpoint"),
+            args.span_of(1),
+        )
+    })?;
+    if state.last_values.is_none() || state.last_loss.is_none() {
+        return Err(Error::new(
+            format!(
+                "checkpoint needs forward({network}, ...) then loss({network}, ...) so its prediction and comparison are exact"
+            ),
+            args.span_of(1),
+        ));
+    }
+    state.last_gradients = None;
+    state.last_update = None;
+    scene
+        .ml_network_checkpoints
+        .insert(checkpoint, MlNetworkCheckpointData { network, state });
+    Ok(Clip {
+        tracks: Vec::new(),
+        events: Vec::new(),
+        dur: 0.0,
+    })
 }
 
 fn curve_range(activation: Activation) -> (f32, f32, f32, f32) {
@@ -1943,13 +1995,260 @@ fn v_update(scene: &mut Scene, args: &Args) -> Result<Clip, Error> {
     })
 }
 
+/// `restore(network, checkpoint, [duration], [ease])`
+///
+/// Restore every weight and bias together with the saved prediction and loss.
+/// This is an exact rollback to an authored state, not dataset-level machine
+/// unlearning. The animation is still a set of ordinary stateless tracks.
+fn v_restore(scene: &mut Scene, args: &Args) -> Result<Clip, Error> {
+    args.max(4)?;
+    let id = args.ident(0)?;
+    let checkpoint_id = args.ident(1)?;
+    let duration = positive_duration(args, 2, 2.3, "restore")?;
+    let easing = optional_easing(args, 3)?;
+    let current = scene
+        .ml_networks
+        .get(&id)
+        .cloned()
+        .ok_or_else(|| Error::new(format!("`{id}` is not an ML network"), args.span_of(0)))?;
+    let checkpoint = scene
+        .ml_network_checkpoints
+        .get(&checkpoint_id)
+        .cloned()
+        .ok_or_else(|| {
+            Error::new(
+                format!("no ML checkpoint named `{checkpoint_id}`"),
+                args.span_of(1),
+            )
+        })?;
+    if checkpoint.network != id {
+        return Err(Error::new(
+            format!(
+                "checkpoint `{checkpoint_id}` belongs to `{}`, not `{id}`",
+                checkpoint.network
+            ),
+            args.span_of(1),
+        ));
+    }
+    let mut restored = checkpoint.state;
+    let values = restored
+        .last_values
+        .clone()
+        .expect("checkpoint validates a completed forward pass");
+    let saved_loss = restored
+        .last_loss
+        .clone()
+        .expect("checkpoint validates a completed loss");
+    let old_loss = current.last_loss.as_ref().map(|loss| loss.value);
+
+    let mut selected = (0usize, 0usize, 0usize);
+    let mut selected_delta = -1.0f32;
+    for transition in 0..restored.weights.len() {
+        for output in 0..restored.weights[transition].len() {
+            for input in 0..restored.weights[transition][output].len() {
+                let delta = (current.weights[transition][output][input]
+                    - restored.weights[transition][output][input])
+                    .abs();
+                if delta > selected_delta {
+                    selected = (transition, output, input);
+                    selected_delta = delta;
+                }
+            }
+        }
+    }
+    let selected_current = current.weights[selected.0][selected.1][selected.2];
+    let selected_restored = restored.weights[selected.0][selected.1][selected.2];
+
+    let mut tracks = Vec::new();
+    let mut events = vec![TextEvent::text(
+        format!("{id}.status"),
+        format!("Rollback · restoring checkpoint `{checkpoint_id}`"),
+        0.0,
+    )];
+    events.push(TextEvent::text(
+        format!("{id}.status"),
+        format!(
+            "w{}.{}→{} · {:.5} → {:.5}",
+            selected.0 + 1,
+            selected.2 + 1,
+            selected.1 + 1,
+            selected_current,
+            selected_restored
+        ),
+        duration * 0.22,
+    ));
+
+    // A backward-moving pulse makes the reversal legible, while the settled
+    // colour/opacity is derived only from the checkpointed weights.
+    for transition in 0..restored.weights.len() {
+        let max_weight = restored.weights[transition]
+            .iter()
+            .flatten()
+            .map(|weight| weight.abs())
+            .fold(0.0f32, f32::max)
+            .max(1e-6);
+        for &source in &restored.visible[transition] {
+            for &target in &restored.visible[transition + 1] {
+                let edge = edge_id(&id, transition, source, target);
+                let weight = restored.weights[transition][target][source];
+                let opacity = 0.08 + 0.16 * (weight.abs() / max_weight).clamp(0.0, 1.0);
+                tracks.push(track(
+                    edge.clone(),
+                    Prop::Color,
+                    TargetValue::Abs(Value::C(style::GOLD)),
+                    duration * 0.04,
+                    duration * 0.18,
+                    Easing::OutQuad,
+                ));
+                tracks.push(track(
+                    edge.clone(),
+                    Prop::Flow,
+                    TargetValue::Rel(Value::F(-1.0)),
+                    duration * 0.05,
+                    duration * 0.56,
+                    easing,
+                ));
+                tracks.push(track(
+                    edge.clone(),
+                    Prop::Color,
+                    TargetValue::Abs(Value::C(weight_color(weight))),
+                    duration * 0.38,
+                    duration * 0.28,
+                    easing,
+                ));
+                tracks.push(track(
+                    edge,
+                    Prop::Opacity,
+                    TargetValue::Abs(Value::F(opacity)),
+                    duration * 0.38,
+                    duration * 0.28,
+                    easing,
+                ));
+            }
+        }
+    }
+
+    events.push(TextEvent::text(
+        format!("{id}.status"),
+        "Recompute · restore the saved prediction from exact parameters".into(),
+        duration * 0.48,
+    ));
+    for layer in 0..restored.layers.len() {
+        let max_value = values[layer]
+            .iter()
+            .map(|value| value.abs())
+            .fold(0.0f32, f32::max)
+            .max(1e-6);
+        for &unit in &restored.visible[layer] {
+            let node = node_id(&id, layer, unit);
+            events.push(TextEvent::text(
+                format!("{node}.value"),
+                fmt_value(values[layer][unit]),
+                duration * 0.58,
+            ));
+            tracks.push(track(
+                node,
+                Prop::Color,
+                TargetValue::Abs(Value::C(mix(
+                    style::PANEL,
+                    layer_color(layer, restored.layers.len()),
+                    0.22 + 0.62 * (values[layer][unit].abs() / max_value),
+                ))),
+                duration * 0.52,
+                duration * 0.30,
+                easing,
+            ));
+        }
+    }
+
+    let output_layer = restored.layers.len() - 1;
+    let output = values.last().expect("restored network has output values");
+    let is_probability = restored.activations.last() == Some(&Activation::Softmax);
+    let output_scale = if is_probability {
+        1.0
+    } else {
+        output
+            .iter()
+            .map(|value| value.abs())
+            .fold(0.0f32, f32::max)
+            .max(1.0)
+    };
+    let bar_len = (scene.canvas_size.x * 0.11).clamp(80.0, 150.0);
+    for (slot, &unit) in restored.visible[output_layer].iter().enumerate() {
+        let start = restored.positions[output_layer][slot]
+            + Vec2::new(restored.bar_direction * (restored.radius + 12.0), 0.0);
+        let amount = if is_probability {
+            output[unit].clamp(0.0, 1.0)
+        } else {
+            (output[unit].abs() / output_scale).clamp(0.0, 1.0)
+        };
+        tracks.push(track(
+            format!("{id}.out{unit}.bar"),
+            Prop::To,
+            TargetValue::Abs(Value::V(
+                start + Vec2::new(restored.bar_direction * bar_len * amount, 0.0),
+            )),
+            duration * 0.56,
+            duration * 0.30,
+            easing,
+        ));
+        events.push(TextEvent::text(
+            format!("{id}.out{unit}.readout"),
+            if is_probability {
+                format!("{:.1}%", output[unit] * 100.0)
+            } else {
+                fmt_value(output[unit])
+            },
+            duration * 0.56,
+        ));
+        events.push(TextEvent::text(
+            format!("{id}.out{unit}.target"),
+            format!("target {}", fmt_value(saved_loss.target[unit])),
+            duration * 0.56,
+        ));
+        tracks.push(track(
+            format!("{id}.out{unit}.target"),
+            Prop::Opacity,
+            TargetValue::Abs(Value::F(1.0)),
+            duration * 0.54,
+            duration * 0.20,
+            Easing::InOutCubic,
+        ));
+    }
+    events.push(TextEvent::text(
+        format!("{id}.status"),
+        match old_loss {
+            Some(previous) => format!(
+                "Rollback complete · loss {:.5} → {:.5} · exact saved state",
+                previous, saved_loss.value
+            ),
+            None => format!(
+                "Rollback complete · loss {:.5} restored · exact saved state",
+                saved_loss.value
+            ),
+        },
+        duration * 0.91,
+    ));
+
+    restored.last_gradients = None;
+    restored.last_update = None;
+    scene.ml_networks.insert(id, restored);
+    Ok(Clip {
+        tracks,
+        events,
+        dur: duration,
+    })
+}
+
 pub fn register(registry: &mut Registry) {
     registry.ctor("network", c_network);
     registry.ctor("activation", c_activation);
     registry.mut_verb("forward", v_forward);
     registry.mut_verb("loss", v_loss);
     registry.mut_verb("backward", v_backward);
+    registry.mut_verb("checkpoint", v_checkpoint);
     registry.mut_verb("update", v_update);
+    registry.mut_verb("restore", v_restore);
 }
 
 #[cfg(test)]
@@ -2192,6 +2491,52 @@ mod tests {
     }
 
     #[test]
+    fn checkpoint_and_restore_recover_the_exact_supervised_state() {
+        let m = movie(
+            "network(net,(640,340),\"3 4 3\",\"tanh softmax\",640,340,21); forward(net,\"0.15 0.92 0.38\",1); loss(net,\"1 0 0\",crossentropy,0.5); backward(net,1); checkpoint(before_update,net); update(net,0.12,0.8); restore(net,before_update,0.8,smooth);",
+        );
+        let checkpoint = &m.scene.ml_network_checkpoints["before_update"].state;
+        let restored = &m.scene.ml_networks["net"];
+        assert_eq!(restored.weights, checkpoint.weights);
+        assert_eq!(restored.biases, checkpoint.biases);
+        assert_eq!(restored.last_values, checkpoint.last_values);
+        assert_eq!(
+            restored.last_loss.as_ref().map(|loss| loss.value),
+            checkpoint.last_loss.as_ref().map(|loss| loss.value)
+        );
+        assert!(restored.last_gradients.is_none());
+        assert!(restored.last_update.is_none());
+
+        let settled = frame(&m, 100.0);
+        assert!(text(&settled, "net.status").starts_with("Rollback complete"));
+        assert!(text(&settled, "net.status").contains("exact saved state"));
+        assert!(text(&settled, "net.out0.target").contains("1.00"));
+    }
+
+    #[test]
+    fn restore_timeline_is_stateless_when_seeking_out_of_order() {
+        let m = movie(
+            "network(net,(640,340),\"2 3 2\",\"tanh softmax\",620,340,5); forward(net,\"1 -1\",1); loss(net,\"1 0\",crossentropy,0.5); backward(net,1); checkpoint(saved,net); update(net,0.08,0.8); restore(net,saved,1);",
+        );
+        let late_first = frame(&m, 4.2);
+        let early = frame(&m, 3.5);
+        let late_again = frame(&m, 4.2);
+        assert_eq!(
+            text(&late_first, "net.status"),
+            text(&late_again, "net.status")
+        );
+        assert_eq!(
+            late_first.get("net.out0.bar").unwrap().shape,
+            late_again.get("net.out0.bar").unwrap().shape
+        );
+        assert_eq!(
+            late_first.get("net.e0.0.0").unwrap().color,
+            late_again.get("net.e0.0.0").unwrap().color
+        );
+        assert_ne!(text(&early, "net.status"), text(&late_again, "net.status"));
+    }
+
+    #[test]
     fn ml2_timeline_remains_stateless_when_seeking_out_of_order() {
         let m = movie(
             "network(net,(640,340),\"2 3 2\",\"tanh softmax\",620,340,5); forward(net,\"1 -1\",1); loss(net,\"1 0\",crossentropy,0.5); backward(net,1.2); update(net,0.08,0.8);",
@@ -2253,6 +2598,30 @@ mod tests {
             "network(n,(400,300),\"2 2\",\"softmax\"); forward(n,\"1 0\"); loss(n,\"1 0\"); backward(n); update(n,-0.1);"
         )
         .is_err());
+        assert!(crate::parse("checkpoint(saved,missing);").is_err());
+        assert!(
+            crate::parse("network(n,(400,300),\"2 2\",\"softmax\"); checkpoint(saved,n);").is_err()
+        );
+        assert!(crate::parse(
+            "network(n,(400,300),\"2 2\",\"softmax\"); forward(n,\"1 0\"); loss(n,\"1 0\"); checkpoint(saved,n); checkpoint(saved,n);"
+        )
+        .is_err());
+        assert!(crate::parse(
+            "network(n,(400,300),\"2 2\",\"softmax\"); forward(n,\"1 0\"); loss(n,\"1 0\"); checkpoint(saved,n); restore(n,missing);"
+        )
+        .is_err());
+        assert!(crate::parse(
+            "network(a,(300,300),\"2 2\",\"softmax\"); network(b,(700,300),\"2 2\",\"softmax\"); forward(a,\"1 0\"); loss(a,\"1 0\"); checkpoint(saved,a); restore(b,saved);"
+        )
+        .is_err());
+        assert!(crate::parse(
+            "network(n,(400,300),\"2 2\",\"softmax\"); forward(n,\"1 0\"); loss(n,\"1 0\"); backward(n); checkpoint(saved,n); update(n,0.05); restore(n,saved); update(n,0.05);"
+        )
+        .is_err());
+        assert!(crate::parse(
+            "network(n,(400,300),\"2 2\",\"softmax\"); forward(n,\"1 0\"); loss(n,\"1 0\"); backward(n); checkpoint(saved,n); update(n,0.05); restore(n,saved); backward(n); update(n,0.05);"
+        )
+        .is_ok());
     }
 
     #[test]
