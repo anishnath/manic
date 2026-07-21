@@ -197,6 +197,9 @@ pub struct Scene {
     /// All values are computed at build time; playback remains ordinary tracks.
     pub ml_logits: HashMap<String, crate::kits::ml_decode::MlLogitsData>,
     pub ml_samples: HashMap<String, crate::kits::ml_decode::MlSampleData>,
+    /// Experimental geographic viewports retained only while map borders are
+    /// projected into ordinary 2-D polygons and polylines at build time.
+    pub map_views: HashMap<String, crate::kits::map::MapViewData>,
     /// Pure runtime connections from visible creator parameters to existing
     /// entity properties or plot formulas. Constructors fill this; timeline
     /// evaluation applies it after ordinary tracks on every stateless frame.

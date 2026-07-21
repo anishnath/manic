@@ -1139,6 +1139,21 @@ pub fn catalog() -> Vec<BuiltinSpec> {
         spec("pie", Ctor, "math", "a pie chart", &[]),
         spec("arrowfield", Ctor, "math", "a named vector field", &[]),
         spec("vectorfield", Ctor, "math", "a vector field", &[]),
+        // ---- map (experimental geographic border PoC) ----
+        spec(
+            "map",
+            Ctor,
+            "map",
+            "a projected geographic viewport with explicit longitude/latitude bounds",
+            &[("id", Name, R), ("center", Point, R), ("width", Num, R), ("height", Num, R), ("bounds", Str, R)],
+        ),
+        spec(
+            "border",
+            Ctor,
+            "map",
+            "a named geographic border projected into a map (PoC: IND)",
+            &[("id", Name, R), ("map", Ident, R), ("country", Str, R)],
+        ),
         // ---- geo ----
         spec(
             "point",

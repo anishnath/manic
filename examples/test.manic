@@ -1,128 +1,120 @@
-title("Rewrite Integration Steps");
+title("Where Are the Roots of x² + 1 = 0?");
 canvas("16:9");
 template("mono");
 
-text(head, (cx, 58), "Integrating by rewriting the denominator");
-display(head);
-bold(head);
-size(head, 34);
-hidden(head);
+let gx = cx - w*0.23;
+let gy = cy + 40;
+let sx = 70;
+let sy = 70;
 
-text(sub, (cx, 96), "Every line below uses rewrite(...) on the same equation object.");
-size(sub, 22);
+let rx = cx + w*0.25;
+let ry = cy + 40;
+let iscale = 105;
+
+equation(head, (cx, 70), `x^2 + 1 = 0`, 54);
+text(sub, (cx, 128), "On the usual real graph, roots are x-intercepts.");
+size(sub, 26);
 color(sub, dim);
+
+axes(realAxes, (gx, gy), 230, 190, sx);
+plot(realCurve, (gx, gy), sx, sy, "x^2+1", (-2.8, 2.8));
+equation(realLabel, (gx, gy - 210), `y = x^2 + 1`, 34);
+text(noCross, (gx, gy + 235), "No crossing of the real x-axis");
+size(noCross, 26);
+color(noCross, gold);
+
+arrow(realAxisMark, (gx - 190, gy), (gx + 190, gy));
+color(realAxisMark, dim);
+stroke(realAxisMark, 3);
+
+arrow(toComplex, (cx - 35, cy + 20), (cx + 95, cy + 20));
+color(toComplex, dim);
+stroke(toComplex, 4);
+
+arrow(reAxis, (rx - 200, ry), (rx + 200, ry));
+arrow(imAxis, (rx, ry + 165), (rx, ry - 165));
+color(reAxis, dim);
+color(imAxis, dim);
+stroke(reAxis, 3);
+stroke(imAxis, 3);
+
+text(reLabel, (rx + 220, ry + 4), "real");
+text(imLabel, (rx + 8, ry - 188), "imaginary");
+size(reLabel, 24);
+size(imLabel, 24);
+color(reLabel, dim);
+color(imLabel, dim);
+
+dot(rootI, (rx, ry - iscale), 10);
+dot(rootNegI, (rx, ry + iscale), 10);
+color(rootI, cyan);
+color(rootNegI, magenta);
+
+equation(labelI, (rx + 48, ry - iscale), `i`, 34);
+equation(labelNegI, (rx + 58, ry + iscale), `-i`, 34);
+color(labelI, cyan);
+color(labelNegI, magenta);
+
+equation(complexTitle, (rx, gy - 210), `\text{complex plane}`, 34);
+equation(solution, (cx, h - 105), `x^2=-1 \quad\Rightarrow\quad x=\pm i`, 44);
+text(takeaway, (cx, h - 52), "So the solutions are not missing — they live off the real line.");
+size(takeaway, 25);
+color(takeaway, lime);
+
+hidden(head);
 hidden(sub);
+hidden(realAxes);
+untraced(realCurve);
+hidden(realLabel);
+hidden(noCross);
+hidden(realAxisMark);
+hidden(toComplex);
+hidden(reAxis);
+hidden(imAxis);
+hidden(reLabel);
+hidden(imLabel);
+hidden(rootI);
+hidden(rootNegI);
+hidden(labelI);
+hidden(labelNegI);
+hidden(complexTitle);
+hidden(solution);
+hidden(takeaway);
 
-rect(panelBox, (cx, cy + 18), w - 150, 430);
-outline(panelBox, dim);
-opacity(panelBox, 0.35);
-hidden(panelBox);
-
-text(stepTitle, (cx, 168), "");
-display(stepTitle);
-bold(stepTitle);
-size(stepTitle, 30);
-color(stepTitle, cyan);
-
-text(ruleTag, (cx, 205), "");
-size(ruleTag, 20);
-color(ruleTag, dim);
-
-equation(work, (cx, cy + 22), `I=\int \frac{1}{(x-1)(x+2)}\,dx`, 48);
-hidden(work);
-
-equation(finalLine, (cx, h - 70), `\boxed{\,\frac{\log|x-1|}{3}-\frac{\log|x+2|}{3}+C\,}`, 44);
-color(finalLine, lime);
-hidden(finalLine);
-
-show(head, 0.45);
-show(sub, 0.45);
-show(panelBox, 0.45);
-show(work, 0.5);
-wait(0.4);
+show(head, 0.6);
+show(sub, 0.6);
 
 par {
-say(stepTitle, "1. u-Substitution", 0.25);
-say(ruleTag, "Rule: URule", 0.25);
-rewrite(work, `\begin{aligned}u&=x-1,\qquad du=dx\\[4pt]I&=\int \frac{1}{u(u+3)}\,du\end{aligned}`, 0.9, smooth);
+show(realAxes, 0.8);
+show(realAxisMark, 0.8);
+show(realLabel, 0.8);
 }
-wait(0.35);
+
+draw(realCurve, 1.4);
+show(noCross, 0.8);
+pulse(realAxisMark, 0.8);
+
+show(toComplex, 0.7);
 
 par {
-say(stepTitle, "2. Shift the variable", 0.25);
-say(ruleTag, "Rule: URule", 0.25);
-rewrite(work, `\begin{aligned}v&=u+\frac{3}{2},\qquad dv=du\\[4pt]u(u+3)&=\left(v-\frac{3}{2}\right)\left(v+\frac{3}{2}\right)=v^2-\frac{9}{4}\\[4pt]I&=\int \frac{1}{v^2-\frac{9}{4}}\,dv\end{aligned}`, 1.0, smooth);
+show(reAxis, 0.7);
+show(imAxis, 0.7);
+show(reLabel, 0.7);
+show(imLabel, 0.7);
+show(complexTitle, 0.7);
 }
-wait(0.35);
 
 par {
-say(stepTitle, "3. Rewrite as partial fractions", 0.25);
-say(ruleTag, "Rule: RewriteRule", 0.25);
-rewrite(work, `\begin{aligned}I&=\int \frac{1}{v^2-\frac{9}{4}}\,dv\\[4pt]&=\int\left(-\frac{2}{3(2v+3)}+\frac{2}{3(2v-3)}\right)\,dv\end{aligned}`, 1.0, smooth);
+show(rootI, 0.5);
+show(rootNegI, 0.5);
+show(labelI, 0.5);
+show(labelNegI, 0.5);
 }
-wait(0.35);
 
 par {
-say(stepTitle, "4. Split the sum", 0.25);
-say(ruleTag, "Rule: AddRule", 0.25);
-rewrite(work, `\begin{aligned}I&=-\frac{2}{3}\int\frac{1}{2v+3}\,dv+\frac{2}{3}\int\frac{1}{2v-3}\,dv\end{aligned}`, 0.9, smooth);
+pulse(rootI, 0.8);
+pulse(rootNegI, 0.8);
 }
-wait(0.35);
 
-par {
-say(stepTitle, "5. Constant factor", 0.25);
-say(ruleTag, "Rule: ConstantTimesRule", 0.25);
-rewrite(work, `\begin{aligned}-\frac{2}{3}\int\frac{1}{2v+3}\,dv&=-\frac{2}{3}\cdot\frac{1}{2}\int\frac{1}{a}\,da\\[4pt]&=-\frac{1}{3}\log|a|+C\end{aligned}`, 1.0, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "6. Back substitute first term", 0.25);
-say(ruleTag, "Rule: URule", 0.25);
-rewrite(work, `\begin{aligned}a&=2v+3\\[4pt]-\frac{1}{3}\log|a|&=-\frac{1}{3}\log|2v+3|\end{aligned}`, 0.9, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "7. Integrate the second term", 0.25);
-say(ruleTag, "Rules: URule + ReciprocalRule", 0.25);
-rewrite(work, `\begin{aligned}\frac{2}{3}\int\frac{1}{2v-3}\,dv&=\frac{2}{3}\cdot\frac{1}{2}\int\frac{1}{b}\,db\\[4pt]&=\frac{1}{3}\log|b|+C\\[4pt]&=\frac{1}{3}\log|2v-3|+C\end{aligned}`, 1.0, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "8. Combine", 0.25);
-say(ruleTag, "Rule: AddRule", 0.25);
-rewrite(work, `\begin{aligned}I&=\frac{1}{3}\log|2v-3|-\frac{1}{3}\log|2v+3|+C\end{aligned}`, 0.9, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "9. Back substitute v", 0.25);
-say(ruleTag, "Rule: URule", 0.25);
-rewrite(work, `\begin{aligned}v&=u+\frac{3}{2}\\[4pt]2v-3&=2u,\qquad 2v+3=2u+6\\[4pt]I&=\frac{1}{3}\log|2u|-\frac{1}{3}\log|2u+6|+C\end{aligned}`, 1.0, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "10. Back substitute u", 0.25);
-say(ruleTag, "Rule: URule", 0.25);
-rewrite(work, `\begin{aligned}u&=x-1\\[4pt]I&=\frac{1}{3}\log|2x-2|-\frac{1}{3}\log|2x+4|+C\end{aligned}`, 1.0, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "11. Simplify constants", 0.25);
-say(ruleTag, "Rule: ConstantTimesRule", 0.25);
-rewrite(work, `\begin{aligned}I&=\frac{1}{3}\log|x-1|-\frac{1}{3}\log|x+2|+C\end{aligned}`, 1.0, smooth);
-}
-wait(0.35);
-
-par {
-say(stepTitle, "Result", 0.25);
-say(ruleTag, "Equivalent compact form", 0.25);
-rewrite(work, `I=\frac{1}{3}\log\left|\frac{x-1}{x+2}\right|+C`, 1.0, smooth);
-show(finalLine, 0.8);
-}
-pulse(finalLine, 0.8);
-wait(1.0);
+show(solution, 0.8);
+show(takeaway, 0.8);

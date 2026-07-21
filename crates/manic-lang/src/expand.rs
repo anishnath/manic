@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{BinOp, Ctrl, Expr, ExprKind, Program, ReduceOp, Seg, Stmt};
+use crate::catalog::{catalog, Ty};
 use crate::diag::{Error, Span};
 
 type Env = HashMap<String, f32>;
@@ -28,6 +29,11 @@ struct Ctx {
     macros: HashMap<String, Macro>,
     depth: usize,
     emitted: usize,
+    /// Per-builtin, the param name of each `Str`-typed slot (`None` for non-string
+    /// positions). Lets the arg pass flag bare, unquoted LaTeX/text — the classic
+    /// `equation(q,(x,y),-i)` slip — with a "wrap in backticks" fix, instead of
+    /// mis-evaluating it as arithmetic and guessing a nearest variable.
+    str_slots: HashMap<&'static str, Vec<Option<&'static str>>>,
 }
 
 /// Evaluate `let`/`for`/`def`/`if` and every argument expression against an
@@ -66,10 +72,22 @@ pub fn expand_with_canvas(
     env.insert("cx".into(), cw as f32 / 2.0);
     env.insert("cy".into(), ch as f32 / 2.0);
 
+    let str_slots = catalog()
+        .iter()
+        .map(|s| {
+            let slots = s
+                .params
+                .iter()
+                .map(|p| (p.ty == Ty::Str).then_some(p.name))
+                .collect();
+            (s.name, slots)
+        })
+        .collect();
     let mut ctx = Ctx {
         macros: HashMap::new(),
         depth: 0,
         emitted: 0,
+        str_slots,
     };
     let stmts = expand_stmts(&prog.stmts, &mut env, &mut ctx)?;
     Ok(Program { stmts })
@@ -248,10 +266,18 @@ fn expand_stmts(stmts: &[Stmt], env: &mut Env, ctx: &mut Ctx) -> Result<Vec<Stmt
                         s.name_span,
                     ));
                 }
+                let slots = ctx.str_slots.get(s.name.as_str());
                 let args = s
                     .args
                     .iter()
-                    .map(|e| resolve_arg(e, env))
+                    .enumerate()
+                    .map(|(i, e)| match slots.and_then(|v| v.get(i)).copied().flatten() {
+                        // a `Str`-typed slot: a bare identifier/expression here is
+                        // unquoted LaTeX/text — flag it with a backtick fix rather
+                        // than evaluating it as arithmetic.
+                        Some(param) => resolve_str_arg(e, env, &s.name, param),
+                        None => resolve_arg(e, env),
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 let block = match &s.block {
                     Some(b) => {
@@ -296,6 +322,75 @@ fn resolve_arg(e: &Expr, env: &Env) -> Result<Expr, Error> {
         }
     };
     Ok(Expr { kind, span: e.span })
+}
+
+/// Resolve an argument the builtin expects as a **string** (a `Str` slot: LaTeX
+/// for `equation`/`rewrite`, the copy for `text`/`say`/`caption`, `data`/`layout`,
+/// …). A real string literal passes straight through; a `(x,y)`/number leaves the
+/// generic path (the engine reports the type mismatch). But a bare identifier or
+/// expression — `equation(q,(x,y),-i)`, `text(t,(x,y),x^2)` — is unquoted
+/// LaTeX/text: the engine can't tell it from arithmetic, so it would otherwise
+/// die with a misleading "unknown variable `i` — did you mean `h`?". Catch it here
+/// with the real diagnosis and a one-click backtick wrap.
+fn resolve_str_arg(e: &Expr, env: &Env, builtin: &str, param: &str) -> Result<Expr, Error> {
+    match &e.kind {
+        // a genuine string, or a shape the generic path/engine already owns.
+        ExprKind::Str(_)
+        | ExprKind::Interp(_)
+        | ExprKind::Num(_)
+        | ExprKind::Pair(..)
+        | ExprKind::PairE(..)
+        | ExprKind::Triple(..)
+        | ExprKind::TripleE(..) => resolve_arg(e, env),
+        // A bare identifier or expression in a string slot. Some `Str` slots are
+        // polymorphic and also accept a numeric value (`bind`'s from-value
+        // `w*0.18`) — so if it EVALUATES, fold it to a number and pass it on. Only
+        // when it does NOT evaluate (an unbound `i`, `-i`, `x^2`) is it certainly
+        // unquoted LaTeX/text — then give the real diagnosis + a backtick fix.
+        _ => match eval_expr(e, env) {
+            Ok(n) => Ok(Expr {
+                kind: ExprKind::Num(n),
+                span: e.span,
+            }),
+            Err(_) => Err(bare_string_arg_error(e, builtin, param)),
+        },
+    }
+}
+
+/// The "this looks like bare LaTeX/text" error, with a backtick-wrap fix for the
+/// shapes we can faithfully reconstruct (a name, or a negated name).
+fn bare_string_arg_error(e: &Expr, builtin: &str, param: &str) -> Error {
+    let msg = format!(
+        "the `{param}` of `{builtin}` must be a STRING — wrap it in backticks (bare LaTeX/text isn't valid manic)"
+    );
+    match wrap_target(e) {
+        Some((text, span)) => Error::new(
+            format!("{msg}: `` `{text}` ``"),
+            span,
+        )
+        .with_fix(format!("Wrap in backticks: `{text}`"), format!("`{text}`")),
+        None => Error::new(msg, e.span),
+    }
+}
+
+/// Reconstruct the source text + full span of a simple scalar arg, so the fix can
+/// wrap it in backticks. Only the shapes we can render 1:1 (a name, a negated
+/// name); anything richer gets the message without an auto-fix.
+fn wrap_target(e: &Expr) -> Option<(String, Span)> {
+    match &e.kind {
+        ExprKind::Ident(n) => Some((n.clone(), e.span)),
+        // the `Neg` span covers only the `-`; extend it over the inner name so the
+        // fix replaces the whole `-i`, not just the sign.
+        ExprKind::Neg(inner) => match &inner.kind {
+            ExprKind::Ident(n) => {
+                let end = inner.span.col + inner.span.len;
+                let span = Span::new(e.span.line, e.span.col, end.saturating_sub(e.span.col));
+                Some((format!("-{n}"), span))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn eval_expr(e: &Expr, env: &Env) -> Result<f32, Error> {
@@ -616,6 +711,34 @@ mod tests {
             ref other => panic!("expected landscape point, got {other:?}"),
         }
         assert_eq!(num(&dot.args[2]), 4.0);
+    }
+
+    #[test]
+    fn bare_latex_in_a_string_slot_suggests_backticks() {
+        // the classic slip: LaTeX passed bare into `equation`'s `latex` slot.
+        // `-i` doesn't evaluate → real diagnosis + a backtick-wrap fix over `-i`.
+        let e = expand(&parse("equation(q, (0,0), -i, 34);").unwrap()).unwrap_err();
+        assert!(e.msg.contains("must be a STRING"), "{}", e.msg);
+        assert!(e.msg.contains("backticks"), "{}", e.msg);
+        let (label, repl) = e.fix.expect("bare name should carry a wrap fix");
+        assert_eq!(repl, "`-i`");
+        assert!(label.contains("Wrap in backticks"), "{label}");
+        // the fix span covers the whole `-i` (col 20), not just the `-`
+        assert_eq!((e.span.col, e.span.len), (20, 2));
+
+        // a bare single name is fixable too
+        let e = expand(&parse("equation(q, (0,0), i, 34);").unwrap()).unwrap_err();
+        assert_eq!(e.fix.unwrap().1, "`i`");
+    }
+
+    #[test]
+    fn polymorphic_string_slot_still_accepts_a_numeric_expression() {
+        // `bind`'s `formula_or_from` is a `Str` slot that ALSO takes a from-value;
+        // an expression that evaluates must fold to a number, not get flagged.
+        let ex = expand(&parse("canvas(1280,720); bind(a, mover, x, w*0.18, w*0.82);").unwrap())
+            .unwrap();
+        let bind = ex.stmts.iter().find(|s| s.name == "bind").unwrap();
+        assert_eq!(num(&bind.args[3]), 1280.0 * 0.18);
     }
 
     #[test]

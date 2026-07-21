@@ -9,6 +9,7 @@ pub mod algo;
 pub mod brand;
 pub mod creator;
 pub mod geo;
+pub mod map;
 pub mod math;
 pub mod ml;
 pub mod ml_attention;
@@ -37,6 +38,7 @@ pub fn default_registry() -> Registry {
     ml_decode::register(&mut r);
     algo::register(&mut r);
     geo::register(&mut r);
+    map::register(&mut r);
     brand::register(&mut r);
     three::register(&mut r);
     stats::register(&mut r);

@@ -1,0 +1,36 @@
+title("Map Kit PoC — Highlighting a Border");
+canvas("16:9");
+template("mono");
+
+let u = (w+h-abs(w-h))/1440;
+watermark(mark, (w*0.15, h*0.08), "Made With Manic");
+text(kicker, (cx, h*0.09), "EXPERIMENTAL MAP KIT");
+text(headline, (cx, h*0.16), "Where is India?");
+text(caption, (cx, h*0.88), "Geographic coordinates become ordinary Manic shapes.");
+size(kicker, 18*u); color(kicker, dim); bold(kicker);
+size(headline, 38*u); bold(headline);
+size(caption, 20*u); color(caption, dim); wrap(caption, w*0.80);
+
+map(indiaView, (cx, h*0.51), w*0.62, h*0.58, "68 98 6 36");
+border(india, indiaView, "IND");
+untraced(india.border);
+hidden(india.fill);
+
+step("locate") {
+  par {
+    draw(indiaView.frame, 0.55);
+    draw(india.border, 2.2);
+  }
+}
+wait(0.25);
+
+step("highlight") {
+  par {
+    show(india.fill, 0.65);
+    recolor(india.border, gold, 0.65);
+    say(caption, "Highlighting uses the same draw, recolor, and pulse verbs as every other Manic shape.", 0.45);
+  }
+}
+wait(0.20);
+pulse(india.border, 0.85);
+wait(1.2);

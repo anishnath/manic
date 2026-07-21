@@ -25,6 +25,7 @@ members = ["crates/manic-lang"]
 manic-lang = { path = "crates/manic-lang" }  # macroquad-free DSL front-end (lexer/parser/ast/diag)
 macroquad = "0.4"
 geo = "0.29"        # robust 2D polygon boolean ops (union/intersection/…)
+geojson = { version = "0.24", features = ["geo-types"] } # Map PoC: public geographic boundaries
 earcutr = "0.4"     # triangulate holed/multi-piece boolean results for fill
 # LaTeX math typesetting (pure-Rust KaTeX renderer). `embed-fonts` bakes the
 # KaTeX TTFs in → self-contained binary, no system fonts / no font dir.
