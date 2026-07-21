@@ -2962,14 +2962,16 @@ stance) that aren't urgent while the physics domain and creator formats are the
 active queue. Revisit when a repeated creator demand for map reels justifies
 picking the forks above.
 
-## Crypto & Security kit — 🟢 Planned (next kit)
+## Crypto & Security kit — ⬜ Deferred (architecture validated, not scheduled)
 
-> **Status: chosen direction, documented before building.** Uniquely aligned
-> with the platform: 8gwifi.org **is** a crypto/security tools site and hosts the
-> manic playground, so a crypto kit's output drops straight into the existing
-> audience + SEO with no cold start. There's also a **goldmine to mine** — the
-> `crypto-viz` visualizer already in crypto-tool (see below). The broader-audience
-> **Finance & Economics kit** is the planned follow-on (notes at the end).
+> **Status: fully scoped + data-validated, then deferred.** Uniquely aligned with
+> the platform: 8gwifi.org **is** a crypto/security tools site and hosts the manic
+> playground, so a crypto kit's output drops straight into the existing audience +
+> SEO with no cold start. There's a ready **goldmine** (the `crypto-viz` engine in
+> onecompiler, see below), and the build path is now concrete and low-risk (real
+> AES trace data captured + verified). **Deferred** behind the active queue; pick
+> up from the "Concrete build plan" below — nothing here needs re-discovery. The
+> broader-audience **Finance & Economics kit** is the sequenced follow-on.
 
 ### Why this kit passes the fit test (all four)
 
@@ -3078,24 +3080,81 @@ harmful (mis-education on security). Discipline: drive scenes from the **real
 crypto-viz traces / captures** where possible, and unit-test the arithmetic
 (modular exponentiation, hash step counts) the way physics sims are validated.
 
-### Proposed phased roadmap (reuse-first at every phase)
+### Concrete build plan — validated with real data ✅
 
-- **Phase 0 — the one true engine gap:** add the **global `%` operator** to the
-  expression language (lexer + `BinOp` + evaluator). Unblocks modular arithmetic
-  for every kit. This is the *only* engine change the flagships need.
-- **Phase 1 — the two flagships, composed from existing vocab:** Diffie-Hellman
-  (two-column `text`/`arrow`/`equation` + `seq`, values via `%`) and the hash
-  avalanche (`matrix` bit-grid + `recolor`, value from a trace). Portrait reel +
-  one template + AI-prompt validated end to end. **Goal: prove the kit with
-  little or no new vocabulary** — if a scene needs a builtin, that's a signal to
-  re-check whether existing primitives compose it first.
-- **Phase 2 — protocol swimlane:** TLS handshake as columns + labelled `arrow`s +
-  `seq`, driven by the real bundled captures (data ingestion, if not already
-  reachable). Version comparison.
-- **Phase 3 — ciphers & ECC:** AES state = `matrix` recolor sequence; Feistel/DES;
-  ECC point addition via the `geo` kit; RSA. Still composition-first.
-- **Phase 4 — blockchain & signatures**, plus a crypto-reel **template** shelf +
-  system-prompt training. Templates (macros over existing vocab), not builtins.
+The deeper goldmine is in **onecompiler**, not just the JS front-end:
+`onecompiler/engines/crypto/` has battle-tested reference C (`aes.c` — Brad
+Conte) **plus tracing harnesses** (`trace.c` for AES, `*_trace.c` for
+DES/SHA256/MD5/RSA/DH/EC/Blowfish) that already emit the animation data. Spec:
+`onecompiler/VIZ_ARCHITECTURE.md`.
+
+**The universal data contract — one protocol for every algorithm.** All tracers
+emit the same `{algorithm, inputs, params, panels[], steps[], output}` JSON:
+- **panels** = typed data regions declared once: `matrix` (byte grid — AES state
+  / round key), `words` (key schedule), `table` (static lookup — the S-box),
+  `kv` (RSA/DH/ECC big-ints), `curve` (ECC plot), `swimlane` (TLS/protocol flow).
+- **steps** = the timeline; each carries `phase`, `op`
+  (`load`/`sub`/`permute`/`mix`/`xor`/`expand`/`round`/`modexp`/`emit`/…),
+  `target` (panel it mutates), `title`, and **`after` = the complete post-state
+  snapshot of the target**, plus optional `formula`/`explain`/`detail`.
+- **Key invariant (this IS manic's model):** `after` is the *full* post-state, so
+  a player replays snapshots `0→idx` for exact, drift-free scrubbing — identical
+  to manic's deterministic timeline. The protocol was designed for the exact
+  playback semantics manic already has.
+
+**Verified real AES-128 trace** (reproduce:
+`cd onecompiler/engines/crypto && cc -O2 -o aes_trace trace.c && ./aes_trace
+encrypt 00112233445566778899aabbccddeeff 000102030405060708090a0b0c0d0e0f`):
+- **53 steps**, ops `{expand:11, load:1, xor:11, sub:10, permute:10, mix:9,
+  emit:1}`; panels `state`(matrix), `rk`(matrix), `w`(words), `sbox`(table).
+- output ciphertext `69c4e0d86a7b0430d8cdb78070b4c55a` — the canonical FIPS-197
+  vector, correct by construction. The data pipeline is proven end to end.
+
+**Architecture — renderer + data source (clean split):**
+- **Renderer = the first real crypto vocabulary.** A *general* trace-player that
+  ingests `{panels,steps}` and animates it with existing vocab: `matrix`/`table`
+  panels + per-step `recolor`/relabel of `target` (driven by `after`) +
+  `say`/`equation` for `title`/`formula`. Because the protocol is universal, this
+  ONE construct plays AES **and** DES/SHA/RSA/DH/EC — the whole corpus becomes
+  *data*, not vocabulary. This is the legitimate "add a word only when nothing
+  composes it" case: a 53-step (hundreds-of-cell-op) trace can't be hand-authored,
+  and the player is general (any snapshot-timeline), not crypto-specific.
+- **Data source = reuse the reference C, never reimplement (principle #1).** Two
+  ways to get the trace, same renderer either way:
+  - **Bundled traces (chosen first — simplest):** run the existing `aes_trace`
+    offline, ship the JSON as an asset (`include_str!`). **Pure Rust, zero build
+    changes**, deterministic; only the pre-traced inputs (i.e. the canonical
+    teaching vector — which is exactly what a lesson animates). *This is the
+    deferred kit's Phase 1.*
+  - **C FFI (deferred further):** copy `aes.c`+`aes.h`, `build.rs` + `cc` crate,
+    `extern "C"` the (already **non-static**, directly linkable) transforms
+    `aes_key_setup`/`SubBytes`/`ShiftRows`/`MixColumns`/`AddRoundKey`; the Rust kit
+    runs the round loop, snapshots the 4×4 state, feeds the SAME renderer — giving
+    *arbitrary-input* traces at render time. Cost: first C toolchain in manic's
+    (pure-Rust) build + a C cross-compiler in `build-linux.sh`/`ec2-setup.sh`.
+    WASM is unaffected (engine-only kit; render is server-side). Add only when
+    arbitrary input is actually needed.
+
+### Proposed phased roadmap (renderer-first, reuse-first)
+
+- **Phase 1 — the general trace-player, validated on AES (bundled data).** Ingest
+  the `{panels,steps}` JSON; lay out `matrix`/`table` panels; play each step by
+  relabel/`recolor` of `target` from `after` + `say`/`equation` captions. Prove it
+  end to end on the **verified 53-step AES trace** (bundled JSON, pure Rust, no
+  build changes). This is the hard, valuable, reusable part — and it unlocks every
+  other algorithm as data.
+- **Phase 2 — the corpus as data.** Bundle DES/SHA/MD5 traces (same protocol) →
+  each is a new *reel*, not new code. Add the **global `%` operator** here if a
+  DH/RSA scene wants live modular arithmetic.
+- **Phase 3 — protocol swimlane + ECC.** TLS handshake via `swimlane` (columns +
+  `arrow`s + `seq`) from the real bundled captures; ECC point addition via the
+  `geo` kit. Still composition-first.
+- **Phase 4 — arbitrary input via C FFI (only if needed):** copy `aes.c`, link the
+  non-static transforms, generate traces at render time. Takes on the C
+  cross-compile build work — defer until arbitrary-input reels are actually
+  demanded.
+- **Phase 5 — template shelf + system-prompt training** so the AI generates crypto
+  reels from a plain prompt. Templates (macros over existing vocab), not builtins.
 
 ### Broader-audience follow-on — Finance & Economics kit (after crypto)
 
