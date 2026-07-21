@@ -1,0 +1,5 @@
+venv/
+__pycache__/
+*.pyc
+# Credentials belong in environment variables or this local PRAW profile.
+praw.ini
