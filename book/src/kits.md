@@ -1,4 +1,4 @@
-# Kits — math, geometry, algorithms
+# Kits — domain knowledge, ordinary Manic composition
 
 The words so far (`circle`, `move`, `flash`, `for`…) are the **core**. On top of
 that, manic ships **kits** — bundles of higher-level figures for a domain. You
@@ -41,6 +41,54 @@ dijkstra(g, a);                 // animates shortest paths
 
 Groups make these one-liners: a graph tags its nodes and edges, so
 `draw(g.edges)` or `flash(g.nodes, cyan)` animates the whole set.
+
+## ml
+
+Small neural-network explanations whose displayed activations and probabilities
+come from the declared model rather than a staged effect:
+
+```manic
+network(net, (cx, cy), "3 6 4 3", "relu tanh softmax", 820, 350, 21);
+forward(net, "0.15 0.92 0.38", 4.2, smooth);
+loss(net, "1 0 0", crossentropy, 1.5, smooth);
+backward(net, 3.2, smooth);
+update(net, 0.18, 2.3, smooth);
+
+tensor(image, (260, 340), "0 0 1; 0 1 1; 0 0 1", 44);
+kernel(edge, (560, 340), "-1 0 1; -2 0 2; -1 0 1", 44);
+convolve(feature, image, edge, (850, 340), 1, 1, 0, relu, 44);
+scan(feature, 4.0, smooth);
+
+tokenize(words, (650, 150), "the cat chased the cat", word, 900);
+embedding(context, words, (650, 470), "seeded 6 37", sinusoidal, 1080, 430);
+transformer(block, context, (650, 500),
+  "heads=2 mask=causal mlp=12 activation=gelu norm=pre dropout=0 mode=inference seed=41",
+  1120, 520);
+encode(block, 6.2, smooth);
+logits(next, block, 5, (650, 500),
+  "reason | predict | learn | adapt | explain | .", 0.8, 760, 440, 73);
+sample(next, "top-p 0.90 seed=17", 3.8, smooth);
+
+attention(head, (650, 360), "Art | ificial | intelligence | transforms | business",
+  "1 0.2 -0.4 0.7; 0.8 0.1 -0.3 0.6; -0.2 1 0.5 0.3; 0.1 0.6 0.9 -0.2; 0.7 -0.1 0.4 1",
+  980, 420, 23);
+attend(head, 3, 5.2, smooth);
+```
+
+Use `activation` to introduce a scalar activation curve, then `network` and
+`forward` to follow one computation. Add `loss`, `backward`, and `update` for
+one explicit, numerically truthful learning step. Use `tensor`, `kernel`,
+`convolve`, `pool`, and the shared `scan` for CNN/operator stories. Large layers
+automatically reduce visual detail without reducing the numerical model. Use
+`tokenize` and `embedding` to reveal honest token boundaries, stable lookup
+vectors, exact positional values, and their elementwise sum. Use
+`transformer` and `encode` for one complete multi-head block with masking,
+normalization, residuals, MLP, and truthful training/inference dropout. Use
+`logits` and `sample` to keep the separate LM projection, temperature-scaled
+full softmax, filtering, renormalization, and seeded next-token choice truthful. Use
+`attention` and `attend` for one focused, exact self-attention head; add `topk`
+only when a deterministic educational candidate ranking helps the story. See
+[Machine learning — models made visible](ml.md).
 
 ## three (3D)
 

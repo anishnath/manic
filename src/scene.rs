@@ -167,6 +167,31 @@ pub struct Scene {
     /// Generic contained particle groups (`particles`/`wander`). Build-time
     /// only; frames contain ordinary entities and deterministic timeline tracks.
     pub particle_groups: HashMap<String, ParticleGroup>,
+    /// Small, explicit feed-forward models declared by the ML kit. Arithmetic
+    /// is retained at build time so semantic verbs such as `forward` can emit
+    /// ordinary deterministic tracks without turning the renderer into an ML
+    /// runtime.
+    pub ml_networks: HashMap<String, crate::kits::ml::MlNetworkData>,
+    /// Numeric grids and convolution/pooling scan plans retained by ML3. The
+    /// renderer still sees ordinary rectangles/text; these maps only let the
+    /// DSL compute derived values and emit deterministic scan tracks.
+    pub ml_tensors: HashMap<String, crate::kits::ml_tensor::MlTensorData>,
+    pub ml_kernels: HashMap<String, crate::kits::ml_tensor::MlKernelData>,
+    pub ml_scans: HashMap<String, crate::kits::ml_tensor::MlScanData>,
+    /// Deterministic single-head attention computations retained by ML4.
+    /// The renderer receives only normal entities and stateless tracks.
+    pub ml_attention: HashMap<String, crate::kits::ml_attention::MlAttentionData>,
+    /// Token boundaries and positioned vectors retained by ML5 for later
+    /// transformer blocks. Their visible forms are ordinary tagged entities.
+    pub ml_tokens: HashMap<String, crate::kits::ml_embedding::MlTokenData>,
+    pub ml_embeddings: HashMap<String, crate::kits::ml_embedding::MlEmbeddingData>,
+    /// Complete deterministic transformer blocks retained by ML6. Constructors
+    /// compute every value; `encode` lowers only ordinary stateless tracks.
+    pub ml_transformers: HashMap<String, crate::kits::ml_transformer::MlTransformerData>,
+    /// ML7 language-model projections and latest authored decoding decisions.
+    /// All values are computed at build time; playback remains ordinary tracks.
+    pub ml_logits: HashMap<String, crate::kits::ml_decode::MlLogitsData>,
+    pub ml_samples: HashMap<String, crate::kits::ml_decode::MlSampleData>,
     /// Pure runtime connections from visible creator parameters to existing
     /// entity properties or plot formulas. Constructors fill this; timeline
     /// evaluation applies it after ordinary tracks on every stateless frame.

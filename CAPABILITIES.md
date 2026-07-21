@@ -101,6 +101,7 @@ not an instruction to implement everything.
 |---|---|---|---|
 | P0 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
 | P1 | 🟡 | **Motion Graphics V2Core** — ✅ authored endpoint/blueprint state plus `attach` / `become` / `turn` and shared pivots have shipped locally; normalized live path progress, general group bounds, and velocity-continuous generated motion remain. Existing `travel`, `flow`, `wander`, and `arrange` calls stay unchanged. | Lets non-programmers describe continuity and relationships instead of intermediate coordinates, while preserving deterministic playback and existing files. |
+| P1 | ✅ | **Manic ML + transformers** — ML1–ML7 ship locally: feed-forward learning, tensor/CNN foundations, single-head attention, truthful tokenization/position, complete transformer blocks, and exact logits/temperature/sampling. | Lets educators follow modern ML from text to tokens, representations, attention, learning, and generation without Python animation code or visually plausible fake arithmetic. |
 | P1 | ✅ | **3D V2Core** — creator-first authored 3D state and bounds, automatic camera composition, spatial path travel, timed attachment/release, exact-blueprint transformation, rigid axis turns, template-aware diagram lighting, tests, and creator examples ship. Surface: `view3`, `travel3`, `attach3`, `become3`, `turn3`; existing precise 3D calls remain unchanged. | Makes spatial explainers readable and cinematic without asking creators to calculate camera distance, Euler choreography, or intermediate coordinates. |
 | P1 | 🟡 | **Visual audit layers** — transition-path collisions, detached dynamic links, reading speed, camera/3D bounds, and equation/plot semantic agreement. | Prevents bad exports, not merely bad settled frames. |
 | P1 | 🟡 | **Multi-format composition** — reusable layout policies, format-specific pacing, thumbnail/still framing, and UI-controlled output variants. | Turns one semantic story into a dependable publishing system. |
@@ -120,6 +121,406 @@ across equation/plot/diagram representations; visual experiment-first lessons;
 split-screen comparisons; a timeline/entity visual debugger; community remix
 inputs; and a consistent product promise—**describe how an idea changes, and
 Manic keeps the visual world continuous**.
+
+## Manic ML kit — active implementation
+
+**Status: ✅ ML1 feed-forward, ML2 learning, ML3 tensor/CNN foundations, ML4
+single-head attention, ML5 token/embedding foundations, ML6 complete
+transformer blocks, and ML7 exact decoding implemented locally.**
+The kit makes an ML computation
+understandable, not merely draw the familiar network silhouette. Its product
+promise is:
+
+> Give Manic a small model and an input. It computes the same values a learner
+> sees, then reveals one meaningful flow at a time.
+
+The supplied dense-network and transformer references define the visual bar,
+not a request to copy their complexity. The dense graph shows why automatic
+layout and weight styling are needed; the transformer explainer shows the
+desired end state: tokens, Q/K/V, attention, residual flow, MLP, and output
+probabilities remain spatially connected while the current computation is
+bright and the surrounding model stays quiet.
+
+### Design rules
+
+1. **Progressive focus, not connection noise.** Inactive edges are faint or
+   bundled. A forward/backward beat brightens only the active layer, receptive
+   field, token, or attention head. Stroke width/opacity represents magnitude;
+   a stable warm/cool palette represents sign. Colour never carries the only
+   meaning.
+2. **Truth before decoration.** Network outputs, activation values, gradients,
+   convolutions, and pool selections are computed from the authored data. Shape
+   errors, incompatible layers, invalid strides/windows, and non-finite values
+   fail at the source location instead of producing plausible-looking art.
+3. **Small vocabulary, reusable composition.** ML nouns describe computed
+   structures; ML verbs describe computation direction. Existing `step`, `par`,
+   `seq`, `stagger`, `flow`, `attach`, `become`, `turn`, `rewrite`, captions,
+   plots, camera, and Creator templates remain the storytelling language. Do not
+   add separate commands for every architecture or activation function.
+4. **Deterministic and seekable.** Explicit values are preferred. Seeded sample
+   values are reproducible. Forward and backward results are calculated at
+   build time and animated as ordinary stateless tracks, so recording,
+   scrubbing, stage export, and out-of-order frame requests agree exactly.
+5. **Screen-aware by default.** Portrait may focus one layer/operator at a time;
+   landscape may show the full pipeline. Node radius, spacing, labels, edge
+   detail, feature-map tiles, and probability bars use level-of-detail rules and
+   the existing safe-region/audit system. Large networks summarize rather than
+   shrink into illegibility.
+6. **Explanation, not a training framework.** V1 visualizes small explicit
+   educational models. It does not load arbitrary PyTorch/TensorFlow programs,
+   train large models, require a GPU, or pretend to be a general ML runtime.
+
+### Creator surface
+
+Keep the first surface near these nouns and verbs:
+
+- `network` — **ML1 implemented** for layered feed-forward models with layer
+  sizes, activations, deterministic seeded weights/biases, stable layer/node/
+  connection tags, level-of-detail, and probability bars. Explicit authored
+  weights and biases remain a planned extension.
+- `tensor` and `kernel` — **ML3 implemented** as compact finite numeric grids
+  with `;` rows and `|` channels, stable cell/slice tags, validated shared
+  shapes, responsive cell sizing, and stacked multi-channel presentation.
+- `activation` — **ML1 implemented** as a reusable truthful plot for `linear`,
+  `relu`, `sigmoid`, and `tanh`; the network accepts activation names as data,
+  including vector-valued `softmax`, rather than requiring a command per
+  function.
+- `convolve` and `pool` — **ML3 implemented** as derived tensor views with
+  validated channel/kernel/window shapes, integer stride/padding, convolution
+  bias/cellwise activation, multi-channel accumulation, max/average pooling,
+  and deterministic first-row-major max ties. `pool(..., max, ...)` covers max
+  pooling without a one-off `maxpool` word.
+- `forward` — **ML1 implemented** with validated inputs, real affine/activation
+  computation, stateless seekable tracks, progressive edge/node focus, and
+  exact settled values.
+- `loss` — **ML2 implemented** for mean-squared error and numerically stable
+  softmax cross-entropy, with exact target-size/distribution validation and
+  persistent prediction-versus-target readouts.
+- `backward` and `update` — **ML2 implemented** as separate beats: exact
+  reverse-mode gradients travel over the persistent graph, then one explicit
+  gradient-descent update changes every weight/bias and recomputes the same
+  input, output, and loss. No hidden training loop or optimizer catalogue.
+- `scan` — **ML3 implemented** as one shared stateless animation for a
+  convolution or pooling window: the source region, operator, truthful
+  arithmetic summary, selected maximum, and output cell stay linked.
+- `tokenize` and `embedding` — **ML5 implemented** for deterministic word,
+  character, or authored token boundaries; explicit or stable seeded
+  educational lookup vectors; and exact `none` or sinusoidal position values.
+  Repeated token identities reuse one base vector before position is added.
+- `transformer` and `encode` — **ML6 implemented** as one complete deterministic
+  block over an ML5 embedding: 1–4 heads, full/causal masks, concatenation and
+  output projection, pre/post layer normalization, both residuals, GELU/ReLU/
+  SiLU/Tanh MLPs, and true seeded inverted dropout in explicit training mode.
+- `logits` and `sample` — **ML7 implemented** as a separate educational LM
+  projection over one final hidden row, complete temperature-scaled stable
+  softmax, exact greedy/categorical/top-k/top-p decoding distributions,
+  renormalization, and reproducible seeded selection.
+- `attention`, `attend`, and `topk` — **ML4 implemented** as one deterministic
+  scaled dot-product head from explicit embeddings, a stateless 1-based token
+  focus, and a seeded residual-to-vocabulary projection whose displayed bars
+  are exact full-softmax probabilities. This is an educational computation,
+  not a pretrained-model claim.
+
+This is the shipped ML1–ML7 vocabulary budget. Every word has catalog/editor
+parity and creator examples proving that it composes with ordinary Manic
+entities.
+
+### Delivery plan
+
+#### ML1 — feed-forward foundations
+
+- ✅ Add an isolated `ml` kit and matching language-service catalog entries; no
+  existing constructor or verb changes semantics.
+- ✅ Implement auto-layout for input, hidden, and output layers with stable tags,
+  collapsed-edge detail for large layers, labels, legends, and probability
+  bars.
+- ✅ Compute dense affine layers plus `linear`, `relu`, `sigmoid`, `tanh`, and
+  numerically stable `softmax`; animate a forward pass from explicit inputs.
+- ✅ Ship a beginner story: features → hidden evidence → class
+  probabilities, with one selected prediction explained rather than every
+  connection flashing together.
+- ✅ Cover deterministic arithmetic, invalid dimensions/inputs, large-logit
+  softmax stability, level-of-detail computation, direct seeking, catalog
+  parity, all four canvas audits, creator documentation, and publishing
+  metadata without changing an existing DSL call.
+
+#### ML2 — backward pass and learning
+
+- ✅ Add mean-squared-error and softmax cross-entropy loss views, exact local
+  derivatives, and reverse-mode gradients for the ML1 operations.
+- ✅ Animate loss → output gradient → hidden gradients → weight/bias
+  gradients along the same persistent identities used by the forward pass.
+- ✅ Show gradient sign/magnitude and the actual values at nodes, preserving
+  very small gradients rather than exaggerating them; show an explicit
+  representative old/new weight comparison. Keep gradient flow and parameter
+  update as separate visual beats.
+- ✅ Verify representative gradients against finite differences and ensure the
+  animation ends on the exact computed values.
+- ✅ Ship a responsive creator story, language/system-prompt/mdBook guidance,
+  gallery and publishing metadata, order/target/hyperparameter diagnostics, and
+  direct-seeking regression coverage.
+
+#### ML3 — convolution and pooling
+
+- ✅ Add 2-D single/multi-channel tensors, kernels, valid/same-style authored
+  padding, integer stride, bias, activation, and deterministic max/average
+  pooling. Resolve max-pool ties by a documented stable rule.
+- ✅ Make `scan` coordinate four things continuously: receptive-field highlight,
+  moving kernel, arithmetic/value card, and destination feature-map cell.
+- ✅ Ship a CNN story: image → edge/feature kernels → feature maps → ReLU →
+  max pooling → compact evidence ready for a classifier. The creator can pause or focus any stage
+  without manually moving dozens of squares.
+- ✅ Cover exact convolution fixtures, multi-channel accumulation,
+  stride/padding/bias/activation, exact max/average pooling, deterministic tie
+  selection, malformed shapes/channels/windows, direct seeking, catalog parity,
+  all four canvas audits, creator documentation, and publishing metadata.
+- ✅ Keep the first surface explainable: one `convolve` produces one feature
+  map; multiple filters are multiple named kernels/outputs rather than an
+  opaque architecture constructor. Convolutional gradients remain later work.
+
+#### ML4 — complex animation and transformer acceptance target
+
+- ✅ Add computed connection fields, persistent residual lanes, fan-in focus,
+  a labelled attention heatmap, weighted value outputs, and top-k probability
+  bars without changing any existing DSL semantics.
+- ✅ Compute seeded Q/K/V projections, `softmax(QK^T / sqrt(d))`, exact weighted
+  value mixes, the selected residual, and a deterministic educational output
+  projection from explicit embeddings and candidate labels.
+- ✅ Ship the small public surface `attention`, `attend`, and `topk`; keep focus
+  stateless and directly seekable, with stable token/role/weight/fan tags.
+- ✅ Build and audit one responsive transformer story across all four canvases,
+  document the pretrained-model boundary, and cover normalization, exact mixes,
+  reproducibility, top-k probabilities, diagnostics, and catalog parity.
+- ML4 remains the focused one-head teaching view; ML6 supplies complete
+  multi-head residual/MLP blocks. Imported model weights, packaged/pretrained
+  tokenizers, and large-model inference remain future work.
+
+#### ML5 — tokens, embeddings, and position
+
+- ✅ Add `tokenize` for three honest input modes: `authored` boundaries separated
+  by `|`, deterministic Unicode-aware `word` splitting, and deterministic
+  `character` splitting. Do not label a heuristic as BPE; real BPE waits for an
+  explicit vocabulary/merge table or packaged model tokenizer.
+- ✅ Add `embedding` as the bridge from a token sequence to numeric vectors. It
+  accepts either explicit authored rows or a small deterministic seeded
+  educational dimension. Generated vectors must be labelled as seeded
+  educational values, never as weights from a pretrained model.
+- ✅ Support `none` and exact sinusoidal positional encoding. Preserve separate
+  token, token-vector, position-vector, and combined-vector identities so the
+  learner can see `token embedding + position = model input` without a redraw.
+- ✅ Keep the public surface to the two nouns above. Existing `step`, `show`,
+  `draw`, `pulse`, `attach`, `become`, captions, equations, and tags own the
+  storytelling; token splitting and vector addition do not need one verb per
+  substage.
+- ✅ Validate empty text, unsupported tokenizer modes, token/value row mismatch,
+  ragged/non-finite rows, dimensions, and positional mode at the exact source
+  argument. Cover Unicode/punctuation boundaries, sinusoidal fixtures,
+  deterministic seeds, exact vector addition, direct seeking, all canvas
+  formats, catalog parity, creator documentation, and one token-to-positioned-
+  embedding story.
+
+#### ML6 — complete transformer blocks
+
+- ✅ Add one `transformer` noun and one `encode` staged computation verb on top of
+  an ML5 `embedding`. The compact specification is
+  `"heads=2 mask=causal mlp=12 activation=gelu norm=pre dropout=0 mode=inference seed=41"`;
+  width and height remain ordinary optional layout arguments. This controls the
+  complete block without adding a word for every internal operation.
+- ✅ Compute every head as scaled Q/K scores → mask → stable softmax → weighted V,
+  then concatenate heads and apply the output projection. Require `d_model` to
+  divide exactly by the head count.
+- ✅ Compute layer normalization, attention/MLP residuals, GELU/ReLU/SiLU/Tanh
+  MLPs, and deterministic inverted dropout in explicitly authored training
+  mode. Dropout is disabled during inference and is never simulated with mere
+  opacity.
+- ✅ Expose stable tags for heads, masks, matrices, concatenation, both residuals,
+  both norms, MLP activation, dropout masks, and block output while keeping the
+  inactive computation quiet.
+- ✅ Ship catalog/editor parity, actionable diagnostics, seven numerical and
+  direct-seeking regressions, a native-reviewed creator story, all four canvas
+  audits, mdBook/system-prompt guidance, and gallery/publishing metadata.
+
+#### ML7 — logits, temperature, and sampling
+
+- ✅ Keep the architecture accurate: the transformer MLP produces a hidden
+  representation; a separate language-model projection produces logits.
+- ✅ Add one `logits` probability view that applies `logits / temperature` followed by a
+  stable full softmax, then one deterministic sampling verb supporting greedy,
+  categorical, top-k, and top-p selection.
+- ✅ Temperature changes the complete distribution; top-k/top-p exclusions are
+  exact zeros before renormalization, and sampled outcomes are reproducible from
+  the same seed. Displayed values are computed educational probabilities unless
+  a future explicit model package supplies real weights and tokenizer data.
+- ✅ Keep the creator surface compact: `logits(next, block, token, at, labels,
+  temperature, ...)` and `sample(next, "top-p 0.9 seed=17", ...)`. Expose stable
+  projection, temperature, logit, probability, bar, and candidate tags.
+- ✅ Cover exact projection arithmetic, stable full softmax, entropy changes,
+  every filter, minimal top-p support, deterministic draws, invalid contracts,
+  direct seeking, catalog parity, four-canvas layout, creator documentation,
+  gallery metadata, and one cool-vs-warm next-token story.
+
+#### Native ML1–ML7 visual re-review — completed 2026-07-21
+
+The numerical/DSL milestones above remain complete. This review records a
+separate creator-polish backlog; it does not reopen the compact vocabulary or
+make framework import part of the first release.
+
+| Story | What already reads well | Audit finding / next opportunity |
+|---|---|---|
+| Scalar → tensor | The rank progression, persistent values, arrows, and restrained semantic colour are immediately legible. | Let the same cells visibly `become` the next rank instead of relying mainly on reveal; a shallow parallax/depth cue can make channel stacking feel spatial without turning it into a 3-D spectacle. |
+| Activation focus | The ReLU bend, probes, equation, and negative/positive comparison are the cleanest minimal ML lesson. | Travel one value marker into, through, and out of the curve; use a small camera push only at the bend, then settle back for the conclusion. |
+| Forward pass | Computed node values and probability bars are truthful and readable. | The settled frame leaves large empty space between floating node columns and loses the causal path. Keep the full edge field as a very quiet scaffold, brighten only a bounded fan-in/fan-out, and send a few computed signal pulses along the strongest contributing edges. |
+| Learning step | The same network survives prediction, loss, backward credit, and update without a redraw. | Gradient text can crowd node circles and a dense reverse edge bundle becomes noisy. Move gradient readouts to small outside badges, use sign plus magnitude styling, and focus one transition at a time while the remaining graph stays as context. |
+| CNN edge story | Source, kernel, receptive field, feature map, arithmetic strip, and destination stay synchronized; this is already a strong operator story. | Briefly zoom into one receptive field, flow its nine values into the multiply/sum beat, and use a diverging negative/zero/positive palette before returning to the complete feature map. |
+| Tokens + embedding | Token identity, repeated lookup rows, position, and combined model input remain aligned. | Under mono/low contrast, position and combined cells can look like empty colour boxes. Add compact values, bars, or phase glyphs for the focused dimension and animate `token + position → model input` with identity-preserving cell motion. |
+| One attention head | Selected Q/K/V, the exact softmax row, weighted connections, and residual context are mathematically honest. | The weighted-V `mix` cards read as mostly empty destinations. Put a compact output-vector summary inside them, scale focused streams by attention weight, and let a small token/value packet travel only on the selected fan-in. |
+| Complete transformer block | The complete order—MHA, projection, residual, norm, MLP, residual—fits on one persistent canvas. | This has the clearest empty-box problem: `ADD 1`, the MLP, and `ADD 2` are labelled containers without enough internal evidence. Replace placeholders with mini-views: residual bypass curves, before/after vector bars, normalization spread, and MLP expand–activate–contract motion. Follow one token through the block while other token lanes remain dim context. |
+| Logits + sampling | The separate LM projection, temperature, exact probabilities, zeroed exclusions, renormalization, and selected token are clear. | Morph one distribution continuously between temperatures instead of fading between duplicate panels; a single seeded choice marker can travel from the retained probability mass into the selected token row. |
+
+#### ML visual elevation pass — completed 2026-07-21
+
+The first high-priority polish pass is implemented without adding ML-only
+animation vocabulary:
+
+- ✅ Weighted-attention destinations now contain compact summaries of their
+  actual mixed vectors. Selected Q/K/V fan-in and the residual route carry
+  directly seekable flow derived from the computed attention row.
+- ✅ Transformer projection, residual, and MLP cards now contain signed
+  value-driven mini bars rather than empty labelled panels. Two visible bypass
+  curves explain residual identity; the main connectors and skips flow in
+  computation order during `encode`.
+- ✅ Position and final model-input cells now display their numeric values.
+  Positive token, position, and combined values use distinct cyan, gold, and
+  lime roles; signed negatives remain magenta, so the table stays meaningful
+  under custom colour themes.
+- ✅ A completed forward pass keeps a quiet contribution-weighted edge trace
+  instead of returning every connection to the same low-opacity scaffold.
+- ✅ `backward` preserves activation values inside neurons and places compact
+  signed gradient badges outside them. `update` clears the badges before
+  recomputing, retaining one persistent network without crowded `g...` labels.
+- ✅ Activation, dense forward, backward learning, CNN scanning, attention, and
+  the full transformer story use restrained responsive camera focus. Every
+  move returns to the overview; scalar/tensor, embedding, and logits keep a
+  fixed camera because their comparison is strongest as a complete still.
+- ✅ Added visual-evidence regressions for attention summaries, embedding
+  values, Transformer mini-views/bypasses, and gradient-badge lifecycle. All 51
+  ML regressions pass, and all nine ML1–ML7 stories pass portrait, feed, square,
+  and landscape publishing audits.
+
+#### ML motion and visual-polish grammar
+
+Do not add a new ML word for each effect. Compose the already shipped ML nouns
+and computation verbs with the generic Manic motion surface:
+
+- `flow` is the default for information moving along a connection; edge width,
+  brightness, and pulse count should derive from a real activation, attention
+  weight, or gradient magnitude.
+- `travel` carries one persistent value/token marker through a path and stops at
+  its exact computed destination. `attach` keeps its label or readout with it.
+- `become` preserves identity when a scalar becomes a vector, a token vector
+  gains position, a receptive field becomes an output cell, or logits become a
+  filtered distribution.
+- `particles` are semantic packets, not confetti. A bounded 3–8 particles may
+  represent tokens, activation flow, weighted values, or a sampled draw only
+  when their count/path has an explainable meaning. `wander` remains for genuine
+  stochastic motion stories, not ordinary neural-network decoration.
+- `par`, `seq`, and `stagger` remain the timing language: structure first,
+  focused computation second, exact settled result third.
+
+The existing `cam` and `zoom` words are sufficient for the first polish pass.
+Examples should use them sparingly: one 1.08–1.25× push per conceptual beat,
+smooth pan to the active operator, a short reading hold, then a settled overview.
+Portrait should use smaller pushes and vertical pans. Camera movement must never
+hide a caption, compete with dense text, or become necessary to understand the
+final still. A later automatic framing policy may compute these targets from
+stable tags and group bounds without adding another camera vocabulary.
+
+#### Semantic colour system
+
+Colour should explain computation rather than merely make the frame busier:
+
+- input/data: cyan or cool blue;
+- positive activation/retained signal: lime;
+- negative contribution or reverse gradient: magenta/red;
+- operator/transformation/current focus: gold;
+- zero, masked, excluded, or inactive context: dim neutral;
+- Q/K/V: three stable roles reused throughout the complete transformer story;
+- selected prediction/sample: the strongest foreground plus one accent.
+
+Every distinction must survive the default mono template through brightness,
+stroke width, fill/pattern, labels, and motion direction. Custom templates may
+retint the semantic roles, but a hard-coded rainbow is not the default. A
+diverging scale is appropriate for signed kernels/gradients; a sequential scale
+is appropriate for probabilities and attention weights.
+
+#### Empty-container and focus rules
+
+1. **No explanatory empty box.** A labelled operator visible for more than one
+   beat must contain a value, compact diagram, progress trace, or moving identity.
+   Otherwise collapse it to a small labelled connector until it becomes active.
+2. **Overview → focus → overview.** Preserve the architecture, expand only the
+   active stage, then settle on the complete result. Never clear the screen just
+   to obtain focus.
+3. **One hero identity.** Dense stories follow one token, neuron, receptive
+   field, or candidate while the rest remain truthful low-opacity context.
+4. **Motion is computed evidence.** Particle routes, edge emphasis, bar changes,
+   and colour must be functions of the same retained values shown in text.
+5. **Direct seeking stays pure.** Camera tracks, packets, and focused mini-views
+   must remain deterministic at any requested time and hold exact endpoints.
+
+The remaining optional polish is deliberately lower priority: identity-preserving
+`become` journeys for scalar → tensor and embedding addition; a continuous
+single-panel temperature morph for ML7; a travelling input probe through the
+activation curve; and tag-bounds-driven automatic camera targets. These should
+reuse the current generic verbs and must not destabilize the completed visual
+or numerical contracts.
+
+### End-goal visual design
+
+The professional default is a persistent left-to-right computation canvas:
+input/data on the left, the currently active operator in the visual centre, and
+the derived value or decision on the right. A small explanation strip below
+shows only the arithmetic for the highlighted unit/cell/token. Forward motion
+uses a restrained directional pulse; backward motion follows the same geometry
+in reverse with gradient styling; neither clears and redraws the whole scene.
+
+For dense models, overview mode uses low-opacity connection bundles and opens
+only the selected node's fan-in/fan-out. For CNNs, the kernel window and output
+cell share one accent and move as an attached pair. For transformers, token
+lanes persist through embeddings, Q/K/V, attention, residual, MLP, and
+probabilities; zoom/focus changes emphasis without breaking those identities.
+Every design must work in monochrome through width, pattern, labels, and
+brightness even when the theme supplies colour.
+
+### Acceptance and regression contract
+
+- Unit tests: dense shapes and affine values; every supported activation and
+  derivative; stable softmax/cross-entropy; convolution across channel,
+  padding, and stride cases; pooling and deterministic ties; attention row
+  normalization and exact weighted mixes; token boundaries, seeded lookup
+  identity, sinusoidal fixtures, and exact position addition; malformed/
+  non-finite diagnostics.
+- Numerical tests: finite-difference checks for representative dense and
+  convolution gradients, with documented tolerances and exact expected fixtures
+  for small textbook examples.
+- Timeline tests: exact endpoints, no blank frames between stages, deterministic
+  seeds, direct seeking before/during/after `forward`, `backward`, `scan`, and
+  `attend`, and parity between a full render and a selected named stage.
+- Layout/audit tests: small and dense networks, portrait/square/landscape,
+  readable labels, bounded edge detail, no unsafe-region overflow, and a
+  meaningful low-detail fallback.
+- Product artifacts: one focused example per milestone, one advanced connected
+  story, mdBook creator documentation, catalog/system-prompt coverage, gallery
+  and publishing entries, plus full `cargo test` regression before shipment.
+
+### Deliberately later
+
+Arbitrary framework import, large-model training, recurrent/stateful sequence
+simulation, optimizer catalogues, automatic differentiation over general Manic
+expressions, 3-D network spectacles, and architecture-specific dashboards stay
+outside the first release. They should be reconsidered only after the shipped
+milestone stories expose a repeated creator need that the compact surface
+cannot express.
 
 ## Motion Graphics V2 — active implementation
 
@@ -829,8 +1230,9 @@ below are roadmap candidates, not promised builtins:
 4. **Dense, data-driven connection fields.** The
    [neural-network lesson](https://www.3blue1brown.com/lessons/neural-networks/)
    uses large layered graphs whose edge brightness/color encode weights and
-   whose activations propagate. This belongs in a reusable data/algo figure or
-   batch styling mechanism, not dozens of core words.
+   whose activations propagate. This is now covered by the planned **Manic ML
+   kit** above: reusable computed connection fields and progressive focus, not
+   dozens of core words.
 5. **Longer-horizon rendering capabilities.** Recursive path refinement in the
    [Hilbert-curve lesson](https://www.3blue1brown.com/lessons/hilbert-curve/),
    procedural fields in the

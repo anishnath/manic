@@ -710,6 +710,172 @@ circumcircle(cc, A, B, C);   incircle(ic, A, B, C);   centroid(G, A, B, C);
 foot(F, C, A, B);   segment(alt, C, F);   anglemark(angC, A, C, B);
 ```
 
+## The ML kit
+
+ML1 turns a small feed-forward model into a truthful, progressively focused
+picture. The model arithmetic is computed while the file is built; the
+resulting animation is an ordinary deterministic timeline, so direct seeking,
+recording, and named-stage exports agree.
+
+| builtin | what it does |
+| --- | --- |
+| `network(id, (cx,cy), "3 5 2", "relu softmax", [width], [height], [seed])` | creates a deterministic layered neural network. The layer string gives unit counts; supply one activation to reuse it or one per layer transition. Supported ML1 activations are `linear`, `relu`, `sigmoid`, `tanh`, and vector-valued `softmax`. The optional seed controls Xavier-initialized weights. |
+| `activation(id, (cx,cy), relu, [width], [height])` | plots a truthful scalar `linear`, `relu`, `sigmoid`, or `tanh` curve. `softmax` is intentionally shown through a network because it operates on a complete vector. |
+| `forward(network, "v1 v2 ...", [duration], [ease])` | validates the input size, computes every affine/activation layer, then reveals the input, weighted flows, hidden activations, and output bars in order. Softmax outputs are labelled as percentages. Calling it starts a fresh learning beat. |
+| `loss(network, "t1 t2 ...", [kind], [duration], [ease])` | compares the latest forward output with an equally sized finite target. `kind` is `crossentropy` or `mse`. Cross-entropy requires a non-negative target distribution summing to 1 and a softmax output; otherwise use mean-squared error. With a softmax output, omitted kind defaults to cross-entropy; other outputs default to MSE. |
+| `backward(network, [duration], [ease])` | requires `forward` then `loss`, computes exact reverse-mode node/weight/bias gradients, and sends progressive focus from output back toward the input. Gradient sign and magnitude drive the temporary edge emphasis. |
+| `update(network, [learning_rate], [duration], [ease])` | requires `backward`, applies `parameter -= learning_rate * gradient` to every weight and bias, then recomputes the same input and loss. Default learning rate is `0.15`. The final bars/readouts are the actual updated result. |
+| `tensor(id, (cx,cy), "rows | channels", [cell], [color])` | creates a finite numeric grid. Separate rows with `;`, entries with spaces/commas, and channels with `|`. All rows and channels must share one shape. |
+| `kernel(id, (cx,cy), "rows | input channels", [cell], [color])` | creates a convolution kernel. It must have exactly as many channels as the input tensor used by `convolve`. Multiple feature detectors are authored as multiple kernels and outputs, keeping each scan explainable. |
+| `convolve(id, input, kernel, (cx,cy), [stride], [padding], [bias], [activation], [cell])` | computes one feature map with zero padding, positive integer stride, finite bias, and optional cellwise `linear`, `relu`, `sigmoid`, or `tanh`. All input channels contribute to every output cell. |
+| `pool(id, input, (cx,cy), kind, [window], [stride], [padding], [cell])` | pools every channel independently; `kind` is `max` or `average`. A max tie selects the first valid row-major cell; padding is excluded from max and average rather than inventing a value. Default window is 2 and default stride equals the window. |
+| `scan(output, [duration], [ease])` | animates either a `convolve` or `pool` result using one coordinated receptive-field frame, operator focus, arithmetic/status line, destination frame, and exact cell reveal. |
+| `tokenize(id, (cx,cy), "text", [mode], [width])` | creates a deterministic token sequence. `mode` is `word` (default), `character`, or `authored`; authored text uses `|` for exact boundaries. Word mode groups Unicode letters/numbers and keeps punctuation as separate tokens. Character mode preserves whitespace as visible tokens. |
+| `embedding(id, tokens, (cx,cy), "vectors", [position], [width], [height])` | gives a `tokenize` result explicit vector rows or deterministic seeded educational vectors using `"seeded DIM [SEED]"`. `position` is `sinusoidal` (default) or `none`; the figure shows token vectors, positional values, and their exact elementwise sum. |
+| `transformer(id, embedding, (cx,cy), "config", [width], [height])` | computes one complete deterministic transformer block from an ML5 embedding. The config controls `heads`, `mask=none|causal`, `mlp`, `activation=gelu|relu|silu|tanh`, `norm=pre|post`, `dropout`, `mode=inference|training`, and `seed`. Model dimension must divide exactly across 1–4 heads. |
+| `encode(transformer, [duration], [ease])` | reveals the already-computed block through per-head Q/K/V and masks, concatenation/output projection, both residual/norm stages, MLP activation/dropout, and persistent token outputs. Tracks are stateless and directly seekable. |
+| `logits(id, transformer, token_1_based, (cx,cy), "label | ...", [temperature], [width], [height], [seed])` | takes one final transformer hidden row, applies a separate deterministic educational LM projection, and draws every logit plus the complete stable `softmax(logits / temperature)` distribution. The same projection seed preserves logits while temperature reshapes all probabilities. |
+| `sample(logits, "strategy [parameter] [seed=N]", [duration], [ease])` | filters, renormalizes, and selects from that probability view. Strategies are `greedy`, `categorical`, `top-k K`, and `top-p P`; top-k/top-p exclusions become exact zero, and a repeated seed makes the choice reproducible. |
+| `attention(id, (cx,cy), "tokens", "embedding rows", [width], [height], [seed])` | computes one deterministic scaled dot-product self-attention head. Separate tokens with `|` and embedding rows with `;`; every row must have the same finite dimension. The figure includes Q/K/V, a row-normalized softmax matrix, weighted value outputs, and residual lanes. |
+| `attend(attention, token_1_based, [duration], [ease])` | focuses one query token without rebuilding the figure, progressively revealing its Q/K matches, exact softmax row, weighted value fan-in, output, and residual lane. |
+| `topk(id, attention, token_1_based, (cx,cy), "labels", [k], [width], [height], [seed])` | adds the selected embedding to its attention output, applies a deterministic seeded educational projection, computes a full stable softmax over the authored labels, and draws its exact top-k probabilities. It is not a pretrained-model prediction. |
+
+Stable tags keep the figure composable with normal Manic words:
+
+- `{id}` is the complete figure; `{id}.nodes`, `{id}.edges`, `{id}.values`,
+  `{id}.labels`, and `{id}.probabilities` select visual roles.
+- `{id}.layer0`, `{id}.layer1`, ... select layers; `{id}.input`,
+  `{id}.hidden`, and `{id}.output` select semantic roles.
+- A visible node is `{id}.l{layer}.n{unit}`, its readout is `.value`, and a
+  visible connection is `{id}.e{transition}.{input}.{output}`.
+- Attention roles are `{id}.tokens`, `.q`, `.k`, `.v`, `.matrix`,
+  `.connections`, `.outputs`, `.residual`, and `.labels`; a focused row also
+  exposes stable per-token, weight, fan, and output ids.
+- Token sequence roles are `{id}.source`, `.tokens`, `.indices`, and
+  `.tokenN`. Positioned embedding roles are `{id}.tokens`, `.vectors`,
+  `.positions`, `.combined`, `.operators`, `.rowN`, and `.dimN`.
+- Transformer roles are `{id}.input`, `.heads`, `.headN`, `.q`, `.k`, `.v`,
+  `.mask`, `.matrix`, `.concat`, `.projection`, `.residual1`, `.norm1`,
+  `.mlp`, `.activation`, `.dropout`, `.dropout.attention`, `.dropout.mlp`,
+  `.residual2`, `.norm2`, `.output`, `.tokenN`, and `.rowN`.
+- Logits-view roles are `{id}.projection`, `.temperature`, `.logits`,
+  `.probabilities`, `.bars`, `.markers`, `.candidates`, and `.candidateN`.
+
+Large layers keep their full numerical calculation but show a deterministic
+first/last-unit summary with an ellipsis. This prevents a wall of lines from
+shrinking the lesson into noise. Edge hue expresses weight sign, width expresses
+weight magnitude, and the forward pulse/opacity expresses the current
+contribution. Meaning therefore survives the default monochrome template too.
+
+```manic
+network(net, (cx, cy), "3 6 4 3", "relu tanh softmax", 820, 350, 21);
+forward(net, "0.15 0.92 0.38", 4.2, smooth);
+loss(net, "1 0 0", crossentropy, 1.5, smooth);
+backward(net, 3.2, smooth);
+update(net, 0.18, 2.3, smooth);
+```
+
+This is one explicit supervised learning step, not a hidden optimizer loop.
+`loss` keeps target readouts under the output bars; `backward` reuses the same
+edges in reverse; `update` leaves a truthful before/after loss in the status
+strip. A second update requires another `backward`, so a creator can pause and
+explain every correction. The ML kit does not import arbitrary framework
+models or train a large network. Use it for small educational models whose
+computation should be inspectable. ML3 extends the same truthful, stateless
+approach to convolution and pooling.
+
+ML5 keeps the journey from text to model input equally compact:
+
+```manic
+tokenize(words, (cx, 150), "the cat chased the cat", word, w*0.70);
+embedding(context, words, (cx, 470), "seeded 6 37", sinusoidal,
+  w*0.90, h*0.46);
+```
+
+`word` groups Unicode letters and numbers and keeps punctuation as tokens;
+`character` preserves each character, including visible whitespace; `authored`
+uses `|` as the exact boundary and is the right choice for a creator-authored
+subword story. It is not labelled BPE because no merge table was supplied.
+`embedding` accepts one explicit row per token, separated with `;`, or the
+clearly labelled educational form `"seeded DIM [SEED]"`. The same token and
+seed always produce the same base vector, including repeated occurrences.
+
+Position is `sinusoidal` by default and starts at position zero; use `none` to
+show only the lookup vectors. The combined column is the exact elementwise sum
+of token and position vectors. A sequence is limited to 12 tokens and the
+dimension to 8 so a bad explainer fails before becoming unreadable.
+
+ML3 tensors use one compact quoted notation:
+
+```manic
+tensor(image, (260, 340), "0 0 1; 0 1 1; 0 0 1", 44, cyan);
+kernel(edge, (560, 340), "-1 0 1; -2 0 2; -1 0 1", 44, magenta);
+convolve(feature, image, edge, (850, 340), 1, 1, 0, relu, 44);
+scan(feature, 4.0, smooth);
+
+pool(compact, feature, (1080, 340), max, 2, 2, 0, 44);
+scan(compact, 2.8, smooth);
+```
+
+Use `|` only inside the quoted values to add channels, for example
+`"1 2; 3 4 | 10 20; 30 40"`. Tensor parts are `{id}.cells`, `{id}.values`,
+`{id}.labels`, `{id}.channelN`, `{id}.rowN`, and `{id}.colN`; scan overlays are
+`{id}.scan`. A visible cell is `{id}.c{channel}.r{row}c{col}` and its text is
+`.value`. Axes are limited to 16 cells and a tensor to 2,048 values so a
+creator receives a clear diagnostic before a story becomes an unreadable wall.
+
+ML4 keeps transformer vocabulary deliberately small:
+
+```manic
+attention(head, (650, 360), "Art | ificial | intelligence | transforms | business",
+  "1 0.2 -0.4 0.7; 0.8 0.1 -0.3 0.6; -0.2 1 0.5 0.3; 0.1 0.6 0.9 -0.2; 0.7 -0.1 0.4 1",
+  980, 420, 23);
+attend(head, 3, 5.2, smooth);
+topk(next, head, 3, (1540, 390), "business | work | world | industry | future | people",
+  4, 420, 260, 29);
+```
+
+The displayed weights are `softmax(QK^T / sqrt(d))`, each row sums to one,
+and the weighted output uses those same values. Limits are 2–8 tokens, embedding
+dimension 1–8, candidate vocabulary 2–16, and visible top-k 1–8.
+
+ML6 composes the ML5 model input into a complete block:
+
+```manic
+transformer(block, context, (cx, 500),
+  "heads=2 mask=causal mlp=12 activation=gelu norm=pre dropout=0 mode=inference seed=41",
+  w*0.92, h*0.62);
+encode(block, 6.2, smooth);
+```
+
+Every head computes its own scaled Q/K scores, exact mask, stable softmax, and
+weighted V mix. Head outputs concatenate back to `d_model` before one output
+projection. `pre` and `post` select the real layer-normalization order around
+the two residual paths. Dropout is disabled in inference; training mode uses a
+seeded boolean mask and inverted scaling, not opacity pretending to be dropout.
+The MLP expands to `mlp`, applies GELU/ReLU/SiLU/Tanh, and projects back to
+`d_model`. Limits are 1–4 heads, model dimension at most 8 from ML5, and MLP
+width at most 32.
+
+ML7 keeps next-token decoding equally small and architecturally honest:
+
+```manic
+logits(next, block, 6, (cx, 500),
+  "business | work | world | future | people | .",
+  0.8, 760, 440, 73);
+sample(next, "top-p 0.90 seed=17", 3.8, smooth);
+```
+
+`logits` reads the selected 1-based final block row. It does not treat the
+transformer MLP as vocabulary logits: a separate `W_lm h + b` projection maps
+the hidden dimension to the authored labels. Temperature divides every logit
+before one stable full softmax. `sample` then derives the actual decoding
+distribution: greedy is one-hot, categorical keeps the full support, top-k
+keeps exactly K candidates, and top-p keeps the smallest descending prefix
+whose cumulative mass reaches P. Filtering happens before renormalization and
+excluded candidates cannot be selected. Seeds describe reproducible
+educational computation, never a pretrained model prediction.
+
 ## The stats kit
 
 Turn a dataset into a picture. The dataset is a plain number list (`"v1 v2 v3 …"`,
