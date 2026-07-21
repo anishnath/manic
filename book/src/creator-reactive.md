@@ -98,10 +98,27 @@ step("find-the-flat-point") {
 Do not fade and rebuild the whole screen for every sentence. Preserve context,
 move the smallest meaningful parts, and let the viewer compare before and
 after. For equations, `rewrite` retains safely matched LaTeX pieces and brings
-only the changed pieces in or out.
+only the changed pieces in or out. Matching understands coarse mathematical
+layout roles and nested math-style depth, so the `2` in `x^2` cannot jump into
+the denominator of `\frac{b}{2a}`, and one level of an exponential tower cannot
+become another. The same rule protects logarithm bases, integral limits, and
+derivative orders. Repeated symbols keep their reading order, so matrices and
+formulas containing several zeros or variables do not send copies across one
+another. When one equation side gains a fraction, radical, or grouping
+structure, that side leaves before its replacement enters; the compatible
+side and equality stay visible. For a globally incompatible change, Manic uses
+a staged whole-equation dissolve with only a short, dim overlap. Ordinary glyph
+replacements follow the same reading rule—the old value leaves before its
+successor becomes clear—while pure additions can still enter immediately.
+There is no extra mode to choose.
 
 Manic animates the states you author; it does not solve or verify the maths.
 Write each intermediate LaTeX state exactly as it should appear.
+
+For the cleanest teaching motion, keep genuinely unchanged work unchanged in
+the next LaTeX string. A stable right-hand side, fraction, or matrix remains
+recognisable while the edited side changes. Large changes are still valid—the
+engine will favour a clean dissolve over a misleading glyph scramble.
 
 ### 4. Give the result room to land
 

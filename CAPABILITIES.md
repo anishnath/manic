@@ -31,9 +31,15 @@ or social video.
    equations, plots, diagrams, labels, values, and the camera change in one
    continuous beat. **🟡 Foundation (2026-07):** a named `step("name") { ... }`
    block coordinates ordinary verbs in parallel and exports its start as a
-   marker, while `rewrite` remains the structured equation transition. Empty,
-   duplicate, and nested names fail clearly; stateless seeking and ordinary
-   non-step timelines remain unchanged. See `examples/reactive-world.manic`.
+   marker, while `rewrite` remains the structured equation transition. Rewrite
+   matching is order-preserving, layout-role aware (main line, exponent,
+   numerator, denominator, and structural rules), and math-style-depth aware,
+   so an identical glyph cannot silently change mathematical jobs or jump
+   between levels of a nested exponent. When a side gains a fraction, radical,
+   or grouping structure, that side leaves and reforms locally while the
+   compatible side and equality remain continuous. Empty, duplicate, and
+   nested step names fail clearly; stateless seeking and ordinary non-step
+   timelines remain unchanged. See `examples/reactive-world.manic`.
 2. **Named story stages.** Make `question → intuition → experiment → proof →
    takeaway` first-class project structure. Stages must be readable in source,
    seekable in preview, and reusable by recording/publishing tools. **✅ Engine
@@ -748,11 +754,32 @@ below are roadmap candidates, not promised builtins:
    `` rewrite(equation, `next latex`, [duration], [ease]) ``. The author supplies
    each mathematically correct state—Manic is not a CAS—and the engine matches
    RaTeX display items so unchanged glyphs retain identity, moved terms travel
-   smoothly, new items enter locally, and removed items leave locally. Repeated
-   symbols are paired deterministically by structural/render context and nearest
-   position; rules, radicals, and delimiters are matched as visual items. When a
-   safe match is unavailable, only that local item crossfades; a whole-equation
-   crossfade remains the correctness fallback.
+   smoothly, new items enter locally, and removed items leave locally.
+   **Continuity-safe matching shipped (2026-07):** common parts are now selected
+   by an order-preserving sequence match with movement, row, scale, and neighbour
+   context as tie-breakers. Identity also includes coarse mathematical layout
+   role and RaTeX's exact math-style scale. The exponent in `x^2`, the coefficient
+   in `2x`, a denominator `2`, and a deeper `2` in an exponent tower therefore do
+   not become one another merely because they share a glyph. Repeated zeros,
+   brackets, and variables retain reading order rather than being greedily paired
+   with the nearest copy; genuinely unique compatible terms may still cross a
+   relation when the authored algebra moves them.
+
+   A side that gains or loses fraction, radical, or grouping topology uses a
+   staged local replacement: the old side leaves, then its authored replacement
+   enters, while the compatible side and equality remain continuous. Compatible
+   additions still enter immediately. When unmatched source and target glyphs
+   form a replacement (`2 → 3`, `u → x`), the old glyph leaves before the new
+   glyph becomes readable instead of briefly displaying both as `23` or `ux`.
+   A globally incompatible change uses two whole-equation layers with only a
+   short, dim overlap rather than an equal-strength ghosted midpoint. The exact
+   target RaTeX image is installed at the endpoint in every mode.
+
+   Every transition receives a visual confidence score based on matched source
+   and target area, travel distance, ordering inversions, mathematical structure,
+   and matrix topology. This keeps the one-word DSL while preventing malformed
+   matrix-to-formula morphs, misleading cross-role glyph jumps, and the old
+   zero-opacity whole-equation frame.
 
    The shipped feature is deliberately regression-contained: existing `equation`,
    `show`, `fade`, `move`, `scale`, and LaTeX rendering do not change unless
@@ -765,11 +792,17 @@ below are roadmap candidates, not promised builtins:
    diagrams, captions, and `par` without adding `integral`, `quadratic`, `react`,
    `watch`, or CAS-specific vocabulary. A table-driven creator corpus now covers
    algebraic rearrangement; integrals/derivatives; fractions, radicals, powers,
-   and limits; trigonometric identities; sets/logic; sums/products; physics and
-   units; probability; matrices/vectors; mixed prose/math; and creator-defined
-   notation composed from renderer-supported LaTeX. It also retains the
+   and limits; nested exponential towers; logarithms with compound bases;
+   contour integrals; differential limits; ODE/PDE notation; trigonometric
+   identities; sets/logic; sums/products; physics and units; probability;
+   matrices/vectors; mixed prose/math; and creator-defined notation composed
+   from renderer-supported LaTeX. It also retains the
    repeated-symbol, portrait-fit, exact-settled-image, out-of-order seeking, and
-   malformed-LaTeX regressions. Reference scenes:
+   malformed-LaTeX regressions. Frame-level regressions now cover immediate RHS
+   entry, no-blank fallback opacity at 60 samples/second, stable quadratic RHS
+   retention, ordered repeated matrix entries, nested-script scale identity,
+   derivative-order separation, and upper/lower integral-limit separation.
+   Reference scenes:
    `examples/quadratic-formula-continuity.manic` (completing-square acceptance
    benchmark) and `examples/reactive-integral.manic` (the same equation rewrite
    composed with plots, numerical differentiation, a moving tangent, a generic
@@ -1296,8 +1329,9 @@ Implementation record:
     is black-on-white).
 - **Inline and mixed notation ✅:** `$...$` spans render inside ordinary text, with
   baseline-aware layout and semantic colouring.
-- **Reactive rewrites ✅:** matched equation items persist while only changed terms
-  enter, leave, or move; unmatched/full-form fallback remains available.
+- **Reactive rewrites ✅:** order-preserved equation items persist while changed
+  terms enter, leave, or move; confidence-selected overlapping fallback prevents
+  blank or structurally misleading intermediate frames.
 - **Future ⬜:** consume the `DisplayList` as native manic glyph + rule entities for
   vector scaling and calligraphic stroke-level draw-on. A matching browser preview
   may use the same RaTeX pipeline when a renderer is added to the editor.

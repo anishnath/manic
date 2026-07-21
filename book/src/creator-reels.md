@@ -54,10 +54,17 @@ rewrite(work, `(x+1)^2=4`, 0.85, smooth);
 ```
 
 The viewer's eye can follow the terms that move while unchanged symbols stay
-put. Manic matches the rendered LaTeX; you still supply and own every correct
-step. For phone video, use one meaningful rewrite per narration beat, keep the
-equation in the media safe region, pause after the important result, and place
-any related plot or diagram motion beside the rewrite in `par`.
+put. Manic matches rendered LaTeX by reading order, mathematical layout role,
+and nested math-style depth; an exponent therefore cannot become a denominator
+or a different level of an exponent tower merely because both use the same
+digit. When a fraction, radical, or grouping changes the structure of one
+side, that side cleanly leaves and reforms while the compatible side remains.
+Simple replacements such as `2 → 3` are staged as leave-then-enter, avoiding a
+temporary `23`; pure additions can appear immediately. You still supply and own
+every correct step. For phone video, use one meaningful
+rewrite per narration beat, keep the equation in the media safe region, pause
+after the important result, and place any related plot or diagram motion beside
+the rewrite in `par`.
 
 ## 2. Let the format own layout
 

@@ -154,11 +154,22 @@ rewrite(work, `x=-1\pm2`, 0.9, smooth);
 ```
 
 `rewrite` is visual, not a computer-algebra system: it never invents or verifies
-a step. Equal RaTeX parts retain identity and travel smoothly; only additions and
-removals fade locally. Repeated symbols are paired deterministically, semantic
-`\textcolor` roles follow the template, and the final frame is always the exact
-target LaTeX. Keep one `equation` id for the whole derivation, write readable
-steps, and use `wait` between them when the viewer needs time to absorb a result.
+a step. Equal RaTeX parts retain identity and travel smoothly. Matching respects
+reading order, coarse layout roles—main line, exponent, numerator, denominator,
+fraction rule, and other structure—and RaTeX math-style depth. An identical
+character therefore cannot change mathematical jobs or jump between levels of
+a nested exponent. This also protects logarithm bases, operator limits, and
+derivative orders. If one side gains or loses fraction, radical, or
+grouping structure, that side leaves before the replacement enters while the
+compatible side and equality remain continuous. Globally incompatible states,
+such as a matrix becoming a compact formula, use a staged whole-equation
+dissolve with only a short, dim overlap. When unmatched source and target glyphs
+are a replacement, the old glyph leaves before the new one becomes readable;
+pure additions still enter immediately.
+Semantic `\textcolor` roles follow the authored formula, and the final frame is
+always the exact target LaTeX. No flag or alternate verb is required. Keep one
+`equation` id for the whole derivation, write readable steps, and use `wait`
+between them when the viewer needs time to absorb a result.
 
 For a plot or diagram that changes with the same step, place `rewrite` and the
 related motion in `par`. Existing equations are unaffected unless this verb is

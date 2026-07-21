@@ -1763,47 +1763,381 @@ fn rewrite_track(
     }
 }
 
-/// Pair equal RaTeX visual items deterministically. Repeated glyphs use global
-/// nearest matching with a small neighbouring-item context penalty, so `x+x`
-/// remains stable while still allowing terms to cross an equals sign.
-fn match_equation_parts(
+#[derive(Debug, Clone)]
+struct EquationMatchPlan {
+    pairs: Vec<(usize, usize)>,
+    source_coverage: f32,
+    target_coverage: f32,
+    mean_travel: f32,
+    inversion_ratio: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SequenceScore {
+    matches: u16,
+    cost: f32,
+    step: u8,
+}
+
+fn better_sequence_score(a: SequenceScore, b: SequenceScore) -> bool {
+    a.matches > b.matches || (a.matches == b.matches && a.cost < b.cost - 1e-6)
+}
+
+fn equation_part_area(part: &crate::latex::EquationPart) -> f32 {
+    (part.crop.w * part.crop.h).max(1.0)
+}
+
+fn equation_match_cost(
+    source: &crate::latex::EquationPart,
+    target: &crate::latex::EquationPart,
+    diagonal: f32,
+) -> f32 {
+    let distance = source.offset.distance(target.offset) / diagonal.max(1.0);
+    let row_shift = (source.offset.y - target.offset.y).abs() / diagonal.max(1.0);
+    let scale_shift = if source.crop.h > 0.0 && target.crop.h > 0.0 {
+        (source.crop.h / target.crop.h).ln().abs()
+    } else {
+        0.0
+    };
+    let mut cost = distance + row_shift * 0.85 + scale_shift * 0.18;
+    if source.prev_key != target.prev_key {
+        cost += 0.08;
+    }
+    if source.next_key != target.next_key {
+        cost += 0.08;
+    }
+    cost
+}
+
+fn equation_parts_can_match(
+    source: &crate::latex::EquationPart,
+    target: &crate::latex::EquationPart,
+) -> bool {
+    if source.key != target.key || source.role != target.role {
+        return false;
+    }
+    match (source.layout_scale, target.layout_scale) {
+        (Some(a), Some(b)) if a > 0.0 && b > 0.0 => {
+            // RaTeX uses discrete math styles for scripts. A little tolerance
+            // admits equivalent layouts while keeping adjacent nesting levels
+            // (normally about 0.7x apart) semantically distinct.
+            (a / b).ln().abs() <= 1.18_f32.ln()
+        }
+        _ => true,
+    }
+}
+
+/// Match the longest order-preserving visual sequence, using movement and
+/// neighbouring context only as tie-breakers. This is deliberately different
+/// from greedy nearest-glyph matching: repeated zeros, brackets, and variables
+/// retain reading order instead of crossing each other unpredictably.
+fn ordered_equation_matches(
     from: &[crate::latex::EquationPart],
     to: &[crate::latex::EquationPart],
 ) -> Vec<(usize, usize)> {
-    let mut candidates = Vec::new();
-    for (si, source) in from.iter().enumerate() {
-        for (ti, target) in to.iter().enumerate() {
-            if source.key != target.key {
+    let n = from.len();
+    let m = to.len();
+    let diagonal = from
+        .iter()
+        .chain(to.iter())
+        .map(|p| p.offset.length())
+        .fold(1.0_f32, f32::max)
+        * 2.0;
+    let mut dp = vec![
+        SequenceScore {
+            matches: 0,
+            cost: 0.0,
+            step: 0,
+        };
+        (n + 1) * (m + 1)
+    ];
+    let at = |i: usize, j: usize| i * (m + 1) + j;
+
+    for i in 1..=n {
+        for j in 1..=m {
+            let mut best = dp[at(i - 1, j)];
+            best.step = 1; // skip source
+            let mut skip_target = dp[at(i, j - 1)];
+            skip_target.step = 2;
+            if better_sequence_score(skip_target, best) {
+                best = skip_target;
+            }
+            if equation_parts_can_match(&from[i - 1], &to[j - 1]) {
+                let prev = dp[at(i - 1, j - 1)];
+                let matched = SequenceScore {
+                    matches: prev.matches.saturating_add(1),
+                    cost: prev.cost + equation_match_cost(&from[i - 1], &to[j - 1], diagonal),
+                    step: 3,
+                };
+                if better_sequence_score(matched, best) {
+                    best = matched;
+                }
+            }
+            dp[at(i, j)] = best;
+        }
+    }
+
+    let mut pairs = Vec::new();
+    let (mut i, mut j) = (n, m);
+    while i > 0 || j > 0 {
+        match dp[at(i, j)].step {
+            3 if i > 0 && j > 0 => {
+                pairs.push((i - 1, j - 1));
+                i -= 1;
+                j -= 1;
+            }
+            1 if i > 0 => i -= 1,
+            2 if j > 0 => j -= 1,
+            _ if i > 0 => i -= 1,
+            _ if j > 0 => j -= 1,
+            _ => break,
+        }
+    }
+    pairs.reverse();
+    pairs
+}
+
+/// Build a continuity-biased match plan. The ordered pass protects unchanged
+/// subexpressions and repeated entries. A second pass permits a genuinely
+/// unique symbol to cross an equals sign, which keeps algebraic moves alive
+/// without allowing every repeated `0` or `x` to teleport.
+fn match_equation_parts(
+    from: &crate::latex::EquationLayout,
+    to: &crate::latex::EquationLayout,
+) -> EquationMatchPlan {
+    use std::collections::HashMap;
+
+    let mut pairs = ordered_equation_matches(&from.parts, &to.parts);
+    let mut source_used = vec![false; from.parts.len()];
+    let mut target_used = vec![false; to.parts.len()];
+    for &(si, ti) in &pairs {
+        source_used[si] = true;
+        target_used[ti] = true;
+    }
+
+    let mut remaining_from: HashMap<(&str, crate::latex::EquationPartRole), Vec<usize>> =
+        HashMap::new();
+    let mut remaining_to: HashMap<(&str, crate::latex::EquationPartRole), Vec<usize>> =
+        HashMap::new();
+    for (i, part) in from.parts.iter().enumerate() {
+        if !source_used[i] {
+            remaining_from
+                .entry((&part.key, part.role))
+                .or_default()
+                .push(i);
+        }
+    }
+    for (i, part) in to.parts.iter().enumerate() {
+        if !target_used[i] {
+            remaining_to
+                .entry((&part.key, part.role))
+                .or_default()
+                .push(i);
+        }
+    }
+    for (key, source_indices) in remaining_from {
+        let Some(target_indices) = remaining_to.get(&key) else {
+            continue;
+        };
+        if source_indices.len() == 1 && target_indices.len() == 1 {
+            let si = source_indices[0];
+            let ti = target_indices[0];
+            if !equation_parts_can_match(&from.parts[si], &to.parts[ti]) {
                 continue;
             }
-            let mut cost = source.offset.distance_squared(target.offset);
-            if source.prev_key != target.prev_key {
-                cost += 24.0 * 24.0;
-            }
-            if source.next_key != target.next_key {
-                cost += 24.0 * 24.0;
-            }
-            candidates.push((cost, si, ti));
+            source_used[si] = true;
+            target_used[ti] = true;
+            pairs.push((si, ti));
         }
     }
-    candidates.sort_by(|a, b| {
-        a.0.total_cmp(&b.0)
-            .then_with(|| a.1.cmp(&b.1))
-            .then_with(|| a.2.cmp(&b.2))
+    pairs.sort_unstable();
+
+    let source_total: f32 = from.parts.iter().map(equation_part_area).sum();
+    let target_total: f32 = to.parts.iter().map(equation_part_area).sum();
+    let source_matched: f32 = pairs
+        .iter()
+        .map(|(si, _)| equation_part_area(&from.parts[*si]))
+        .sum();
+    let target_matched: f32 = pairs
+        .iter()
+        .map(|(_, ti)| equation_part_area(&to.parts[*ti]))
+        .sum();
+    let diagonal = (from.w.max(to.w).powi(2) + from.h.max(to.h).powi(2))
+        .sqrt()
+        .max(1.0);
+    let travel_weight: f32 = pairs
+        .iter()
+        .map(|(si, ti)| {
+            from.parts[*si].offset.distance(to.parts[*ti].offset)
+                * equation_part_area(&from.parts[*si]).min(equation_part_area(&to.parts[*ti]))
+        })
+        .sum();
+    let matched_weight: f32 = pairs
+        .iter()
+        .map(|(si, ti)| {
+            equation_part_area(&from.parts[*si]).min(equation_part_area(&to.parts[*ti]))
+        })
+        .sum();
+    let inversions = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, (_, ti))| {
+            pairs[i + 1..]
+                .iter()
+                .filter(|(_, later_ti)| later_ti < ti)
+                .count()
+        })
+        .sum::<usize>();
+    let possible_inversions = pairs.len().saturating_mul(pairs.len().saturating_sub(1)) / 2;
+
+    EquationMatchPlan {
+        pairs,
+        source_coverage: source_matched / source_total.max(1.0),
+        target_coverage: target_matched / target_total.max(1.0),
+        mean_travel: travel_weight / matched_weight.max(1.0) / diagonal,
+        inversion_ratio: inversions as f32 / possible_inversions.max(1) as f32,
+    }
+}
+
+fn latex_has_matrix(latex: &str) -> bool {
+    [
+        "\\begin{matrix}",
+        "\\begin{pmatrix}",
+        "\\begin{bmatrix}",
+        "\\begin{Bmatrix}",
+        "\\begin{vmatrix}",
+        "\\begin{Vmatrix}",
+    ]
+    .iter()
+    .any(|needle| latex.contains(needle))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LatexStructure {
+    fractions: usize,
+    radicals: usize,
+    scalable_left: usize,
+    scalable_right: usize,
+    arrays: usize,
+}
+
+fn latex_structure(latex: &str) -> LatexStructure {
+    LatexStructure {
+        fractions: latex.matches("\\frac").count(),
+        radicals: latex.matches("\\sqrt").count(),
+        scalable_left: latex.matches("\\left").count(),
+        scalable_right: latex.matches("\\right").count(),
+        arrays: [
+            "\\begin{matrix}",
+            "\\begin{pmatrix}",
+            "\\begin{bmatrix}",
+            "\\begin{Bmatrix}",
+            "\\begin{vmatrix}",
+            "\\begin{Vmatrix}",
+        ]
+        .iter()
+        .map(|needle| latex.matches(needle).count())
+        .sum(),
+    }
+}
+
+fn latex_structure_is_close(source: &str, target: &str) -> bool {
+    let a = latex_structure(source);
+    let b = latex_structure(target);
+    a.radicals == b.radicals
+        && a.arrays == b.arrays
+        && a.fractions.abs_diff(b.fractions) <= 1
+        && a.scalable_left.abs_diff(b.scalable_left) <= 2
+        && a.scalable_right.abs_diff(b.scalable_right) <= 2
+}
+
+fn top_level_equation_sides(latex: &str) -> Option<(&str, &str)> {
+    let mut depth = 0_i32;
+    let mut relation = None;
+    for (index, ch) in latex.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => depth = (depth - 1).max(0),
+            '=' if depth == 0 => {
+                if relation.is_some() {
+                    return None;
+                }
+                relation = Some(index);
+            }
+            _ => {}
+        }
+    }
+    let index = relation?;
+    Some((&latex[..index], &latex[index + 1..]))
+}
+
+fn compact_latex(latex: &str) -> String {
+    latex.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+/// When either side of an equality changes mathematical topology, retain the
+/// relation and every structurally compatible side, but dissolve the changed
+/// side locally. This avoids pretending that every glyph in a factorisation or
+/// newly introduced fraction has a meaningful one-to-one destination.
+fn prefer_local_side_dissolve(
+    plan: &mut EquationMatchPlan,
+    from: &crate::latex::EquationLayout,
+    to: &crate::latex::EquationLayout,
+    source_latex: &str,
+    target_latex: &str,
+) -> bool {
+    let Some((source_left, source_right)) = top_level_equation_sides(source_latex) else {
+        return false;
+    };
+    let Some((target_left, target_right)) = top_level_equation_sides(target_latex) else {
+        return false;
+    };
+    let left_changed = compact_latex(source_left) != compact_latex(target_left)
+        && latex_structure(source_left) != latex_structure(target_left);
+    let right_changed = compact_latex(source_right) != compact_latex(target_right)
+        && latex_structure(source_right) != latex_structure(target_right);
+    if !left_changed && !right_changed {
+        return false;
+    }
+
+    let source_equals: Vec<_> = from
+        .parts
+        .iter()
+        .filter(|part| part.symbol == Some('=' as u32))
+        .collect();
+    let target_equals: Vec<_> = to
+        .parts
+        .iter()
+        .filter(|part| part.symbol == Some('=' as u32))
+        .collect();
+    if source_equals.len() != 1 || target_equals.len() != 1 {
+        return false;
+    }
+    let source_x = source_equals[0].offset.x;
+    let target_x = target_equals[0].offset.x;
+    plan.pairs.retain(|(si, ti)| {
+        let source_changed = (left_changed && from.parts[*si].offset.x < source_x - 1.0)
+            || (right_changed && from.parts[*si].offset.x > source_x + 1.0);
+        let target_changed = (left_changed && to.parts[*ti].offset.x < target_x - 1.0)
+            || (right_changed && to.parts[*ti].offset.x > target_x + 1.0);
+        !source_changed && !target_changed
     });
-    let mut used_from = vec![false; from.len()];
-    let mut used_to = vec![false; to.len()];
-    let mut out = Vec::new();
-    for (_, si, ti) in candidates {
-        if used_from[si] || used_to[ti] {
-            continue;
-        }
-        used_from[si] = true;
-        used_to[ti] = true;
-        out.push((si, ti));
-    }
-    out.sort_unstable();
-    out
+    true
+}
+
+fn use_structured_equation_rewrite(
+    plan: &EquationMatchPlan,
+    source_latex: &str,
+    target_latex: &str,
+) -> bool {
+    let coverage = plan.source_coverage.min(plan.target_coverage);
+    let matrix_topology_changed = latex_has_matrix(source_latex) != latex_has_matrix(target_latex);
+    !matrix_topology_changed
+        && plan.pairs.len() >= 2
+        && coverage >= 0.38
+        && plan.mean_travel <= 0.62
+        && plan.inversion_ratio <= 0.22
+        && latex_structure_is_close(source_latex, target_latex)
 }
 
 fn queue_equation_part(
@@ -1846,31 +2180,64 @@ fn queue_equation_part(
     s.add(entity);
 }
 
+fn queue_equation_target(
+    s: &mut Scene,
+    source: &Entity,
+    id: String,
+    target_shape: Shape,
+    target_scale: f32,
+) {
+    let mut target = source.clone();
+    target.id = id;
+    target.shape = target_shape;
+    target.opacity = 0.0;
+    target.scale = target_scale * 0.985;
+    target.z = source.z + 1;
+    // Internal handoff layers must never join later tag broadcasts from the
+    // public equation (for example `recolor("proof", ...)`).
+    target.tags.clear();
+    s.add(target);
+}
+
 fn fallback_equation_rewrite(
+    s: &mut Scene,
+    source: &Entity,
     id: String,
     target_shape: Shape,
     target_scale: f32,
     dur: f32,
     easing: Easing,
+    serial: usize,
 ) -> Clip {
-    let half = dur * 0.5;
+    let target_id = format!("__rewrite.{id}.{serial}.target");
+    queue_equation_target(
+        s,
+        source,
+        target_id.clone(),
+        target_shape.clone(),
+        target_scale,
+    );
     Clip {
         dur,
         tracks: vec![
+            // Use a short, dim overlap rather than superimposing two complete
+            // equations at equal strength. The target is already visible when
+            // the source leaves, so continuity survives without a ghosted
+            // midpoint.
             rewrite_track(
                 id.clone(),
                 Prop::Opacity,
                 TargetValue::Abs(Value::F(0.0)),
                 0.0,
-                half,
+                dur * 0.45,
                 Easing::InQuad,
             ),
             rewrite_track(
-                id.clone(),
+                target_id.clone(),
                 Prop::Opacity,
                 TargetValue::Abs(Value::F(1.0)),
-                half,
-                dur - half,
+                dur * 0.30,
+                dur * 0.70,
                 Easing::OutQuad,
             ),
             rewrite_track(
@@ -1881,8 +2248,32 @@ fn fallback_equation_rewrite(
                 dur,
                 easing,
             ),
+            rewrite_track(
+                target_id.clone(),
+                Prop::Scale,
+                TargetValue::Abs(Value::F(target_scale)),
+                0.0,
+                dur,
+                easing,
+            ),
+            rewrite_track(
+                id.clone(),
+                Prop::Opacity,
+                TargetValue::Abs(Value::F(1.0)),
+                dur,
+                0.0,
+                Easing::Linear,
+            ),
+            rewrite_track(
+                target_id,
+                Prop::Opacity,
+                TargetValue::Abs(Value::F(0.0)),
+                dur,
+                0.0,
+                Easing::Linear,
+            ),
         ],
-        events: vec![TimelineEvent::shape(id, target_shape, half)],
+        events: vec![TimelineEvent::shape(id, target_shape, dur)],
     }
 }
 
@@ -1907,8 +2298,7 @@ fn v_rewrite(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
         )
     })?;
     let source = s
-        .get(&id)
-        .cloned()
+        .authored_entity(&id)
         .ok_or_else(|| Error::new(format!("no equation named `{id}`"), a.span_of(0)))?;
     if !matches!(source.shape, Shape::Image { .. }) {
         return Err(Error::new(
@@ -1953,86 +2343,166 @@ fn v_rewrite(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
 
     let clip = match (source_layout, target_layout) {
         (Ok(from), Ok(to)) if from.parts.len() + to.parts.len() <= 256 => {
-            let pairs = match_equation_parts(&from.parts, &to.parts);
-            let mut target_of = vec![None; from.parts.len()];
-            let mut target_used = vec![false; to.parts.len()];
-            for (si, ti) in pairs {
-                target_of[si] = Some(ti);
-                target_used[ti] = true;
-            }
-
-            let mut tracks = vec![
-                // Exact handoff: replace the whole formula with its parts at
-                // t=0, then restore the same public entity at the final frame.
-                rewrite_track(
-                    id.clone(),
-                    Prop::Opacity,
-                    TargetValue::Abs(Value::F(0.0)),
-                    0.0,
-                    0.0,
-                    Easing::Linear,
-                ),
-                rewrite_track(
-                    id.clone(),
-                    Prop::Opacity,
-                    TargetValue::Abs(Value::F(1.0)),
-                    dur,
-                    0.0,
-                    Easing::Linear,
-                ),
-                rewrite_track(
-                    id.clone(),
-                    Prop::Scale,
-                    TargetValue::Abs(Value::F(target_scale)),
-                    0.0,
-                    dur,
-                    easing,
-                ),
-            ];
-
-            for (si, part) in from.parts.iter().enumerate() {
-                let part_id = format!("__rewrite.{id}.{serial}.from.{si}");
-                queue_equation_part(
+            let mut plan = match_equation_parts(&from, &to);
+            let local_side_dissolve =
+                prefer_local_side_dissolve(&mut plan, &from, &to, &state.latex, &target_latex);
+            if !local_side_dissolve
+                && !use_structured_equation_rewrite(&plan, &state.latex, &target_latex)
+            {
+                fallback_equation_rewrite(
                     s,
                     &source,
-                    &state.latex,
-                    state.size,
-                    part,
-                    part_id.clone(),
-                    source.pos,
-                    state.visual_scale,
-                );
-                tracks.push(rewrite_track(
-                    part_id.clone(),
-                    Prop::Opacity,
-                    TargetValue::Abs(Value::F(1.0)),
-                    0.0,
-                    0.0,
-                    Easing::Linear,
-                ));
-                if let Some(ti) = target_of[si] {
-                    let target = &to.parts[ti];
-                    let target_pos = source.pos + target.offset * target_scale;
-                    let intrinsic_scale = if part.crop.h > 0.0 {
-                        target.crop.h / part.crop.h
-                    } else {
-                        1.0
-                    };
-                    tracks.push(rewrite_track(
-                        part_id.clone(),
-                        Prop::Pos,
-                        TargetValue::Abs(Value::V(target_pos)),
+                    id.clone(),
+                    target_shape.clone(),
+                    target_scale,
+                    dur,
+                    easing,
+                    serial,
+                )
+            } else {
+                let mut target_of = vec![None; from.parts.len()];
+                let mut target_used = vec![false; to.parts.len()];
+                for (si, ti) in plan.pairs {
+                    target_of[si] = Some(ti);
+                    target_used[ti] = true;
+                }
+                let has_unmatched_source = target_of.iter().any(Option::is_none);
+                let has_unmatched_target = target_used.iter().any(|used| !used);
+                let stage_replacements =
+                    local_side_dissolve || (has_unmatched_source && has_unmatched_target);
+
+                let mut tracks = vec![
+                    // Exact handoff: replace the whole formula with its parts at
+                    // t=0, then restore the same public entity at the final frame.
+                    rewrite_track(
+                        id.clone(),
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(0.0)),
                         0.0,
+                        0.0,
+                        Easing::Linear,
+                    ),
+                    rewrite_track(
+                        id.clone(),
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(1.0)),
                         dur,
-                        easing,
-                    ));
-                    tracks.push(rewrite_track(
-                        part_id.clone(),
+                        0.0,
+                        Easing::Linear,
+                    ),
+                    rewrite_track(
+                        id.clone(),
                         Prop::Scale,
-                        TargetValue::Abs(Value::F(target_scale * intrinsic_scale)),
+                        TargetValue::Abs(Value::F(target_scale)),
                         0.0,
                         dur,
                         easing,
+                    ),
+                ];
+
+                for (si, part) in from.parts.iter().enumerate() {
+                    let part_id = format!("__rewrite.{id}.{serial}.from.{si}");
+                    queue_equation_part(
+                        s,
+                        &source,
+                        &state.latex,
+                        state.size,
+                        part,
+                        part_id.clone(),
+                        source.pos,
+                        state.visual_scale,
+                    );
+                    tracks.push(rewrite_track(
+                        part_id.clone(),
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(1.0)),
+                        0.0,
+                        0.0,
+                        Easing::Linear,
+                    ));
+                    if let Some(ti) = target_of[si] {
+                        let target = &to.parts[ti];
+                        let target_pos = source.pos + target.offset * target_scale;
+                        let intrinsic_scale = if part.crop.h > 0.0 {
+                            target.crop.h / part.crop.h
+                        } else {
+                            1.0
+                        };
+                        tracks.push(rewrite_track(
+                            part_id.clone(),
+                            Prop::Pos,
+                            TargetValue::Abs(Value::V(target_pos)),
+                            0.0,
+                            dur,
+                            easing,
+                        ));
+                        tracks.push(rewrite_track(
+                            part_id.clone(),
+                            Prop::Scale,
+                            TargetValue::Abs(Value::F(target_scale * intrinsic_scale)),
+                            0.0,
+                            dur,
+                            easing,
+                        ));
+                        tracks.push(rewrite_track(
+                            part_id,
+                            Prop::Opacity,
+                            TargetValue::Abs(Value::F(0.0)),
+                            dur,
+                            0.0,
+                            Easing::Linear,
+                        ));
+                    } else {
+                        let fade_out_duration = if stage_replacements {
+                            dur * 0.45
+                        } else {
+                            dur * 0.72
+                        };
+                        tracks.push(rewrite_track(
+                            part_id,
+                            Prop::Opacity,
+                            TargetValue::Abs(Value::F(0.0)),
+                            0.0,
+                            fade_out_duration,
+                            if stage_replacements {
+                                Easing::InQuad
+                            } else {
+                                Easing::Linear
+                            },
+                        ));
+                    }
+                }
+
+                for (ti, part) in to.parts.iter().enumerate() {
+                    if target_used[ti] {
+                        continue;
+                    }
+                    let part_id = format!("__rewrite.{id}.{serial}.to.{ti}");
+                    queue_equation_part(
+                        s,
+                        &source,
+                        &target_latex,
+                        state.size,
+                        part,
+                        part_id.clone(),
+                        source.pos,
+                        target_scale,
+                    );
+                    tracks.push(rewrite_track(
+                        part_id.clone(),
+                        Prop::Opacity,
+                        TargetValue::Abs(Value::F(1.0)),
+                        if stage_replacements { dur * 0.30 } else { 0.0 },
+                        if stage_replacements {
+                            dur * 0.70
+                        } else {
+                            dur * 0.72
+                        },
+                        if stage_replacements {
+                            Easing::OutQuad
+                        } else {
+                            Easing::Linear
+                        },
                     ));
                     tracks.push(rewrite_track(
                         part_id,
@@ -2042,58 +2512,25 @@ fn v_rewrite(s: &mut Scene, a: &Args) -> Result<Clip, Error> {
                         0.0,
                         Easing::Linear,
                     ));
-                } else {
-                    tracks.push(rewrite_track(
-                        part_id,
-                        Prop::Opacity,
-                        TargetValue::Abs(Value::F(0.0)),
-                        dur * 0.12,
-                        dur * 0.38,
-                        Easing::InQuad,
-                    ));
                 }
-            }
 
-            for (ti, part) in to.parts.iter().enumerate() {
-                if target_used[ti] {
-                    continue;
-                }
-                let part_id = format!("__rewrite.{id}.{serial}.to.{ti}");
-                queue_equation_part(
-                    s,
-                    &source,
-                    &target_latex,
-                    state.size,
-                    part,
-                    part_id.clone(),
-                    source.pos,
-                    target_scale,
-                );
-                tracks.push(rewrite_track(
-                    part_id.clone(),
-                    Prop::Opacity,
-                    TargetValue::Abs(Value::F(1.0)),
-                    dur * 0.36,
-                    dur * 0.46,
-                    Easing::OutQuad,
-                ));
-                tracks.push(rewrite_track(
-                    part_id,
-                    Prop::Opacity,
-                    TargetValue::Abs(Value::F(0.0)),
+                Clip {
                     dur,
-                    0.0,
-                    Easing::Linear,
-                ));
-            }
-
-            Clip {
-                dur,
-                tracks,
-                events: vec![TimelineEvent::shape(id.clone(), target_shape.clone(), dur)],
+                    tracks,
+                    events: vec![TimelineEvent::shape(id.clone(), target_shape.clone(), dur)],
+                }
             }
         }
-        _ => fallback_equation_rewrite(id.clone(), target_shape.clone(), target_scale, dur, easing),
+        _ => fallback_equation_rewrite(
+            s,
+            &source,
+            id.clone(),
+            target_shape.clone(),
+            target_scale,
+            dur,
+            easing,
+            serial,
+        ),
     };
 
     s.equation_states.insert(
@@ -3206,6 +3643,11 @@ mod tests {
 
     use crate::primitives::Shape;
 
+    use super::{
+        equation_part_area, equation_parts_can_match, match_equation_parts,
+        prefer_local_side_dissolve,
+    };
+
     #[test]
     fn parameter_drives_properties_readouts_and_native_widget_purely() {
         let movie = crate::parse(
@@ -3812,6 +4254,302 @@ mod tests {
     }
 
     #[test]
+    fn rewrite_new_rhs_starts_appearing_immediately() {
+        let movie = crate::parse(
+            "canvas(1280,720); equation(work,(cx,cy),`x=0`,64); rewrite(work,`x=0+y`,1.0,smooth);",
+        )
+        .unwrap();
+        assert!(
+            movie
+                .base()
+                .entities
+                .iter()
+                .any(|e| e.id.starts_with("__rewrite.work.1.to.")),
+            "this compatible rewrite should introduce unmatched RHS parts"
+        );
+        let (base, timeline) = movie.finalize();
+        let early = timeline.apply(&base, 0.10);
+        assert!(
+            early.entities.iter().any(|e| {
+                e.id.starts_with("__rewrite.work.1.to.")
+                    && e.pos.x > base.canvas().x * 0.5
+                    && e.opacity > 0.0
+            }),
+            "new RHS content must begin entering before 36% of the rewrite"
+        );
+    }
+
+    #[test]
+    fn rewrite_replacement_leaves_before_the_new_glyph_settles() {
+        let from = r"x=2";
+        let to = r"x=3";
+        let from_layout = crate::latex::layout_parts(from, 52.0).unwrap();
+        let to_layout = crate::latex::layout_parts(to, 52.0).unwrap();
+        let old_index = from_layout
+            .parts
+            .iter()
+            .position(|part| part.symbol == Some('2' as u32))
+            .expect("old replacement glyph");
+        let new_index = to_layout
+            .parts
+            .iter()
+            .position(|part| part.symbol == Some('3' as u32))
+            .expect("new replacement glyph");
+        let movie = crate::parse(
+            "canvas(1280,720); equation(work,(cx,cy),`x=2`,52); rewrite(work,`x=3`,1.0,smooth);",
+        )
+        .unwrap();
+        let (base, timeline) = movie.finalize();
+        let midpoint = timeline.apply(&base, 0.50);
+        let old = midpoint
+            .get(&format!("__rewrite.work.1.from.{old_index}"))
+            .expect("old glyph layer");
+        let new = midpoint
+            .get(&format!("__rewrite.work.1.to.{new_index}"))
+            .expect("new glyph layer");
+        assert!(old.opacity <= 1e-4, "the old 2 must be gone at midpoint");
+        assert!(
+            new.opacity >= 0.45,
+            "the new 3 should already be readable at midpoint"
+        );
+    }
+
+    #[test]
+    fn rewrite_fallback_stays_visible_without_equal_strength_ghosting() {
+        let target = r"A^2=\begin{bmatrix}0&0&1\\0&-1&2\\1&-1&1\end{bmatrix}";
+        let src = format!(
+            "canvas(1280,720); equation(work,(cx,cy),`A^{{-1}}\\stackrel{{?}}{{=}}A^2`,52); rewrite(work,`{target}`,1.0,smooth);"
+        );
+        let movie = crate::parse(&src).unwrap();
+        assert!(
+            movie.base().contains("__rewrite.work.1.target"),
+            "matrix topology changes should select the continuity-safe fallback"
+        );
+        assert!(
+            movie
+                .base()
+                .get("__rewrite.work.1.target")
+                .unwrap()
+                .tags
+                .is_empty(),
+            "temporary rewrite layers must not leak into public tag broadcasts"
+        );
+        let (base, timeline) = movie.finalize();
+        for frame in 0..=60 {
+            let t = frame as f32 / 60.0;
+            let scene = timeline.apply(&base, t);
+            let source_alpha = scene.get("work").unwrap().opacity;
+            let target_alpha = scene.get("__rewrite.work.1.target").unwrap().opacity;
+            assert!(
+                source_alpha + target_alpha >= 0.37,
+                "rewrite became unreadably dim at t={t:.3}: source={source_alpha:.3}, target={target_alpha:.3}"
+            );
+        }
+        let midpoint = timeline.apply(&base, 0.50);
+        assert!(midpoint.get("work").unwrap().opacity <= 1e-4);
+        assert!(midpoint.get("__rewrite.work.1.target").unwrap().opacity >= 0.45);
+    }
+
+    #[test]
+    fn rewrite_preserves_quadratic_rhs_as_a_stable_subexpression() {
+        let from = r"x\left(x+\frac{b}{2a}\right)+\frac{b}{2a}\left(x+\frac{b}{2a}\right)=\frac{b^2-4ac}{4a^2}";
+        let to = r"\left(x+\frac{b}{2a}\right)^2=\frac{b^2-4ac}{4a^2}";
+        let from_layout = crate::latex::layout_parts(from, 48.0).unwrap();
+        let to_layout = crate::latex::layout_parts(to, 48.0).unwrap();
+        let mut plan = match_equation_parts(&from_layout, &to_layout);
+        assert!(
+            prefer_local_side_dissolve(&mut plan, &from_layout, &to_layout, from, to),
+            "factoring should dissolve only the changing LHS instead of inventing glyph paths"
+        );
+
+        let target_equals_x = to_layout
+            .parts
+            .iter()
+            .find(|p| p.symbol == Some('=' as u32))
+            .expect("target equals sign")
+            .offset
+            .x;
+        let rhs_indices: Vec<_> = to_layout
+            .parts
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.offset.x > target_equals_x + 2.0)
+            .map(|(i, _)| i)
+            .collect();
+        let matched_rhs_area: f32 = plan
+            .pairs
+            .iter()
+            .filter(|(_, ti)| rhs_indices.contains(ti))
+            .map(|(_, ti)| equation_part_area(&to_layout.parts[*ti]))
+            .sum();
+        let rhs_area: f32 = rhs_indices
+            .iter()
+            .map(|ti| equation_part_area(&to_layout.parts[*ti]))
+            .sum();
+        assert!(
+            matched_rhs_area / rhs_area.max(1.0) >= 0.90,
+            "an unchanged quadratic RHS should remain visible as stable matched parts"
+        );
+
+        let source_equals_x = from_layout
+            .parts
+            .iter()
+            .find(|p| p.symbol == Some('=' as u32))
+            .expect("source equals sign")
+            .offset
+            .x;
+        assert!(
+            plan.pairs.iter().all(|(si, ti)| {
+                from_layout.parts[*si].offset.x >= source_equals_x - 1.0
+                    && to_layout.parts[*ti].offset.x >= target_equals_x - 1.0
+            }),
+            "the changing LHS must not retain arbitrary glyph-to-glyph matches"
+        );
+    }
+
+    #[test]
+    fn rewrite_dissolves_the_changed_side_of_the_reported_quadratic_step() {
+        let from = r"x^2+\frac{b}{a}x=-\frac{c}{a}";
+        let to = r"x^2+\frac{b}{2a}x+\frac{b}{2a}x=-\frac{c}{a}";
+        let from_layout = crate::latex::layout_parts(from, 48.0).unwrap();
+        let to_layout = crate::latex::layout_parts(to, 48.0).unwrap();
+        let mut plan = match_equation_parts(&from_layout, &to_layout);
+
+        assert!(
+            prefer_local_side_dissolve(&mut plan, &from_layout, &to_layout, from, to),
+            "adding two fractions changes LHS topology and should select a local dissolve"
+        );
+        let source_equals_x = from_layout
+            .parts
+            .iter()
+            .find(|p| p.symbol == Some('=' as u32))
+            .expect("source equals sign")
+            .offset
+            .x;
+        let target_equals_x = to_layout
+            .parts
+            .iter()
+            .find(|p| p.symbol == Some('=' as u32))
+            .expect("target equals sign")
+            .offset
+            .x;
+        assert!(
+            plan.pairs.iter().all(|(si, ti)| {
+                from_layout.parts[*si].offset.x >= source_equals_x - 1.0
+                    && to_layout.parts[*ti].offset.x >= target_equals_x - 1.0
+            }),
+            "x^2 and every other changing-LHS glyph must dissolve instead of jumping"
+        );
+    }
+
+    #[test]
+    fn rewrite_never_turns_a_quadratic_exponent_into_a_denominator() {
+        use crate::latex::EquationPartRole;
+
+        let from = r"x^2+\frac{b}{a}x=-\frac{c}{a}";
+        let to = r"x^2+\frac{b}{2a}x+\frac{b}{2a}x=-\frac{c}{a}";
+        let from_layout = crate::latex::layout_parts(from, 48.0).unwrap();
+        let to_layout = crate::latex::layout_parts(to, 48.0).unwrap();
+        let plan = match_equation_parts(&from_layout, &to_layout);
+        let source_square = from_layout
+            .parts
+            .iter()
+            .position(|part| {
+                part.symbol == Some('2' as u32) && part.role == EquationPartRole::Above
+            })
+            .expect("source x-squared exponent");
+        let target_index = plan
+            .pairs
+            .iter()
+            .find_map(|(si, ti)| (*si == source_square).then_some(*ti))
+            .expect("source exponent should retain identity");
+        assert_eq!(
+            to_layout.parts[target_index].role,
+            EquationPartRole::Above,
+            "the exponent from x^2 must remain the exponent; denominator twos enter separately"
+        );
+        assert!(
+            to_layout.parts.iter().any(|part| {
+                part.symbol == Some('2' as u32) && part.role == EquationPartRole::Denominator
+            }),
+            "fixture must contain the denominator twos reported by the reviewer"
+        );
+    }
+
+    #[test]
+    fn rewrite_keeps_nested_scripts_derivative_orders_and_limits_distinct() {
+        let derivative_from = crate::latex::layout_parts(r"\frac{d^2y}{dx^2}", 48.0).unwrap();
+        let derivative_to = crate::latex::layout_parts(r"\frac{2dy}{dx}", 48.0).unwrap();
+        let derivative_plan = match_equation_parts(&derivative_from, &derivative_to);
+        assert!(
+            !derivative_plan.pairs.iter().any(|(si, ti)| {
+                derivative_from.parts[*si].symbol == Some('2' as u32)
+                    && derivative_to.parts[*ti].symbol == Some('2' as u32)
+            }),
+            "the order in d² must not become an ordinary numerator coefficient"
+        );
+
+        let tower_from = crate::latex::layout_parts(r"y=e^{e^{e^x}}", 48.0).unwrap();
+        let tower_to = crate::latex::layout_parts(r"y=e^{e^{e^{x+1}}}", 48.0).unwrap();
+        let tower_plan = match_equation_parts(&tower_from, &tower_to);
+        let nested_e_pairs: Vec<_> = tower_plan
+            .pairs
+            .iter()
+            .filter(|(si, ti)| {
+                tower_from.parts[*si].symbol == Some('e' as u32)
+                    && tower_to.parts[*ti].symbol == Some('e' as u32)
+            })
+            .collect();
+        assert!(
+            nested_e_pairs.len() >= 3,
+            "the existing exponential tower should remain recognisable"
+        );
+        assert!(nested_e_pairs.iter().all(|(si, ti)| {
+            equation_parts_can_match(&tower_from.parts[*si], &tower_to.parts[*ti])
+        }));
+
+        let integral_from = crate::latex::layout_parts(r"\int_0^1 f(x)\,dx", 48.0).unwrap();
+        let integral_to = crate::latex::layout_parts(r"\int_1^0 f(x)\,dx", 48.0).unwrap();
+        let integral_plan = match_equation_parts(&integral_from, &integral_to);
+        assert!(
+            !integral_plan.pairs.iter().any(|(si, ti)| {
+                let source = &integral_from.parts[*si];
+                let target = &integral_to.parts[*ti];
+                matches!(source.symbol, Some(code) if code == '0' as u32 || code == '1' as u32)
+                    && source.symbol == target.symbol
+            }),
+            "upper and lower integral limits must leave and re-enter rather than swap jobs"
+        );
+    }
+
+    #[test]
+    fn rewrite_matrix_repeated_entries_keep_reading_order() {
+        let from = r"A^2=\begin{bmatrix}0&0&1\\0&-1&2\\1&-1&1\end{bmatrix}";
+        let to = r"A^3=\begin{bmatrix}1&0&0\\0&1&0\\0&0&1\end{bmatrix}=I";
+        let from_layout = crate::latex::layout_parts(from, 48.0).unwrap();
+        let to_layout = crate::latex::layout_parts(to, 48.0).unwrap();
+        let plan = match_equation_parts(&from_layout, &to_layout);
+
+        let zero_pairs: Vec<_> = plan
+            .pairs
+            .iter()
+            .copied()
+            .filter(|(si, ti)| {
+                from_layout.parts[*si].symbol == Some('0' as u32)
+                    && to_layout.parts[*ti].symbol == Some('0' as u32)
+            })
+            .collect();
+        assert!(
+            zero_pairs.len() >= 2,
+            "expected repeated matrix zeros to match"
+        );
+        assert!(
+            zero_pairs.windows(2).all(|w| w[0].1 < w[1].1),
+            "repeated matrix entries must not cross or reverse their reading order: {zero_pairs:?}"
+        );
+    }
+
+    #[test]
     fn rewrite_is_opt_in_and_rejects_non_equations_or_bad_latex() {
         let ordinary = crate::parse("canvas(1280,720); equation(q,(cx,cy),`x^2`,48);")
             .expect("ordinary equation remains unchanged");
@@ -3878,6 +4616,36 @@ mod tests {
                 r"\lim_{x\to0}\frac{\sqrt{1+x}-1}{x}=\frac{1}{2}",
             ),
             (
+                "nested exponential towers",
+                r"y=e^{e^{e^x}}",
+                r"y=e^{e^{e^{x+1}}}",
+            ),
+            (
+                "logarithms with compound bases",
+                r"y=\log_{e^t}x",
+                r"y=\frac{\ln x}{t}",
+            ),
+            (
+                "complex contour integrals",
+                r"I=\oint_{\Gamma}\frac{f(z)}{z-z_0}\,dz",
+                r"I=2\pi i f(z_0)",
+            ),
+            (
+                "differential limits",
+                r"f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h}",
+                r"f'(x)=2x",
+            ),
+            (
+                "ordinary differential equations",
+                r"\frac{d^2y}{dt^2}+\omega^2y=0",
+                r"y(t)=A\cos(\omega t)+B\sin(\omega t)",
+            ),
+            (
+                "partial differential equations",
+                r"\frac{\partial u}{\partial t}=\alpha\frac{\partial^2u}{\partial x^2}",
+                r"u(x,t)=e^{-\alpha k^2t}\sin(kx)",
+            ),
+            (
                 "trigonometric identities",
                 r"\sin^2\theta+\cos^2\theta",
                 r"\sin^2\theta+\cos^2\theta=1",
@@ -3926,8 +4694,13 @@ mod tests {
             let movie = crate::parse(&src)
                 .unwrap_or_else(|e| panic!("{name} should parse and lower through rewrite: {e}"));
             assert!(
-                !movie.base().pending_eq_parts.is_empty(),
-                "{name} should use structured equation parts"
+                !movie.base().pending_eq_parts.is_empty()
+                    || movie
+                        .base()
+                        .entities
+                        .iter()
+                        .any(|e| e.id == "__rewrite.work.1.target"),
+                "{name} should use either structured parts or the safe hybrid fallback"
             );
             let (base, timeline) = movie.finalize();
             let settled = timeline.apply(&base, 0.2);

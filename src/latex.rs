@@ -31,11 +31,35 @@ pub struct EquationPartCrop {
     pub h: f32,
 }
 
+/// Coarse mathematical layout role for one rendered item. RaTeX's display
+/// list is intentionally flat, so `rewrite` records enough structure here to
+/// prevent visually identical glyphs from changing jobs (for example the
+/// exponent in `x^2` becoming the denominator in `b/(2a)`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EquationPartRole {
+    Main,
+    Above,
+    Below,
+    Numerator,
+    Denominator,
+    FractionRule,
+    Structural,
+}
+
 /// One independently animatable visual item from a laid-out equation.
 #[derive(Debug, Clone)]
 pub struct EquationPart {
     pub index: usize,
     pub key: String,
+    /// Unicode identity for glyph items. Structural rules and paths have no
+    /// symbol. Keeping this alongside the visual key lets `rewrite` recognise
+    /// stable relation anchors without reverse-engineering the cache key.
+    pub symbol: Option<u32>,
+    pub role: EquationPartRole,
+    /// RaTeX math-style scale for glyphs (`1.0` on the main line, then smaller
+    /// for scripts and nested scripts). Matching keeps distinct script depths
+    /// apart even when their coarse region is the same, as in `d^2/(dx^2)`.
+    pub layout_scale: Option<f32>,
     pub prev_key: Option<String>,
     pub next_key: Option<String>,
     pub path: String,
@@ -198,13 +222,97 @@ pub fn layout_parts(latex: &str, size: f32) -> Result<EquationLayout, String> {
     let w = (dl.width as f32 * size + 2.0 * EQUATION_PAD).max(1.0);
     let h = ((dl.height + dl.depth) as f32 * size + 2.0 * EQUATION_PAD).max(1.0);
     let keys: Vec<String> = dl.items.iter().map(item_key).collect();
+    let crops: Vec<EquationPartCrop> = (0..dl.items.len())
+        .map(|index| discover_crop(&dl, index, size))
+        .collect::<Result<_, _>>()?;
+    let centres: Vec<macroquad::prelude::Vec2> = crops
+        .iter()
+        .map(|crop| macroquad::prelude::Vec2::new(crop.x + crop.w / 2.0, crop.y + crop.h / 2.0))
+        .collect();
+
+    // A horizontal rule is a fraction bar only when it separates visible
+    // glyphs above and below inside its span. This excludes radical overbars,
+    // overlines, and matrix rules from numerator/denominator classification.
+    let fraction_rules: Vec<usize> = dl
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| {
+            if !matches!(item, DisplayItem::Line { dashed: false, .. }) {
+                return None;
+            }
+            let crop = crops[index];
+            let left = crop.x - 2.0;
+            let right = crop.x + crop.w + 2.0;
+            let y = centres[index].y;
+            let near = size * 1.35;
+            let has_above = dl.items.iter().enumerate().any(|(i, item)| {
+                matches!(item, DisplayItem::GlyphPath { .. })
+                    && centres[i].x >= left
+                    && centres[i].x <= right
+                    && centres[i].y < y - 1.0
+                    && y - centres[i].y <= near
+            });
+            let has_below = dl.items.iter().enumerate().any(|(i, item)| {
+                matches!(item, DisplayItem::GlyphPath { .. })
+                    && centres[i].x >= left
+                    && centres[i].x <= right
+                    && centres[i].y > y + 1.0
+                    && centres[i].y - y <= near
+            });
+            (has_above && has_below).then_some(index)
+        })
+        .collect();
+
+    let baseline_y = dl.height as f32 * size + EQUATION_PAD;
     let mut parts = Vec::with_capacity(dl.items.len());
     for index in 0..dl.items.len() {
-        let crop = discover_crop(&dl, index, size)?;
-        let center = macroquad::prelude::Vec2::new(crop.x + crop.w / 2.0, crop.y + crop.h / 2.0);
+        let crop = crops[index];
+        let center = centres[index];
+        let role = match &dl.items[index] {
+            DisplayItem::GlyphPath { .. } => {
+                let containing_rule = fraction_rules
+                    .iter()
+                    .copied()
+                    .filter(|rule_index| {
+                        let rule = crops[*rule_index];
+                        center.x >= rule.x - 2.0
+                            && center.x <= rule.x + rule.w + 2.0
+                            && (center.y - centres[*rule_index].y).abs() <= size * 1.35
+                    })
+                    // Prefer the narrowest containing rule for nested fractions.
+                    .min_by(|a, b| crops[*a].w.total_cmp(&crops[*b].w));
+                if let Some(rule_index) = containing_rule {
+                    if center.y < centres[rule_index].y {
+                        EquationPartRole::Numerator
+                    } else {
+                        EquationPartRole::Denominator
+                    }
+                } else if center.y < baseline_y - size * 0.12 {
+                    EquationPartRole::Above
+                } else if center.y > baseline_y + size * 0.12 {
+                    EquationPartRole::Below
+                } else {
+                    EquationPartRole::Main
+                }
+            }
+            DisplayItem::Line { .. } if fraction_rules.contains(&index) => {
+                EquationPartRole::FractionRule
+            }
+            _ => EquationPartRole::Structural,
+        };
         parts.push(EquationPart {
             index,
             key: keys[index].clone(),
+            symbol: match &dl.items[index] {
+                DisplayItem::GlyphPath { char_code, .. } => Some(*char_code),
+                _ => None,
+            },
+            role,
+            layout_scale: match &dl.items[index] {
+                DisplayItem::GlyphPath { scale, .. } => Some(*scale as f32),
+                _ => None,
+            },
             prev_key: index.checked_sub(1).map(|i| keys[i].clone()),
             next_key: keys.get(index + 1).cloned(),
             path: eq_part_path(latex, size, index),
