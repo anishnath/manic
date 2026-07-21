@@ -120,7 +120,10 @@ across equation/plot/diagram representations; visual experiment-first lessons;
 (preserve, pair, rearrange, contradict, split cases, generalize); synchronized
 split-screen comparisons; a timeline/entity visual debugger; community remix
 inputs; and a consistent product promise—**describe how an idea changes, and
-Manic keeps the visual world continuous**.
+Manic keeps the visual world continuous**. A **Map / Geography kit** (map
+explainer reels for non-coders) is explored and PoC-validated but **deferred** —
+see [Map / Geography kit — ⬜ Deferred](#map--geography-kit--⬜-deferred-poc-validated-not-scheduled)
+at the end of this document for the full findings and open forks.
 
 ## Manic ML kit — active implementation
 
@@ -2809,3 +2812,152 @@ full browser renderer remains outside this completed language-service slice.
   deterministic recording.
 - **Live dynamic constructions** — geo constructions and graph edges recompute
   as inputs move (GeoGebra-style), which static asy diagrams don't do.
+
+## Map / Geography kit — ⬜ Deferred (PoC validated, not scheduled)
+
+> **Status: findings only — do NOT build yet.** A working proof of concept
+> exists (`src/kits/map.rs`, `assets/maps/`, `examples/map-border-poc.manic`) and
+> proves the core pipeline. This section records the exploration — the target
+> format, a capability decomposition, the two hard forks, and pros/cons — so it
+> can be picked up deliberately later. **Deferred** behind the currently-queued
+> work (physics domain, creator formats). Nothing here is committed direction.
+
+### End goal (the reason to eventually build it)
+
+Reel makers — **non-coders** — produce **map explainer reels** ("spotlight a
+region, move to the next, explain with data") entirely through the two no-code
+levers manic already has: the **AI assistant** (plain prompt → map DSL) and
+**creator templates** (fill slots). Success = *"a non-coder gets a polished map
+reel from one sentence,"* not *"you can draw a border."* This makes the map kit a
+**creator FORMAT**, not a geo-primitive library — so the DSL must be a pit of
+success for AI generation + templating (few footguns, intent-shaped,
+self-framing), the same discipline applied to LaTeX generation.
+
+### What the PoC already proves ✅
+
+Geographic data → **projected at build time** into ordinary `Shape::Polygon` /
+`Shape::Polyline` (tagged `id.fill` / `id.border`) → animated with the **existing
+verbs** (`draw`, `recolor`, `pulse`, `show`). Zero renderer changes — the same
+"project into native primitives" pattern as physics (RK4→entities) and optics
+(rays→lines). Uses the `geojson` crate over Natural Earth data (public domain).
+Confirmed: a real country outline renders and the standard verbs compose with it
+for free. Current PoC limits: one bundled country (India, hardcoded), naive
+equirectangular projection normalized into a fixed box (aspect distortion), and
+author-supplied lon/lat bounds.
+
+### Reference target — a geopolitics/data countdown reel
+
+The benchmark reel (a "top oil reserves" countdown, portrait ~22s) decomposes
+into these capabilities, each mapped to manic's reality:
+
+**Already native (manic has it):**
+- **Karaoke captions** (word-by-word subtitles) — manic already ships karaoke /
+  wordpop.
+- **Portrait reel + branding + pacing** — the creator kit.
+- **Ranked badges** (①②③), **labels with pointers** ("Canada", "Alberta") —
+  text + a circle; trivial.
+- **Big animated callouts** ("14× poorer", "266B BAR") — text + color + pulse
+  (glow/gradient is styling polish).
+- **Sticker / emoji overlays** (oil barrels, character stickers, $-signs) —
+  `Shape::Image` already exists (from the LaTeX work); needs an emoji/PNG asset
+  path.
+
+**New engine work, feasible, on the roadmap:**
+- **Universal country + admin-1 (state/province) coverage** — the PoC pipeline +
+  a data strategy. "Any country, any state" = Natural Earth `ne_10m_admin_1`
+  (~3,600 features, several MB) is the pivotal dataset.
+- **Auto-framing + name lookup** — `spotlight("Kerala")` looks up, frames,
+  projects, styles. A creator/AI must NEVER type a lon/lat box. Precondition for
+  no-code, not a nicety.
+- **Zoom/pan camera** (`zoomto(region, dur)`) — an **animatable viewport** whose
+  bounds tween over time; every projected shape re-fits. This is the signature
+  "move" of every map reel; belongs in the core, not deferred within the kit.
+- **Aspect-correct projection**, glowing colored outlines (stroke styling).
+
+**The two genuine departures (decide before building):**
+
+1. **Satellite-imagery basemap** (the aerial photo under everything).
+   - *Pro:* it's the look that performs on TikTok; creators may expect it.
+   - *Con:* fundamentally against manic's model — vector, deterministic,
+     self-contained (bundled assets, no network at render). Requires either a
+     huge bundled world texture **or** live map tiles (Bing/Mapbox/OSM) → drags
+     in **licensing + network-at-render + non-reproducible renders**. Heaviest
+     engineering, most off-identity piece, *and the least essential to the
+     storytelling.*
+2. **Flag-texture country fill** (a country filled with its actual flag).
+   - *Pro:* carries a lot of the genre's identity.
+   - *Con:* needs ~250 flag assets (small) **plus** clipping a raster to a
+     polygon — a new render capability (textured/clipped fill). Moderate lift.
+
+### The aesthetic fork — the decision that shapes everything
+
+The reference is **photorealistic** (satellite + flags + emoji). That is the
+*opposite* of manic's elevated, truthful, vector/editorial identity. Two roads
+(this is the `goldmine-reimagine-not-port` principle applied to maps):
+
+- **Path A — replicate the popular look.** Satellite basemap + flag fills +
+  stickers.
+  - *Pro:* matches exactly what performs; least "translation" for the creator.
+  - *Con:* breaks the vector aesthetic AND the deterministic/self-contained model
+    (tiles = licensing + network + non-reproducible), heaviest to build.
+- **Path B — reimagine in manic's voice.** Clean **vector** basemap
+  (land/ocean/graticule in the palette), palette or flag-accent fills, but the
+  **same motion and storytelling** — zoom, spotlight, rank badges, karaoke,
+  stickers.
+  - *Pro:* on-brand, deterministic, self-contained, tractable engine; every
+    storytelling element is already Path-B-native.
+  - *Con:* not the exact photoreal look some creators may want.
+
+**Working recommendation (not a decision):** Path B for the core — the
+storytelling (zoom + spotlight + badges + captions + stickers) is what makes these
+reels work, and it's all Path-B-native. Treat the **satellite basemap as an
+optional opt-in layer later** if creators genuinely demand photorealism — never
+the foundation.
+
+### Proposed phased roadmap (coverage-first, reel-maker-first)
+
+- **Phase 0 — PoC ✅** (done): projection + one baked country + animate.
+- **Phase 1 — reel-ready core:** universal country + admin-1 coverage; name
+  lookup + auto-framing (`spotlight`); `zoomto` animatable camera;
+  aspect-correct projection; portrait/reel format; **validate the no-code loop**
+  (1 template + AI-prompt generation) end to end.
+- **Phase 2 — the creator's story on the map:** `marker("Delhi")` by name,
+  labels, `route(a,b)` great-circle arcs.
+- **Phase 3 — thematic & compare:** `choropleth(data)`, animated spread,
+  before/after split.
+- **Phase 4 — format library:** map-reel templates (Region Spotlight / Journey /
+  Data Map) + system-prompt training so the AI nails map reels from a bare prompt.
+
+### Data strategy options (Phase 1's pivotal decision)
+
+- **Bake everything** (110m countries + simplified 10m admin-1) via `include_str!`.
+  - *Pro:* dead simple, offline, deterministic; server-side render makes binary
+    size a non-issue (manic never renders in the browser).
+  - *Con:* a few MB added to the binary; harder to reach admin-2/cities later.
+- **Data-pack (load, not bake):** ship a `maps/` dir the render env loads.
+  - *Pro:* lean binary, scales to cities/admin-2/custom regions.
+  - *Con:* every deploy path (`build-linux.sh`, `ec2-setup.sh`, the onecompiler
+    render env) must carry the data dir.
+- **Curated subset:** bundle a hand-picked set, expand on demand. *Pro:* tiny
+  binary. *Con:* breaks the "any country, any state" promise.
+- *Lean:* bake 110m countries + simplified admin-1 (server-side render → size is
+  cheap), design a loader hook for higher-res/admin-2 later.
+
+### Open decisions to settle before scheduling
+
+1. **Path A vs. B** — photoreal replica, or elevated-vector reimagining?
+2. **Is the satellite basemap a hard requirement**, or is "clearly a map, clean
+   and truthful" enough?
+3. **Flag fills** — must-have, or palette/accent fill in manic's voice?
+4. **No-code lever** — AI-from-prompt as the north star ("make anything"), with
+   templates as quality anchors? Or templates-first?
+5. **Political stance as kit policy** — "any country" = every disputed border
+   globally; one source's viewpoint + a standing disclaimer, settled before ship.
+
+### Why deferred
+
+The engine work is tractable and the storytelling is largely native, but the
+kit's success hinges on product decisions (aesthetic path, basemap, political
+stance) that aren't urgent while the physics domain and creator formats are the
+active queue. Revisit when a repeated creator demand for map reels justifies
+picking the forks above.
