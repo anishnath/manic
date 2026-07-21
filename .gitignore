@@ -7,3 +7,7 @@ Cargo.lock
 *.png
 /.claude/
 /.idea/
+/engine-test.mp4
+/engine-test-2.mp4
+/engine-test-3.mp4
+/engine-test-4.mp4
