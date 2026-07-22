@@ -25,6 +25,98 @@ enum NativeNodeIcon {
     Text(&'static str),
 }
 
+/// Flowchart node shapes, selected by string `kind` on the ordinary `node`
+/// builtin (never a builtin-per-shape). Each is the node *body* itself — the
+/// label sits centred inside and there is no provider icon — so the standard
+/// flowchart vocabulary is one authoring form the creator already knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FlowShape {
+    /// `process` — a plain rectangle (a step/action).
+    Process,
+    /// `decision` — a diamond (a yes/no branch).
+    Decision,
+    /// `terminator` — a stadium/pill (start / end).
+    Terminator,
+    /// `io` — a parallelogram (input / output).
+    Io,
+    /// `subprocess` — a rectangle with struck side rails (a predefined process).
+    Subprocess,
+    /// `connector` — a small circle (an on-page join).
+    Connector,
+}
+
+const FLOW_SHAPE_KINDS: &[&str] = &[
+    "process",
+    "decision",
+    "terminator",
+    "io",
+    "subprocess",
+    "connector",
+];
+
+fn flow_shape(kind: &str) -> Option<FlowShape> {
+    match kind.to_ascii_lowercase().as_str() {
+        "process" => Some(FlowShape::Process),
+        "decision" => Some(FlowShape::Decision),
+        "terminator" => Some(FlowShape::Terminator),
+        "io" => Some(FlowShape::Io),
+        "subprocess" => Some(FlowShape::Subprocess),
+        "connector" => Some(FlowShape::Connector),
+        _ => None,
+    }
+}
+
+/// Natural (unscaled) body size per flowchart shape. Diamonds get extra height
+/// so a decision's question fits; a connector is a small dot.
+fn flow_card_size(shape: FlowShape) -> Vec2 {
+    match shape {
+        FlowShape::Process | FlowShape::Subprocess => Vec2::new(178.0, 66.0),
+        FlowShape::Io => Vec2::new(188.0, 66.0),
+        FlowShape::Terminator => Vec2::new(156.0, 58.0),
+        FlowShape::Decision => Vec2::new(184.0, 112.0),
+        FlowShape::Connector => Vec2::new(50.0, 50.0),
+    }
+}
+
+/// The body [`Shape`] for a flowchart node at a given size, centred on `pos`
+/// (polygon points are offsets from `pos`). Returns the corner radius the entity
+/// should carry (non-zero only for the pill terminator).
+fn flow_body_shape(shape: FlowShape, size: Vec2) -> (Shape, f32) {
+    let (hw, hh) = (size.x * 0.5, size.y * 0.5);
+    match shape {
+        FlowShape::Process | FlowShape::Subprocess => {
+            (Shape::Rect { w: size.x, h: size.y }, 0.0)
+        }
+        FlowShape::Terminator => (Shape::Rect { w: size.x, h: size.y }, hh),
+        FlowShape::Connector => (Shape::Circle { r: hw.min(hh) }, 0.0),
+        FlowShape::Decision => (
+            Shape::Polygon {
+                pts: vec![
+                    Vec2::new(0.0, -hh),
+                    Vec2::new(hw, 0.0),
+                    Vec2::new(0.0, hh),
+                    Vec2::new(-hw, 0.0),
+                ],
+            },
+            0.0,
+        ),
+        FlowShape::Io => {
+            let skew = hh * 0.85;
+            (
+                Shape::Polygon {
+                    pts: vec![
+                        Vec2::new(-hw + skew, -hh),
+                        Vec2::new(hw, -hh),
+                        Vec2::new(hw - skew, hh),
+                        Vec2::new(-hw, hh),
+                    ],
+                },
+                0.0,
+            )
+        }
+    }
+}
+
 /// Friendly short kinds → the canonical reference-notation key in the diagram
 /// catalog. Service names select **artwork only**: they never add routing,
 /// queueing, balancing, broadcast, retry, or persistence semantics. Kinds that
@@ -43,12 +135,36 @@ fn canonical_provider_kind(kind: &str) -> String {
     }
 }
 
+/// Rank direction for a flowchart: top-down or left-right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RankDir {
+    Down,
+    Right,
+}
+
+/// How a diagram container lays out its children. `Region` is the architecture's
+/// nested cluster/flow-wrap layout; `Ranked` is the flowchart's edge-driven
+/// rank layout (Mermaid `graph TD`/`LR`). Both share the same bounds, scale-to-fit
+/// and ports — a layout *mode* on one data structure, not a second engine.
+/// `Ranked(None)` is **auto**: the layout picks the orientation (TD/LR) that fits
+/// the frame best and re-decides on every added node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayoutMode {
+    Region,
+    Ranked(Option<RankDir>),
+}
+
 #[derive(Debug, Clone)]
 pub struct ArchitectureData {
     pub center: Vec2,
     pub width: f32,
     pub height: f32,
     pub horizontal: bool,
+    mode: LayoutMode,
+    /// Uniform scale-to-fit factor (≤ 1.0) applied to the whole diagram by
+    /// [`relayout`] when the natural layout would overflow the frame. `connect`
+    /// reads it so port geometry lands on the shrunk cards. 1.0 = fits as-is.
+    pub scale: f32,
     /// Direct ownership children in declaration order. `nodes` remains the
     /// flattened node catalogue used by selectors such as `shop.nodes`.
     pub children: Vec<String>,
@@ -61,6 +177,9 @@ pub struct SystemNodeData {
     pub parent: String,
     pub center: Vec2,
     pub kind: String,
+    /// `Some` for a flowchart node whose body *is* a shape (diamond, pill, …)
+    /// with a centred label and no icon; `None` for an ordinary card node.
+    flow: Option<FlowShape>,
 }
 
 #[derive(Debug, Clone)]
@@ -82,6 +201,14 @@ pub struct ConnectionData {
     pub start: Vec2,
     pub control: Vec2,
     pub end: Vec2,
+    /// The routing style this connection was declared with, so a ranked
+    /// (flowchart) relayout can recompute its lane geometry after nodes move.
+    routing: ConnectionRouting,
+    /// True when a flowchart edge took the default routing (no explicit ports):
+    /// its ports follow the auto-chosen rank direction and are recomputed on each
+    /// relayout. An explicit `orthogonal, <port>, <port>` edge (e.g. a loop) keeps
+    /// its declared ports.
+    default_routed: bool,
     /// Every concrete node-to-node lane represented by this semantic
     /// connection. A node-to-cluster or cluster-to-node declaration expands
     /// here, so runtime verbs can choose a truthful physical route.
@@ -346,9 +473,28 @@ fn cluster_axis(scene: &Scene, cluster: &SystemClusterData, horizontal: bool) ->
     }
 }
 
+/// Leaf clusters with more than this many node children wrap into a grid.
+const GRID_WRAP_MIN: usize = 4;
+
+/// Grid `(cols, rows)` for `n` cells: squarish, but biased so the longer run
+/// follows the architecture's main axis, keeping the cross axis (the one that
+/// overflows) compact.
+fn grid_shape(n: usize, horizontal: bool) -> (usize, usize) {
+    let main = (n as f32).sqrt().ceil().max(1.0) as usize; // count along the main axis
+    let cross = (n + main - 1) / main; // count across it
+    if horizontal {
+        (main, cross)
+    } else {
+        (cross, main)
+    }
+}
+
 fn item_size(scene: &Scene, id: &str, horizontal: bool) -> Vec2 {
-    if scene.system_nodes.contains_key(id) {
-        return card_size(horizontal);
+    if let Some(node) = scene.system_nodes.get(id) {
+        return match node.flow {
+            Some(shape) => flow_card_size(shape),
+            None => card_size(horizontal),
+        };
     }
     let Some(cluster) = scene.system_clusters.get(id) else {
         return Vec2::ZERO;
@@ -376,6 +522,18 @@ fn item_size(scene: &Scene, id: &str, horizontal: bool) -> Vec2 {
     } else {
         Vec2::new(22.0, 34.0)
     };
+    // Grid-wrap: a leaf cluster (all members are nodes) with many children packs
+    // into a rows×cols grid instead of one overflowing line, so a dense cluster
+    // stays compact instead of shooting off the frame.
+    if !nested && cluster.members.len() > GRID_WRAP_MIN {
+        let (cols, rows) = grid_shape(cluster.members.len(), horizontal);
+        let cell = card_size(horizontal);
+        let content = Vec2::new(
+            cols as f32 * cell.x + gap * cols.saturating_sub(1) as f32,
+            rows as f32 * cell.y + gap * rows.saturating_sub(1) as f32,
+        );
+        return content + padding * 2.0;
+    }
     let content = if along_horizontal {
         Vec2::new(
             sizes.iter().map(|size| size.x).sum::<f32>()
@@ -409,6 +567,30 @@ fn plan_item(scene: &Scene, id: &str, center: Vec2, horizontal: bool, plan: &mut
     let size = item_size(scene, id, horizontal);
     plan.clusters.push((id.to_string(), center, size));
     if cluster.members.is_empty() {
+        return;
+    }
+    // Grid-wrap placement: mirror the grid measured in `item_size` for a dense
+    // leaf cluster, laying its node children row-major.
+    let nested = cluster
+        .members
+        .iter()
+        .any(|member| scene.system_clusters.contains_key(member));
+    if !nested && cluster.members.len() > GRID_WRAP_MIN {
+        let n = cluster.members.len();
+        let (cols, rows) = grid_shape(n, horizontal);
+        let cell = card_size(horizontal);
+        let gap = 18.0;
+        let grid_w = cols as f32 * cell.x + gap * cols.saturating_sub(1) as f32;
+        let grid_h = rows as f32 * cell.y + gap * rows.saturating_sub(1) as f32;
+        let x0 = center.x - grid_w * 0.5 + cell.x * 0.5;
+        let y0 = center.y - grid_h * 0.5 + cell.y * 0.5;
+        for (i, member) in cluster.members.iter().enumerate() {
+            let col = (i % cols) as f32;
+            let row = (i / cols) as f32;
+            let child_center =
+                Vec2::new(x0 + col * (cell.x + gap), y0 + row * (cell.y + gap));
+            plan_item(scene, member, child_center, horizontal, plan);
+        }
         return;
     }
     let along_horizontal = cluster_axis(scene, cluster, horizontal);
@@ -446,10 +628,25 @@ fn plan_item(scene: &Scene, id: &str, center: Vec2, horizontal: bool, plan: &mut
     }
 }
 
+/// Inner fit margin: content is scaled to fill this fraction of the frame,
+/// leaving a small border so nothing kisses the edge.
+const FIT_MARGIN: f32 = 0.94;
+/// The smallest scale-to-fit factor. Fitting is the promise, so this floor is
+/// low enough to contain even a very dense diagram (e.g. a 20+ node flowchart);
+/// past it, a diagram is simply too big to be legible at this canvas and should
+/// be split or rendered taller — but it still stays inside the frame.
+const MIN_SCALE: f32 = 0.2;
+
 fn relayout(scene: &mut Scene, architecture: &str) {
     let Some(data) = scene.architectures.get(architecture).cloned() else {
         return;
     };
+    // Flowcharts rank by edge direction — a wholly different placement — but reuse
+    // the same bounds, scale-to-fit and ports.
+    if let LayoutMode::Ranked(dir) = data.mode {
+        relayout_ranked(scene, architecture, dir);
+        return;
+    }
     if data.children.is_empty() {
         return;
     }
@@ -459,84 +656,655 @@ fn relayout(scene: &mut Scene, architecture: &str) {
         .map(|child| item_size(scene, child, data.horizontal))
         .collect();
     let gap = 28.0;
-    let total = if data.horizontal {
-        sizes.iter().map(|size| size.x).sum::<f32>()
-    } else {
-        sizes.iter().map(|size| size.y).sum::<f32>()
-    } + gap * sizes.len().saturating_sub(1) as f32;
-    let mut cursor = -total * 0.5;
-    let mut plan = LayoutPlan::default();
-    for ((child, size), index) in data.children.iter().zip(sizes).zip(0..) {
-        let along = if data.horizontal { size.x } else { size.y };
-        let offset = cursor + along * 0.5;
-        let center = if data.horizontal {
-            data.center + Vec2::new(offset, 0.0)
-        } else {
-            data.center + Vec2::new(0.0, offset)
-        };
-        plan_item(scene, child, center, data.horizontal, &mut plan);
-        cursor += along
-            + if index + 1 < data.children.len() {
-                gap
-            } else {
-                0.0
-            };
+    // main() runs along the architecture's main axis; cross() is perpendicular.
+    let main = |s: &Vec2| if data.horizontal { s.x } else { s.y };
+    let cross = |s: &Vec2| if data.horizontal { s.y } else { s.x };
+
+    // Flow-wrap the top-level children: pack them along the main axis and wrap to
+    // a new line whenever they would exceed the box, so a wide diagram stacks into
+    // rows (or columns) and fits instead of running off the frame. When everything
+    // fits in one line this is identical to the old single-line layout, so tuned
+    // examples are untouched.
+    let avail = main(&Vec2::new(data.width, data.height));
+    let mut lines: Vec<Vec<usize>> = Vec::new();
+    let mut cur: Vec<usize> = Vec::new();
+    let mut cur_main = 0.0f32;
+    for (i, size) in sizes.iter().enumerate() {
+        let add = main(size) + if cur.is_empty() { 0.0 } else { gap };
+        if !cur.is_empty() && cur_main + add > avail {
+            lines.push(std::mem::take(&mut cur));
+            cur_main = 0.0;
+        }
+        cur_main += main(size) + if cur.is_empty() { 0.0 } else { gap };
+        cur.push(i);
     }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    let line_main: Vec<f32> = lines
+        .iter()
+        .map(|ln| {
+            ln.iter().map(|&i| main(&sizes[i])).sum::<f32>()
+                + gap * ln.len().saturating_sub(1) as f32
+        })
+        .collect();
+    let line_cross: Vec<f32> = lines
+        .iter()
+        .map(|ln| ln.iter().map(|&i| cross(&sizes[i])).fold(0.0, f32::max))
+        .collect();
+    let total_cross =
+        line_cross.iter().sum::<f32>() + gap * lines.len().saturating_sub(1) as f32;
+
+    // Scale-to-fit safety net: measure the natural content against the frame and,
+    // if it overflows, derive one uniform factor `s ≤ 1` that shrinks the whole
+    // diagram — positions, cards, icons, labels and (via `data.scale`) the
+    // connection ports — so a dense or deeply-nested diagram always fits without
+    // the author touching a coordinate. When the content already fits, `s == 1`
+    // and every downstream step is a no-op, leaving tuned examples untouched.
+    let content_main = line_main.iter().cloned().fold(0.0_f32, f32::max);
+    let content_cross = total_cross;
+    let (content_w, content_h) = if data.horizontal {
+        (content_main, content_cross)
+    } else {
+        (content_cross, content_main)
+    };
+    let usable_w = data.width * FIT_MARGIN;
+    let usable_h = data.height * FIT_MARGIN;
+    let sx = if content_w > 1.0 { usable_w / content_w } else { 1.0 };
+    let sy = if content_h > 1.0 { usable_h / content_h } else { 1.0 };
+    let s = sx.min(sy).min(1.0).max(MIN_SCALE);
+    if let Some(arch) = scene.architectures.get_mut(architecture) {
+        arch.scale = s;
+    }
+
+    let mut plan = LayoutPlan::default();
+    let mut cross_cursor = -total_cross * 0.5;
+    for (li, ln) in lines.iter().enumerate() {
+        let cross_center = cross_cursor + line_cross[li] * 0.5;
+        let mut main_cursor = -line_main[li] * 0.5;
+        for &i in ln {
+            let sz = sizes[i];
+            let main_center = main_cursor + main(&sz) * 0.5;
+            let center = if data.horizontal {
+                data.center + Vec2::new(main_center, cross_center)
+            } else {
+                data.center + Vec2::new(cross_center, main_center)
+            };
+            plan_item(scene, &data.children[i], center, data.horizontal, &mut plan);
+            main_cursor += main(&sz) + gap;
+        }
+        cross_cursor += line_cross[li] + gap;
+    }
+    // Apply the fit factor as one uniform transform about the frame centre over
+    // the fully-built natural plan: every node/cluster centre contracts toward
+    // the centre and cluster frames shrink, so nested structure scales coherently.
     for (node, center) in plan.nodes {
-        place_node(scene, &node, center, data.horizontal);
+        let scaled = data.center + (center - data.center) * s;
+        place_node(scene, &node, scaled, data.horizontal, s);
     }
     for (cluster_id, center, size) in plan.clusters {
+        let scaled_center = data.center + (center - data.center) * s;
+        let scaled_size = size * s;
         if let Some(cluster) = scene.system_clusters.get_mut(&cluster_id) {
-            cluster.center = center;
-            cluster.width = size.x;
-            cluster.height = size.y;
+            cluster.center = scaled_center;
+            cluster.width = scaled_size.x;
+            cluster.height = scaled_size.y;
         }
         if let Some(frame) = scene.get_mut(&format!("{cluster_id}.frame")) {
-            frame.pos = center;
+            frame.pos = scaled_center;
             frame.shape = Shape::Rect {
-                w: size.x,
-                h: size.y,
+                w: scaled_size.x,
+                h: scaled_size.y,
             };
         }
         if let Some(label) = scene.get_mut(&format!("{cluster_id}.label")) {
-            label.pos = center + Vec2::new(0.0, -size.y * 0.5 + 17.0);
+            label.pos = scaled_center + Vec2::new(0.0, -scaled_size.y * 0.5 + 17.0 * s);
+            label.scale = s;
         }
     }
 }
 
-fn place_node(scene: &mut Scene, node_id: &str, center: Vec2, horizontal: bool) {
+/// Flowchart layout: rank nodes by connection direction (BFS distance from the
+/// sources), place each rank along the main axis with its members spread on the
+/// cross axis, reuse scale-to-fit, then rewire every lane from the new positions.
+fn relayout_ranked(scene: &mut Scene, architecture: &str, dir: Option<RankDir>) {
+    let Some(data) = scene.architectures.get(architecture).cloned() else {
+        return;
+    };
+    let nodes = data.nodes.clone();
+    if nodes.is_empty() {
+        return;
+    }
+    let n = nodes.len();
+    let index: std::collections::HashMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.as_str(), i))
+        .collect();
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut indeg = vec![0usize; n];
+    for conn in scene.system_connections.values() {
+        for lane in &conn.lanes {
+            if let (Some(&u), Some(&v)) =
+                (index.get(lane.from.as_str()), index.get(lane.to.as_str()))
+            {
+                adj[u].push(v);
+                indeg[v] += 1;
+            }
+        }
+    }
+    // BFS layering from every source (in-degree 0). Shortest-distance ranking is
+    // cycle-safe: a loop's back-edge targets an already-ranked node and is skipped.
+    let mut rank = vec![usize::MAX; n];
+    let mut queue: Vec<usize> = (0..n).filter(|&i| indeg[i] == 0).collect();
+    for &i in &queue {
+        rank[i] = 0;
+    }
+    if queue.is_empty() {
+        rank[0] = 0;
+        queue.push(0);
+    }
+    let mut head = 0;
+    while head < queue.len() {
+        let u = queue[head];
+        head += 1;
+        for k in 0..adj[u].len() {
+            let v = adj[u][k];
+            if rank[v] == usize::MAX {
+                rank[v] = rank[u] + 1;
+                queue.push(v);
+            }
+        }
+    }
+    for r in rank.iter_mut() {
+        if *r == usize::MAX {
+            *r = 0; // disconnected node → first rank
+        }
+    }
+    let max_rank = *rank.iter().max().unwrap();
+    let mut ranks: Vec<Vec<usize>> = vec![Vec::new(); max_rank + 1];
+    for i in 0..n {
+        ranks[rank[i]].push(i); // declaration order preserved within a rank
+    }
+
+    let sizes: Vec<Vec2> = nodes
+        .iter()
+        .map(|id| item_size(scene, id, data.horizontal))
+        .collect();
+    let rank_gap = 56.0;
+    let node_gap = 40.0;
+    let col_gap = 84.0;
+    let usable_w = data.width * FIT_MARGIN;
+    let usable_h = data.height * FIT_MARGIN;
+    let r_count = ranks.len();
+
+    // Explicit LR lays the ranks in a single left-to-right row. Everything else
+    // (auto and TD) uses top-down columns that WRAP: a long flow splits into
+    // side-by-side columns — the count chosen to fill the frame — so nodes stay
+    // large and readable instead of shrinking to a ribbon. Consecutive ranks stay
+    // connected bottom→top of the next column (the default TD ports do this for
+    // free), which reads like a multi-column paper flowchart.
+    if dir == Some(RankDir::Right) {
+        // rank thickness = along x (max node width); span = across, along y.
+        let thick: Vec<f32> = ranks
+            .iter()
+            .map(|row| row.iter().map(|&i| sizes[i].x).fold(0.0, f32::max))
+            .collect();
+        let span: Vec<f32> = ranks
+            .iter()
+            .map(|row| {
+                row.iter().map(|&i| sizes[i].y).sum::<f32>()
+                    + node_gap * row.len().saturating_sub(1) as f32
+            })
+            .collect();
+        let total = thick.iter().sum::<f32>() + rank_gap * r_count.saturating_sub(1) as f32;
+        let cross = span.iter().cloned().fold(0.0, f32::max);
+        let sx = if total > 1.0 { usable_w / total } else { 1.0 };
+        let sy = if cross > 1.0 { usable_h / cross } else { 1.0 };
+        let s = sx.min(sy).min(1.0).max(MIN_SCALE);
+        if let Some(arch) = scene.architectures.get_mut(architecture) {
+            arch.scale = s;
+        }
+        let mut x = -total * 0.5;
+        for (r, row) in ranks.iter().enumerate() {
+            let rx = x + thick[r] * 0.5;
+            let mut y = -span[r] * 0.5;
+            for &i in row {
+                let cy = y + sizes[i].y * 0.5;
+                let scaled = data.center + Vec2::new(rx, cy) * s;
+                place_node(scene, &nodes[i], scaled, data.horizontal, s);
+                y += sizes[i].y + node_gap;
+            }
+            x += thick[r] + rank_gap;
+        }
+        rewire_ranked(scene, architecture, RankDir::Right);
+        return;
+    }
+
+    // Top-down / auto with column wrapping.
+    // rank thickness = along the flow (y, max node height); span = across (x).
+    let thick: Vec<f32> = ranks
+        .iter()
+        .map(|row| row.iter().map(|&i| sizes[i].y).fold(0.0, f32::max))
+        .collect();
+    let span: Vec<f32> = ranks
+        .iter()
+        .map(|row| {
+            row.iter().map(|&i| sizes[i].x).sum::<f32>()
+                + node_gap * row.len().saturating_sub(1) as f32
+        })
+        .collect();
+    // Metrics for `c` columns (ranks split into `c` contiguous groups).
+    let column_metrics = |c: usize| -> (f32, Vec<f32>, Vec<f32>) {
+        let per = r_count.div_ceil(c);
+        let mut col_w = Vec::with_capacity(c);
+        let mut col_h = Vec::with_capacity(c);
+        for col in 0..c {
+            let lo = col * per;
+            let hi = ((col + 1) * per).min(r_count);
+            if lo >= hi {
+                col_w.push(0.0);
+                col_h.push(0.0);
+                continue;
+            }
+            let w = (lo..hi).map(|r| span[r]).fold(0.0, f32::max);
+            let h = (lo..hi).map(|r| thick[r]).sum::<f32>()
+                + rank_gap * (hi - lo).saturating_sub(1) as f32;
+            col_w.push(w);
+            col_h.push(h);
+        }
+        let content_w = col_w.iter().sum::<f32>() + col_gap * c.saturating_sub(1) as f32;
+        let content_h = col_h.iter().cloned().fold(0.0, f32::max);
+        let sx = if content_w > 1.0 { usable_w / content_w } else { 1.0 };
+        let sy = if content_h > 1.0 { usable_h / content_h } else { 1.0 };
+        (sx.min(sy).min(1.0).max(MIN_SCALE), col_w, col_h)
+    };
+    // Pick the column count that fills the frame best. More columns shorten a deep
+    // flow (bigger nodes) until width becomes the limit; ties prefer fewer columns.
+    let max_cols = r_count.min(8).max(1);
+    let mut cols = 1;
+    let mut best_s = column_metrics(1).0;
+    for c in 2..=max_cols {
+        let s = column_metrics(c).0;
+        if s > best_s + 0.001 {
+            best_s = s;
+            cols = c;
+        }
+    }
+    let (s, col_w, col_h) = column_metrics(cols);
+    if let Some(arch) = scene.architectures.get_mut(architecture) {
+        arch.scale = s;
+    }
+    let per = r_count.div_ceil(cols);
+    let content_w = col_w.iter().sum::<f32>() + col_gap * cols.saturating_sub(1) as f32;
+    let content_h = col_h.iter().cloned().fold(0.0, f32::max);
+    let mut x = -content_w * 0.5;
+    for col in 0..cols {
+        let cx = x + col_w[col] * 0.5;
+        let lo = col * per;
+        let hi = ((col + 1) * per).min(r_count);
+        let mut y = -content_h * 0.5; // top-align every column at the block top
+        for r in lo..hi {
+            let ry = y + thick[r] * 0.5;
+            let mut mx = -span[r] * 0.5;
+            for &i in &ranks[r] {
+                let ncx = cx + mx + sizes[i].x * 0.5;
+                let scaled = data.center + Vec2::new(ncx, ry) * s;
+                place_node(scene, &nodes[i], scaled, data.horizontal, s);
+                mx += sizes[i].x + node_gap;
+            }
+            y += thick[r] + rank_gap;
+        }
+        x += col_w[col] + col_gap;
+    }
+    rewire_ranked(scene, architecture, RankDir::Down);
+}
+
+/// Fully-computed geometry for one lane, so a flowchart relayout can rebuild an
+/// existing edge in place after nodes move (no entity churn — styling survives).
+struct LaneGeom {
+    start: Vec2,
+    control: Vec2,
+    end: Vec2,
+    motion_points: Vec<Vec2>,
+    body_pos: Vec2,
+    body: Shape,
+    /// `(arrow_start, tip)` for an orthogonal lane's terminal arrowhead entity.
+    arrow: Option<(Vec2, Vec2)>,
+}
+
+/// Trim a lane back to a node's card edge along the travel direction.
+fn edge_trim(size: Vec2, dir: Vec2) -> f32 {
+    (if dir.x.abs() >= dir.y.abs() { size.x } else { size.y }) * 0.5 + 6.0
+}
+
+/// The pure geometry of one lane between two node centres of the given sizes —
+/// mirrors `c_connect`'s per-lane math so ranked relayout can recompute it.
+fn lane_geometry(a: Vec2, b: Vec2, a_size: Vec2, b_size: Vec2, routing: ConnectionRouting) -> LaneGeom {
+    match routing {
+        ConnectionRouting::Curved(bend) => {
+            let direction = (b - a).normalize_or_zero();
+            // Trim each end back to its card edge, but never so far that the two
+            // trims cross on a short/diagonal edge (which would reverse the line
+            // into a stub) — clamp their sum to a fraction of the span.
+            let distance = (b - a).length().max(1.0);
+            let mut trim_a = edge_trim(a_size, direction);
+            let mut trim_b = edge_trim(b_size, direction);
+            let budget = distance * 0.7;
+            if trim_a + trim_b > budget {
+                let k = budget / (trim_a + trim_b);
+                trim_a *= k;
+                trim_b *= k;
+            }
+            let start = a + direction * trim_a;
+            let end = b - direction * trim_b;
+            let delta = end - start;
+            let perpendicular = Vec2::new(-delta.y, delta.x).normalize_or_zero();
+            let control = (start + end) * 0.5 + perpendicular * bend;
+            let route_control = (a + b) * 0.5 + perpendicular * bend;
+            let motion_points = (0..=64)
+                .map(|sample| bezier(a, route_control, b, sample as f32 / 64.0))
+                .collect();
+            LaneGeom {
+                start: a,
+                control: route_control,
+                end: b,
+                motion_points,
+                body_pos: start,
+                body: Shape::Curve {
+                    ctrl: control,
+                    to: end,
+                    arrow: true,
+                },
+                arrow: None,
+            }
+        }
+        ConnectionRouting::Orthogonal { from, to } => {
+            let (from_port, to_port) = resolve_ports(from, to, b - a);
+            let start = port_point(a, a_size, from_port);
+            let end = port_point(b, b_size, to_port);
+            let visual_points = orthogonal_points(start, end, from_port, to_port);
+            let mut motion_points = vec![a];
+            for point in visual_points.iter().copied() {
+                push_distinct(&mut motion_points, point);
+            }
+            push_distinct(&mut motion_points, b);
+            let control = visual_points
+                .get(visual_points.len() / 2)
+                .copied()
+                .unwrap_or((start + end) * 0.5);
+            let arrow_dir = motion_points
+                .windows(2)
+                .rev()
+                .find_map(|window| {
+                    let delta = window[1] - window[0];
+                    (delta.length() > 0.5).then_some(delta.normalize())
+                })
+                .unwrap_or(Vec2::X);
+            LaneGeom {
+                start: a,
+                control,
+                end: b,
+                motion_points,
+                body_pos: Vec2::ZERO,
+                body: Shape::Polyline { pts: visual_points },
+                arrow: Some((end - arrow_dir * 22.0, end)),
+            }
+        }
+    }
+}
+
+/// A long feedback lane routed around the diagram's bottom-left perimeter: down
+/// out of the source, along the margin below every column, up the left margin, and
+/// into the target's left side — the classic "back to an earlier step" rail that
+/// stays clear of the flow instead of cutting across it.
+fn perimeter_lane(a: Vec2, b: Vec2, a_size: Vec2, b_size: Vec2, below_y: f32, left_x: f32) -> LaneGeom {
+    let start = a + Vec2::new(0.0, a_size.y * 0.5); // exit source bottom
+    let end = b - Vec2::new(b_size.x * 0.5, 0.0); // enter target left side
+    let pts = vec![
+        start,
+        Vec2::new(a.x, below_y),
+        Vec2::new(left_x, below_y),
+        Vec2::new(left_x, b.y),
+        end,
+    ];
+    let mut motion_points = vec![a];
+    motion_points.extend(pts.iter().copied());
+    motion_points.push(b);
+    LaneGeom {
+        start: a,
+        control: Vec2::new(left_x, below_y),
+        end: b,
+        motion_points,
+        body_pos: Vec2::ZERO,
+        body: Shape::Polyline { pts },
+        arrow: Some((end - Vec2::new(22.0, 0.0), end)),
+    }
+}
+
+/// Port size for a node when attaching a lane — the (fit-scaled) body extent.
+fn node_port_size(node: &SystemNodeData, fit: f32, horizontal: bool) -> Vec2 {
+    match node.flow {
+        Some(shape) => flow_card_size(shape) * fit,
+        None => card_size(horizontal) * fit,
+    }
+}
+
+/// Rebuild every lane of a ranked (flowchart) architecture from the current node
+/// positions, updating the existing edge/hot/arrow entities in place so colours
+/// and labels applied to them survive. Runs after `relayout_ranked` moves nodes.
+fn rewire_ranked(scene: &mut Scene, architecture: &str, dir: RankDir) {
+    let fit = scene.architectures[architecture].scale;
+    let horizontal = scene.architectures[architecture].horizontal;
+    // Default-routed flowchart edges take their ports from the (possibly
+    // auto-chosen) rank direction: TD leaves the bottom into the top, LR leaves
+    // the right into the left. Explicit-port edges keep their declared routing.
+    let dir_routing = match dir {
+        RankDir::Down => ConnectionRouting::Orthogonal {
+            from: Port::Bottom,
+            to: Port::Top,
+        },
+        RankDir::Right => ConnectionRouting::Orthogonal {
+            from: Port::Right,
+            to: Port::Left,
+        },
+    };
+    // Bottom-left margins for routing long feedback edges around the perimeter.
+    let mut min = Vec2::splat(f32::INFINITY);
+    let mut max = Vec2::splat(f32::NEG_INFINITY);
+    for node in scene.system_nodes.values() {
+        if node.architecture != architecture {
+            continue;
+        }
+        let half = node_port_size(node, fit, horizontal) * 0.5;
+        min = min.min(node.center - half);
+        max = max.max(node.center + half);
+    }
+    let below_y = max.y + 34.0 * fit;
+    let left_x = min.x - 34.0 * fit;
+
+    struct Plan {
+        conn: String,
+        lane_idx: usize,
+        path: String,
+        hot_path: String,
+        hot_arrow: Option<String>,
+        geom: LaneGeom,
+    }
+    let mut plans: Vec<Plan> = Vec::new();
+    for (cid, conn) in &scene.system_connections {
+        let belongs = conn
+            .lanes
+            .first()
+            .and_then(|lane| scene.system_nodes.get(&lane.from))
+            .map(|node| node.architecture == architecture)
+            .unwrap_or(false);
+        if !belongs {
+            continue;
+        }
+        for (lane_idx, lane) in conn.lanes.iter().enumerate() {
+            let (Some(fa), Some(ta)) = (
+                scene.system_nodes.get(&lane.from),
+                scene.system_nodes.get(&lane.to),
+            ) else {
+                continue;
+            };
+            let (a, b) = (fa.center, ta.center);
+            let a_size = node_port_size(fa, fit, horizontal);
+            let b_size = node_port_size(ta, fit, horizontal);
+            // A long feedback edge — one whose target sits well to the *left* (an
+            // earlier column), like a loop back to the start — routes around the
+            // bottom-left perimeter instead of cutting diagonally across the whole
+            // chart. Shorter backward edges (a one-step loop, or a bottom→top column
+            // wrap) arc as a gentle curve. Everything forward is a clean elbow.
+            let geom = if conn.default_routed
+                && dir == RankDir::Down
+                && b.x < a.x - a_size.x * 1.2
+            {
+                perimeter_lane(a, b, a_size, b_size, below_y, left_x)
+            } else {
+                let routing = if conn.default_routed {
+                    let backward = match dir {
+                        RankDir::Down => b.y < a.y - 4.0,
+                        RankDir::Right => b.x < a.x - 4.0,
+                    };
+                    if backward {
+                        let bend = ((b - a).length() * 0.10).clamp(24.0, 60.0);
+                        ConnectionRouting::Curved(bend)
+                    } else {
+                        dir_routing
+                    }
+                } else {
+                    conn.routing
+                };
+                lane_geometry(a, b, a_size, b_size, routing)
+            };
+            plans.push(Plan {
+                conn: cid.clone(),
+                lane_idx,
+                path: lane.path.clone(),
+                hot_path: lane.hot_path.clone(),
+                hot_arrow: lane.hot_arrow.clone(),
+                geom,
+            });
+        }
+    }
+
+    for plan in &plans {
+        for id in [&plan.path, &plan.hot_path] {
+            if let Some(entity) = scene.get_mut(id) {
+                entity.pos = plan.geom.body_pos;
+                entity.shape = plan.geom.body.clone();
+            }
+        }
+        if let Some(hot_arrow_id) = &plan.hot_arrow {
+            let cold_arrow_id = hot_arrow_id.replace(".hot.arrow", ".arrow");
+            match plan.geom.arrow {
+                // Polyline/orthogonal lanes carry a separate terminal arrowhead.
+                Some((arrow_start, tip)) => {
+                    for id in [cold_arrow_id.as_str(), hot_arrow_id.as_str()] {
+                        if let Some(entity) = scene.get_mut(id) {
+                            entity.pos = arrow_start;
+                            entity.shape = Shape::Arrow { to: tip };
+                            entity.opacity = 1.0;
+                        }
+                    }
+                }
+                // A curve draws its own head, so hide the (now redundant) arrow
+                // entity — otherwise it lingers at a stale spot as a stray head.
+                None => {
+                    for id in [cold_arrow_id.as_str(), hot_arrow_id.as_str()] {
+                        if let Some(entity) = scene.get_mut(id) {
+                            entity.opacity = 0.0;
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(conn) = scene.system_connections.get_mut(&plan.conn) {
+            if let Some(lane) = conn.lanes.get_mut(plan.lane_idx) {
+                lane.start = plan.geom.start;
+                lane.control = plan.geom.control;
+                lane.end = plan.geom.end;
+                lane.motion_points = plan.geom.motion_points.clone();
+            }
+            if plan.lane_idx == 0 {
+                conn.start = plan.geom.start;
+                conn.control = plan.geom.control;
+                conn.end = plan.geom.end;
+            }
+        }
+    }
+}
+
+/// Position (and, under scale-to-fit, resize) a node's card/icon/label. `center`
+/// is already the fit-scaled node centre; `s` is the architecture's uniform fit
+/// factor — the intra-node offsets scale by `s` and each part carries `scale = s`
+/// so the card, icon glyph/image and label shrink together. At `s == 1` this is
+/// the natural placement, unchanged.
+fn place_node(scene: &mut Scene, node_id: &str, center: Vec2, horizontal: bool, s: f32) {
+    let flow = scene.system_nodes.get(node_id).and_then(|node| node.flow);
     if let Some(node) = scene.system_nodes.get_mut(node_id) {
         node.center = center;
+    }
+    // Flowchart node: the body is a shape whose geometry encodes its size, so we
+    // rebuild it at the fit-scaled size (`scale` stays 1 to avoid double-shrink),
+    // and the label centres inside it. No icon entity exists.
+    if let Some(shape) = flow {
+        let (body, corner) = flow_body_shape(shape, flow_card_size(shape) * s);
+        if let Some(card) = scene.get_mut(&format!("{node_id}.card")) {
+            card.pos = center;
+            card.shape = body;
+            card.corner_radius = corner;
+            card.scale = 1.0;
+        }
+        if let Some(label) = scene.get_mut(&format!("{node_id}.label")) {
+            label.pos = center;
+            label.scale = s;
+        }
+        return;
     }
     let placements = if horizontal {
         [
             (format!("{node_id}.card"), center),
-            (format!("{node_id}.icon"), center + Vec2::new(0.0, -18.0)),
-            (format!("{node_id}.label"), center + Vec2::new(0.0, 45.0)),
+            (format!("{node_id}.icon"), center + Vec2::new(0.0, -18.0) * s),
+            (format!("{node_id}.label"), center + Vec2::new(0.0, 45.0) * s),
         ]
     } else {
         [
             (format!("{node_id}.card"), center),
-            (format!("{node_id}.icon"), center + Vec2::new(-76.0, 0.0)),
-            (format!("{node_id}.label"), center + Vec2::new(28.0, 0.0)),
+            (format!("{node_id}.icon"), center + Vec2::new(-76.0, 0.0) * s),
+            (format!("{node_id}.label"), center + Vec2::new(28.0, 0.0) * s),
         ]
     };
     for (entity_id, position) in placements {
         if let Some(entity) = scene.get_mut(&entity_id) {
             entity.pos = position;
+            entity.scale = s;
         }
     }
 }
 
-/// `architecture(id, center, width, height)` — responsive system canvas.
+/// `architecture(id, [center], [width], [height])` — responsive diagram canvas.
+/// Geometry is optional: with none, the diagram **auto-fits** the canvas (centred,
+/// minus safe margins), so `architecture(id)` is enough. Explicit `(center, w, h)`
+/// remains an override for a hand-placed diagram.
 fn c_architecture(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     args.max(4)?;
     let id = args.ident(0)?;
     ensure_system_id_available(scene, &id, args)?;
     ensure_generated_ids_available(scene, [format!("{id}.frame")], args)?;
-    let center = args.pair(1)?;
-    let width = args.num(2)?;
-    let height = args.num(3)?;
+    let canvas = scene.canvas();
+    // Auto-fit default leaves a title band at the top and a caption band at the
+    // bottom, so a diagram declared with no geometry does not collide with the
+    // scene's headline/caption text.
+    let center = if args.len() >= 2 {
+        args.pair(1)?
+    } else {
+        Vec2::new(canvas.x * 0.5, canvas.y * 0.545)
+    };
+    let width = args.opt_num(2)?.unwrap_or(canvas.x * 0.92);
+    let height = args.opt_num(3)?.unwrap_or(canvas.y * 0.70);
     if !width.is_finite() || !height.is_finite() || width < 280.0 || height < 280.0 {
         return Err(Error::new(
             "architecture width and height must be finite and at least 280",
@@ -570,6 +1338,79 @@ fn c_architecture(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             width,
             height,
             horizontal,
+            mode: LayoutMode::Region,
+            scale: 1.0,
+            children: Vec::new(),
+            nodes: Vec::new(),
+        },
+    );
+    Ok(())
+}
+
+/// `flowchart(id, [TD|LR])` — an edge-ranked diagram (Mermaid `graph TD`/`LR`).
+/// Nodes rank by connection direction and auto-fit the canvas; it reuses the
+/// architecture bounds, ports and scale-to-fit — a layout *mode*, not a second
+/// engine. **With no direction it auto-orients**: the layout picks TD or LR by
+/// whichever fits the frame larger and re-decides on every added node, so a
+/// growing flow reflows (and even flips orientation) on its own; connections
+/// follow. Give nodes flowchart shape kinds (`terminator`/`process`/`decision`/
+/// `io`/…) and connect them; a token then `route`s the path.
+fn c_flowchart(scene: &mut Scene, args: &Args) -> Result<(), Error> {
+    // (id, [dir], [max_nodes]); max_nodes is the readability split limit, enforced
+    // by the language `check` (a warning), so the engine just accepts it here.
+    args.max(3)?;
+    let id = args.ident(0)?;
+    ensure_system_id_available(scene, &id, args)?;
+    ensure_generated_ids_available(scene, [format!("{id}.frame")], args)?;
+    let dir: Option<RankDir> = if args.len() >= 2 {
+        match args.ident(1)?.to_ascii_uppercase().as_str() {
+            "TD" | "TB" | "DOWN" => Some(RankDir::Down),
+            "LR" | "RIGHT" => Some(RankDir::Right),
+            "AUTO" => None,
+            other => {
+                return Err(Error::new(
+                    format!("unknown flowchart direction `{other}`; use `TD` (top-down), `LR` (left-right), or `auto`"),
+                    args.span_of(1),
+                ))
+            }
+        }
+    } else {
+        None
+    };
+    let canvas = scene.canvas();
+    let center = Vec2::new(canvas.x * 0.5, canvas.y * 0.545);
+    let width = canvas.x * 0.92;
+    let height = canvas.y * 0.70;
+    let mut frame = Entity::new(
+        format!("{id}.frame"),
+        Shape::Rect {
+            w: width,
+            h: height,
+        },
+        center,
+        style::PANEL,
+    );
+    frame.opacity = 0.45;
+    frame.stroke = StrokeStyle {
+        fill: true,
+        outline: true,
+        width: 1.5,
+        outline_color: Some(style::DIM),
+    };
+    frame.tags.push(id.clone());
+    frame.z = -10;
+    scene.add(frame);
+    scene.architectures.insert(
+        id,
+        ArchitectureData {
+            center,
+            width,
+            height,
+            // `horizontal` only sizes card-nodes (flowchart shape-nodes ignore it)
+            // and seeds a default; the live rank direction is chosen at layout.
+            horizontal: matches!(dir, Some(RankDir::Right)),
+            mode: LayoutMode::Ranked(dir),
+            scale: 1.0,
             children: Vec::new(),
             nodes: Vec::new(),
         },
@@ -631,9 +1472,11 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     })?;
     let data = &scene.architectures[&architecture];
     let horizontal = data.horizontal;
-    // A kind is either a native archetype (no colon) or a `provider:name` icon
-    // from the diagram catalogue (17 providers). Unresolved kinds error at source.
+    // A kind is a flowchart shape (`decision`/`terminator`/…), a native archetype
+    // (`service`/`database`/…), or a `provider:name` icon from the diagram
+    // catalogue (17 providers). Unresolved kinds error at source.
     let is_provider = kind.contains(':');
+    let flow = if is_provider { None } else { flow_shape(&kind) };
     if is_provider && provider_icon(&kind).is_none() {
         return Err(Error::new(
             format!(
@@ -644,96 +1487,124 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             args.span_of(2),
         ));
     }
-    if !is_provider && native_node_icon(&kind).is_none() {
+    if !is_provider && flow.is_none() && native_node_icon(&kind).is_none() {
         return Err(Error::new(
             format!(
-                "unknown system node kind `{kind}`; use one of {} or a `provider:name` \
-                 icon (aws/gcp/azure/onprem/k8s/ibm/oci/…)",
+                "unknown system node kind `{kind}`; use a flowchart shape ({}), a native \
+                 archetype ({}), or a `provider:name` icon (aws/gcp/azure/onprem/k8s/ibm/oci/…)",
+                FLOW_SHAPE_KINDS.join(", "),
                 NATIVE_NODE_KINDS.join(", ")
             ),
             args.span_of(2),
         ));
     }
     let center = data.center;
-    let card = card_size(horizontal);
-    let mut panel = Entity::new(
-        format!("{id}.card"),
-        Shape::Rect {
-            w: card.x,
-            h: card.y,
-        },
-        center,
-        style::PANEL,
-    );
-    panel.stroke = StrokeStyle {
-        fill: true,
-        outline: true,
-        width: 2.0,
-        outline_color: Some(style::DIM),
-    };
-    panel
-        .tags
-        .extend([id.clone(), format!("{architecture}.nodes")]);
-    panel.z = -1;
-    scene.add(panel);
-
-    if let Some(relative) = provider_icon(&kind) {
-        let uri = format!("asset:{relative}");
-        let path = crate::assets::resolve(&uri)
-            .map_err(|message| Error::new(message, args.span_of(2)))?
-            .to_string_lossy()
-            .into_owned();
-        let mut icon = Entity::new(
-            format!("{id}.icon"),
-            Shape::Image {
-                path,
-                w: 56.0,
-                h: 56.0,
-                tint: false,
+    if let Some(shape) = flow {
+        // Flowchart node: the body *is* the shape, with a centred label and no
+        // icon. Tagged `{id}.card` like any node so relayout/scale-to-fit reuse
+        // applies; `place_node` rebuilds its geometry at the fit-scaled size.
+        let (body, corner) = flow_body_shape(shape, flow_card_size(shape));
+        let mut panel = Entity::new(format!("{id}.card"), body, center, style::PANEL);
+        panel.corner_radius = corner;
+        panel.stroke = StrokeStyle {
+            fill: true,
+            outline: true,
+            width: 2.5,
+            outline_color: Some(style::CYAN),
+        };
+        panel
+            .tags
+            .extend([id.clone(), format!("{architecture}.nodes")]);
+        panel.z = -1;
+        scene.add(panel);
+    } else {
+        let card = card_size(horizontal);
+        let mut panel = Entity::new(
+            format!("{id}.card"),
+            Shape::Rect {
+                w: card.x,
+                h: card.y,
             },
             center,
-            Color::new(1.0, 1.0, 1.0, 1.0),
+            style::PANEL,
         );
-        icon.tags.extend([
-            id.clone(),
-            format!("{architecture}.nodes"),
-            format!("{id}.visual"),
-        ]);
-        icon.z = 2;
-        scene.add(icon);
-    } else {
-        let native = native_node_icon(&kind).expect("validated native kind");
-        let shape = match native {
-            NativeNodeIcon::Circle => Shape::Circle { r: 24.0 },
-            NativeNodeIcon::Text(label) => Shape::Text {
-                content: label.to_string(),
-                size: if label.len() > 2 { 18.0 } else { 22.0 },
-            },
+        panel.stroke = StrokeStyle {
+            fill: true,
+            outline: true,
+            width: 2.0,
+            outline_color: Some(style::DIM),
         };
-        let mut icon = Entity::new(format!("{id}.icon"), shape, center, style::CYAN);
-        icon.font = FontKind::MonoBold;
-        if matches!(native, NativeNodeIcon::Circle) {
-            icon.stroke = StrokeStyle {
-                fill: false,
-                outline: true,
-                width: 3.0,
-                outline_color: Some(style::CYAN),
+        panel
+            .tags
+            .extend([id.clone(), format!("{architecture}.nodes")]);
+        panel.z = -1;
+        scene.add(panel);
+
+        if let Some(relative) = provider_icon(&kind) {
+            let uri = format!("asset:{relative}");
+            let path = crate::assets::resolve(&uri)
+                .map_err(|message| Error::new(message, args.span_of(2)))?
+                .to_string_lossy()
+                .into_owned();
+            let mut icon = Entity::new(
+                format!("{id}.icon"),
+                Shape::Image {
+                    path,
+                    w: 56.0,
+                    h: 56.0,
+                    tint: false,
+                },
+                center,
+                Color::new(1.0, 1.0, 1.0, 1.0),
+            );
+            icon.tags.extend([
+                id.clone(),
+                format!("{architecture}.nodes"),
+                format!("{id}.visual"),
+            ]);
+            icon.z = 2;
+            scene.add(icon);
+        } else {
+            let native = native_node_icon(&kind).expect("validated native kind");
+            let shape = match native {
+                NativeNodeIcon::Circle => Shape::Circle { r: 24.0 },
+                NativeNodeIcon::Text(label) => Shape::Text {
+                    content: label.to_string(),
+                    size: if label.len() > 2 { 18.0 } else { 22.0 },
+                },
             };
+            let mut icon = Entity::new(format!("{id}.icon"), shape, center, style::CYAN);
+            icon.font = FontKind::MonoBold;
+            if matches!(native, NativeNodeIcon::Circle) {
+                icon.stroke = StrokeStyle {
+                    fill: false,
+                    outline: true,
+                    width: 3.0,
+                    outline_color: Some(style::CYAN),
+                };
+            }
+            icon.tags.extend([
+                id.clone(),
+                format!("{architecture}.nodes"),
+                format!("{id}.visual"),
+            ]);
+            icon.z = 2;
+            scene.add(icon);
         }
-        icon.tags.extend([
-            id.clone(),
-            format!("{architecture}.nodes"),
-            format!("{id}.visual"),
-        ]);
-        icon.z = 2;
-        scene.add(icon);
     }
 
+    let label_size = if flow.is_some() {
+        15.0
+    } else if horizontal {
+        16.0
+    } else {
+        19.0
+    };
     let mut text = Entity::new(
         format!("{id}.label"),
         Shape::Text {
             content: label,
-            size: if horizontal { 16.0 } else { 19.0 },
+            size: label_size,
         },
         center,
         style::FG,
@@ -750,6 +1621,7 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             parent: parent.clone(),
             center,
             kind,
+            flow,
         },
     );
     scene
@@ -963,6 +1835,27 @@ fn c_connect(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             args.span_of(2),
         ));
     }
+    // In a flowchart, an unqualified edge is an elbow connector whose ports follow
+    // the (possibly auto-chosen) rank direction — recomputed at layout, so it stays
+    // right even when the chart auto-flips TD↔LR. An explicit routing arg still
+    // wins. A placeholder orthogonal routing here fixes the edge's entity-id shape.
+    let is_ranked = matches!(
+        scene
+            .system_nodes
+            .get(&from_nodes[0])
+            .and_then(|node| scene.architectures.get(&node.architecture))
+            .map(|arch| arch.mode),
+        Some(LayoutMode::Ranked(_))
+    );
+    let default_routed = args.len() <= 3 && is_ranked;
+    let routing = if default_routed {
+        ConnectionRouting::Orthogonal {
+            from: Port::Bottom,
+            to: Port::Top,
+        }
+    } else {
+        routing
+    };
     let pairs: Vec<(String, String)> = if from_nodes.len() == 1 {
         to_nodes
             .iter()
@@ -1017,15 +1910,20 @@ fn c_connect(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             format!("{physical_id}.hot")
         };
         let horizontal = scene.architectures[&architecture].horizontal;
-        let size = card_size(horizontal);
+        // Nodes may have been shrunk by scale-to-fit; attach ports to the actual
+        // (scaled) card so lanes meet the card edge, not a phantom full-size box.
+        let fit = scene.architectures[&architecture].scale;
+        let size = card_size(horizontal) * fit;
         let (control, end, motion_points, mut edge, arrow_id) = match routing {
             ConnectionRouting::Curved(bend) => {
                 let direction = (b - a).normalize_or_zero();
-                let trim = if (b - a).x.abs() >= (b - a).y.abs() {
-                    76.0
-                } else {
-                    46.0
-                };
+                // Trim the lane back to the (scaled) card edge before the arc.
+                let trim = fit
+                    * if (b - a).x.abs() >= (b - a).y.abs() {
+                        76.0
+                    } else {
+                        46.0
+                    };
                 let start = a + direction * trim;
                 let end = b - direction * trim;
                 let delta = end - start;
@@ -1174,9 +2072,70 @@ fn c_connect(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             start: representative.start,
             control: representative.control,
             end: representative.end,
+            routing,
+            default_routed,
             lanes,
         },
     );
+    // A flowchart ranks nodes by edge direction, so every new edge can change
+    // node positions. Re-run the ranked layout (which also rewires all lanes from
+    // the new positions). Architecture mode bakes once and is left untouched.
+    if let LayoutMode::Ranked(_) = scene.architectures[&architecture].mode {
+        relayout(scene, &architecture);
+    }
+    Ok(())
+}
+
+/// `annotate(edge, "text")` — a small caption at a connection's midpoint (a
+/// decision's "yes"/"no", or any edge annotation). General to every diagram type,
+/// not flowchart-specific. Creates `{edge}.text`, tagged with the edge id so it
+/// reveals/hides with the connection. Call it after the edge's final layout.
+/// (The name `label` is the core std builtin that pins text to an entity.)
+fn c_annotate(scene: &mut Scene, args: &Args) -> Result<(), Error> {
+    args.max(2)?;
+    let edge = args.ident(0)?;
+    let text = args.text(1)?;
+    let conn = scene.system_connections.get(&edge).ok_or_else(|| {
+        Error::new(
+            format!("no connection named `{edge}` to label"),
+            args.span_of(0),
+        )
+    })?;
+    let (control, start, end, from) = (conn.control, conn.start, conn.end, conn.from.clone());
+    // Match the diagram's fit scale so the caption shrinks with a dense diagram
+    // (node labels already do). `annotate` is called after the edge's final
+    // layout, so the scale is settled.
+    let owner = scene.system_nodes.get(&from).map(|node| node.architecture.clone());
+    let fit = owner
+        .as_ref()
+        .and_then(|arch| scene.architectures.get(arch))
+        .map(|arch| arch.scale)
+        .unwrap_or(1.0);
+    // Sit just off the lane midpoint, on the perpendicular, so it never lands on
+    // the line itself.
+    let direction = (end - start).normalize_or_zero();
+    let perpendicular = Vec2::new(-direction.y, direction.x);
+    let pos = control + perpendicular * 18.0 * fit;
+    let label_id = format!("{edge}.text");
+    ensure_generated_ids_available(scene, [label_id.clone()], args)?;
+    let mut caption = Entity::new(
+        label_id.clone(),
+        Shape::Text {
+            content: text,
+            size: 15.0 * fit,
+        },
+        pos,
+        style::FG,
+    );
+    caption.font = FontKind::MonoBold;
+    caption.tags.extend([edge.clone(), label_id]);
+    // Also join the diagram's connection group so revealing/hiding the edges (e.g.
+    // switching between split sub-flows) carries the caption with them.
+    if let Some(arch) = owner {
+        caption.tags.push(format!("{arch}.connections"));
+    }
+    caption.z = 6;
+    scene.add(caption);
     Ok(())
 }
 
@@ -1566,9 +2525,11 @@ fn v_hotpath(scene: &mut Scene, args: &Args) -> Result<Clip, Error> {
 
 pub fn register(registry: &mut Registry) {
     registry.ctor("architecture", c_architecture);
+    registry.ctor("flowchart", c_flowchart);
     registry.ctor("node", c_node);
     registry.ctor("cluster", c_cluster);
     registry.ctor("connect", c_connect);
+    registry.ctor("annotate", c_annotate);
     registry.ctor("message", c_request);
     registry.ctor("request", c_request);
     registry.mut_verb("route", v_route);

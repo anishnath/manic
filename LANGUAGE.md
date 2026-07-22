@@ -1054,17 +1054,19 @@ clusters recursively resize and adapt their layout to the canvas.
 
 | call | meaning |
 |---|---|
-| `architecture(id, center, width, height)` | bounded responsive system canvas |
+| `architecture(id, [center], [width], [height])` | responsive system canvas; geometry is **optional** — with none it auto-fits the canvas, grid/flow-wraps children, and scales the whole diagram down to stay in-frame (no coordinates needed) |
+| `flowchart(id, [TD\|LR], [max_nodes])` | edge-ranked flowchart canvas (Mermaid `graph TD`/`LR`); ranks nodes by connection direction, auto-fits, reuses the architecture layout/ports/scale-to-fit. **No direction = top-down that column-wraps**: a long flow splits into side-by-side columns (count auto-chosen to fill the frame), read down then across; long feedback loops route around the perimeter. `LR` forces a single row. `max_nodes` is the readability limit (default 26 top-down/auto, 14 left-right); over it, `check` warns to split into linked sub-flows |
 | `cluster(id, parent, "label")` | labelled ownership group inside an architecture or cluster |
-| `node(id, parent, "kind", "label")` | provider-neutral or provider-backed component inside its parent |
+| `node(id, parent, "kind", "label")` | component inside its parent; `kind` is a flowchart shape (`process`/`decision`/`terminator`/`io`/`subprocess`/`connector`), a native archetype (`service`/`database`/…), or a `provider:name` icon |
 | `connect(id, from, to, [bend])` | cold dashed topology edge; a node/cluster endpoint expands possible member lanes, and an optional signed bend changes visual routing |
 | `connect(id, from, to, orthogonal, [from_port], [to_port])` | one port-aware Manhattan connector and one routable identity; ports are `auto`, `left`, `right`, `top`, or `bottom` |
+| `annotate(edge, "text")` | a small caption at a connection's midpoint (a decision's yes/no/loop, or any edge annotation) — general to every diagram type |
 | `message(id, source, "label")` | persistent generic event, job, packet, or command (`request` is an alias) |
 | `route(message, connection, [dur], [ease])` | move through one selected physical lane, illuminate it, and validate semantic continuity |
 | `hotpath(message, [dur], [seed])` | infer one valid path to a sink, choose seeded branches, and move the same dot continuously while only chosen lanes illuminate |
 
 ```manic
-architecture(events, (cx,cy), w*0.9, h*0.7);
+architecture(events);   // no geometry — auto-fits and scales to the canvas
 node(source, events, "aws:eks", "K8s Source");
 cluster(workers, events, "EVENT WORKERS");
 node(w1, workers, "aws:ecs", "Worker 1");

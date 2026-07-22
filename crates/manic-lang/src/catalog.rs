@@ -1145,10 +1145,12 @@ pub fn catalog() -> Vec<BuiltinSpec> {
         spec("arrowfield", Ctor, "math", "a named vector field", &[]),
         spec("vectorfield", Ctor, "math", "a vector field", &[]),
         // ---- systems architecture foundation ----
-        spec("architecture", Ctor, "systems", "an automatically laid-out architecture canvas", &[("id", Name, R), ("center", Point, R), ("width", Num, R), ("height", Num, R)]),
+        spec("architecture", Ctor, "systems", "an automatically laid-out diagram canvas; geometry is optional and auto-fits the canvas when omitted", &[("id", Name, R), ("center", Point, O), ("width", Num, O), ("height", Num, O)]),
+        spec("flowchart", Ctor, "systems", "an edge-ranked flowchart canvas (Mermaid graph TD/LR); with no direction it auto-orients TD/LR to fit and re-decides as nodes are added; reuses the architecture layout/ports/scale-to-fit. Optional max_nodes is the readability split limit (default 6 top-down, 12 left-right) — over it, check warns to split into linked sub-flows", &[("id", Name, R), ("direction", Ident, O), ("max_nodes", Num, O)]),
         spec("node", Ctor, "systems", "a generic or provider-backed component inside an architecture or cluster", &[("id", Name, R), ("parent", Ident, R), ("kind", Str, R), ("label", Str, R)]),
         spec("cluster", Ctor, "systems", "a labelled responsive ownership group; children name it as their parent", &[("id", Name, R), ("parent", Ident, R), ("label", Str, R), ("legacy_members", Str, O)]),
         spec("connect", Ctor, "systems", "a dashed directed possibility with an optional bend or port-aware orthogonal route", &[("id", Name, R), ("from", Ident, R), ("to", Ident, R), ("routing", Routing, O), ("from_port", Port, O), ("to_port", Port, O)]),
+        spec("annotate", Ctor, "systems", "a small caption at a connection's midpoint (a decision's yes/no, or any edge annotation)", &[("edge", Ident, R), ("text", Str, R)]),
         spec("message", Ctor, "systems", "a persistent generic message starting at one system node", &[("id", Name, R), ("source", Ident, R), ("label", Str, R)]),
         spec("request", Ctor, "systems", "a persistent labelled request starting at one system node", &[("id", Name, R), ("source", Ident, R), ("label", Str, R)]),
         spec("route", MutVerb, "systems", "move one persistent message through a continuous named connection and illuminate its selected lane", &[("message", Ident, R), ("connection", Ident, R), ("duration", Num, O), ("ease", Ease, O)]),

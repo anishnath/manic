@@ -350,6 +350,170 @@ Those should be designed only after each story is visually reviewed. The full
 upstream AWS icon package remains untouched; authors see only the curated stable
 manifest rather than its versioned filenames.
 
+### Auto-fit & adjustment — ✅ Core shipped (optional hints deferred)
+
+**The problem, observed across every dense example.** A big architecture (the
+on-prem stress test, the k8s stateful set, the serverless pipeline) overflows the
+frame, and the only fix today is to *hand-tune it*: split a cluster into extra
+columns, nudge `architecture(id, (center), w, h)` numbers, shrink fonts. That is
+the opposite of manic. The creator should describe **what** the system is; the
+engine should make it **fit** — no coordinate math, no trial-and-error.
+
+**The principle:** structure is authored, layout+fit is automatic. Writing a
+diagram that fits must take *less* DSL, not more.
+
+**The design (end-user-easy, engine does the work):**
+
+1. **Auto-fit is the default. ✅ Shipped.** `architecture(id)` with **no**
+   center/size fills the canvas minus safe margins and centres itself. Explicit
+   `(center, w, h)` stays as an override for the rare hand-placed case, but is
+   never required. The common case is one word.
+2. **Grid-wrapping clusters + flow-wrapping rows. ✅ Shipped.** A leaf cluster
+   with many children wraps into a rows×cols grid chosen from the available space
+   and child count; top-level members flow-wrap into rows/columns instead of one
+   overflowing line. This *automatically* does what we did by hand (splitting
+   pods/claims into columns) — the #1 cause of overflow, gone.
+3. **Measure, then scale to fit. ✅ Shipped.** `relayout` lays out at natural
+   size, measures the packed content against the frame, and — when it still
+   overflows — derives one uniform factor `s ≤ 1` (floored at a legible minimum)
+   that contracts the whole diagram about its centre: positions, cards, icons,
+   labels *and* connection ports/lanes together, in a single build-time pass so
+   `route`/`flow` animate the scaled geometry. Content is guaranteed in-frame —
+   nothing clips off-canvas. When it already fits, `s == 1` and tuned examples are
+   byte-identical.
+4. **Reserve heading and label space** during layout so cluster titles and node
+   labels never collide with cards or lanes. 🟡 Partial — the fit pass keeps a
+   frame margin; a nested cluster's title can still crowd a sub-cluster header
+   (minor, cosmetic).
+5. **Optional hints, never coordinates.** `density` (compact/comfortable) and an
+   aspect/orientation hint may nudge the result; the author still never types a
+   pixel to make it fit. 🟢 Deferred (not needed for fit; a future ergonomic).
+
+**Why it is foundational (and first):** the same fit engine serves architecture,
+flowchart (a wide decision tree overflows exactly the same way), sequence, and
+any future diagram — so it lands *before* growing more diagram types. It is pure
+layout under the hood: the DSL does not grow; authors write *less*.
+
+**Acceptance — met.** `examples/microservices-platform.manic` declares Route 53 →
+load balancer → gateway, three availability zones of services, a replicated
+database cluster and monitoring with **zero coordinates**; adding a whole tier
+reflows and scales the diagram to stay fully in-frame. The dense stress tests
+(on-prem, k8s stateful set, serverless) render fully in-frame with **no** manual
+column-splitting or size tuning — from structure alone. The one user-visible
+promise, delivered: *it just fits.*
+
+### Flowchart Foundation — ✅ Core shipped (sequence diagrams next)
+
+The Diagrams kit does **architecture** and now **flowcharts**; sequence diagrams
+are next. Flowcharts are the highest-demand diagram type — every algorithm,
+process, decision tree, and onboarding explainer is a flowchart — and manic's
+edge is that the chart *runs*: a token walks the process and takes a branch,
+instead of a static Mermaid picture.
+
+**Shipped this cycle** (`examples/factorial-flowchart.manic` is the flagship):
+- **`flowchart(id, [TD|LR])` container** — an edge-ranked layout *mode* on the
+  shared `ArchitectureData`, reusing bounds, ports and scale-to-fit (no second
+  engine). BFS ranks nodes by connection direction; ranks lay out along the main
+  axis, members spread on the cross axis; edges default to orthogonal elbow
+  connectors along the rank direction. Re-ranks and rewires all lanes in place
+  after every edge, so styling/labels survive.
+- **Column-wrap layout** — with no direction, `flowchart(id)` lays the flow
+  top-down and, when it's long, wraps it into side-by-side columns (count chosen to
+  maximise the fit scale, re-decided on every add) so nodes stay full-size and
+  readable — read down a column, across to the top of the next. `LR` forces a single
+  row. Forward edges are orthogonal elbows; column wraps and short loops arc as
+  curves; **long feedback edges route around the bottom-left perimeter** so a
+  loop-to-start doesn't slash across the middle. Redundant arrowheads on curve edges
+  are hidden (the curve draws its own head).
+- **Readability guard** — a flowchart must be *readable*, not merely fit. `check`
+  warns (never errors) when a flowchart exceeds a node limit — default 26 top-down/
+  auto, 14 left-right (wrapping lets top-down hold far more) — pointing to
+  **splitting into linked sub-flows** (a `connector` hand-off). `flowchart(id, dir,
+  N)` overrides the limit. It's a language-level node count (layout/pixel size isn't
+  known in `check`), so a proxy, surfaced live in the editor.
+- **Node shapes as kinds** — `process` (rect), `decision` (diamond), `terminator`
+  (pill), `io` (parallelogram), `subprocess` (rect; struck rails TODO), `connector`
+  (circle). Selected by string on the ordinary `node`; the shape *is* the body with
+  a centred label and no icon.
+- **`annotate(edge, "text")`** — a caption at a lane midpoint (yes/no/loop),
+  general to every diagram type. (The name `label` is the core std builtin.)
+- The animation story works: reveal → `route` a token → it takes the coloured
+  branch and loops, taken path glowing.
+
+**Remaining polish (not blockers):** within-rank crossing reduction (dense
+decision trees can look busy), a struck-rail `subprocess`, and `LR` still wants a
+real-world example. Everything below is the design as shipped.
+
+**Reuse first — a flowchart is another typed graph.** It shares the shipped
+Diagrams substrate almost entirely; do **not** rebuild it:
+
+- **Edges + motion** — `connect` (cold dashed topology), `route` (walk one path,
+  identity preserved), `hotpath` (infer one execution through the branches),
+  `flow` (aggregate), and **colour-by-relationship** (`id`/`id.hot`) all apply
+  unchanged. A yes/no decision is just two connections the creator colours.
+- **Grouping + story** — `cluster` for sub-processes/swimlanes; `step`/`par`/
+  `seq`/`say`/`draw`/`pulse` for the walkthrough; responsive architecture bounds
+  for layout regions.
+- **Correctness** — the deterministic text/glyph engine (P0, shipped) already
+  handles the symbol-heavy labels.
+
+**Genuinely new — kept minimal:**
+
+1. **Flowchart node *shapes*, as kinds not builtins. ✅ Decided.** Extend
+   `node`'s kind vocabulary with the standard set — `process` (rectangle, already
+   native), `decision` (diamond), `terminator` (stadium/pill for start/end), `io`
+   (parallelogram), `subprocess` (double-struck rectangle), `connector` (small
+   circle). Selected by string, exactly like the provider-neutral archetypes:
+   `node(check, chart, "decision", "n % i == 0?")`. **Never a builtin per shape.**
+   This is the deliberate ease-of-use call — a creator draws every flowchart node
+   with the *one* `node(id, parent, "kind", "label")` form they already know, so
+   there is nothing new to learn beyond the shape names. Remaining implementation
+   detail (not a design fork): `diamond`/`parallelogram`/`stadium` likely need new
+   `Shape` primitives if `polygon` can't render them cleanly at every size.
+2. **Edge labels** — a decision's branches read "yes"/"no". Add an optional
+   label to `connect` (or a thin `label(edge, "yes")`), rendered at the lane
+   midpoint. General to all diagrams, not flowchart-specific.
+3. **Directed ranked layout** — a top-down / left-right auto-layout that ranks
+   nodes by edge direction (Mermaid `graph TD`/`LR`). The architecture layout is
+   region/cluster-based; a flow needs edge-driven ranking. This is the one real
+   layout addition — build it as a layout *mode*, reusing bounds/ports/reflow.
+
+**The animation story (the differentiator):** reveal the chart, then `route` a
+token from the start terminator; at each `decision`, the authored branch
+illuminates (coloured yes/no) while the other stays cold; the token walks to an
+end terminator. `hotpath` gives a seeded auto-walk. This turns a static
+flowchart into "watch the algorithm actually run."
+
+**Mermaid/authoring mapping:** `graph TD` → a flowchart layout mode; `A[Process]`
+→ `node(a, chart, "process", "…")`; `B{Decision}` → `"decision"`; `A --> B` →
+`connect`; `A -->|yes| B` → connect with an edge label. Faithful import without
+teaching manic what a decision "means" — the creator authors which branch runs.
+
+**Flagship demo:** a real algorithm as a running flowchart — e.g. binary search
+or "is a number prime" — start → loop → decision (found? / divisible?) → the
+token takes the true branch and reaches an end, with the taken path glowing.
+If that reads clearly from one plain prompt, the foundation works.
+
+**Proposed roadmap:** (1) node shape kinds (`decision`/`terminator`/`io`) +
+any new `Shape` primitives; (2) edge labels on `connect`; (3) the ranked
+TD/LR layout mode; (4) a flagship running-algorithm example + gallery/prompt
+docs; (5) sequence-diagram foundation after this proves the shared model
+stretches a second time.
+
+**Decided:** node shapes are **kinds** on `node` (not builtins) — one authoring
+form for every node, easy for creators.
+
+**Decided (scheduling, this cycle):**
+- **Edge labels → a `label(edge, "text")` verb**, not a `connect` arg. It stays
+  general (labels any edge/lane midpoint across every diagram type) and keeps
+  `connect`'s already-polymorphic args (bend / orthogonal / ports) clean, matching
+  the post-hoc `color(edge, …)` styling pattern.
+- **Ranked layout → a `flowchart(id, [TD|LR])` container**, not an `architecture`
+  mode flag. It reads as authoring intent and defaults to top-down ranked layout,
+  while **reusing the architecture substrate under the hood** (`ArchitectureData`
+  + `relayout` + scale-to-fit + ports), so there is no second layout engine — a
+  layout *mode* on the shared data, fronted by a clear builtin.
+
 ### Circuit Kit — recommended next domain exploration
 
 Circuits are the highest-value candidate because they naturally form animated,
