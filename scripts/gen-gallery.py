@@ -768,6 +768,64 @@ SECTIONS = [
     "The volume under a surface represented as solid 3D Riemann-sum columns, turning a\n"
     "double integral into visible geometry."),
  ]),
+ dict(slug="systems", title="Systems & architecture", intro=(
+     "Animated architecture — not another static boxes-and-arrows generator. Declare a "
+     "bounded architecture with auto-positioned nodes and directed connections, then move "
+     "one persistent request through the graph. Node artwork comes from a string kind "
+     "(`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see "
+     "[icon reference & aliases](systems-icons.md)); paths are coloured by relationship. "
+     "The kit never infers behaviour — the creator authors it with `route`, `flow`, and "
+     "ordinary verbs."),
+   sub=SUB, items=[
+   ("systems-foundation",
+    "Provider-neutral: only native `client`/`gateway`/`service`/`cache`/`database` "
+    "archetypes — reveals cold topology, sends one persistent request forward, and returns "
+    "the same identity over separately directed paths, with no cloud assets."),
+   ("systems-architecture-poc",
+    "The first story: one Buy request travels Browser → CloudFront → API Gateway → Lambda "
+    "→ DynamoDB → SQS, auto-laid horizontally or vertically by the responsive region."),
+   ("systems-arrow-patterns",
+    "The connection-grammar reference: one-way, parallel, round-trip, port-aware "
+    "orthogonal, fan-out, and diagonal-duplex lanes."),
+   ("systems-rabbitmq-consumers",
+    "Authored one-of-many delivery: messages 101/102/103 explicitly select different "
+    "workers — the kit never infers RabbitMQ or round-robin behaviour."),
+   ("aws-three-tier-web-application",
+    "Presentation / Application / Data as three responsive tiers; one request travels "
+    "Route 53 → CloudFront → ELB → ECS → ElastiCache → RDS."),
+   ("aws-event-processing-clusters-poc",
+    "Nested clusters + parallel topology: EKS → three ECS workers → SQS → three Lambda "
+    "processors → S3 & Redshift, with one seeded hot path through the fan-out."),
+   ("aws-clustered-web-services",
+    "Route 53 → ELB → ECS pool with an RDS primary/replica cluster and ElastiCache; "
+    "request and response follow separately coloured lanes."),
+   ("gcp-clustered-web-services",
+    "The same clustered-web story on Google Cloud: Cloud DNS → Load Balancing → GKE pool "
+    "→ Cloud SQL cluster + Memorystore — a pure provider swap."),
+   ("gcp-message-collecting",
+    "GCP IoT: three IoT Core devices publish to Pub/Sub, and Dataflow fans out to a data "
+    "lake, a processing branch, and a serverless branch — three-level nested clusters."),
+   ("k8s-three-tier",
+    "A three-tier app on Kubernetes: Ingress → web Deployment → api Service/Deployment → "
+    "Redis + a PostgreSQL StatefulSet, following one checkout request."),
+   ("k8s-stateful-architecture",
+    "A StatefulSet's storage: a Service, three pods, their PVCs, and the PV/StorageClass "
+    "that provision them — generated with a `for` loop, coloured by access/ownership/"
+    "provisioning."),
+   ("k8s-cluster-components",
+    "The canonical Kubernetes components diagram — control plane (api hub, c-m, c-c-m, "
+    "etcd, sched) + nodes + the cloud provider — drawn AND flowed with plain primitives, "
+    "no systems kit at all."),
+   ("serverless-processing",
+    "A mixed on-prem + AWS pipeline: Kafka + Docker engines → SQS (+ dead-letter) → Lambda "
+    "→ S3/Redshift, with a Fluentd→Kafka→Spark tap; paths coloured by relationship."),
+   ("onprem-advanced-web-service",
+    "The on-prem stress test with native archetypes: Nginx, gRPC, Redis/PostgreSQL HA, "
+    "Fluentd→Kafka→Spark, and Prometheus/Grafana — three runtime stories on one platform."),
+   ("onprem-advanced-web-service-v2",
+    "The same platform with real provider icons and paths coloured by relationship "
+    "(request · analytics · telemetry · replication)."),
+ ]),
 ]
 
 # Non-gallery nav entries, above and below the nested Examples-gallery list.
@@ -787,6 +845,8 @@ SUMMARY_PRE = [
  "- [The language layer](language-layer.md)",
  "- [Machine learning — models made visible](ml.md)",
  "- [Kits — math, geometry, algorithms](kits.md)",
+ "- [Systems architecture — structure into behaviour](systems.md)",
+ "- [Systems Kit — icon reference & aliases](systems-icons.md)",
  "- [Bundled assets — portable files](assets.md)",
  "- [Elevating a scene](elevating.md)",
  "- [Going 3D](3d.md)",

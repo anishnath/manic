@@ -197,6 +197,16 @@ pub struct Scene {
     /// All values are computed at build time; playback remains ordinary tracks.
     pub ml_logits: HashMap<String, crate::kits::ml_decode::MlLogitsData>,
     pub ml_samples: HashMap<String, crate::kits::ml_decode::MlSampleData>,
+    /// Experimental Systems Kit diagrams and their stable connection graph.
+    /// Constructors lower visible architecture to ordinary 2-D entities; this
+    /// build-time data only supports automatic layout and semantic routing.
+    pub architectures: HashMap<String, crate::kits::systems::ArchitectureData>,
+    pub system_nodes: HashMap<String, crate::kits::systems::SystemNodeData>,
+    pub system_clusters: HashMap<String, crate::kits::systems::SystemClusterData>,
+    pub system_connections: HashMap<String, crate::kits::systems::ConnectionData>,
+    /// Latest semantic node occupied by each Systems message. `route` uses this
+    /// build-time state to reject discontinuous stories instead of teleporting.
+    pub system_message_locations: HashMap<String, String>,
     /// Pure runtime connections from visible creator parameters to existing
     /// entity properties or plot formulas. Constructors fill this; timeline
     /// evaluation applies it after ordinary tracks on every stateless frame.
@@ -1014,6 +1024,7 @@ fn authored_value(entity: &Entity, prop: Prop) -> Option<Value> {
         Prop::Rot => Value::F(entity.rot),
         Prop::Trace => Value::F(entity.trace),
         Prop::Flow => Value::F(entity.flow),
+        Prop::FlowBack => Value::F(entity.flow_back),
         Prop::Hue => Value::F(entity.hue.unwrap_or(0.0)),
         Prop::Value => Value::F(entity.counter.as_ref()?.value),
         Prop::Morph => Value::F(0.0),
@@ -1042,7 +1053,13 @@ fn authored_value3(entity: &Entity3D, prop: Prop) -> Option<Value> {
         },
         Prop::Trace => Value::F(entity.trace),
         Prop::Morph => Value::F(0.0),
-        Prop::Ctrl | Prop::Rot | Prop::Flow | Prop::Hue | Prop::Value | Prop::PlotX => return None,
+        Prop::Ctrl
+        | Prop::Rot
+        | Prop::Flow
+        | Prop::FlowBack
+        | Prop::Hue
+        | Prop::Value
+        | Prop::PlotX => return None,
     })
 }
 
@@ -1067,6 +1084,7 @@ fn set_authored_value(entity: &mut Entity, prop: Prop, value: Value) {
         (Prop::Rot, Value::F(value)) => entity.rot = value,
         (Prop::Trace, Value::F(value)) => entity.trace = value,
         (Prop::Flow, Value::F(value)) => entity.flow = value,
+        (Prop::FlowBack, Value::F(value)) => entity.flow_back = value,
         (Prop::Hue, Value::F(value)) => entity.hue = Some(value),
         (Prop::Value, Value::F(value)) => {
             if let Some(counter) = &mut entity.counter {

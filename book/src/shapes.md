@@ -16,6 +16,27 @@ Each line below is the whole call — copy it and tweak the numbers.
 | **dot** | `dot(p, (cx, cy), 8);` | a small filled dot, radius 8 |
 | **text** | `text(cap, (cx, 640), "hello");` | a text label anchored at a point |
 
+### Ordinary text is portable and shaped automatically
+
+`text`, `say`, captions, labels, and kit-generated words use Manic's embedded
+font engine. No machine font is consulted, and there is no font-selection DSL:
+choose only the semantic `mono`, `bold`, or `display` look. Manic handles
+fallback, ligatures, combining marks, bidirectional order, wrapping, reveal,
+rotation, glow, camera zoom, and recording from one shaped layout.
+
+Arabic and Devanagari are bundled script examples, so these work unchanged in
+preview, backend recording, and the browser build:
+
+```manic
+text(arabic, (cx, 300), "التعلّم يجعل الأفكار واضحة");
+text(hindi,  (cx, 420), "ज्ञान से प्रकाश मिलता है");
+```
+
+Use `equation` or inline `$…$` for mathematical typesetting. Run `manic check`
+before rendering; an unsupported Unicode cluster names the entity and code
+point instead of silently drawing a replacement box. Colour emoji remains
+intentionally unsupported until colour-font rendering is portable.
+
 Plus a few composite helpers built from those: `polygon`, `arc`/`sector`, `brace`/
 `bracelabel`, `caption` (a row of words), and `support(id, (cx,cy), [len], ["dir"])`
 — the hatched wall / ceiling / floor for mechanics & textbook diagrams (`"dir"` is

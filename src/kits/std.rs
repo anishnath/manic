@@ -1424,8 +1424,15 @@ fn m_display(s: &mut Scene, a: &Args) -> Result<(), Error> {
 
 fn m_untraced(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
-    if let Some(e) = s.get_mut(&id) {
-        e.trace = 0.0;
+    let mut matched = false;
+    for entity in &mut s.entities {
+        if entity.id == id || entity.tags.iter().any(|tag| tag == &id) {
+            entity.trace = 0.0;
+            matched = true;
+        }
+    }
+    if matched {
+        return Ok(());
     } else if let Some(e) = s.get_3d_mut(&id) {
         e.trace = 0.0;
     } else {
@@ -3116,41 +3123,110 @@ fn v_wander(s: &Scene, a: &Args) -> Result<Clip, Error> {
     })
 }
 
-/// `flow(path, [duration])` — advance the transient luminous path pulse by one
-/// cycle. Repeated calls compose because the stored phase is monotonic and the
-/// renderer uses only its fractional part.
+fn flow_path_length(entity: &Entity) -> f32 {
+    match &entity.shape {
+        Shape::Line { to } | Shape::Arrow { to } => (*to - entity.pos).length(),
+        Shape::Curve { ctrl, to, .. } => {
+            let mut length = 0.0;
+            let mut previous = entity.pos;
+            for index in 1..=32 {
+                let t = index as f32 / 32.0;
+                let u = 1.0 - t;
+                let point = entity.pos * (u * u) + *ctrl * (2.0 * u * t) + *to * (t * t);
+                length += (point - previous).length();
+                previous = point;
+            }
+            length
+        }
+        Shape::Polyline { pts } => pts
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).length())
+            .sum(),
+        Shape::Arc { r, sweep, .. } => r * sweep.to_radians().abs(),
+        _ => 0.0,
+    }
+}
+
+/// `flow(path, [duration], [direction], [mode])` — send a luminous pulse or a
+/// finite, cleanly draining stream. Direction is `forward`/`reverse`/`both`; mode is
+/// `once`/`continuous`. Repeated calls compose from a monotonic signed phase.
 fn v_flow(s: &Scene, a: &Args) -> Result<Clip, Error> {
-    a.max(2)?;
+    a.max(4)?;
     let id = a.ident(0)?;
-    let e = s
-        .get(&id)
-        .ok_or_else(|| Error::new(format!("no path named `{id}`"), a.span_of(0)))?;
-    if !matches!(
-        e.shape,
-        Shape::Line { .. }
-            | Shape::Arrow { .. }
-            | Shape::Curve { .. }
-            | Shape::Polyline { .. }
-            | Shape::Arc { .. }
-    ) {
-        return Err(Error::new(
-            format!("`{id}` is not a line, curve, spline, arc, or link"),
-            a.span_of(0),
-        ));
+    let paths: Vec<(&Entity, f32)> = s
+        .entities
+        .iter()
+        .filter(|entity| entity.id == id || entity.tags.iter().any(|tag| tag == &id))
+        .filter(|entity| {
+            matches!(
+                entity.shape,
+                Shape::Line { .. }
+                    | Shape::Arrow { .. }
+                    | Shape::Curve { .. }
+                    | Shape::Polyline { .. }
+                    | Shape::Arc { .. }
+            )
+        })
+        .map(|entity| (entity, flow_path_length(entity)))
+        .collect();
+    if paths.is_empty() {
+        let message = if s.get(&id).is_some() {
+            format!("`{id}` is not a line, curve, spline, arc, or link")
+        } else {
+            format!("no line, curve, spline, arc, or link named or tagged `{id}`")
+        };
+        return Err(Error::new(message, a.span_of(0)));
     }
     let dur = a.opt_num(1)?.unwrap_or(1.0);
     if dur <= 0.0 {
         return Err(Error::new("flow duration must be positive", a.span_of(1)));
     }
+    let direction = if a.len() > 2 {
+        a.ident(2)?
+    } else {
+        "forward".to_string()
+    };
+    let channels: &[Prop] = match direction.as_str() {
+        "forward" => &[Prop::Flow],
+        "reverse" => &[Prop::FlowBack],
+        "both" => &[Prop::Flow, Prop::FlowBack],
+        _ => {
+            return Err(Error::new(
+                "flow direction must be `forward`, `reverse`, or `both`",
+                a.span_of(2),
+            ))
+        }
+    };
+    let mode = if a.len() > 3 {
+        a.ident(3)?
+    } else {
+        "once".to_string()
+    };
+    if mode != "once" && mode != "continuous" {
+        return Err(Error::new(
+            "flow mode must be `once` or `continuous`",
+            a.span_of(3),
+        ));
+    }
     Ok(Clip {
-        tracks: vec![TrackSpec {
-            id,
-            prop: Prop::Flow,
-            target: TargetValue::Rel(Value::F(1.0)),
-            start: 0.0,
-            dur,
-            easing: Easing::Linear,
-        }],
+        tracks: paths
+            .into_iter()
+            .flat_map(|(path, length)| {
+                let cycles = if mode == "continuous" {
+                    (dur * 420.0 / length.max(1.0)).round().max(2.0)
+                } else {
+                    1.0
+                };
+                channels.iter().map(move |channel| TrackSpec {
+                    id: path.id.clone(),
+                    prop: *channel,
+                    target: TargetValue::Rel(Value::F(cycles)),
+                    start: 0.0,
+                    dur,
+                    easing: Easing::Linear,
+                })
+            })
+            .collect(),
         events: Vec::new(),
         dur,
     })
@@ -4109,6 +4185,94 @@ mod tests {
         let (rect_base, rect_timeline) = rect_movie.finalize();
         let end = rect_timeline.apply(&rect_base, 1.0);
         assert_eq!(end.get("edge").unwrap().pos, Vec2::new(200.0, 230.0));
+    }
+
+    #[test]
+    fn flow_supports_reverse_and_finite_continuous_streams() {
+        let forward = crate::parse(
+            "canvas(800,500); line(path,(100,250),(700,250)); flow(path,4,forward,continuous);",
+        )
+        .unwrap();
+        let (base, timeline) = forward.finalize();
+        let middle = timeline.apply(&base, 2.0).get("path").unwrap().flow;
+        let end = timeline.apply(&base, 4.0).get("path").unwrap().flow;
+        assert!(
+            middle > 1.0,
+            "continuous flow must complete repeated cycles"
+        );
+        assert_eq!(
+            end.fract(),
+            0.0,
+            "a finite stream must drain on a cycle boundary"
+        );
+
+        let reverse = crate::parse(
+            "canvas(800,500); line(path,(100,250),(700,250)); flow(path,2,reverse,once);",
+        )
+        .unwrap();
+        let (base, timeline) = reverse.finalize();
+        assert!((timeline.apply(&base, 1.0).get("path").unwrap().flow_back - 0.5).abs() < 0.001);
+        assert!((timeline.apply(&base, 2.0).get("path").unwrap().flow_back - 1.0).abs() < 0.001);
+
+        let duplex = crate::parse(
+            "canvas(800,500); line(path,(100,250),(700,250)); flow(path,2,both,continuous);",
+        )
+        .unwrap();
+        let (base, timeline) = duplex.finalize();
+        let frame = timeline.apply(&base, 0.75);
+        assert!(frame.get("path").unwrap().flow > 0.0);
+        assert!(frame.get("path").unwrap().flow_back > 0.0);
+    }
+
+    #[test]
+    fn generic_flow_composition_does_not_require_connected_or_domain_objects() {
+        let movie = crate::parse(
+            r#"
+            canvas(800,500);
+            line(a,(100,250),(700,100)); tag(a,lanes);
+            line(b,(100,250),(700,250)); tag(b,lanes);
+            line(c,(100,250),(700,400)); tag(c,lanes);
+            rect(selected,(100,250),20,20);
+            circle(copy1,(100,250),8); rect(copy2,(100,250),16,16);
+            text(copy3,(100,250),"X");
+            spline(ribbon,(80,420),(240,330),(430,440),(720,320));
+            hidden(ribbon.knots);
+            step("select") { par { travel(selected,b,1,linear); flow(b,1); } }
+            step("together") { par {
+              travel(copy1,a,1,linear); travel(copy2,b,1,linear); travel(copy3,c,1,linear);
+              flow(lanes,1,forward,once);
+            } }
+            step("free-design") { flow(ribbon,2,both,continuous); }
+            "#,
+        )
+        .expect("generic objects and unconnected paths should compose without domain metadata");
+        let (base, timeline) = movie.finalize();
+
+        let selected = timeline.apply(&base, 0.5);
+        assert_eq!(selected.get("a").unwrap().flow, 0.0);
+        assert!(selected.get("b").unwrap().flow > 0.0);
+        assert_eq!(selected.get("c").unwrap().flow, 0.0);
+
+        let broadcast = timeline.apply(&base, 1.5);
+        for lane in ["a", "b", "c"] {
+            assert!(broadcast.get(lane).unwrap().flow > 0.0);
+        }
+        assert_eq!(
+            timeline.apply(&base, 2.0).get("copy1").unwrap().pos,
+            Vec2::new(700.0, 100.0)
+        );
+        assert_eq!(
+            timeline.apply(&base, 2.0).get("copy2").unwrap().pos,
+            Vec2::new(700.0, 250.0)
+        );
+        assert_eq!(
+            timeline.apply(&base, 2.0).get("copy3").unwrap().pos,
+            Vec2::new(700.0, 400.0)
+        );
+
+        let free_frame = timeline.apply(&base, 3.0);
+        let free = free_frame.get("ribbon").unwrap();
+        assert!(free.flow > 0.0 && free.flow_back > 0.0);
     }
 
     #[test]

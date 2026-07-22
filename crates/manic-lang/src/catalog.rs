@@ -37,6 +37,11 @@ pub enum Ty {
     /// A named plot function (`sin`/`cos`/…) — a bareword from [`NAMED_FNS`], or
     /// a `"formula"` string instead (validated only when written as a bareword).
     Fn,
+    /// Systems connection routing: currently `orthogonal`; numeric bends are
+    /// also accepted by the engine for backwards compatibility.
+    Routing,
+    /// A port on a Systems node boundary.
+    Port,
 }
 
 #[derive(Debug, Clone)]
@@ -437,8 +442,8 @@ pub fn catalog() -> Vec<BuiltinSpec> {
             "flow",
             Verb,
             "std",
-            "send a luminous emphasis pulse over a path",
-            &[("path", Ident, R), ("dur", Num, O)],
+            "send a directional luminous pulse or finite continuous stream over a path",
+            &[("path", Ident, R), ("dur", Num, O), ("direction", Ident, O), ("mode", Ident, O)],
         ),
         spec(
             "erase",
@@ -1139,6 +1144,15 @@ pub fn catalog() -> Vec<BuiltinSpec> {
         spec("pie", Ctor, "math", "a pie chart", &[]),
         spec("arrowfield", Ctor, "math", "a named vector field", &[]),
         spec("vectorfield", Ctor, "math", "a vector field", &[]),
+        // ---- systems architecture foundation ----
+        spec("architecture", Ctor, "systems", "an automatically laid-out architecture canvas", &[("id", Name, R), ("center", Point, R), ("width", Num, R), ("height", Num, R)]),
+        spec("node", Ctor, "systems", "a generic or provider-backed component inside an architecture or cluster", &[("id", Name, R), ("parent", Ident, R), ("kind", Str, R), ("label", Str, R)]),
+        spec("cluster", Ctor, "systems", "a labelled responsive ownership group; children name it as their parent", &[("id", Name, R), ("parent", Ident, R), ("label", Str, R), ("legacy_members", Str, O)]),
+        spec("connect", Ctor, "systems", "a dashed directed possibility with an optional bend or port-aware orthogonal route", &[("id", Name, R), ("from", Ident, R), ("to", Ident, R), ("routing", Routing, O), ("from_port", Port, O), ("to_port", Port, O)]),
+        spec("message", Ctor, "systems", "a persistent generic message starting at one system node", &[("id", Name, R), ("source", Ident, R), ("label", Str, R)]),
+        spec("request", Ctor, "systems", "a persistent labelled request starting at one system node", &[("id", Name, R), ("source", Ident, R), ("label", Str, R)]),
+        spec("route", MutVerb, "systems", "move one persistent message through a continuous named connection and illuminate its selected lane", &[("message", Ident, R), ("connection", Ident, R), ("duration", Num, O), ("ease", Ease, O)]),
+        spec("hotpath", MutVerb, "systems", "move one persistent message end-to-end over a seeded valid path, choosing one lane at each fan-out", &[("message", Ident, R), ("duration", Num, O), ("seed", Num, O)]),
         // ---- geo ----
         spec(
             "point",
@@ -2891,6 +2905,12 @@ pub const EASINGS: &[&str] = &[
     "elastic",
     "spring",
 ];
+
+/// Systems connection routing choices offered by editor completion.
+pub const SYSTEM_ROUTINGS: &[&str] = &["orthogonal"];
+
+/// Explicit node-boundary ports. `auto` remains the ergonomic default.
+pub const SYSTEM_PORTS: &[&str] = &["auto", "left", "right", "top", "bottom"];
 
 /// Named plot functions accepted where a `Fn` argument is allowed (`plot`'s
 /// function slot) — a bareword alternative to a `"formula"` string. MUST stay in

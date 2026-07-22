@@ -436,7 +436,8 @@ impl Movie {
     /// ids by this point, so any track/event id absent from the scene is a real
     /// mistake (a typo, or animating a builtin's bare id when only sub-ids exist).
     pub fn validate(&self) -> Result<(), String> {
-        use std::collections::BTreeSet;
+        use std::collections::{BTreeMap, BTreeSet};
+        use unicode_segmentation::UnicodeSegmentation;
         let mut unknown: BTreeSet<String> = BTreeSet::new();
         for (_, clip) in &self.placed {
             for t in &clip.tracks {
@@ -450,29 +451,150 @@ impl Movie {
                 }
             }
         }
-        if unknown.is_empty() {
+        let mut missing_glyphs: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut inspect = |owner: &str, kind, text: &str| {
+            for grapheme in text.graphemes(true) {
+                if !crate::style::bundled_grapheme_supports(kind, grapheme) {
+                    missing_glyphs
+                        .entry(owner.to_string())
+                        .or_default()
+                        .insert(grapheme.to_string());
+                }
+            }
+        };
+        inspect(
+            "movie title",
+            crate::primitives::FontKind::Display,
+            &self.title,
+        );
+        for entity in &self.scene.entities {
+            inspect_shape_text(
+                &format!("entity `{}`", entity.id),
+                entity.font,
+                &entity.shape,
+                &mut inspect,
+            );
+        }
+        let stages = self.stage_ranges();
+        for (clip_at, clip) in &self.placed {
+            for event in &clip.events {
+                let event_at = clip_at + event.at();
+                // Reverse order makes an exact stage boundary belong to the
+                // stage beginning there, matching preview/record semantics.
+                let stage = stages
+                    .iter()
+                    .rev()
+                    .find(|stage| event_at >= stage.start && event_at <= stage.end)
+                    .map(|stage| stage.name.clone())
+                    .unwrap_or_else(|| "unstaged".to_string());
+                match event {
+                    crate::timeline::TimelineEvent::Text { id, content, .. } => {
+                        let kind = self
+                            .scene
+                            .get(id)
+                            .map(|entity| entity.font)
+                            .unwrap_or_default();
+                        inspect(&format!("entity `{id}` in stage `{stage}`"), kind, content);
+                    }
+                    crate::timeline::TimelineEvent::Shape { id, shape, .. } => {
+                        let kind = self
+                            .scene
+                            .get(id)
+                            .map(|entity| entity.font)
+                            .unwrap_or_default();
+                        inspect_shape_text(
+                            &format!("entity `{id}` in stage `{stage}`"),
+                            kind,
+                            shape,
+                            &mut inspect,
+                        );
+                    }
+                    crate::timeline::TimelineEvent::Become { id, to, .. } => {
+                        inspect_shape_text(
+                            &format!("entity `{id}` in stage `{stage}`"),
+                            to.font,
+                            &to.shape,
+                            &mut inspect,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        if unknown.is_empty() && missing_glyphs.is_empty() {
             return Ok(());
         }
-        // Every entity id and tag an author could legitimately have meant.
-        let candidates = crate::namehint::candidate_names(&self.scene);
-        let mut lines = vec![format!(
-            "{} unknown entity id(s) in animations — nothing is created with {}:",
-            unknown.len(),
-            if unknown.len() == 1 {
-                "this name"
-            } else {
-                "these names"
+
+        let mut sections = Vec::new();
+        if !unknown.is_empty() {
+            // Every entity id and tag an author could legitimately have meant.
+            let candidates = crate::namehint::candidate_names(&self.scene);
+            let mut lines = vec![format!(
+                "{} unknown entity id(s) in animations — nothing is created with {}:",
+                unknown.len(),
+                if unknown.len() == 1 {
+                    "this name"
+                } else {
+                    "these names"
+                }
+            )];
+            for id in &unknown {
+                match crate::namehint::nearest_name(id, &candidates) {
+                    Some(sugg) => lines.push(format!("  • `{id}` — did you mean `{sugg}`?")),
+                    None => lines.push(format!(
+                        "  • `{id}` — create it before animating it (a shape/text/… with this id or tag)"
+                    )),
+                }
             }
-        )];
-        for id in &unknown {
-            match crate::namehint::nearest_name(id, &candidates) {
-                Some(sugg) => lines.push(format!("  • `{id}` — did you mean `{sugg}`?")),
-                None => lines.push(format!(
-                    "  • `{id}` — create it before animating it (a shape/text/… with this id or tag)"
-                )),
+            sections.push(lines.join("\n"));
+        }
+        if !missing_glyphs.is_empty() {
+            let count: usize = missing_glyphs.values().map(BTreeSet::len).sum();
+            let mut lines = vec![format!(
+                "{count} unsupported text grapheme cluster(s) — no bundled deterministic font contains:"
+            )];
+            for (owner, graphemes) in missing_glyphs {
+                let glyphs = graphemes
+                    .iter()
+                    .map(|grapheme| {
+                        let codepoints = grapheme
+                            .chars()
+                            .map(|ch| format!("U+{:04X}", ch as u32))
+                            .collect::<Vec<_>>()
+                            .join(" + ");
+                        format!("`{grapheme}` ({codepoints})")
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(format!("  • {owner}: {glyphs}"));
+            }
+            lines.push(
+                "  use a native Manic shape/arrow for geometry, `$…$` for math, or an approved bundled font face"
+                    .to_string(),
+            );
+            sections.push(lines.join("\n"));
+        }
+        Err(sections.join("\n\n"))
+    }
+}
+
+fn inspect_shape_text(
+    owner: &str,
+    kind: crate::primitives::FontKind,
+    shape: &Shape,
+    inspect: &mut impl FnMut(&str, crate::primitives::FontKind, &str),
+) {
+    match shape {
+        Shape::Text { content, .. } => inspect(owner, kind, content),
+        Shape::RichText { runs, .. } => {
+            for run in runs {
+                if let crate::primitives::TextRun::Text(content) = run {
+                    inspect(owner, kind, content);
+                }
             }
         }
-        Err(lines.join("\n"))
+        _ => {}
     }
 }
 
@@ -500,6 +622,47 @@ mod validate_tests {
     fn parse_passes_when_all_ids_exist() {
         let m = crate::parse("dot(a, (100,100), 5);\nshow(a, 0.5);").unwrap();
         assert!(m.validate().is_ok(), "all ids exist → should validate");
+    }
+
+    #[test]
+    fn deterministic_font_fallback_accepts_the_p0_symbol_corpus() {
+        let m = crate::parse(
+            "title(\"Glyph fallback\");\n\
+             text(symbols, (640,360), \"→ ← ↔ ⇒ ✓ ✗ ● ○ ◆ ◇ ∞ ≤ ≥\");",
+        )
+        .unwrap();
+        assert!(
+            m.validate().is_ok(),
+            "the documented architecture/math symbol corpus must validate"
+        );
+    }
+
+    #[test]
+    fn deterministic_font_validation_accepts_bundled_shaped_scripts() {
+        let m = crate::parse(
+            "text(arabic, (640,300), \"التعلّم يجعل الأفكار واضحة\");\n\
+             text(devanagari, (640,420), \"ज्ञान से प्रकाश मिलता है\");",
+        )
+        .unwrap();
+        assert!(
+            m.validate().is_ok(),
+            "bundled Arabic and Devanagari lessons must pass the render boundary"
+        );
+    }
+
+    #[test]
+    fn deterministic_font_fallback_reports_owner_and_codepoint() {
+        let m = crate::parse("text(label, (640,360), \"unsupported 漢 glyph\");").unwrap();
+        let err = m.validate().expect_err("unbundled glyph should fail check");
+        assert!(
+            err.contains("entity `label`"),
+            "owner should be named: {err}"
+        );
+        assert!(err.contains("U+6F22"), "code point should be named: {err}");
+        assert!(
+            err.contains("approved bundled font face"),
+            "diagnostic should explain the repair path: {err}"
+        );
     }
 
     #[test]

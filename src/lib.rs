@@ -60,6 +60,7 @@ pub mod render;
 pub mod render3d;
 pub mod scene;
 pub mod style;
+pub(crate) mod text;
 pub mod timeline;
 
 use macroquad::prelude::Vec2;
@@ -99,6 +100,13 @@ pub fn parse_with_canvas(
 ///
 /// Call this from a plain `fn main()` — no macroquad attribute needed.
 pub fn run(movie: movie::Movie) {
+    let session = match RenderSession::new(movie) {
+        Ok(session) => session,
+        Err(message) => {
+            eprintln!("manic: cannot render: {message}");
+            std::process::exit(1);
+        }
+    };
     let opts = match player::parse_opts() {
         Ok(opts) => opts,
         Err(message) => {
@@ -106,7 +114,8 @@ pub fn run(movie: movie::Movie) {
             std::process::exit(2);
         }
     };
-    if let Err(message) = player::playback_window(&movie, &opts, movie.content_duration() + 1.0) {
+    let movie = session.movie();
+    if let Err(message) = player::playback_window(movie, &opts, movie.content_duration() + 1.0) {
         eprintln!("manic: {message}");
         std::process::exit(2);
     }
@@ -120,7 +129,56 @@ pub fn run(movie: movie::Movie) {
         sample_count: 4,
         ..Default::default()
     };
-    macroquad::Window::from_config(conf, player::run_loop(movie, opts));
+    macroquad::Window::from_config(conf, player::run_loop(session, opts));
+}
+
+/// A movie that has crossed Manic's complete validation boundary and is safe
+/// to hand to a production renderer. The inner movie is private so preview,
+/// recording, backend, and future WASM render entry points cannot construct an
+/// unchecked playback session accidentally.
+pub struct RenderSession {
+    movie: movie::Movie,
+}
+
+impl std::fmt::Debug for RenderSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RenderSession")
+            .field("title", &self.movie.title)
+            .field("canvas", &(self.movie.width, self.movie.height))
+            .finish_non_exhaustive()
+    }
+}
+
+impl RenderSession {
+    pub fn new(movie: movie::Movie) -> Result<Self, String> {
+        movie.validate()?;
+        Ok(Self { movie })
+    }
+
+    pub fn movie(&self) -> &movie::Movie {
+        &self.movie
+    }
+
+    pub(crate) fn into_movie(self) -> movie::Movie {
+        self.movie
+    }
+}
+
+#[cfg(test)]
+mod render_preflight_tests {
+    #[test]
+    fn direct_render_preflight_rejects_an_unbundled_grapheme() {
+        let movie = crate::parse("text(label, (640,360), \"unsupported 漢 glyph\");").unwrap();
+        let err = super::RenderSession::new(movie).expect_err("render must not bypass validation");
+        assert!(err.contains("U+6F22"), "diagnostic should survive: {err}");
+    }
+
+    #[test]
+    fn validated_movie_crosses_the_checked_render_boundary() {
+        let movie = crate::parse("text(label, (640,360), \"Manic → ✓\");").unwrap();
+        let session = super::RenderSession::new(movie).expect("bundled text should render");
+        assert_eq!(session.movie().width, 1280);
+    }
 }
 
 /// Everything a movie script needs: `use manic::prelude::*;`

@@ -285,3 +285,20 @@ ex-creator-v2-olympiad-geometry|oHrtCNCl5gI|Olympiad Geometry Reel — Pause, Pr
 ex-creator-v2-latex-calculus|0YZZjx5XSd4|A Calculus Reel With Real LaTeX — manic
 ex-creator-v2-latex-algebra|aX9akkjnZfA|A LaTeX Algebra Quiz, Perfectly Typeset — manic
 ex-creator-v2-latex-physics|6Z-k1kg5KSo|Physics Equations on a Responsive Creator Canvas — manic
+
+# ---- examples: systems & architecture ----
+ex-systems-foundation|PLACEHOLDER|Animated Architecture, No Cloud Assets — manic Systems Kit
+ex-systems-architecture-poc|PLACEHOLDER|Watch One Request Cross a Whole AWS Architecture — manic
+ex-systems-arrow-patterns|PLACEHOLDER|Every Connection Pattern in One Diagram — manic Systems Kit
+ex-systems-rabbitmq-consumers|PLACEHOLDER|One-of-Many Delivery, Authored Not Inferred — manic
+ex-aws-three-tier-web-application|PLACEHOLDER|A Three-Tier AWS App, One Moving Request — manic
+ex-aws-event-processing-clusters-poc|PLACEHOLDER|Event Processing on AWS: Topology to Hot Path — manic
+ex-aws-clustered-web-services|PLACEHOLDER|Clustered Web Services on AWS, Request & Response — manic
+ex-gcp-clustered-web-services|PLACEHOLDER|The Same Architecture on Google Cloud — manic
+ex-gcp-message-collecting|PLACEHOLDER|GCP IoT: Devices Publish Once, the Pipeline Fans Out — manic
+ex-k8s-three-tier|PLACEHOLDER|A Three-Tier App on Kubernetes, Following One Request — manic
+ex-k8s-stateful-architecture|PLACEHOLDER|How a Kubernetes StatefulSet Keeps Its Storage — manic
+ex-k8s-cluster-components|PLACEHOLDER|Inside a Kubernetes Cluster — Everything Talks to the API — manic
+ex-serverless-processing|PLACEHOLDER|A Mixed On-Prem + AWS Event Pipeline, Animated — manic
+ex-onprem-advanced-web-service|PLACEHOLDER|One On-Prem Platform, Three Runtime Stories — manic
+ex-onprem-advanced-web-service-v2|PLACEHOLDER|Advanced On-Prem Web Service, Paths Coloured by Relationship — manic

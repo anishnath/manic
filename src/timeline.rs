@@ -80,6 +80,8 @@ pub enum Prop {
     /// Monotonic path-flow phase; the renderer uses its fractional part for a
     /// transient travelling emphasis pulse.
     Flow,
+    /// Reverse-direction companion to [`Prop::Flow`].
+    FlowBack,
     /// HSL hue angle in degrees — drives `color` for colour cycling.
     Hue,
     /// A live numeric readout ([`crate::primitives::Counter::value`]); the
@@ -417,6 +419,7 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             Prop::Rot => Value::F(e.rot),
             Prop::Trace => Value::F(e.trace),
             Prop::Flow => Value::F(e.flow),
+            Prop::FlowBack => Value::F(e.flow_back),
             Prop::Hue => Value::F(e.hue.unwrap_or(0.0)),
             Prop::Value => Value::F(e.counter.as_ref().map(|c| c.value).unwrap_or(0.0)),
             Prop::Morph => {
@@ -469,7 +472,13 @@ fn get_prop(scene: &Scene, id: &str, prop: Prop) -> Option<Value> {
             }
             Value::F(0.0)
         }
-        Prop::Rot | Prop::Ctrl | Prop::Hue | Prop::Value | Prop::PlotX | Prop::Flow => return None,
+        Prop::Rot
+        | Prop::Ctrl
+        | Prop::Hue
+        | Prop::Value
+        | Prop::PlotX
+        | Prop::Flow
+        | Prop::FlowBack => return None,
     })
 }
 
@@ -483,6 +492,7 @@ fn set_prop(scene: &mut Scene, id: &str, prop: Prop, v: Value) {
             (Prop::Rot, Value::F(r)) => e.rot = r,
             (Prop::Trace, Value::F(f)) => e.trace = f,
             (Prop::Flow, Value::F(f)) => e.flow = f,
+            (Prop::FlowBack, Value::F(f)) => e.flow_back = f,
             (Prop::Hue, Value::F(h)) => {
                 e.hue = Some(h);
                 let c = crate::style::hsl(h, 1.0, 0.6);

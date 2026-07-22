@@ -221,6 +221,9 @@ pub struct Entity {
     /// luminous pulse travelling over path-like shapes; integer values are
     /// resting states with no pulse. The `flow` verb advances it by one.
     pub flow: f32,
+    /// Independent reverse-direction flow phase. Keeping a separate channel
+    /// makes forward, reverse, and duplex streams compose statelessly.
+    pub flow_back: f32,
     /// Draw order: higher `z` draws on top.
     pub z: i32,
     pub stroke: StrokeStyle,
@@ -726,6 +729,7 @@ impl Entity {
             scale: 1.0,
             trace: 1.0,
             flow: 0.0,
+            flow_back: 0.0,
             z: 0,
             stroke: StrokeStyle::default(),
             dash: None,

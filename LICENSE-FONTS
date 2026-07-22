@@ -2,9 +2,24 @@ The fonts embedded in this crate (assets/fonts/) are licensed under the SIL
 Open Font License, Version 1.1, separately from the crate's MIT license:
 
 - IBM Plex Mono — Copyright 2017 IBM Corp. (https://github.com/IBM/plex)
+- Noto Sans — Copyright 2012 Google Inc.
+  (https://github.com/notofonts/noto-fonts)
+- Noto Sans Math — Copyright 2018 The Noto Project Authors
+  (https://github.com/notofonts/noto-fonts)
+- Noto Sans Symbols — Copyright 2012 Google Inc.
+  (https://github.com/notofonts/noto-fonts)
+- Noto Sans Symbols 2 — Copyright 2017 Google Inc.
+  (https://github.com/notofonts/noto-fonts)
+- Noto Sans Arabic — Copyright 2012 Google Inc.
+  (https://github.com/notofonts/noto-fonts)
+- Noto Sans Devanagari — Copyright 2012 Google Inc.
+  (https://github.com/notofonts/noto-fonts)
 
-Used for all monospace text in the manic house style (regular for data and
-captions, bold for labels and display headlines).
+IBM Plex Mono remains the Manic house face (regular for data and captions,
+bold for labels and display headlines). The Noto faces are deterministic
+embedded fallbacks for extended Latin, mathematical, directional, geometric,
+technical, Arabic, and Devanagari Unicode glyphs that IBM Plex Mono does not
+contain.
 
 -----------------------------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

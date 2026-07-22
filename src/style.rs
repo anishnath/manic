@@ -4,6 +4,8 @@
 
 use macroquad::prelude::Color;
 use macroquad::text::{load_ttf_font_from_bytes, Font};
+use std::sync::OnceLock;
+use ttf_parser::Face;
 
 /// Background: deep indigo-black — the void behind the phosphor.
 pub const VOID: Color = Color::new(0.051, 0.043, 0.102, 1.0);
@@ -340,31 +342,292 @@ pub fn hsl(h: f32, s: f32, l: f32) -> Color {
     Color::new(r + m, g + m, b + m, 1.0)
 }
 
-/// Loaded font set. `None` fields fall back to macroquad's built-in font.
+pub(crate) const PLEX_REGULAR_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/IBMPlexMono-Regular.ttf");
+pub(crate) const PLEX_BOLD_BYTES: &[u8] = include_bytes!("../assets/fonts/IBMPlexMono-Bold.ttf");
+pub(crate) const NOTO_SANS_BYTES: &[u8] = include_bytes!("../assets/fonts/NotoSans-Regular.ttf");
+pub(crate) const NOTO_MATH_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/NotoSansMath-Regular.ttf");
+pub(crate) const NOTO_SYMBOLS_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/NotoSansSymbols-Regular.ttf");
+pub(crate) const NOTO_SYMBOLS2_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/NotoSansSymbols2-Regular.ttf");
+pub(crate) const NOTO_ARABIC_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/NotoSansArabic-Regular.ttf");
+pub(crate) const NOTO_DEVANAGARI_BYTES: &[u8] =
+    include_bytes!("../assets/fonts/NotoSansDevanagari-Regular.ttf");
+
+/// Stable font slot selected for one Unicode grapheme cluster.
+///
+/// This is deliberately internal to rendering: authors still choose the
+/// semantic `FontKind`; fallback never leaks into the Manic vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FontSlot {
+    Primary,
+    Math,
+    General,
+    Symbols,
+    Symbols2,
+    Arabic,
+    Devanagari,
+}
+
+struct Coverage {
+    regular: Face<'static>,
+    bold: Face<'static>,
+    general: Face<'static>,
+    math: Face<'static>,
+    symbols: Face<'static>,
+    symbols2: Face<'static>,
+    arabic: Face<'static>,
+    devanagari: Face<'static>,
+}
+
+impl Coverage {
+    fn load() -> Coverage {
+        let parse = |bytes: &'static [u8], name: &str| {
+            Face::parse(bytes, 0)
+                .unwrap_or_else(|err| panic!("embedded font `{name}` is invalid: {err}"))
+        };
+        Coverage {
+            regular: parse(PLEX_REGULAR_BYTES, "IBM Plex Mono Regular"),
+            bold: parse(PLEX_BOLD_BYTES, "IBM Plex Mono Bold"),
+            general: parse(NOTO_SANS_BYTES, "Noto Sans"),
+            math: parse(NOTO_MATH_BYTES, "Noto Sans Math"),
+            symbols: parse(NOTO_SYMBOLS_BYTES, "Noto Sans Symbols"),
+            symbols2: parse(NOTO_SYMBOLS2_BYTES, "Noto Sans Symbols 2"),
+            arabic: parse(NOTO_ARABIC_BYTES, "Noto Sans Arabic"),
+            devanagari: parse(NOTO_DEVANAGARI_BYTES, "Noto Sans Devanagari"),
+        }
+    }
+
+    fn primary(&self, kind: crate::primitives::FontKind) -> &Face<'static> {
+        match kind {
+            crate::primitives::FontKind::Mono => &self.regular,
+            crate::primitives::FontKind::Display | crate::primitives::FontKind::MonoBold => {
+                &self.bold
+            }
+        }
+    }
+
+    fn slot_for_grapheme(
+        &self,
+        kind: crate::primitives::FontKind,
+        grapheme: &str,
+    ) -> Option<FontSlot> {
+        let supports = |face: &Face<'static>| {
+            let mut has_visible = false;
+            let supported = grapheme.chars().all(|ch| {
+                if ch.is_whitespace() {
+                    true
+                } else if is_shaping_control(ch) {
+                    true
+                } else {
+                    has_visible = true;
+                    !ch.is_control() && face.glyph_index(ch).is_some()
+                }
+            });
+            supported && (has_visible || grapheme.chars().all(char::is_whitespace))
+        };
+        if supports(self.primary(kind)) {
+            Some(FontSlot::Primary)
+        } else if supports(&self.math) {
+            Some(FontSlot::Math)
+        } else if supports(&self.general) {
+            Some(FontSlot::General)
+        } else if supports(&self.symbols) {
+            Some(FontSlot::Symbols)
+        } else if supports(&self.symbols2) {
+            Some(FontSlot::Symbols2)
+        } else if supports(&self.arabic) {
+            Some(FontSlot::Arabic)
+        } else if supports(&self.devanagari) {
+            Some(FontSlot::Devanagari)
+        } else {
+            None
+        }
+    }
+}
+
+/// Format characters consumed by a shaper rather than drawn as independent
+/// glyphs. They are accepted only as part of a grapheme whose visible code
+/// points are covered by one bundled face.
+fn is_shaping_control(ch: char) -> bool {
+    matches!(ch, '\u{200C}' | '\u{200D}' | '\u{FE0E}' | '\u{FE0F}')
+        || ('\u{FE00}'..='\u{FE0F}').contains(&ch)
+        || ('\u{E0100}'..='\u{E01EF}').contains(&ch)
+}
+
+/// Loaded deterministic font set. Every face is required: a corrupt or
+/// renderer-incompatible bundled font is a package defect, never permission to
+/// fall back to a host/default font.
 ///
 /// The neon-terminal look is all monospace: `display` (headlines) and
 /// `mono_bold` (emphasised labels) share IBM Plex Mono Bold; `mono` is the
 /// regular weight for data and captions. Bold bytes are embedded once and the
 /// [`Font`] cloned into both bold slots.
 pub struct Fonts {
-    pub display: Option<Font>,
-    pub mono: Option<Font>,
-    pub mono_bold: Option<Font>,
+    pub display: Font,
+    pub mono: Font,
+    pub mono_bold: Font,
 }
 
 impl Fonts {
     /// Load the embedded house fonts (IBM Plex Mono, OFL-licensed and compiled
-    /// into the binary, so movies render identically on any machine).
+    /// into the binary, so movies render identically on any machine), plus the
+    /// Noto fallback chain used for math, arrows, technical symbols and marks.
     pub fn load() -> Fonts {
-        let bold =
-            load_ttf_font_from_bytes(include_bytes!("../assets/fonts/IBMPlexMono-Bold.ttf")).ok();
+        let load = |bytes: &'static [u8], name: &str| {
+            load_ttf_font_from_bytes(bytes)
+                .unwrap_or_else(|err| panic!("bundled font `{name}` failed to initialize: {err}"))
+        };
+        let bold = load(PLEX_BOLD_BYTES, "IBM Plex Mono Bold");
         Fonts {
             display: bold.clone(),
-            mono: load_ttf_font_from_bytes(include_bytes!(
-                "../assets/fonts/IBMPlexMono-Regular.ttf"
-            ))
-            .ok(),
+            mono: load(PLEX_REGULAR_BYTES, "IBM Plex Mono Regular"),
             mono_bold: bold,
+        }
+    }
+}
+
+fn bundled_coverage() -> &'static Coverage {
+    static COVERAGE: OnceLock<Coverage> = OnceLock::new();
+    COVERAGE.get_or_init(Coverage::load)
+}
+
+pub(crate) fn bundled_grapheme_supports(kind: crate::primitives::FontKind, grapheme: &str) -> bool {
+    bundled_coverage()
+        .slot_for_grapheme(kind, grapheme)
+        .is_some()
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+    use crate::primitives::FontKind;
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn bundled_fallbacks_cover_the_p0_symbol_corpus() {
+        let coverage = Coverage::load();
+        let corpus = "→ ← ↔ ⇒ ✓ ✗ ● ○ ◆ ◇ ∞ ≤ ≥";
+        for ch in corpus.chars().filter(|ch| !ch.is_whitespace()) {
+            assert!(
+                coverage
+                    .slot_for_grapheme(FontKind::Mono, &ch.to_string())
+                    .is_some(),
+                "missing bundled glyph U+{:04X} `{ch}`",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn ascii_stays_on_the_requested_primary_face() {
+        let coverage = Coverage::load();
+        for kind in [FontKind::Display, FontKind::Mono, FontKind::MonoBold] {
+            for ch in "Manic 123".chars() {
+                assert_eq!(
+                    coverage.slot_for_grapheme(kind, &ch.to_string()),
+                    Some(FontSlot::Primary)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn decomposed_accent_resolves_as_one_supported_cluster() {
+        let coverage = Coverage::load();
+        assert!(coverage
+            .slot_for_grapheme(FontKind::Mono, "e\u{301}")
+            .is_some());
+    }
+
+    #[test]
+    fn bundled_script_faces_cover_arabic_devanagari_and_shaping_controls() {
+        let coverage = Coverage::load();
+        assert_eq!(
+            coverage.slot_for_grapheme(FontKind::Mono, "ع"),
+            Some(FontSlot::Arabic)
+        );
+        assert_eq!(
+            coverage.slot_for_grapheme(FontKind::Mono, "ज्ञ"),
+            Some(FontSlot::Devanagari)
+        );
+        assert!(coverage
+            .slot_for_grapheme(FontKind::Mono, "क\u{200D}्")
+            .is_some());
+        assert_eq!(
+            coverage.slot_for_grapheme(FontKind::Mono, "\u{200D}"),
+            None,
+            "a shaping control without a visible bundled base must fail"
+        );
+    }
+
+    #[test]
+    fn invisible_non_whitespace_control_is_not_silently_accepted() {
+        let coverage = Coverage::load();
+        assert_eq!(coverage.slot_for_grapheme(FontKind::Mono, "\0"), None);
+    }
+
+    #[test]
+    fn bundled_font_manifest_matches_the_packaged_bytes_and_licence() {
+        let manifest = include_str!("../assets/fonts/README.md");
+        let licence = include_str!("../LICENSE-FONTS");
+        let fonts = [
+            (
+                "IBMPlexMono-Regular.ttf",
+                PLEX_REGULAR_BYTES,
+                "6a3412f058c7d8dfd9170c41e85ade48e5156ecb89356110ca57a0a27734af46",
+            ),
+            (
+                "IBMPlexMono-Bold.ttf",
+                PLEX_BOLD_BYTES,
+                "ac27abd6450a64dd94467580a02fe6235156d5b92f2926ebbc8e7489df64e0be",
+            ),
+            (
+                "NotoSansMath-Regular.ttf",
+                NOTO_MATH_BYTES,
+                "ff5e5e7638e05bf7bc159d8801a28a40eddf76c155bec4fee53150babd795e1a",
+            ),
+            (
+                "NotoSans-Regular.ttf",
+                NOTO_SANS_BYTES,
+                "b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5",
+            ),
+            (
+                "NotoSansSymbols-Regular.ttf",
+                NOTO_SYMBOLS_BYTES,
+                "8f02f31959bbdf6061547a188248e13f84dc5fdd940326ec494675f453f072bb",
+            ),
+            (
+                "NotoSansSymbols2-Regular.ttf",
+                NOTO_SYMBOLS2_BYTES,
+                "630846d528dbe4c4981370a4d0a9475a1fd1491a129bb411f8e157cdb5de13c6",
+            ),
+            (
+                "NotoSansArabic-Regular.ttf",
+                NOTO_ARABIC_BYTES,
+                "ceea25b464a656dc3b26849bab9356740401af62aedf1bfa8b7f0d9b75925b1b",
+            ),
+            (
+                "NotoSansDevanagari-Regular.ttf",
+                NOTO_DEVANAGARI_BYTES,
+                "385e78e6359a9d88a0f243d53b1209d7548361ba2194e2b9ec779bcaa7e8949d",
+            ),
+        ];
+
+        assert!(licence.contains("SIL OPEN FONT LICENSE Version 1.1"));
+        for (filename, bytes, expected_sha256) in fonts {
+            let actual_sha256 = Sha256::digest(bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            assert_eq!(actual_sha256, expected_sha256, "hash drift for {filename}");
+            assert!(
+                manifest.contains(filename) && manifest.contains(expected_sha256),
+                "font manifest is missing `{filename}` or its immutable hash"
+            );
         }
     }
 }
