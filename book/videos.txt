@@ -285,3 +285,20 @@ ex-creator-v2-olympiad-geometry|oHrtCNCl5gI|Olympiad Geometry Reel — Pause, Pr
 ex-creator-v2-latex-calculus|0YZZjx5XSd4|A Calculus Reel With Real LaTeX — manic
 ex-creator-v2-latex-algebra|aX9akkjnZfA|A LaTeX Algebra Quiz, Perfectly Typeset — manic
 ex-creator-v2-latex-physics|6Z-k1kg5KSo|Physics Equations on a Responsive Creator Canvas — manic
+
+# ---- examples: systems & architecture ----
+ex-systems-foundation|VMhagIpa65Y|Animated Architecture, No Cloud Assets — manic Systems Kit
+ex-systems-architecture-poc|mzM3owjKGHo|Watch One Request Cross a Whole AWS Architecture — manic
+ex-systems-arrow-patterns|jbjiZwKPh-M|Every Connection Pattern in One Diagram — manic Systems Kit
+ex-systems-rabbitmq-consumers|XMR3hm_a01I|One-of-Many Delivery, Authored Not Inferred — manic
+ex-aws-three-tier-web-application|3uNmnY6qAII|A Three-Tier AWS App, One Moving Request — manic
+ex-aws-event-processing-clusters-poc|Ljq93V7cmIQ|Event Processing on AWS: Topology to Hot Path — manic
+ex-aws-clustered-web-services|j_NJweoV6iw|Clustered Web Services on AWS, Request & Response — manic
+ex-gcp-clustered-web-services|C6cVg6uAWtc|The Same Architecture on Google Cloud — manic
+ex-gcp-message-collecting|AjCnMgu7XzY|GCP IoT: Devices Publish Once, the Pipeline Fans Out — manic
+ex-k8s-three-tier|UnG43NCJj8I|A Three-Tier App on Kubernetes, Following One Request — manic
+ex-k8s-stateful-architecture|eFMhiVjUBGE|How a Kubernetes StatefulSet Keeps Its Storage — manic
+ex-k8s-cluster-components|AOrjYpi5lCU|Inside a Kubernetes Cluster — Everything Talks to the API — manic
+ex-serverless-processing|WtqKNndDX2o|A Mixed On-Prem + AWS Event Pipeline, Animated — manic
+ex-onprem-advanced-web-service|Ze7T4z8KGr0|One On-Prem Platform, Three Runtime Stories — manic
+ex-onprem-advanced-web-service-v2|Dhl6cFAOBHw|Advanced On-Prem Web Service, Paths Coloured by Relationship — manic

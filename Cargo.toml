@@ -33,6 +33,20 @@ ratex-layout = "0.1"
 ratex-render = { version = "0.1", features = ["embed-fonts"] }
 ratex-types = "0.1"   # DisplayList / DisplayItem / Color (recolour before render)
 image = { version = "0.24", default-features = false, features = ["png"] }
+# Lightweight cmap inspection gives `manic check` the same embedded manifest
+# and fallback order without initializing a GPU renderer. UAX #29 graphemes
+# keep visible clusters intact at the validation boundary.
+ttf-parser = "0.21"
+unicode-segmentation = "1.13.3"
+# Bundled-only Unicode shaping, bidi layout, fallback, and glyph rasterization.
+# Fontconfig/default host discovery stays disabled; `wasm-web` keeps the same
+# code path available to the browser build.
+cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash", "shape-run-cache", "wasm-web"] }
+unicode-script = "0.5.8"
+
+[dev-dependencies]
+# Regression-check the immutable hashes recorded by the bundled font manifest.
+sha2 = "0.11"
 
 [profile.dev]
 opt-level = 1

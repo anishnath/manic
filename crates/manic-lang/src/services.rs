@@ -14,7 +14,7 @@
 use crate::ast::{Expr, ExprKind, Stmt};
 use crate::catalog::{
     catalog, BuiltinSpec, Ty, CANVAS_PRESETS, COLORS, EASINGS, KEYWORDS, NAMED_FNS, RESERVED_VARS,
-    TEMPLATES,
+    SYSTEM_PORTS, SYSTEM_ROUTINGS, TEMPLATES,
 };
 use crate::diag::{Error, Span};
 use crate::expand::expand;
@@ -341,6 +341,8 @@ fn validate_stmt(
             Ty::Color => (COLORS, "colour"),
             Ty::Ease => (EASINGS, "easing"),
             Ty::Fn => (NAMED_FNS, "function"),
+            Ty::Routing => (SYSTEM_ROUTINGS, "system routing"),
+            Ty::Port => (SYSTEM_PORTS, "system port"),
             _ => continue,
         };
         if let ExprKind::Ident(v) = &arg.kind {
@@ -535,6 +537,8 @@ pub fn complete(src: &str, offset: u32) -> Vec<Completion> {
                 Some(Ty::Color) => vocab(COLORS, "color"),
                 Some(Ty::Ease) => vocab(EASINGS, "ease"),
                 Some(Ty::Fn) => vocab(NAMED_FNS, "function"),
+                Some(Ty::Routing) => vocab(SYSTEM_ROUTINGS, "routing"),
+                Some(Ty::Port) => vocab(SYSTEM_PORTS, "port"),
                 Some(Ty::Ident) => file_ids(src)
                     .into_iter()
                     .filter(|id| starts_with(id))
@@ -751,6 +755,19 @@ mod tests {
         let out = complete(src, src.len() as u32);
         let labels: Vec<_> = out.iter().map(|c| c.label.as_str()).collect();
         assert!(labels.contains(&"sun") && labels.contains(&"moon"));
+    }
+
+    #[test]
+    fn complete_system_routing_and_ports() {
+        let routing = "connect(path,a,b, or";
+        assert!(complete(routing, routing.len() as u32)
+            .iter()
+            .any(|item| item.label == "orthogonal"));
+
+        let port = "connect(path,a,b,orthogonal, ri";
+        assert!(complete(port, port.len() as u32)
+            .iter()
+            .any(|item| item.label == "right"));
     }
 
     #[test]

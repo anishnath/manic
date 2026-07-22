@@ -8,15 +8,21 @@
 use macroquad::prelude::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::primitives::{Align, Entity, FontKind, Shape, TextRun};
 use crate::scene::Scene;
 use crate::style::{self, Fonts};
+use crate::text::{LayoutKey, RasterImage, RasterKey, ShapedLayout, TextEngine};
 
 thread_local! {
     /// Loaded image textures, keyed by their `path`. macroquad runs
     /// single-threaded (the render loop), so a thread-local cache is safe.
     static TEXTURES: RefCell<HashMap<String, Texture2D>> = RefCell::new(HashMap::new());
+    /// Ordinary text has one bundled-only shaper/raster cache for the entire
+    /// playback thread. Measurement and drawing request the same LayoutKey.
+    static TEXT_ENGINE: RefCell<TextEngine> = RefCell::new(TextEngine::new());
+    static TEXT_GLYPH_TEXTURES: RefCell<HashMap<RasterKey, Texture2D>> = RefCell::new(HashMap::new());
 }
 
 /// Load every referenced image path into the texture cache once, before the
@@ -84,14 +90,6 @@ impl View {
     #[inline]
     pub fn k(&self) -> f32 {
         self.zoom * self.ss
-    }
-}
-
-fn font_of(fonts: &Fonts, kind: FontKind) -> Option<&Font> {
-    match kind {
-        FontKind::Display => fonts.display.as_ref(),
-        FontKind::Mono => fonts.mono.as_ref(),
-        FontKind::MonoBold => fonts.mono_bold.as_ref(),
     }
 }
 
@@ -358,35 +356,113 @@ fn centroid(pts: &[Vec2]) -> Vec2 {
 
 // ---- text -------------------------------------------------------------------
 
-fn wrap_lines(
+fn shaped_layout(
     text: &str,
-    font: Option<&Font>,
+    kind: FontKind,
+    raster: f32,
+    max_width: Option<f32>,
+    align: Align,
+) -> Arc<ShapedLayout> {
+    TEXT_ENGINE.with(|engine| {
+        engine
+            .borrow_mut()
+            .layout(LayoutKey::new(text, kind, raster, max_width, align))
+    })
+}
+
+fn shaped_raster(
+    layout: &Arc<ShapedLayout>,
+    visible_graphemes: usize,
+) -> (RasterKey, Arc<RasterImage>) {
+    TEXT_ENGINE.with(|engine| engine.borrow_mut().raster(layout, visible_graphemes))
+}
+
+fn glyph_texture(key: RasterKey, image: &RasterImage) -> Texture2D {
+    TEXT_GLYPH_TEXTURES.with(|textures| {
+        let mut textures = textures.borrow_mut();
+        if let Some(texture) = textures.get(&key) {
+            return texture.clone();
+        }
+        // Keep the GPU cache bounded alongside TextEngine's CPU raster cache.
+        if textures.len() >= 1024 {
+            textures.clear();
+        }
+        let texture = Texture2D::from_rgba8(image.width, image.height, &image.pixels);
+        texture.set_filter(FilterMode::Linear);
+        textures.insert(key, texture.clone());
+        texture
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_shaped_raster(
+    layout: &Arc<ShapedLayout>,
+    visible_graphemes: usize,
+    x: f32,
+    y: f32,
+    scale: f32,
+    rotation: f32,
+    pivot: Vec2,
+    color: Color,
+) {
+    let (key, image) = shaped_raster(layout, visible_graphemes);
+    let texture = glyph_texture(key, &image);
+    draw_texture_ex(
+        &texture,
+        x - image.pad * scale,
+        y - image.pad * scale,
+        color,
+        DrawTextureParams {
+            dest_size: Some(vec2(
+                image.width as f32 * scale,
+                image.height as f32 * scale,
+            )),
+            rotation,
+            pivot: Some(pivot),
+            ..Default::default()
+        },
+    );
+}
+
+fn measure_resolved_text(
+    text: &str,
+    _fonts: &Fonts,
+    kind: FontKind,
     font_size: u16,
     font_scale: f32,
-    max_w: f32,
-) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut cur = String::new();
-    for word in text.split_whitespace() {
-        let cand = if cur.is_empty() {
-            word.to_string()
-        } else {
-            format!("{cur} {word}")
-        };
-        if !cur.is_empty() && measure_text(&cand, font, font_size, font_scale).width > max_w {
-            lines.push(std::mem::take(&mut cur));
-            cur = word.to_string();
-        } else {
-            cur = cand;
-        }
+) -> TextDimensions {
+    let layout = shaped_layout(text, kind, font_size as f32, None, Align::Left);
+    TextDimensions {
+        width: layout.width * font_scale,
+        height: (layout.ascent + layout.descent) * font_scale,
+        offset_y: layout.ascent * font_scale,
     }
-    if !cur.is_empty() {
-        lines.push(cur);
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_resolved_text(
+    text: &str,
+    x: f32,
+    y: f32,
+    _fonts: &Fonts,
+    kind: FontKind,
+    font_size: u16,
+    font_scale: f32,
+    rotation: f32,
+    color: Color,
+) {
+    let layout = shaped_layout(text, kind, font_size as f32, None, Align::Left);
+    let top = y - layout.ascent * font_scale;
+    draw_shaped_raster(
+        &layout,
+        layout.graphemes,
+        x,
+        top,
+        font_scale,
+        rotation,
+        vec2(x, y),
+        color,
+    );
 }
 
 /// Draw text at `pos` (physical pixels, physical `size`). Handles wrapping,
@@ -403,72 +479,57 @@ pub fn draw_text_block(
     size: f32,
     raster: f32,
     color: Color,
-    font: Option<&Font>,
+    _fonts: &Fonts,
+    kind: FontKind,
     rot_deg: f32,
     wrap: Option<f32>,
     align: Align,
     trace: f32,
     cursor: bool,
 ) {
-    let font_size = raster.max(1.0).round() as u16;
-    let font_scale = size.max(0.01) / font_size as f32;
-    // `\n` (a literal backslash-n, kept by the LaTeX-safe lexer) is a HARD line
-    // break; wrap each hard line independently.
-    let lines: Vec<String> = text
-        .split("\\n")
-        .flat_map(|hard| match wrap {
-            Some(w) => wrap_lines(hard, font, font_size, font_scale, w),
-            None => vec![hard.to_string()],
-        })
-        .collect();
-    let total_chars: usize = lines.iter().map(|l| l.chars().count()).sum();
-    let mut char_budget = if trace >= 1.0 {
-        usize::MAX
+    let raster = raster.max(1.0);
+    let font_scale = size.max(0.01) / raster;
+    let raster_wrap = wrap.map(|width| width / font_scale);
+    let layout = shaped_layout(text, kind, raster, raster_wrap, align);
+    let visible = if trace >= 1.0 {
+        layout.graphemes
     } else {
-        (total_chars as f32 * trace.max(0.0)) as usize
+        (layout.graphemes as f32 * trace.clamp(0.0, 1.0)).floor() as usize
     };
+    let x = match align {
+        Align::Center => pos.x - layout.width * font_scale / 2.0,
+        Align::Left => pos.x,
+    };
+    let y = pos.y - layout.height * font_scale / 2.0;
+    draw_shaped_raster(
+        &layout,
+        visible,
+        x,
+        y,
+        font_scale,
+        rot_deg.to_radians(),
+        pos,
+        color,
+    );
 
-    let line_h = size * 1.4;
-    let y0 = pos.y - line_h * (lines.len() as f32 - 1.0) / 2.0;
-    for (i, line) in lines.iter().enumerate() {
-        if char_budget == 0 {
-            break;
-        }
-        let n_chars = line.chars().count();
-        let (mut shown, typing_here): (String, bool) = if char_budget >= n_chars {
-            char_budget -= n_chars;
-            (line.clone(), false)
+    // The cursor is geometry, not another text layout: revealing it cannot
+    // reshape the sentence or move its final line box.
+    if cursor {
+        let progress = if layout.graphemes == 0 {
+            0.0
         } else {
-            let s: String = line.chars().take(char_budget).collect();
-            char_budget = 0;
-            (s, true)
+            visible as f32 / layout.graphemes as f32
         };
-        // a typewriter cursor rides the line being typed (or the last line once done)
-        if cursor && (typing_here || i == lines.len() - 1) {
-            shown.push('_');
-        }
-        let x = match align {
-            Align::Center => {
-                // anchor on the full line so typing doesn't shift the block
-                let full = measure_text(line, font, font_size, font_scale);
-                pos.x - full.width / 2.0
-            }
-            Align::Left => pos.x,
+        let caret_x = if layout.rtl {
+            x + layout.width * font_scale * (1.0 - progress)
+        } else {
+            x + layout.width * font_scale * progress
         };
-        let dims = measure_text(&shown, font, font_size, font_scale);
-        draw_text_ex(
-            &shown,
-            x,
-            y0 + line_h * i as f32 + dims.offset_y / 2.0,
-            TextParams {
-                font,
-                font_size,
-                font_scale,
-                font_scale_aspect: 1.0,
-                rotation: rot_deg.to_radians(),
-                color,
-            },
-        );
+        let caret_h = size * 0.75;
+        let a = rot_deg.to_radians();
+        let from = rot_pt(vec2(caret_x, pos.y - caret_h / 2.0), pos, a);
+        let to = rot_pt(vec2(caret_x, pos.y + caret_h / 2.0), pos, a);
+        draw_line(from.x, from.y, to.x, to.y, (size * 0.055).max(1.0), color);
     }
 }
 
@@ -483,7 +544,8 @@ fn draw_text_glow(
     color: Color,
     opacity: f32,
     g: f32,
-    font: Option<&Font>,
+    fonts: &Fonts,
+    kind: FontKind,
     rot_deg: f32,
     wrap: Option<f32>,
     align: Align,
@@ -502,7 +564,8 @@ fn draw_text_glow(
             size,
             raster,
             c,
-            font,
+            fonts,
+            kind,
             rot_deg,
             wrap,
             align,
@@ -556,17 +619,27 @@ fn flow_path_points(e: &Entity, view: &View) -> Option<Vec<Vec2>> {
 }
 
 fn draw_flow_overlay(e: &Entity, view: &View, tpl: &style::Template) {
-    let phase = e.flow.rem_euclid(1.0);
-    if e.flow <= 1e-4 || phase <= 1e-4 || phase >= 0.9999 {
+    draw_flow_channel(e, view, tpl, e.flow, false);
+    draw_flow_channel(e, view, tpl, e.flow_back, true);
+}
+
+fn draw_flow_channel(e: &Entity, view: &View, tpl: &style::Template, value: f32, reverse: bool) {
+    let cycle = value.rem_euclid(1.0);
+    if value <= 1e-4 || cycle <= 1e-4 || cycle >= 0.9999 {
         return;
     }
+    let phase = if reverse { 1.0 - cycle } else { cycle };
     let Some(pts) = flow_path_points(e, view) else {
         return;
     };
     if pts.len() < 2 {
         return;
     }
-    let tail_phase = (phase - 0.075).max(0.0);
+    let tail_phase = if reverse {
+        (phase + 0.075).min(1.0)
+    } else {
+        (phase - 0.075).max(0.0)
+    };
     let (tail, _) = path_point(&pts, tail_phase);
     let (head, _) = path_point(&pts, phase);
     let c = style::with_opacity(tpl.palette.fg, e.opacity);
@@ -933,12 +1006,11 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
         Shape::Text { content, size } => {
             let phys_size = size * e.scale * k;
             let raster = size * view.ss;
-            let font = font_of(fonts, e.font);
             let wrap = e.wrap.map(|w| w * k);
             if glow_on {
                 draw_text_glow(
-                    content, p, phys_size, raster, stroke_c, e.opacity, glow, font, e.rot, wrap,
-                    e.align,
+                    content, p, phys_size, raster, stroke_c, e.opacity, glow, fonts, e.font, e.rot,
+                    wrap, e.align,
                 );
             }
             // rasterize at the zoom-independent size so camera zooms and
@@ -949,7 +1021,8 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 phys_size,
                 raster,
                 stroke_c,
-                font,
+                fonts,
+                e.font,
                 e.rot,
                 wrap,
                 e.align,
@@ -999,8 +1072,8 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let raster = (size * view.ss).max(1.0);
             let font_size = raster.round() as u16;
             let font_scale = phys.max(0.01) / font_size as f32;
-            let font = font_of(fonts, e.font);
-            let measure = |t: &str| measure_text(t, font, font_size, font_scale).width;
+            let measure =
+                |t: &str| measure_resolved_text(t, fonts, e.font, font_size, font_scale).width;
             let space_w = measure(" ");
             let wrap_w = e.wrap.map(|w| w * k).unwrap_or(f32::INFINITY);
 
@@ -1090,7 +1163,7 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             // 3) PER-LINE metrics: each line is only as tall as its own content
             //    (text ascent/descent, or a tall fraction/integral where present),
             //    so text-only lines stay tight and math lines get just enough room.
-            let ascent = measure_text("Xg", font, font_size, font_scale).offset_y;
+            let ascent = measure_resolved_text("Xg", fonts, e.font, font_size, font_scale).offset_y;
             let descent = phys * 0.22;
             let gap = phys * 0.16;
             let metrics: Vec<(f32, f32)> = lines
@@ -1098,11 +1171,21 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 .map(|line| {
                     let (mut above, mut below) = (ascent, descent);
                     for &j in line {
-                        if let Tok::Math(i) = &toks[j] {
-                            if let TextRun::Math { h, baseline, .. } = &runs[*i] {
-                                above = above.max(baseline * scale);
-                                below = below.max((h - baseline) * scale);
+                        match &toks[j] {
+                            Tok::Word(word) => {
+                                let dims = measure_resolved_text(
+                                    word, fonts, e.font, font_size, font_scale,
+                                );
+                                above = above.max(dims.offset_y);
+                                below = below.max((dims.height - dims.offset_y).max(0.0));
                             }
+                            Tok::Math(i) => {
+                                if let TextRun::Math { h, baseline, .. } = &runs[*i] {
+                                    above = above.max(baseline * scale);
+                                    below = below.max((h - baseline) * scale);
+                                }
+                            }
+                            Tok::Space | Tok::Break => {}
                         }
                     }
                     (above, below)
@@ -1124,18 +1207,9 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                         Tok::Break => {} // never enters a line; here for exhaustiveness
                         Tok::Space => x += space_w,
                         Tok::Word(w) => {
-                            draw_text_ex(
-                                w,
-                                x,
-                                baseline_y,
-                                TextParams {
-                                    font,
-                                    font_size,
-                                    font_scale,
-                                    font_scale_aspect: 1.0,
-                                    rotation: 0.0,
-                                    color: stroke_c,
-                                },
+                            draw_resolved_text(
+                                w, x, baseline_y, fonts, e.font, font_size, font_scale, 0.0,
+                                stroke_c,
                             );
                             x += measure(w);
                         }
@@ -1278,7 +1352,8 @@ pub fn draw_page_chrome(
                 34.0 * k,
                 34.0 * view.ss,
                 halo(pal.cyan, 1.0, 1.6),
-                fonts.display.as_ref(),
+                fonts,
+                FontKind::Display,
                 0.0,
                 None,
                 Align::Center,
@@ -1292,7 +1367,8 @@ pub fn draw_page_chrome(
             34.0 * k,
             34.0 * view.ss,
             pal.cyan,
-            fonts.display.as_ref(),
+            fonts,
+            FontKind::Display,
             0.0,
             None,
             Align::Center,
@@ -1302,42 +1378,36 @@ pub fn draw_page_chrome(
     } // end Full-only
 
     // masthead: shell prompt (left) + status (right), dim mono — Full & Minimal
-    if let Some(mono) = fonts.mono.as_ref() {
-        let fs = (14.0 * view.ss).round() as u16;
-        let fscale = 14.0 * k / fs as f32;
-        if !tpl.masthead_left.is_empty() {
-            let left = view.xform(Vec2::new(150.0, 54.0));
-            draw_text_ex(
-                &tpl.masthead_left,
-                left.x,
-                left.y,
-                TextParams {
-                    font: Some(mono),
-                    font_size: fs,
-                    font_scale: fscale,
-                    font_scale_aspect: 1.0,
-                    rotation: 0.0,
-                    color: pal.dim,
-                },
-            );
-        }
-        if !tpl.masthead_right.is_empty() {
-            let rdims = measure_text(&tpl.masthead_right, Some(mono), fs, fscale);
-            let right = view.xform(Vec2::new(w - 44.0, 54.0));
-            draw_text_ex(
-                &tpl.masthead_right,
-                right.x - rdims.width,
-                right.y,
-                TextParams {
-                    font: Some(mono),
-                    font_size: fs,
-                    font_scale: fscale,
-                    font_scale_aspect: 1.0,
-                    rotation: 0.0,
-                    color: pal.dim,
-                },
-            );
-        }
+    let fs = (14.0 * view.ss).round() as u16;
+    let fscale = 14.0 * k / fs as f32;
+    if !tpl.masthead_left.is_empty() {
+        let left = view.xform(Vec2::new(150.0, 54.0));
+        draw_resolved_text(
+            &tpl.masthead_left,
+            left.x,
+            left.y,
+            fonts,
+            FontKind::Mono,
+            fs,
+            fscale,
+            0.0,
+            pal.dim,
+        );
+    }
+    if !tpl.masthead_right.is_empty() {
+        let rdims = measure_resolved_text(&tpl.masthead_right, fonts, FontKind::Mono, fs, fscale);
+        let right = view.xform(Vec2::new(w - 44.0, 54.0));
+        draw_resolved_text(
+            &tpl.masthead_right,
+            right.x - rdims.width,
+            right.y,
+            fonts,
+            FontKind::Mono,
+            fs,
+            fscale,
+            0.0,
+            pal.dim,
+        );
     }
 
     // two-tone synthwave rule under the header (Full only)

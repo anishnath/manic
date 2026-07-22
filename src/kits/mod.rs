@@ -8,6 +8,7 @@
 pub mod algo;
 pub mod brand;
 pub mod creator;
+pub mod diagram_icons;
 pub mod geo;
 pub mod math;
 pub mod ml;
@@ -20,6 +21,7 @@ pub mod optics;
 pub mod physics;
 pub mod stats;
 pub mod std;
+pub mod systems;
 pub mod three;
 
 use crate::lang::lower::Registry;
@@ -40,6 +42,7 @@ pub fn default_registry() -> Registry {
     brand::register(&mut r);
     three::register(&mut r);
     stats::register(&mut r);
+    systems::register(&mut r);
     physics::register(&mut r);
     optics::register(&mut r);
     creator::register(&mut r);

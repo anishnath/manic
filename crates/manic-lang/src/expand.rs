@@ -271,13 +271,15 @@ fn expand_stmts(stmts: &[Stmt], env: &mut Env, ctx: &mut Ctx) -> Result<Vec<Stmt
                     .args
                     .iter()
                     .enumerate()
-                    .map(|(i, e)| match slots.and_then(|v| v.get(i)).copied().flatten() {
-                        // a `Str`-typed slot: a bare identifier/expression here is
-                        // unquoted LaTeX/text — flag it with a backtick fix rather
-                        // than evaluating it as arithmetic.
-                        Some(param) => resolve_str_arg(e, env, &s.name, param),
-                        None => resolve_arg(e, env),
-                    })
+                    .map(
+                        |(i, e)| match slots.and_then(|v| v.get(i)).copied().flatten() {
+                            // a `Str`-typed slot: a bare identifier/expression here is
+                            // unquoted LaTeX/text — flag it with a backtick fix rather
+                            // than evaluating it as arithmetic.
+                            Some(param) => resolve_str_arg(e, env, &s.name, param),
+                            None => resolve_arg(e, env),
+                        },
+                    )
                     .collect::<Result<Vec<_>, _>>()?;
                 let block = match &s.block {
                     Some(b) => {
@@ -364,11 +366,8 @@ fn bare_string_arg_error(e: &Expr, builtin: &str, param: &str) -> Error {
         "the `{param}` of `{builtin}` must be a STRING — wrap it in backticks (bare LaTeX/text isn't valid manic)"
     );
     match wrap_target(e) {
-        Some((text, span)) => Error::new(
-            format!("{msg}: `` `{text}` ``"),
-            span,
-        )
-        .with_fix(format!("Wrap in backticks: `{text}`"), format!("`{text}`")),
+        Some((text, span)) => Error::new(format!("{msg}: `` `{text}` ``"), span)
+            .with_fix(format!("Wrap in backticks: `{text}`"), format!("`{text}`")),
         None => Error::new(msg, e.span),
     }
 }

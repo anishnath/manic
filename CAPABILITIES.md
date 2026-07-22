@@ -99,7 +99,9 @@ not an instruction to implement everything.
 
 | Priority | Status | Work | Creator value |
 |---|---|---|---|
-| P0 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
+| P0 | ✅ | **Deterministic text + glyph engine** — bundled-only advanced Unicode shaping; one cached measurement/wrap/reveal/draw layout; checked render sessions; strict eight-face provenance; actionable diagnostics; pinned layout/pixel goldens; native/backend/WASM compile parity. | Prevents silent tofu boxes, broken symbols, incorrect wrapping, and machine-dependent text before Flowchart, Sequence Diagram, and further Systems work multiplies symbol-heavy content. |
+| P0 | 🟡 | **Systems Foundation hardening** — make the shipped architecture/runtime model provider-neutral and reusable: stable native node archetypes, panic-free ownership/id diagnostics, a curated provider manifest, shared bounds/ports, responsive edge reflow, and explicit one/all/copy/merge choreography without inferred service semantics. | Turns the Systems PoC into the dependable geometry and flow substrate for architecture, flowchart, sequence, network, circuit, and future process kits. |
+| P1 | ⬜ | **Production runtime contract** — public stage manifest plus optional stage/range/canvas/template selection shared by CLI, UI, and backend; full-story defaults require no options. | Makes shipped creator workflows usable from the production editor without leaking CLI concerns into the DSL. |
 | P1 | 🟡 | **Motion Graphics V2Core** — ✅ authored endpoint/blueprint state plus `attach` / `become` / `turn` and shared pivots have shipped locally; normalized live path progress, general group bounds, and velocity-continuous generated motion remain. Existing `travel`, `flow`, `wander`, and `arrange` calls stay unchanged. | Lets non-programmers describe continuity and relationships instead of intermediate coordinates, while preserving deterministic playback and existing files. |
 | P1 | ✅ | **Manic ML + transformers** — ML1–ML7 ship locally: feed-forward learning, tensor/CNN foundations, single-head attention, truthful tokenization/position, complete transformer blocks, and exact logits/temperature/sampling. | Lets educators follow modern ML from text to tokens, representations, attention, learning, and generation without Python animation code or visually plausible fake arithmetic. |
 | P1 | ✅ | **3D V2Core** — creator-first authored 3D state and bounds, automatic camera composition, spatial path travel, timed attachment/release, exact-blueprint transformation, rigid axis turns, template-aware diagram lighting, tests, and creator examples ship. Surface: `view3`, `travel3`, `attach3`, `become3`, `turn3`; existing precise 3D calls remain unchanged. | Makes spatial explainers readable and cinematic without asking creators to calculate camera distance, Euler choreography, or intermediate coordinates. |
@@ -108,7 +110,7 @@ not an instruction to implement everything.
 | P2 | ⬜ | **General bounds + relative placement** — reusable entity/group bounding boxes, framing, edge origins, and `next_to`-style layout. | Removes manual coordinates and unlocks reliable automatic composition. |
 | P2 | ⬜ | **Live geometry measurements** — bind derived lengths, angles, positions, and areas into counters/labels. | Makes olympiad, engineering, and interactive diagrams numerically truthful. |
 | P2 | ⬜ | **Nonlinear remapping** — `travel(entity,path,…)` now ships for move-along-path; the remaining work is deforming grids/curves through a general authored map. | Extends the shipped path motion into advanced transformation stories without multiplying vocabulary. |
-| P3 | ⬜ | **Typography/look extensions** — selectable bundled fonts, then an optional chalkboard/sketch renderer. | Broadens creator identity without changing story semantics. |
+| P3 | ⬜ | **Typography/look extensions** — after P0 text correctness, selectable bundled branding fonts and an optional chalkboard/sketch renderer. | Broadens creator identity without confusing style choice with glyph reliability. |
 | P3 | ⬜ | **3D V3 solid sections** — one generic solid-section/projection bridge that creates cut pieces and exposed faces while preserving their identities; V2 continues to use exact authored `param3` sections. | Extends textbook cutaway and cross-section stories beyond authored spheres without adding a boolean-node vocabulary. |
 
 ### Future creator support
@@ -192,11 +194,161 @@ ranking is:
 
 | Rank | Candidate | Creator value | Fit / principal constraint |
 |---:|---|---|---|
-| 1 | **Circuit Kit** | School electricity, electronics, digital logic, computer architecture, control systems, embedded tutorials, and engineering explainers. | Excellent fit with paths, flow, plots, equations, reactive parameters, and state changes. Numerical truth and standardized symbols are achievable without assets. |
-| 2 | **Chemistry Reaction Kit** | Atoms, bonds, balancing, electron movement, molecular geometry, equilibrium, acids/bases, energy diagrams, and reaction mechanisms. | Strong fit with particles, rewrite, paths, and 3D; notation and chemical correctness require careful design. |
-| 3 | **Biology Systems Kit** | Cells, DNA→RNA→protein, mitosis, neurons, circulation, immunity, transport, and pathways. | Very broad audience, but organic visuals may eventually need an asset/illustration strategy. |
-| 4 | **Software Systems Kit** | Memory, processes, requests, databases, caches, queues, event streams, networks, and distributed systems. | Excellent procedural fit, though much of its surface may belong in a generic Diagram Kit composed with the existing algorithm kit. |
+| 1 | **Systems / Architecture Kit** | Requests, services, databases, caches, queues, event streams, networks, cloud systems, failures, scaling, and distributed-system journeys. | Excellent procedural fit and immediate developer demand. The value is animated behavior, not another static boxes-and-arrows generator. |
+| 2 | **Circuit Kit** | School electricity, electronics, digital logic, computer architecture, control systems, embedded tutorials, and engineering explainers. | Excellent fit with paths, flow, plots, equations, reactive parameters, and state changes. Numerical truth and standardized symbols are achievable without assets. |
+| 3 | **Chemistry Reaction Kit** | Atoms, bonds, balancing, electron movement, molecular geometry, equilibrium, acids/bases, energy diagrams, and reaction mechanisms. | Strong fit with particles, rewrite, paths, and 3D; notation and chemical correctness require careful design. |
+| 4 | **Biology Systems Kit** | Cells, DNA→RNA→protein, mitosis, neurons, circulation, immunity, transport, and pathways. | Very broad audience, but organic visuals may eventually need an asset/illustration strategy. |
 | 5 | **Anatomy Kit** | Heart, lungs, digestion, muscles, joints, kidneys, and clinical education. | High educational value but strongly asset-dependent; defer until Manic has a deliberate organic-visual strategy. |
+
+### Systems / Architecture Kit — ✅ V2 foundation complete
+
+**Expansion gate (P0) — cleared:** the deterministic text + glyph engine now
+ships with advanced shaping, technical-symbol fallback, multilingual script
+faces, one cached measure/draw layout, checked render sessions, and parity
+goldens. Systems, Flowchart, and Sequence Diagram work can build on that shared
+foundation without spreading missing-glyph or layout instability.
+
+#### Foundation hardening — active, in dependency order
+
+The shipped V2 story surface stays `architecture`, `cluster`, `node`,
+`connect`, `message`, `route`, and `hotpath`. Hardening is internal or additive;
+existing `.manic` files must not change.
+
+| Order | Foundation guarantee | Scope / acceptance |
+|---:|---|---|
+| 1 | ✅ **Provider-neutral structure and diagnostics — shipped** | Native visual archetypes (`client`, `service`, `gateway`, `database`, `cache`, `queue`, `storage`, `external`) work without cloud assets. Duplicate semantic/generated ids, invalid ownership, and unavailable provider kinds return source-located Manic errors rather than `Scene::add` panics. Every canonical AWS mapping resolves through a tested stable manifest; aliases map to the same artwork and never imply behavior. |
+| 2 | 🟡 **Shared bounds, ports, and responsive edge geometry — port-aware orthogonal routing shipped** | `connect(path,a,b,orthogonal)` now chooses node-boundary ports; optional `left`/`right`/`top`/`bottom` ports give exact control. Direct, curved, and orthogonal lanes share one semantic identity and length-aware `route`/`hotpath` motion. The dense `onprem-advanced-web-service.manic` acceptance story proves motion continuity but exposes the remaining need for obstacle-aware lanes, general entity/group bounds, and post-declaration responsive edge reflow. |
+| 3 | 🟡 **Explicit delivery choreography — authored one-of-many proven** | `systems-rabbitmq-consumers.manic` proves that persistent messages plus explicit routes can show successive queue jobs selecting different workers without implying broadcast or queue policy. Generic broadcast, fork/copy, and merge/join composition still remain. Icons and names never infer behavior; the creator selects it. |
+| 4 | **Direction and round-trip grammar** | Forward, return, duplex, neutral relationships, and response identity remain readable without depending on colour. Incoming and returning paths may differ while retaining continuity and stateless seeking. |
+| 5 | **Large-diagram composition** | Nested clusters, edge labels, camera focus, decluttering, and level-of-detail stay readable across portrait, square, and landscape without requiring manual coordinates for every node. Acceptance now explicitly includes fitting the on-prem stress test inside its architecture bounds, reserving nested-cluster title space, and detecting path/title, path/card, and message/card collisions in the visual audit. |
+| 6 | **Distribution and ecosystem contract** | Curated provider assets, native fallbacks, mdBook/system-prompt guidance, editor catalog, package/deploy/WASM checks, and provider-manifest tests ship together. Additional providers extend data/assets, never the DSL grammar. |
+
+The PoC proves the product distinction: static diagram-as-code describes what a
+system **is**; Manic follows what the system **does**. Authors declare a bounded
+architecture, auto-positioned nodes, and directed connections, then move one
+persistent request through the graph while ordinary `step`, `flow`, captions,
+and templates provide the story.
+
+The deliberately small surface is `architecture`, `cluster`, `node`, `connect`,
+`message`, `route`, and `hotpath`; `request` remains an HTTP-friendly
+alias. Provider services remain string
+data such as `"aws:lambda"`, never dedicated DSL words. The initial catalogue
+maps Route 53, CloudFront, API Gateway, Elastic Load Balancing, Lambda, ECS,
+Fargate, S3, DynamoDB, ElastiCache, RDS, Redshift, EKS, and SQS to the official
+AWS Architecture Icon package under `assets/diagrams/aws`; a generic native
+client symbol proves provider-neutral composition.
+
+V2 ownership is declaration-first: `cluster(id,parent,"label")` creates the
+boundary, and later clusters/nodes name it as their parent. The engine measures
+descendants bottom-up, resizes every boundary, and lays children out along or
+across the architecture's responsive main axis. The former fourth-argument
+member list remains accepted for existing PoC sources but is no longer the
+recommended authoring form.
+
+`connect` renders possible relationships as cold dashed topology. `route`
+preserves message identity, selects the physical lane beginning at the
+message's actual current node, illuminates only that lane with a solid hot
+overlay, and records where the message settles. A later discontinuous route is
+rejected with the current node and expected connection source instead of
+silently teleporting. `draw(connection)` reveals all possible lanes; grouped
+`flow` remains aggregate untracked activity rather than pretending one message
+is broadcast everywhere. Multi-lane connections use numbered internal paths so
+the declared connection id always addresses the complete fan-out/fan-in group.
+`connect(id,from,to,bend)` adds an optional signed, creator-authored curve for
+visual routing around a known obstacle. `connect(id,from,to,orthogonal)` adds a
+single Manhattan connector with automatic node-boundary ports; creators may add
+explicit `from_port,to_port` values from `left`, `right`, `top`, and `bottom`.
+Both forms change geometry only and perform no provider or obstacle inference.
+
+`hotpath(message,duration,seed)` is the final runtime layer. It infers one
+complete execution from the message's current node to a sink, chooses a valid
+physical lane at every fan-out, and moves the same dot continuously end-to-end.
+Unselected relationships remain dashed. Seeded branching is reproducible on
+native, backend, and WASM renders while a changed seed demonstrates another
+valid execution. Explicit `route` remains the right tool when each exact hop is
+part of the lesson.
+
+This graph convenience does **not** infer architecture semantics. Manic does not
+know that an icon is a load balancer, queue, topic, database, or subscriber.
+Names and provider artwork never imply one/all delivery, balancing, buffering,
+retries, or broadcast. The creator authors those intentions with explicit
+objects and ordinary `travel`, `flow`, `seq`, `par`, `stagger`, and tags.
+
+Generic `flow(path,duration,direction,mode)` now supports `forward`/`reverse`/`both`
+and `once`/`continuous`. Continuous flow computes length-aware complete cycles,
+remains stateless and scrubbable, and drains on an integer boundary instead of
+freezing halfway through a connection. Existing two-argument calls retain their
+single-forward-pulse meaning.
+
+`examples/systems-architecture-poc.manic` is the acceptance story: one Buy
+request travels Browser → CloudFront → API Gateway → Lambda → DynamoDB → SQS.
+The same source automatically lays nodes horizontally or vertically according
+to its responsive architecture region.
+
+`examples/systems-foundation.manic` is the provider-neutral acceptance story.
+It uses only native `client`, `gateway`, `service`, `cache`, and `database`
+archetypes, reveals cold topology, sends one persistent request forward, then
+returns the same identity over separately directed curved paths. It proves that
+structure, runtime motion, and direction remain available without cloud assets
+or inferred service semantics.
+
+`examples/aws-three-tier-web-application.manic` expands the visual test into a
+textbook architecture story. Presentation, Application, and Data remain three
+distinct responsive regions while one request travels Route 53 → CloudFront →
+Elastic Load Balancing → ECS → ElastiCache → RDS. Landscape uses tier columns;
+portrait uses tier rows without changing the semantic route.
+
+`examples/aws-event-processing-clusters-poc.manic` is the next-level structural
+test: EKS → three ECS workers → SQS → three Lambda processors → S3 and
+Redshift. Clusters are declared before their children, so the same word
+represents both Event Workers and the outer Event Flows boundary without a
+member string.
+When one endpoint of `connect` is a cluster, Manic expands the declaration into
+parallel physical paths. The flagship story first reveals every relationship as
+dashed topology, then `hotpath` chooses one worker, one processor, and one sink
+while a persistent event and solid highlight travel together. Explicit
+`flow(group,...)` animates the complete fan-out or fan-in only when aggregate
+activity is the idea. This adds hierarchy and parallel topology without
+provider-specific verbs.
+
+`examples/aws-clustered-web-services.manic` faithfully translates a Mingrammer
+Route 53 → ELB → ECS pool design with an RDS primary/read-only cluster and
+ElastiCache. It proves the finalized distinction in one story: all relationships
+remain cold and dashed, database and cache round trips use explicit forward and
+return connections, and the neutral RDS link moves only when ordinary `flow`
+asks it to. The same request identity becomes a response and returns along a
+curved, dashed, glowing pink hot path; nothing plays a directed arrow backward.
+Requests remain solid so direction is readable without relying on colour alone.
+The cache fan-in uses the optional bend to remain readable around the DB cluster
+on responsive canvases.
+
+`examples/systems-arrow-patterns.manic` is the connection-grammar reference. It
+covers one-way, parallel, round-trip, orthogonal, vertical-port, fan-out, and
+diagonal-duplex patterns. This review led to the additive port-aware
+`orthogonal` form and shared length-aware motion geometry; direct and curved
+connections remain unchanged.
+
+`examples/systems-rabbitmq-consumers.manic` is the focused delivery acceptance
+story. Three cold queue-to-worker possibilities remain visible while messages
+101, 102, and 103 explicitly select different workers and continue to one
+database. It proves authored one-of-many delivery with the existing generic
+vocabulary; Manic never infers RabbitMQ, round-robin, or Kubernetes behavior.
+
+`examples/onprem-advanced-web-service.manic` is deliberately a stress test, not
+a gallery-ready example. Its Nginx, gRPC, Redis, PostgreSQL, Fluentd, Kafka,
+Spark, Prometheus, and Grafana topology proves persistent motion across mixed
+paths, but human review exposes architecture overflow, nested-title contention,
+path/card crossings, and message-label collisions that the current settled-frame
+audit can miss. Those findings define the next large-diagram acceptance gate.
+
+Review boundaries are intentional: no automatic obstacle-aware edge routing,
+post-layout edge reflow, nested-title reservation, automatic cluster-to-cluster
+bundles, connection-midpoint attachment, group-aware message copying,
+broadcast/fork/merge choreography, full provider icon search, cyclic
+retry/failure/scaling semantics, or provider-asset-specific WASM packaging yet.
+Those should be designed only after each story is visually reviewed. The full
+upstream AWS icon package remains untouched; authors see only the curated stable
+manifest rather than its versioned filenames.
 
 ### Circuit Kit — recommended next domain exploration
 
@@ -779,10 +931,18 @@ and endpoints; entity orientation rotates with the group. Existing `spin` and
 
 ### Existing vocabulary after V2
 
+The foundation is deliberately domain-neutral: **objects + paths + motion +
+timing + composition**. `travel` moves any ordinary 2-D entity over a supported
+path; `flow` animates identity-free activity over any path, including a free
+curve connected to nothing. `seq` expresses creator-authored order and `par`
+expresses creator-authored simultaneity. No object kind, icon, label, or filename
+changes these rules. `examples/motion-flow-foundation.manic` is the acceptance
+story for selected, ordered, simultaneous, and purely decorative flow.
+
 | Intent | Call | V2 behavior |
 |---|---|---|
 | Move once along a path | `travel(entity,path,dur,ease)` | unchanged DSL and exact endpoint; live moving-path progress remains planned |
-| Temporary path emphasis | `flow(path,dur)` | unchanged DSL and no object identity change |
+| Temporary or sustained path emphasis | `flow(path,dur,[direction],[mode])` | existing two-argument pulse is unchanged; `forward|reverse|both` and `once|continuous` add finite directional streaming without object identity |
 | Ambient contained motion | `wander(group,dur)` | unchanged seeded, deterministic contained movement |
 | Change particle layout | `arrange(group,container,"random|grid|ring",dur,ease)` | same DSL; persistent ids and exact final layout |
 | Change an ordinary property | `to(id,property,value,dur,ease)` | remains the general escape hatch |
@@ -1214,9 +1374,11 @@ This slice deliberately keeps one small domain-neutral surface:
 - **`link(id, a, b, [bend])`** — expose the engine's tracked-edge mechanism as
   public std vocabulary. `bend=0` is a straight link; non-zero bend produces a
   curve whose endpoints continue to follow moving entities.
-- **`flow(path, [duration])`** — send a luminous emphasis pulse over a line,
-  curve, spline, or tracked link. It expresses energy, a signal, traffic, data,
-  or attention without inventing a domain-specific object.
+- **`flow(path, [duration], [direction], [mode])`** — send a luminous emphasis
+  pulse or finite stream over a line, curve, spline, or tracked link. Direction
+  is `forward|reverse|both`; mode is `once|continuous`. Existing calls remain a
+  single forward pulse. It expresses energy, a signal, traffic, data, or
+  attention without inventing a domain-specific object.
 
 Example target:
 
@@ -2293,17 +2455,94 @@ moving entity's actual length/angle). General authored scalar binding now ships
 through `parameter` + `bind`; measurement needs the `derive` hook to feed a
 counter from geometry rather than from an authored parameter.
 
-### Typography — math shipped; font choice remains future
+### Typography — math and deterministic glyph engine shipped
 - ✅ **LaTeX / math typesetting:** display equations, inline `$…$`, fractions,
   matrices, mixed text/math, semantic colouring, and reactive rewrites ship on
   the bundled RaTeX renderer described above.
+- ✅ **P0 deterministic text + glyph engine.** Every ordinary-text extended
+  grapheme cluster is shaped and rasterized through an embedded-only chain:
+  IBM Plex Mono (requested regular/bold style) → Noto Sans Math → Noto Sans →
+  Noto Sans Symbols → Noto Sans Symbols 2, with Noto Sans Arabic and Noto Sans
+  Devanagari as script-specific fallbacks. Plain text and text runs inside mixed
+  text/LaTeX use the same cached layout for measurement, wrapping, alignment,
+  baseline, grapheme reveal, glow, rotation, zoom, and drawing. Existing DSL
+  files require no font option or new verb. The bundled manifest, immutable
+  hashes, provenance, and OFL notices ship with all eight faces.
+
+  `manic check` now scans base text plus timed `say`, shape replacement, and
+  `become` text, reporting the owning entity, story stage when applicable,
+  Unicode character/code point, and repair choices instead of silently accepting
+  tofu. The initial regression corpus is
+  `→ ← ↔ ⇒ ✓ ✗ ● ○ ◆ ◇ ∞ ≤ ≥`.
+
+  The internal bundled-only `TextEngine` uses `cosmic-text` advanced shaping for
+  GSUB/GPOS, bidi, RTL joining, Indic conjuncts, combining marks, and variation
+  controls. Host font discovery is disabled by construction.
+
+  **Font correctness issue register (blocks further Systems Kit expansion):**
+
+  | ID | Status | Core issue | Required invariant / proof |
+  |---|---|---|---|
+  | FONT-01 | ✅ | Direct preview/record could bypass `Movie::validate`, so `manic check` might reject text that another production entry point still rendered as tofu. | Public `RenderSession::new(Movie)` is the checked production boundary; its inner movie is private and the frame loop accepts only a validated session. CLI/direct-run tests prove invalid Unicode cannot enter playback. |
+  | FONT-02 | ✅ | Embedded Macroquad font loads used `.ok()`; failure silently selected Macroquad's built-in font. | Every bundled face is now required and initialization names the failed face. Measurement and drawing never opt into a renderer/default font. |
+  | FONT-03 | ✅ | Fallback and typewriter reveal split individual Unicode scalars instead of shaped grapheme clusters. | UAX #29 boundaries plus `cosmic-text` advanced shaping keep decomposed accents, variation controls, RTL/Arabic joining, bidi order, and Indic conjuncts intact; reveal filters glyph jobs at grapheme boundaries without reshaping prefixes. |
+  | FONT-04 | ✅ | Mixed-face bounds took independent maximum height/offset values, while rich text used primary `Xg` plus a fixed descent. | One `ShapedLayout` owns ascent/descent, visual lines, advances, wrapping, alignment, baseline and glyph jobs; measurement and final raster consume the same cached object. |
+  | FONT-05 | ✅ | Font discovery, fallback selection, shaping, glow and repeated text changes could repeat work every frame. | One playback-thread `FontSystem`, bounded layout/raster/GPU texture caches, content-addressed `LayoutKey`/`RasterKey`, and deterministic `say`/rewrite seek tests provide reuse without host discovery. |
+  | FONT-06 | ✅ | Earlier tests proved code-point coverage and parsing, not pixels or cross-runtime layout parity. | Pinned multilingual CPU-layout fingerprints and alpha-pixel goldens cover fallback and wrapping; transform-independent reuse covers rotation/glow/zoom/supersampling, native preview and backend recording share the checked draw path, and the exact bundled renderer compiles for `wasm32-unknown-unknown`. Full Rust and shipped-example regressions pass. |
+  | FONT-07 | ✅ | Font assets recorded names/licences but not immutable provenance. | The manifest records source revision/version, SHA-256, role, order, and licence for every face. A Rust regression hashes the exact embedded/package bytes and requires the manifest and OFL notice; package inclusion covers all eight faces and documents. |
+  | FONT-08 | ✅ | Renderer-only types such as fallback slots were wider public API than intended. | Font slots and selection helpers are crate-private; the stable author surface remains semantic `mono` / `bold` / `display` with no font-specific DSL vocabulary. |
+
+  A fix is not complete merely because the symbol corpus passes `has_glyph`.
+  The acceptance gate is the same resolved layout driving validation,
+  measurement, wrapping, animation reveal, and final drawing in every runtime.
+
+  The shipped engine is an internal `TextEngine` backed by
+  `cosmic-text`, with a single shared `FontSystem`, shaped layout buffers, and a
+  glyph raster/cache bridge into the existing Macroquad renderer. Production
+  constructs the font system from bundled bytes only—never OS-installed
+  fonts—so native preview, backend recording, and WASM render the same glyphs.
+  IBM Plex Mono remains the primary visual identity. The shipped Noto Sans,
+  Math, Symbols, Symbols 2, Arabic, and Devanagari faces cover extended Latin, common arrows,
+  relations, geometric shapes, technical symbols, dingbats, and related
+  monochrome glyphs. Later script fonts join through the bundled manifest, not
+  renderer or DSL changes.
+
+  One shaped layout must drive **measurement, wrapping, alignment, baseline,
+  glow, and drawing**. Maintaining a fallback-aware draw path beside the old
+  single-font measurement path is not acceptable because it would create new
+  overlap and responsive-layout regressions. Inline/display LaTeX remains on
+  RaTeX; structural arrows, lines, and diagram symbols should still use native
+  Manic geometry when they carry semantic meaning.
+
+  `manic check` must scan every ordinary and mixed-text run through the same font
+  selection path. If no bundled face supports a grapheme, report the entity,
+  character, Unicode code point, stage/format where relevant, and actionable
+  remedies: use a native primitive, use LaTeX for math, or install/enable an
+  approved bundled script face. Silent replacement boxes are a failed check.
+
+  **P0 acceptance contract:**
+
+  1. Existing IBM-supported examples remain visually and metrically stable.
+  2. A symbol corpus including `→ ← ↔ ⇒ ✓ ✗ ● ○ ◆ ◇ ∞ ≤ ≥` renders without
+     tofu and wraps from the same measured advances used for drawing.
+  3. Mixed primary/fallback runs retain baseline, centering, rotation, glow,
+     camera zoom, and supersampled recording quality.
+  4. Repeated `say`/rewrite text changes invalidate and reuse glyph/layout caches
+     deterministically without per-frame font discovery.
+  5. Native, backend, and WASM fixtures select identical bundled faces and
+     produce equivalent layout bounds.
+  6. Unsupported glyphs fail clearly; colour emoji remains explicitly deferred
+     until COLR/CPAL and bitmap-font rendering have a deliberate design.
+  7. Font files, licences, manifest entries, mdBook guidance, system prompt,
+     editor diagnostics, and Rust regression tests ship together.
+
 - ⬜ **Native equation outlines:** optional future glyph/rule geometry for
   calligraphic stroke-level draw-on and resolution-independent authoring.
-- ⬜ **Custom / selectable fonts — planned, not yet designed.** Today all text is
-  IBM Plex Mono (regular/bold/display). A future capability: let the author pick
-  fonts (per entity or globally) and load user-supplied font files. Tracked here
-  so it isn't lost; no timeline yet. (Also unblocks a non-serif look for any
-  future LaTeX backend.)
+- ⬜ **Custom / selectable branding fonts — later, separate from P0.** P0 chooses
+  deterministic bundled fallback automatically and introduces no DSL. A later
+  creator feature may select approved faces per entity or template and may load
+  user-supplied files after licensing, security, backend, and WASM behavior are
+  designed. Font choice must not be required to repair missing glyphs.
 
 ## Engine extensions behind the active queue
 
@@ -2314,13 +2553,14 @@ not introduce one builtin for every reference-library animation.
 
 | Priority | Requirement | Engine direction | Unlocks |
 |---|---|---|---|
-| P0 | **Production runtime contract** | Expose stage selection and time ranges through a stable runtime API with full-movie defaults. | UI/backend rendering of named stages without hidden CLI flags. |
+| P0 ✅ | **Deterministic text + glyph engine** | Bundled-only advanced shaping, one cached measure/wrap/reveal/draw layout, strict checked render sessions, immutable eight-face manifests, actionable diagnostics, pinned pixel/layout goldens, and native/backend/WASM compile parity ship. | Reliable symbols and text for Systems, Flowcharts, Sequence Diagrams, multilingual lessons, backend renders, and WASM. |
+| P1 | **Production runtime contract** | Expose stage selection and time ranges through a stable runtime API with full-movie defaults. | UI/backend rendering of named stages without hidden CLI flags. |
 | P1 | **Visual audit layers** | Add structural, resolved, and rendered-frame checks on top of the existing baseline auditor. | Safer automated generation and clearer creator diagnostics. |
 | P1 | **Multi-format composition** | Make responsive regions, safe zones, typography, and pacing adapt across portrait, square, and landscape. | One story authored once and delivered to Shorts, posts, and lessons. |
 | P2 | **General bounds + relative placement** | Promote the kit-level bbox work into a reliable engine service with anchors and group-aware placement. | `next_to`-style layout, framing, braces, collision avoidance, and responsive composition. |
 | P2 | **Live geometry measurements** | Feed derived lengths/angles/areas into counters, equations, and bindings. | Truthful readouts on moving geometry and simulations. |
 | P2 | **Path motion + nonlinear remapping** | Let position tracks sample curves and let groups transform through authored functions. | Curve-following particles, orbits, deformation, and richer calculus/linear-algebra explanations. |
-| P3 | **Typography and look extensions** | Add selectable fonts, native equation outlines, and optional sketch styling. | More author identity and calligraphic math without changing scene semantics. |
+| P3 | **Typography and look extensions** | After P0 correctness, add creator-selectable branding fonts, native equation outlines, and optional sketch styling. | More author identity and calligraphic math without changing scene semantics. |
 
 Linear transforms, general 2-D shape morphing, LaTeX rendering and rewrites,
 composable scale/spin entrance effects, and the prioritized 3-D roadmap already

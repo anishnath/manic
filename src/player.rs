@@ -28,11 +28,13 @@
 //! - `--intro`         play the branding clip at the START (default is the END)
 
 use macroquad::prelude::*;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::movie::Movie;
 use crate::record::Recorder;
 use crate::render::{self, View};
 use crate::style::{self, Fonts};
+use crate::RenderSession;
 
 #[derive(Debug)]
 pub(crate) struct Opts {
@@ -467,7 +469,8 @@ fn fullscreen_pressed() -> bool {
         || (command_down && control_down && is_key_pressed(KeyCode::F))
 }
 
-pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
+pub(crate) async fn run_loop(session: RenderSession, opts: Opts) {
+    let mut movie = session.into_movie();
     let fonts = Fonts::load();
     // CLI template override (e.g. `--template terminal`)
     if let Some(name) = &opts.template {
@@ -952,17 +955,25 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
                     },
                 );
                 let max_chars = ((x1 - x0 - 16.0) / 7.0).floor().max(1.0) as usize;
-                let mut label: String = stage.name.chars().take(max_chars).collect();
-                if stage.name.chars().count() > max_chars && max_chars > 1 {
-                    label.pop();
-                    label.push('…');
-                }
+                let grapheme_count = stage.name.graphemes(true).count();
+                let label = if grapheme_count > max_chars && max_chars > 1 {
+                    format!(
+                        "{}…",
+                        stage
+                            .name
+                            .graphemes(true)
+                            .take(max_chars - 1)
+                            .collect::<String>()
+                    )
+                } else {
+                    stage.name.graphemes(true).take(max_chars).collect()
+                };
                 draw_text_ex(
                     &format!("{} {label}", index + 1),
                     x0 + 6.0,
                     nav_y + 16.0,
                     TextParams {
-                        font: fonts.mono.as_ref(),
+                        font: Some(&fonts.mono),
                         font_size: 12,
                         color: if active { style::FG } else { style::DIM },
                         ..Default::default()
@@ -996,7 +1007,7 @@ pub(crate) async fn run_loop(mut movie: Movie, opts: Opts) {
             10.0,
             bar_y + 18.0,
             TextParams {
-                font: fonts.mono.as_ref(),
+                font: Some(&fonts.mono),
                 font_size: 13,
                 font_scale: 1.0,
                 font_scale_aspect: 1.0,

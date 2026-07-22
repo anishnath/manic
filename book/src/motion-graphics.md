@@ -16,13 +16,41 @@ the relationship only where the story needs it.
 | Change visual identity | `become(source, blueprint, [dur], [ease])` | the source keeps its id and settles exactly on the blueprint |
 | Turn a whole arrangement | `turn(id_or_tag, pivot, degrees, [dur], [ease])` | every member follows the same circular pivot motion |
 | Move a real object on a path | `travel(object, path, dur, ease)` | the object arrives and remains at the endpoint |
-| Send temporary path emphasis | `flow(path, dur)` | a pulse passes without moving an authored object |
+| Send temporary or sustained path emphasis | `flow(path, dur, [forward|reverse|both], [once|continuous])` | a clean directional pulse or finite draining stream passes without moving an authored object |
 | Add contained ambient life | `wander(particles, dur)` | seeded, repeatable motion within the container |
 | Reorganize the same particles | `arrange(particles, region, "random|grid|ring", dur, ease)` | identity-preserving layout change |
 | Change an ordinary property | `to(id, property, value, dur, ease)` | the general escape hatch remains available |
 
 The three V2 words add relationships; they do not replace `move`, `travel`,
 `flow`, `arrange`, `spin`, `transform`, `rewrite`, or `morph`.
+
+## Manic does not infer the subject
+
+An icon, label, or filename never changes motion semantics. Manic does not know
+that an object represents a load balancer, queue, topic, photon, vehicle, blood
+cell, or decorative spark. The creator supplies that meaning through ordinary
+composition:
+
+```manic
+// One selected route
+par { travel(packet, lane2, 1.2, smooth); flow(lane2, 1.2); }
+
+// Three authored deliveries together
+par {
+  travel(copy1, lane1, 1.0, smooth);
+  travel(copy2, lane2, 1.0, smooth);
+  travel(copy3, lane3, 1.0, smooth);
+}
+
+// A path connected to nothing—motion used purely as design
+flow(ribbon, 4.0, both, continuous);
+```
+
+`seq` creates an authored order. `par` creates simultaneous motion. `travel`
+moves any ordinary 2-D entity and preserves its identity. `flow` requires only
+a path; it does not require endpoints, architecture metadata, or an object to
+carry. Tags let one `flow` address several paths when the creator wants them to
+act together.
 
 ## `attach` — author the relationship
 
@@ -99,6 +127,28 @@ par {
 
 Use `travel` for a vehicle, probe, token, particle, or graph marker. Use `flow`
 for energy, attention, traffic, or a signal that should disappear after passing.
+The default remains one forward pulse. For sustained activity use
+`flow(curve, 4, forward, continuous)`; Manic chooses length-aware complete
+cycles, so the stream begins empty and drains cleanly at the end. Use
+`flow(curve, 1, reverse, once)` for generic reverse motion and `both` for two
+independent opposing streams.
+
+## Motion-flow foundation example
+
+This example proves the same vocabulary across four different intentions: one
+selected path, three motions authored in order, three motions authored together,
+and a free spline used only as visual design.
+
+```manic
+{{#include ../../examples/motion-flow-foundation.manic}}
+```
+
+Run it directly or audit every target format:
+
+```bash
+manic examples/motion-flow-foundation.manic
+manic check examples/motion-flow-foundation.manic --canvas all
+```
 
 ## Complete V2 example
 

@@ -179,7 +179,7 @@ address.
 
 | call | draws |
 |---|---|
-| `text(id, (x,y), "str")` | text centred at `(x,y)`, mono, size 28 |
+| `text(id, (x,y), "str")` | shaped text centred at `(x,y)`, mono, size 28. Fonts are embedded and host-independent; fallback, combining marks, bidi/RTL, Arabic, Devanagari, wrap, reveal, glow, rotation, and zoom share one cached layout. Use `manic check` for unsupported Unicode; colour emoji is intentionally deferred. |
 | `counter(id, (x,y), value, [decimals], ["prefix"], ["suffix"])` | a numeric readout; animate with `to(id, value, target)` so it counts live |
 | `parameter(id, (x,y), initial, min, max, ["label"], [decimals])` | a visible bounded creator value: numeric readout + native track/dot widget. Animate its `value`; the range clamps the journey. All widget parts carry tag `{id}.widget` |
 | `bind(parameter, target, property, "formula")` | connect live parameter `p` to `x`, `y`, `opacity`, `scale`, `angle`, `hue`, `value`, `trace`, or a plot `formula`. A plot formula also has coordinate `x` |
@@ -244,7 +244,7 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `travel(id, path, [dur], [ease])` | move one persistent entity once along an existing line, arrow, curve, plot, spline, or arc; it stops and holds at the endpoint |
 | `wander(id, [dur])` | gently move a `particles` group while keeping every dot inside its original circle/rectangle; seeded and deterministic |
 | `arrange(id, container, ["random|grid|ring"], [dur], [ease])` | move one persistent particle set into a deterministic layout inside `container`; random layouts use independent organic curved routes, a larger rectangle creates expansion, `grid → random → grid` gives exact reversal, and a circle plus `ring` gives a radial endpoint |
-| `flow(path, [dur])` | send one luminous emphasis pulse over a line, arrow, curve, spline, arc, or `link` |
+| `flow(path, [dur], [forward|reverse|both], [once|continuous])` | send a directional luminous pulse over a line, arrow, curve, spline, arc, `link`, or tagged path group. Defaults are `forward, once`; `continuous` emits length-aware complete cycles and drains cleanly at the end |
 | `draw(id, [dur])` | trace a stroke on (declare `untraced` first) |
 | `erase(id, [dur])` | trace a stroke off |
 | `type(id, [dur])` | typewriter-reveal a text entity |
@@ -256,6 +256,7 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `shake(id, [dur])` | horizontal shake, returns to origin |
 | `scale(id, factor, [dur], [ease])` | animate uniform scale |
 | `rotate(id, degrees, [dur], [ease])` | rotate to an absolute angle |
+
 | `spin(id, degrees, [dur], [ease])` | rotate *by* a relative angle |
 | `cam((x,y), [dur], [ease])` | pan the camera centre |
 | `zoom(factor, [dur], [ease])` | zoom the camera (1.0 = whole canvas) |
@@ -266,6 +267,12 @@ take an optional trailing **duration** (seconds) and **easing** name:
 | `wordpop(id, [delay])` | pop a `caption`'s words in one at a time (TikTok-style; `hidden(id.words)` first) |
 | `morph(a, b, [spin])` (constructor) + `to(a, morph, t, [dur])` | blend `a`'s outline into `b`'s (`t` 0→1). Optional `spin` degrees winds the blend (clockwise if positive). Open paths remain open and closed outlines remain closed, avoiding a false diagonal chord during graph/line transforms. Outline-only; `a` becomes a stroked polyline (Manim `Transform`) |
 | `copy(new, src)` (constructor) | duplicate entity `src` as `new` (standalone, no group tags) — copy then morph/move it while the original stays |
+
+Motion vocabulary is domain-neutral. `travel` can move any ordinary 2-D entity
+over any supported path; `flow` can animate a path that connects no entities at
+all. Icons and labels never imply queueing, broadcasting, balancing, physics, or
+other subject behavior. Express “one,” “in order,” or “together” with authored
+paths plus `travel`, `flow`, `seq`, `par`, `stagger`, and tags.
 
 `move`/`grow` accept an entity id as the target (`move(A, B)` moves A to B's
 position); everything else takes a literal `(x, y)`.
@@ -1038,6 +1045,50 @@ timerstyle(q, "look=bar direction=drain label=THINK finish=pulse");
 socials(me);
 run(q);
 ```
+
+## The systems architecture kit
+
+Systems stories separate ownership, possible topology, and actual runtime
+behaviour. A node's parent may be the architecture or an earlier cluster;
+clusters recursively resize and adapt their layout to the canvas.
+
+| call | meaning |
+|---|---|
+| `architecture(id, center, width, height)` | bounded responsive system canvas |
+| `cluster(id, parent, "label")` | labelled ownership group inside an architecture or cluster |
+| `node(id, parent, "kind", "label")` | provider-neutral or provider-backed component inside its parent |
+| `connect(id, from, to, [bend])` | cold dashed topology edge; a node/cluster endpoint expands possible member lanes, and an optional signed bend changes visual routing |
+| `connect(id, from, to, orthogonal, [from_port], [to_port])` | one port-aware Manhattan connector and one routable identity; ports are `auto`, `left`, `right`, `top`, or `bottom` |
+| `message(id, source, "label")` | persistent generic event, job, packet, or command (`request` is an alias) |
+| `route(message, connection, [dur], [ease])` | move through one selected physical lane, illuminate it, and validate semantic continuity |
+| `hotpath(message, [dur], [seed])` | infer one valid path to a sink, choose seeded branches, and move the same dot continuously while only chosen lanes illuminate |
+
+```manic
+architecture(events, (cx,cy), w*0.9, h*0.7);
+node(source, events, "aws:eks", "K8s Source");
+cluster(workers, events, "EVENT WORKERS");
+node(w1, workers, "aws:ecs", "Worker 1");
+node(w2, workers, "aws:ecs", "Worker 2");
+connect(dispatch, source, workers);
+message(event, source, "EVENT");
+route(event, dispatch, 0.9, smooth);
+// Or let the graph choose one reproducible end-to-end execution:
+hotpath(event, 6.0, 27);
+```
+
+Use `draw(dispatch)` to reveal all possible lanes, `route` for one real message,
+and `flow(dispatch, 4, forward, continuous)` for aggregate activity. Connections
+remain dashed when idle; `route` and `hotpath` add a solid moving hot overlay.
+The public connection id addresses every expanded lane. A bend is creator-set
+geometry only; it does not perform automatic obstacle or provider inference.
+Current AWS
+kinds are `route53`, `cloudfront`, `api-gateway`, `elb`, `lambda`, `ecs`, `eks`,
+`fargate`, `s3`, `dynamodb`, `elasticache`, `rds`, `redshift`, and `sqs`; prefix
+them with `aws:` in the DSL. Provider-free visual archetypes are `client`,
+`service`, `gateway`, `database`, `cache`, `queue`, `storage`, and `external`.
+All kinds select visuals only—none infer balancing, queueing, broadcast,
+persistence, retries, or delivery. See the mdBook Systems Architecture chapter
+for the provider-neutral request/return story and nested event-processing example.
 
 ## The 3D kit
 

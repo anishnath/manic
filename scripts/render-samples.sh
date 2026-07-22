@@ -30,7 +30,7 @@ render() { # <file> <out-name>
     return
   fi
   echo ">> $name  <-  $file"
-  "$MANIC" "$file" --preset studio --no-brand --record "$dir" --fps 60
+  "$MANIC" "$file" --preset studio --record "$dir" --fps 60
   mv "$dir/out.mp4" "$out" 2>/dev/null && rm -rf "$dir" || true
 }
 
