@@ -769,9 +769,13 @@ SECTIONS = [
     "double integral into visible geometry."),
  ]),
  dict(slug="systems", title="Diagrams", intro=(
-     "Animated diagrams — not another static boxes-and-arrows generator. Declare a "
-     "bounded architecture with auto-positioned nodes and directed connections, then move "
-     "one persistent request through the graph. Node artwork comes from a string kind "
+     "Animated diagrams — not another static boxes-and-arrows generator. Declare an "
+     "architecture (or a `flowchart`) with auto-positioned nodes and directed connections "
+     "— geometry is "
+     "optional, so a diagram auto-fits the canvas and, when it grows dense, scales itself "
+     "down as one to stay inside the frame (you never touch a coordinate) — then move "
+     "one persistent request through the graph. A flowchart ranks its nodes top-down and "
+     "runs: a token walks the process and takes a branch. Node artwork comes from a string kind "
      "(`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see "
      "[icon reference & aliases](systems-icons.md)); paths are coloured by relationship. "
      "The kit never infers behaviour — the creator authors it with `route`, `flow`, and "
@@ -787,6 +791,24 @@ SECTIONS = [
    ("systems-arrow-patterns",
     "The connection-grammar reference: one-way, parallel, round-trip, port-aware "
     "orthogonal, fan-out, and diagonal-duplex lanes."),
+   ("microservices-platform",
+    "Auto-fit showcase: Route 53 → load balancer → gateway, three availability zones of "
+    "ECS services, a replicated RDS database cluster, and CloudWatch monitoring — declared "
+    "with zero coordinates. Add a tier or a zone and the whole diagram reflows and scales "
+    "itself down to the frame; paths coloured by relationship (request · write · "
+    "replication · telemetry)."),
+   ("factorial-flowchart",
+    "A flowchart that runs: `flowchart(fc)` auto-lays seven shape-nodes "
+    "(terminator/io/process/decision) top-down with no coordinates, then a token walks the "
+    "factorial loop — taking the yes branch, looping back, and exiting to the end. Node "
+    "shapes are string kinds; branches are coloured and `annotate`d yes/no/loop, on a clean "
+    "paper theme with a colour legend."),
+   ("complex-flowchart",
+    "A big pipeline that builds itself, then runs: a 24-node CI/CD flow with 7 decisions and "
+    "feedback loops auto-wraps into readable side-by-side columns (long loops routed around "
+    "the perimeter). It first draws box-by-box in flow order, then pairs of commits race the "
+    "pipeline in parallel to different outcomes — ship, rollback-to-start, held — twice. All "
+    "`flowchart` + `route` + `par`, no coordinates."),
    ("systems-rabbitmq-consumers",
     "Authored one-of-many delivery: messages 101/102/103 explicitly select different "
     "workers — the kit never infers RabbitMQ or round-robin behaviour."),

@@ -291,6 +291,9 @@ ex-systems-foundation|VMhagIpa65Y|Animated Architecture, No Cloud Assets — man
 ex-systems-architecture-poc|mzM3owjKGHo|Watch One Request Cross a Whole AWS Architecture — manic
 ex-systems-arrow-patterns|jbjiZwKPh-M|Every Connection Pattern in One Diagram — manic Systems Kit
 ex-systems-rabbitmq-consumers|XMR3hm_a01I|One-of-Many Delivery, Authored Not Inferred — manic
+ex-microservices-platform|nyywVUsJwsY|Add a Tier, It Re-Fits Itself — Auto-Layout Diagrams in manic
+ex-factorial-flowchart|9Q7QwzN3e3k|A Flowchart That Runs — Ranked Auto-Layout + a Token That Walks the Loop
+ex-complex-flowchart|5iBfClaMyY8|Watch a Big Flowchart Build Itself, Then Run — Auto-Wrap + Parallel Tokens in manic
 ex-aws-three-tier-web-application|3uNmnY6qAII|A Three-Tier AWS App, One Moving Request — manic
 ex-aws-event-processing-clusters-poc|Ljq93V7cmIQ|Event Processing on AWS: Topology to Hot Path — manic
 ex-aws-clustered-web-services|j_NJweoV6iw|Clustered Web Services on AWS, Request & Response — manic

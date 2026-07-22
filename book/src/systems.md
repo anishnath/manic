@@ -24,9 +24,10 @@ With them you get provider-neutral nodes (no assets) or real icons from **17
 providers**; declaration-first nested clusters with responsive layout; direct,
 curved, and orthogonal connections with node-boundary ports; cold dashed
 topology kept separate from solid runtime motion; and one persistent message
-whose identity survives every hop. The kit shines for one clear story — for a
-very dense platform overview, split or place clusters yourself to keep it
-readable.
+whose identity survives every hop. The kit shines for one clear story — and
+density is no longer your job: geometry is optional, so even a dense platform
+overview auto-fits and scales itself to stay in-frame (see [*It just
+fits*](#it-just-fits--no-coordinates), below).
 
 ## Possible vs. actual
 
@@ -65,6 +66,72 @@ Use explicit `route`/`travel` for one authored journey, `seq` for authored order
 and `par` plus multiple objects when several journeys should happen together.
 `hotpath` is only an optional seeded walk over declared graph geometry; it is
 not a simulation of the services shown.
+
+## It just fits — no coordinates
+
+Geometry is optional. Write `architecture(id)` with **no** center or size and the
+diagram fills the canvas (leaving the title and caption bands clear), centres
+itself, and lays out every cluster and node for you:
+
+```manic
+architecture(platform);   // that's the whole canvas declaration
+```
+
+Then add as much as the story needs. Leaf clusters with many children wrap into a
+grid, top-level tiers wrap into rows, and when the packed content would still
+overflow the frame, the **whole diagram scales down as one** — cards, icons,
+labels, and every connection lane together — to a legible minimum. Nothing clips
+off-canvas, and you never touch a coordinate, split a cluster into columns, or
+shrink a font to make it fit.
+
+This example declares Route 53, an edge load balancer, a gateway, three
+availability zones of services, a replicated database cluster, and monitoring —
+all with zero geometry. Add a tier or a zone and it simply re-fits:
+
+```manic
+{{#include ../../examples/microservices-platform.manic}}
+```
+
+Pass explicit `(center, width, height)` only when you deliberately want a
+hand-placed diagram; it is never required to make one fit.
+
+## Flowcharts — a diagram that runs
+
+An architecture lays out regions and clusters; a **flowchart** ranks its nodes by
+the edges between them (like Mermaid's `graph TD`/`LR`) and — this is manic's edge
+— it *runs*: a token walks the process and takes a branch. Just declare
+`flowchart(id)`: like an architecture it auto-fits and needs no coordinates. It
+lays the flow top-down and, when the flow is long, **wraps it into side-by-side
+columns** — the count chosen to fill the frame — so every node stays full-size and
+readable: you read down one column, then across to the top of the next, like a
+multi-column diagram on paper. Forward edges are clean elbows; a long feedback loop
+routes neatly around the bottom-left perimeter instead of cutting across the middle.
+Pass `flowchart(id, LR)` to force a single left-to-right row instead.
+
+A flowchart is only useful if you can **read** its nodes, so there is a readability
+limit — 26 nodes top-down, 14 left-right — and past it (more than even column
+wrapping keeps legible) the editor warns you to **split the process into linked
+sub-flows**: end one chart with a `connector` node that hands off to the next.
+Raise the limit with a third argument, `flowchart(id, dir, N)`, when you
+deliberately want a denser chart.
+
+Every node is the same `node(id, parent, "kind", "label")` you already know — only
+now the `kind` is a **shape**: `terminator` (a start/end pill), `process` (a step
+rectangle), `decision` (a diamond), `io` (a parallelogram), `subprocess`, or
+`connector` (a small circle). The shape *is* the node's body, with the label
+centred inside — nothing new to learn beyond the shape names.
+
+Connect the nodes; inside a flowchart the edges default to clean orthogonal elbow
+connectors along the rank direction. Give a decision's branches captions with
+`annotate(edge, "yes")`, colour them by meaning, and `route` a token from the
+start terminator to watch the algorithm execute. A loop is just an edge back to an
+earlier node (give it explicit ports so it routes up the side):
+
+```manic
+{{#include ../../examples/factorial-flowchart.manic}}
+```
+
+<div class="manic-video" data-video="ex-factorial-flowchart"></div>
 
 ## Start without a cloud provider
 

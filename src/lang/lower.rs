@@ -637,6 +637,7 @@ fn consumes_structure_id(name: &str) -> bool {
             | "figure"
             | "explain"
             | "endcard"
+            | "annotate"
     )
 }
 

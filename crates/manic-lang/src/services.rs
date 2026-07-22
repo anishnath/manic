@@ -236,7 +236,104 @@ pub fn check(src: &str) -> Vec<Diagnostic> {
     for s in &expanded.stmts {
         validate_stmt(s, &cat, &names, &starts, &mut out);
     }
+    flowchart_density(&expanded.stmts, &starts, &mut out);
     out
+}
+
+/// Readability guard: a flowchart is only useful if you can *read* its nodes, so
+/// warn (not error) when one holds more nodes than fits legibly and suggest
+/// splitting into linked sub-flows. The limit defaults by direction — 6 top-down,
+/// 12 left-right (auto counts as left-right) — and an explicit `max_nodes` arg
+/// overrides it. Purely a node count: layout/pixel size isn't known at this layer.
+fn flowchart_density(stmts: &[Stmt], starts: &[usize], out: &mut Vec<Diagnostic>) {
+    use std::collections::HashMap;
+    let ident = |e: &Expr| match &e.kind {
+        ExprKind::Ident(s) => Some(s.clone()),
+        _ => None,
+    };
+    let num = |e: &Expr| match &e.kind {
+        ExprKind::Num(n) => Some(*n),
+        _ => None,
+    };
+    // flowchart id -> (limit, start, len)
+    let mut charts: HashMap<String, (usize, u32, u32)> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+    // child id -> parent id, for walking a node's ownership chain to its flowchart
+    let mut parent: HashMap<String, String> = HashMap::new();
+    let mut node_parents: Vec<String> = Vec::new();
+    for s in stmts {
+        match s.name.as_str() {
+            "flowchart" => {
+                if let Some(id) = s.args.first().and_then(&ident) {
+                    let dir = s.args.iter().skip(1).find_map(&ident);
+                    let explicit = s.args.iter().skip(1).find_map(&num);
+                    // Top-down/auto column-WRAP into the frame, so they hold many
+                    // more nodes legibly; left-right is a single row and fills up
+                    // sooner. Past these, even wrapping can't keep it readable —
+                    // split into linked sub-flows.
+                    let default = match dir.as_deref().map(str::to_ascii_uppercase).as_deref() {
+                        Some("LR") | Some("RIGHT") => 14,
+                        _ => 26, // TD / auto (column-wrapped)
+                    };
+                    let limit = explicit
+                        .map(|n| (n.round() as i64).max(1) as usize)
+                        .unwrap_or(default);
+                    let (start, len) = range(starts, &s.name_span);
+                    if !charts.contains_key(&id) {
+                        order.push(id.clone());
+                    }
+                    charts.insert(id, (limit, start, len));
+                }
+            }
+            "cluster" => {
+                if let (Some(id), Some(p)) =
+                    (s.args.first().and_then(&ident), s.args.get(1).and_then(&ident))
+                {
+                    parent.insert(id, p);
+                }
+            }
+            "node" => {
+                if let Some(p) = s.args.get(1).and_then(&ident) {
+                    node_parents.push(p);
+                }
+            }
+            _ => {}
+        }
+    }
+    if charts.is_empty() {
+        return;
+    }
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for p in &node_parents {
+        let mut cur = p.clone();
+        for _ in 0..64 {
+            if charts.contains_key(&cur) {
+                *counts.entry(cur.clone()).or_insert(0) += 1;
+                break;
+            }
+            match parent.get(&cur) {
+                Some(up) => cur = up.clone(),
+                None => break,
+            }
+        }
+    }
+    for id in &order {
+        let (limit, start, len) = charts[id];
+        let count = counts.get(id).copied().unwrap_or(0);
+        if count > limit {
+            out.push(Diagnostic {
+                start,
+                len,
+                severity: "warning",
+                message: format!(
+                    "flowchart `{id}` has {count} nodes — past the readable limit of {limit}. \
+                     Split it into linked sub-flows (end one with a `connector` node that hands \
+                     off to the next), or raise the limit with `flowchart({id}, <dir>, {count})`."
+                ),
+                fix: None,
+            });
+        }
+    }
 }
 
 fn validate_stmt(
@@ -627,6 +724,43 @@ mod tests {
         assert!(check("step(\"missing\");")
             .iter()
             .any(|d| d.message.contains("needs a `{ ... }` block")));
+    }
+
+    #[test]
+    fn flowchart_density_guard() {
+        // Build a flowchart declaration plus `n` nodes parented to it.
+        let chart = |decl: &str, n: usize| {
+            let mut s = format!("canvas(\"16:9\");\n{decl}\n");
+            for i in 0..n {
+                s.push_str(&format!("node(n{i}, fc, \"process\", \"step\");\n"));
+            }
+            s
+        };
+        let warns = |src: &str| {
+            check(src)
+                .iter()
+                .any(|d| d.severity == "warning" && d.message.contains("readable limit"))
+        };
+        let errors = |src: &str| check(src).iter().any(|d| d.severity == "error");
+
+        // TD/auto column-wrap, so they hold more before it's unreadable: 26
+        assert!(warns(&chart("flowchart(fc);", 27)));
+        assert!(!warns(&chart("flowchart(fc);", 26)));
+        assert!(warns(&chart("flowchart(fc, TD);", 27)));
+        assert!(!warns(&chart("flowchart(fc, TD);", 26)));
+        // left-right is a single row → fills up sooner: 14
+        assert!(warns(&chart("flowchart(fc, LR);", 15)));
+        assert!(!warns(&chart("flowchart(fc, LR);", 14)));
+        // an explicit max_nodes overrides the default (both ways)
+        assert!(!warns(&chart("flowchart(fc, auto, 40);", 30)));
+        assert!(warns(&chart("flowchart(fc, TD, 4);", 5)));
+        // the guard is advisory: it must never be an error (would break the gate)
+        assert!(!errors(&chart("flowchart(fc);", 60)));
+        // clusters count toward their owning flowchart (limit lowered to 3 here)
+        let nested = "canvas(\"16:9\");\nflowchart(fc, TD, 3);\ncluster(c, fc, \"g\");\n\
+                      node(a, c, \"process\", \"s\"); node(b, c, \"process\", \"s\");\n\
+                      node(d, c, \"process\", \"s\"); node(e, c, \"process\", \"s\");";
+        assert!(warns(nested), "4 nodes under a cluster, flowchart limit 3");
     }
 
     #[test]
