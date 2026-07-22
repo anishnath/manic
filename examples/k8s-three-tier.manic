@@ -1,6 +1,6 @@
 title("A Three-Tier Application on Kubernetes — Following One Request");
 canvas("16:9");
-template("mono");
+template("neon");
 
 let u = (w+h-abs(w-h))/1440;
 watermark(mark, (w*0.15, h*0.06), "Made With Manic");

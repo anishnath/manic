@@ -1,74 +1,37 @@
-# Systems architecture — structure into behaviour
+# Diagrams — draw a system, then watch it work
 
-The Systems Kit is for animated architecture explanations. Declare ownership,
-connect the topology, then follow one message through the design. Manic handles
-nested responsive layout, provider artwork, parallel lanes, and deterministic
-motion; ordinary `step`, `show`, `draw`, `flow`, camera, and text verbs remain
-the presentation language.
+Declare a technical diagram as text and manic animates it — **architecture
+diagrams today**, with flows, sequences, and more to come. Declare what belongs
+where, connect the topology, then follow one message through the design. Manic
+handles nested responsive layout, provider artwork, parallel lanes, and
+deterministic motion; ordinary `step`, `show`, `draw`, `flow`, camera, and text
+verbs remain the presentation language.
 
-## Where the Systems Kit stands
+Unlike static diagram-as-code (Mermaid, Mingrammer), a manic diagram *moves*:
+the same source that draws the boxes also carries a request through them.
 
-The V2 foundation is usable today for small and medium architecture stories.
-It is deliberately a **behaviour layer over diagram structure**, not a catalogue
-of cloud-specific animation verbs. The stable vocabulary is:
+## The vocabulary
+
+The whole kit is nine words — a behaviour layer over diagram structure, not a
+catalogue of cloud verbs:
 
 ```text
 architecture  cluster  node  connect  link
 message       route    hotpath         flow
 ```
 
-The foundation now provides:
+With them you get provider-neutral nodes (no assets) or real icons from **17
+providers**; declaration-first nested clusters with responsive layout; direct,
+curved, and orthogonal connections with node-boundary ports; cold dashed
+topology kept separate from solid runtime motion; and one persistent message
+whose identity survives every hop. The kit shines for one clear story — for a
+very dense platform overview, split or place clusters yourself to keep it
+readable.
 
-- provider-neutral nodes that render without external artwork;
-- a curated AWS icon manifest without adding AWS words to the grammar;
-- declaration-first nested clusters and responsive member layout;
-- direct, curved, and port-aware orthogonal connections;
-- cold topology separated from solid runtime activity;
-- persistent messages whose identity survives every route hand-off;
-- explicit routes, deterministic seeded hot paths, and length-aware continuous
-  flow;
-- distinct authored forward, return, duplex, and neutral relationships;
-- source-located ownership, id, port, route-continuity, and provider errors;
-- native/editor/WASM catalogue parity and regression coverage.
+## Possible vs. actual
 
-Large automatic diagrams remain a hardening area. The engine does not yet
-promise obstacle-aware lanes, nested-title reservation, collision-aware edge
-labels, or automatic level-of-detail. Use the kit confidently for focused
-stories; treat dense platform overviews as acceptance tests until those layout
-guarantees ship.
-
-## The journey so far
-
-| Milestone | What changed | What it taught us |
-|---|---|---|
-| Static AWS PoC | `architecture`, `node`, provider metadata, and directed `connect` paths | Recreating boxes and arrows is useful, but animation must explain what the system does. |
-| Runtime identity | `message`, `route`, and the cold/hot path split | One persistent object is clearer than replacement dots or lighting every possible route. |
-| Responsive hierarchy | declaration-first `cluster`, nested ownership, node-to-cluster fan-out/fan-in | Hierarchy belongs in the source; physical parallel lanes can remain generated geometry. |
-| Provider-neutral foundation | native `client`, `service`, `gateway`, `database`, `cache`, `queue`, `storage`, and `external` nodes | Architecture storytelling must work without assets or vendor semantics. |
-| Direction and continuity | explicit return paths, generic `flow`, `forward`/`reverse`/`both`, `once`/`continuous` | A response is not merely an incoming arrow played backward. Motion must drain cleanly and remain seekable. |
-| Geometry hardening | signed bends plus `orthogonal` connections with `auto`/`left`/`right`/`top`/`bottom` ports | Routing is visual geometry. It must not infer what a load balancer, queue, or database means. |
-| Delivery acceptance | successive persistent messages choose different RabbitMQ consumers | Existing generic routes already express authored one-of-many delivery; broadcast/copy/merge still need a general composition design. |
-| Dense-system stress test | on-prem services, HA state, analytics, and observability in one scene | Motion continuity works, but large-diagram fitting and collision-aware routing are the next engine priority. |
-
-This progression is why the vocabulary stayed small. New examples improved the
-shared geometry, identity, and motion model instead of introducing verbs such
-as `loadbalance`, `consume`, `replicate`, or `scrape` whose meaning would be
-too provider- or domain-specific.
-
-## Acceptance stories
-
-| Example | Purpose | Current result |
-|---|---|---|
-| `systems-architecture-poc.manic` | Browser → CloudFront → API Gateway → Lambda → DynamoDB → SQS | Original animated AWS hot-path proof. |
-| `aws-three-tier-web-application.manic` | Responsive presentation/application/data tiers | Same semantic source reframes across landscape and portrait. |
-| `aws-event-processing-clusters-poc.manic` | Nested clusters, worker/processor fan-out, seeded sink choice | Proves hierarchy, grouped topology, and deterministic `hotpath`. |
-| `aws-clustered-web-services.manic` | Load-balancer possibilities, DB/cache round trips, HA relationship | Proves explicit return geometry and response styling. |
-| `systems-foundation.manic` | Entirely provider-neutral request and return | Proves the kit does not depend on AWS artwork. |
-| `systems-arrow-patterns.manic` | Horizontal, vertical, orthogonal, fan-out, and diagonal arrow families | Visual grammar and port-routing reference. |
-| `systems-rabbitmq-consumers.manic` | Queue → three workers → database | Clean authored one-of-many acceptance story; ready for review. |
-| `onprem-advanced-web-service.manic` | Nginx, gRPC, Redis, PostgreSQL, Fluentd, Kafka, Spark, Prometheus, Grafana | Deliberate stress test; exposes the remaining large-composition gaps. |
-
-The RabbitMQ story is the clearest current demonstration of the design rule:
+The one rule to internalise: a **connection states what is possible; a moving
+message states what happened.**
 
 ```manic
 connect(toWorker1, queue, worker1, orthogonal, right, left);
@@ -350,29 +313,17 @@ manic examples/aws-event-processing-clusters-poc.manic
 manic check examples/aws-event-processing-clusters-poc.manic --canvas all
 ```
 
-## Current boundary
+## What the kit will not do for you
 
-This foundation intentionally avoids provider-specific action verbs. Automatic
-obstacle avoidance, post-layout edge reflow, nested-cluster title reservation,
-cluster-to-cluster bundle routing, collision-aware connection labels,
-message-group copying, broadcast/fork/merge choreography, cyclic/retry
-traversal, failure semantics, and large-diagram level-of-detail remain later
-work. The curated provider manifest exists; expanding it and making every
-provider asset independently deployable across backend and WASM remains
-distribution work.
+By design, the kit never infers behaviour from an icon or a label. It will not
+decide that a node is a load balancer, a queue, or a database, and it never
+simulates balancing, buffering, broadcast, retries, or failure. You author what
+happens with explicit `route`, `flow`, `seq`, `par`, colour, and ordinary verbs
+— that is what keeps the vocabulary small and the diagram honest.
 
-Until those patterns are proven, use ordinary Manic verbs to focus, recolour,
-shake, fade, scale, and annotate system components.
+Two practical tips:
 
-### Recommended hardening order
-
-1. Make architecture and nested-cluster bounds authoritative for every format.
-2. Reserve cluster-heading and node-label space during layout.
-3. Route orthogonal lanes around measured cards and cluster headings, then
-   reflow them after responsive layout.
-4. Extend visual audits to path/title, path/card, message/card, and edge-label
-   collisions.
-5. Add generic broadcast, fork/copy, and merge/join composition without
-   teaching Manic provider semantics.
-6. Add large-diagram focus and level-of-detail only after the geometry above is
-   trustworthy.
+- **Draw the return path, don't reverse the arrow.** A response is its own
+  connection with its own colour, not the request lane played backward.
+- **For very dense diagrams, shape the layout yourself.** Group nodes into
+  clusters and split wide rows into columns so nothing overflows the frame.

@@ -576,8 +576,9 @@ follows from a construction the geo kit actually computes.
   safe-area clearance, and whether the drawn figure accidentally suggests an
   unstated special case.
 
-### Systems architecture kit
-Separate the structure from its runtime story. Declare one responsive
+### Diagrams kit
+Animate a technical diagram (architecture today; flows/sequences later). Separate
+the structure from its runtime story. Declare one responsive
 `architecture`, declare each `cluster(id,parent,"label")` before its children,
 and give every `node` either the architecture or a cluster as parent. Node
 artwork is a **`provider:name` string** from a catalogue of **17 providers**

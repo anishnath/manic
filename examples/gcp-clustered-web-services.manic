@@ -1,6 +1,6 @@
 title("Clustered Web Services on Google Cloud");
 canvas("16:9");
-template("mono");
+template("neon");
 
 let u = (w+h-abs(w-h))/1440;
 watermark(mark, (w*0.15, h*0.025), "Made With Manic");

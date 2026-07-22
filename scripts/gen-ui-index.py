@@ -63,9 +63,23 @@ for sec in gg.SECTIONS:
     })
 
 (DEST / "index.json").write_text(json.dumps({"count": count, "categories": cats}, indent=2) + "\n")
-shutil.copytree(ROOT / "assets", ASSET_DEST, dirs_exist_ok=True)
+
+# The playground never renders — rendering happens server-side (the render API
+# gets these via scripts/deploy-assets.sh). So the UI needs none of the bundled
+# render assets: diagram icons + manifest, LaTeX/text fonts, 3-D models, and the
+# crypto trace fixtures. Ship only genuinely UI-facing files (e.g. the logo).
+RENDER_ONLY = {"diagrams", "diagrams-manifest.json", "fonts", "models", "crypto"}
+for name in RENDER_ONLY:                       # drop any stale copy from a prior run
+    stale = ASSET_DEST / name
+    if stale.is_dir():
+        shutil.rmtree(stale)
+    elif stale.exists():
+        stale.unlink()
+shutil.copytree(ROOT / "assets", ASSET_DEST,
+                ignore=shutil.ignore_patterns(*RENDER_ONLY), dirs_exist_ok=True)
 asset_count = sum(path.is_file() for path in ASSET_DEST.rglob("*"))
 print(f"published {count} examples across {len(cats)} categories; copied {copied} .manic files")
-print(f"published {asset_count} bundled asset files to {ASSET_DEST}")
+print(f"published {asset_count} UI asset files to {ASSET_DEST}"
+      f" (render-only diagram catalog excluded — it ships to the render host, not the UI)")
 if missing:
     print(f"  WARNING: {len(missing)} gallery entries have no .manic file: {missing}")

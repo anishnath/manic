@@ -768,8 +768,8 @@ SECTIONS = [
     "The volume under a surface represented as solid 3D Riemann-sum columns, turning a\n"
     "double integral into visible geometry."),
  ]),
- dict(slug="systems", title="Systems & architecture", intro=(
-     "Animated architecture — not another static boxes-and-arrows generator. Declare a "
+ dict(slug="systems", title="Diagrams", intro=(
+     "Animated diagrams — not another static boxes-and-arrows generator. Declare a "
      "bounded architecture with auto-positioned nodes and directed connections, then move "
      "one persistent request through the graph. Node artwork comes from a string kind "
      "(`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see "
@@ -845,8 +845,8 @@ SUMMARY_PRE = [
  "- [The language layer](language-layer.md)",
  "- [Machine learning — models made visible](ml.md)",
  "- [Kits — math, geometry, algorithms](kits.md)",
- "- [Systems architecture — structure into behaviour](systems.md)",
- "- [Systems Kit — icon reference & aliases](systems-icons.md)",
+ "- [Diagrams — draw a system, then watch it work](systems.md)",
+ "    - [Icon reference & aliases](systems-icons.md)",
  "- [Bundled assets — portable files](assets.md)",
  "- [Elevating a scene](elevating.md)",
  "- [Going 3D](3d.md)",

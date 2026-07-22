@@ -1,6 +1,6 @@
-# Systems Kit — icon reference & aliases
+# Diagrams — icon reference & aliases
 
-Every Systems-kit node takes a **provider:name** string that selects *artwork only* — it never implies routing, balancing, queueing, or persistence. The catalogue covers **17 providers / 2461 components**, generated from `assets/diagrams/` by `scripts/gen-diagram-manifest.py` (Mingrammer/Diagrams icon set, disk-loaded at render — no binary bloat).
+Every diagram node takes a **provider:name** string that selects *artwork only* — it never implies routing, balancing, queueing, or persistence. The catalogue covers **17 providers / 2461 components**, generated from `assets/diagrams/` by `scripts/gen-diagram-manifest.py` (Mingrammer/Diagrams icon set, disk-loaded at render — no binary bloat).
 
 ## Reference notation
 

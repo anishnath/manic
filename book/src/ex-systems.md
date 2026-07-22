@@ -1,6 +1,6 @@
-# Systems & architecture
+# Diagrams
 
-Animated architecture — not another static boxes-and-arrows generator. Declare a bounded architecture with auto-positioned nodes and directed connections, then move one persistent request through the graph. Node artwork comes from a string kind (`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see [icon reference & aliases](systems-icons.md)); paths are coloured by relationship. The kit never infers behaviour — the creator authors it with `route`, `flow`, and ordinary verbs.
+Animated diagrams — not another static boxes-and-arrows generator. Declare a bounded architecture with auto-positioned nodes and directed connections, then move one persistent request through the graph. Node artwork comes from a string kind (`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see [icon reference & aliases](systems-icons.md)); paths are coloured by relationship. The kit never infers behaviour — the creator authors it with `route`, `flow`, and ordinary verbs.
 
 Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
 

@@ -1,6 +1,6 @@
 title("Kubernetes Cluster Components");
 canvas("16:9");
-template("mono");
+template("neon");
 
 // ---- boxes (drawn first, behind; hollow-ish so icons read on top) ----
 rect(clusterBox, (800, 380), 880, 560);   outline(clusterBox, dim); opacity(clusterBox, 0.22);

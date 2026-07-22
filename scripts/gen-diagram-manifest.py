@@ -88,8 +88,8 @@ for k in sorted(entries):
     bare_by_provider.setdefault(prov, []).append(name)
 
 md = []
-md.append("# Systems Kit — icon reference & aliases\n")
-md.append("Every Systems-kit node takes a **provider:name** string that selects *artwork "
+md.append("# Diagrams — icon reference & aliases\n")
+md.append("Every diagram node takes a **provider:name** string that selects *artwork "
           "only* — it never implies routing, balancing, queueing, or persistence. "
           f"The catalogue covers **{len(providers)} providers / {sum(providers.values())} "
           "components**, generated from `assets/diagrams/` by "
