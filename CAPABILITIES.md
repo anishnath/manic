@@ -888,6 +888,21 @@ extract vocabulary if that story exposes a real ergonomic gap. Neither is schedu
   Idle→Patrol→Chase→Attack→Flee, token walking transitions as a blackboard counter
   crosses thresholds. **Risk for both:** must show the semantics *moving* (query
   sweep, guards firing, state token traveling), not read as "a flowchart with a dot."
+- **Sprite/Animation Kit (flipbook + spritesheet slicing) — explored, DE-PRIORITISED.**
+  Weakest fit of the cluster: it is **asset-based playback** (import a pre-drawn
+  spritesheet, flip through hand-drawn frames), which cuts against manic's core
+  identity — *"the animation is TRUE: generated, not hand-drawn, no assets"* (the
+  same reason Biology/Anatomy are asset-deferred). Character animation is already
+  covered **generatively** (`ex-walk`/`ex-two_person_walk` generate a walk cycle from
+  motion — no spritesheet), so a flipbook kit would be a second, off-brand paradigm
+  for the same goal. **On-brand slice only:** an *explainer of the technique* ("a
+  spritesheet → slice into frames → play at 12fps, and the timing/UV math") — and
+  even that is better done with **generated frames** (a stick figure sampled at 8
+  poses, flipbook-played via `step`/opacity, zero assets) than by importing a sheet.
+  The one genuinely reusable engine gap if real spritesheet slicing were ever wanted:
+  **image source-rect / UV crop** (show a sub-rectangle of an image — `image` shows
+  the whole image today); useful beyond sprites. Verdict: **do not build a sprite
+  kit**; revisit only the image-crop primitive if a concrete need appears.
 
 ## Manic ML kit — active implementation
 
