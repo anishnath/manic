@@ -496,6 +496,12 @@ SECTIONS = [
     "Another textbook figure: two support ropes at 60°/30° meeting a knot, a string over a\n"
     "hanging pulley carrying 10 kg with the other end anchored to a hatched floor — `support`\n"
     "+ `template(\"paper\")` for the flat exam-paper look."),
+   ("spinning-cylinder-flow",
+    "Potential flow around a spinning cylinder — WHY a spun ball curves. Parallel streamlines\n"
+    "(uniform flow) and concentric circles (a free vortex) superpose into the asymmetric flow\n"
+    "around the cylinder: bunched (fast, low-pressure) one side, spread (slow, high-pressure) the\n"
+    "other → a net Magnus force, `L=ρUΓ`. Every streamline is integrated straight from the\n"
+    "velocity field with `trajectory` — the asymmetry is computed, not drawn."),
  ]),
  dict(slug="optics", title="Optics — light as geometry",
    intro="Easy builtins with the **real physics underneath** — Snell's law and Sellmeier "
@@ -694,6 +700,14 @@ SECTIONS = [
     "(jagged) vs smooth `noise(x)` (Perlin), then `noise(x,y)` tilting from a flat field into a 3D\n"
     "surface, then `fbm` stacking octaves into fractal terrain. Every visual is one formula in the\n"
     "shared expression engine — the arc that motivated adding `rand`/`noise`/`fbm`."),
+   ("creator-free-kicks",
+    "Roberto Carlos' impossible free kick, told as a Short: he walks the ball in and places it,\n"
+    "paces back, computes the Magnus law WITH VALUES until it locks, sprints up and strikes —\n"
+    "the RK4 `freekick` ball swerves metres and curls in by the post for a GOAL, while the same\n"
+    "strike with no spin (red dashed) sails wide. Then the scene REWINDS and the ball becomes a\n"
+    "spinning cylinder: uniform flow + a free vortex superpose (integrated live with `trajectory`)\n"
+    "into an asymmetric flow — faster one side, slower the other — the pressure difference that IS\n"
+    "the Magnus force. Physics proven, then explained, in one branded 9:16 story."),
    ("creator-v2-options-socials",
     "The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D\n"
     "cards, uniform correct-state spacing, and native YouTube/X/web identity lockups."),

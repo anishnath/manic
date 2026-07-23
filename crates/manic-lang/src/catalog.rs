@@ -2234,6 +2234,21 @@ pub fn catalog() -> Vec<BuiltinSpec> {
         ),
         // ── physics ──
         spec(
+            "freekick",
+            Ctor,
+            "physics",
+            "an RK4 free-kick trajectory under drag + the Magnus force (sidespin curves it); draw {id}, run(id) flies the ball",
+            &[
+                ("id", Name, R),
+                ("center", Point, R),
+                ("speed", Num, R),
+                ("angle", Num, R),
+                ("spin", Num, R),
+                ("scale", Num, O),
+                ("steps", Num, O),
+            ],
+        ),
+        spec(
             "pendulum",
             Ctor,
             "physics",

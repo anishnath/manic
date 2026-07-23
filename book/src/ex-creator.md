@@ -107,6 +107,22 @@ shared expression engine — the arc that motivated adding `rand`/`noise`/`fbm`.
 
 <div class="manic-video" data-video="ex-creator-noise-story"></div>
 
+## creator-free-kicks
+
+Roberto Carlos' impossible free kick, told as a Short: he walks the ball in and places it,
+paces back, computes the Magnus law WITH VALUES until it locks, sprints up and strikes —
+the RK4 `freekick` ball swerves metres and curls in by the post for a GOAL, while the same
+strike with no spin (red dashed) sails wide. Then the scene REWINDS and the ball becomes a
+spinning cylinder: uniform flow + a free vortex superpose (integrated live with `trajectory`)
+into an asymmetric flow — faster one side, slower the other — the pressure difference that IS
+the Magnus force. Physics proven, then explained, in one branded 9:16 story.
+
+```manic
+{{#include ../../examples/creator-free-kicks.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-free-kicks"></div>
+
 ## creator-v2-options-socials
 
 The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D

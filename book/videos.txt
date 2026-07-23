@@ -257,6 +257,7 @@ ex-bullet-block-annotated|4HCc7iRtZr8|A Bullet's Journey — Inelastic Collision
 ex-gun-shot|ffHtyPvtCos|Gun Shot — a Cinematic Scene in manic (No Physics, Just Imagination)
 ex-bullet-impact|WdfMyqJdwK8|Impact — Cinematic Scene + Real Physics, Fused — manic
 ex-loop-cinematic|knRtBYXHaYc|Loop the Loop — Cinematic Scene + Real Physics — manic
+ex-spinning-cylinder-flow|PLACEHOLDER|Why a Spinning Ball Curves — Streamlines Around a Spinning Cylinder in manic
 
 # ---- examples: optics — light as geometry ----
 ex-refraction|kcokHJq6plQ|Refraction — Snell's Law You Can Watch — manic
@@ -290,6 +291,7 @@ ex-creator-lattice-paths|LxfU9VRbZuA|How Many Paths Corner to Corner? — Lattic
 ex-creator-rule90-sierpinski|lCka4ayXxQ0|Rule 90 Draws Sierpinski’s Triangle — Can You Predict It? — manic
 ex-creator-heightmap-world|xAn1KZhJJik|Your Flat Map Is Secretly a 3D World — Grid to Terrain Short in manic
 ex-creator-noise-story|lZmssQerVNY|How Noise Builds Worlds — Random to Perlin to Fractal Terrain in manic
+ex-creator-free-kicks|PLACEHOLDER|Roberto Carlos' Banana Kick — the Magnus Effect, Computed and Explained in manic
 ex-parameter-journeys|ui5eqJDyLtk|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
 ex-creator-v2-options-socials|Q32jTgInMrk|Professional Quiz Options + Native Social Icons — manic
 ex-creator-v2-timing|Web996n1Dn4|Control Every Beat of a Quiz Reel — Creator Timing v2

@@ -7637,9 +7637,108 @@ fn c_energygraph(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `freekick(id, (cx,cy), speed, angle, spin, [scale], [steps])` — an RK4
+/// free-kick trajectory under quadratic drag + the **Magnus force** (sidespin
+/// curves the flight). Top-down: `angle` aims across the pitch in degrees (0 =
+/// straight at goal, + = right), `spin` is signed sidespin (0 = straight; larger
+/// magnitude = more curve). `scale` is px per metre. Draws the trajectory polyline
+/// `{id}` (untraced — `draw` it) and a ball `{id}.ball`; `run(id, dur)` flies the
+/// ball along the curve. Same launch, different spin ⇒ different curve — truthfully.
+fn c_freekick(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+    let center = a.pair(1)?;
+    let speed = a.num(2)?;
+    let angle = a.num(3)?;
+    let spin = a.num(4)?;
+    let scale = a.opt_num(5)?.unwrap_or(12.0).max(0.1);
+    let steps = (a.opt_num(6)?.unwrap_or(150.0) as usize).clamp(2, 4000);
+    let dt = 0.02_f32;
+    let c_d = 0.004_f32; // quadratic drag coefficient
+    let k_m = 0.05_f32; // Magnus coefficient per unit spin
+
+    // physics coords: x = lateral (+right), y = downrange (+ toward goal).
+    let th = angle.to_radians();
+    let deriv = |st: [f32; 4]| -> [f32; 4] {
+        let (vx, vy) = (st[2], st[3]);
+        let sp = (vx * vx + vy * vy).sqrt();
+        // drag opposes velocity; the Magnus force is perpendicular to velocity.
+        let ax = -c_d * sp * vx + k_m * spin * (-vy);
+        let ay = -c_d * sp * vy + k_m * spin * vx;
+        [vx, vy, ax, ay]
+    };
+    let step = |st: [f32; 4], k: [f32; 4], f: f32| {
+        [
+            st[0] + k[0] * f,
+            st[1] + k[1] * f,
+            st[2] + k[2] * f,
+            st[3] + k[3] * f,
+        ]
+    };
+    let to_screen = |st: &[f32; 4]| Vec2::new(center.x + st[0] * scale, center.y - st[1] * scale);
+
+    let mut st = [0.0, 0.0, speed * th.sin(), speed * th.cos()];
+    let mut pts = vec![to_screen(&st)];
+    for _ in 0..steps {
+        let k1 = deriv(st);
+        let k2 = deriv(step(st, k1, dt * 0.5));
+        let k3 = deriv(step(st, k2, dt * 0.5));
+        let k4 = deriv(step(st, k3, dt));
+        for i in 0..4 {
+            st[i] += dt / 6.0 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
+        }
+        pts.push(to_screen(&st));
+    }
+
+    // trajectory polyline (untraced → `draw` traces it on)
+    let mut path = Entity::new(
+        id.clone(),
+        Shape::Polyline { pts: pts.clone() },
+        Vec2::ZERO,
+        style::GOLD,
+    );
+    path.stroke.width = 4.0;
+    path.stroke.outline = true;
+    path.stroke.fill = false;
+    path.glow = 0.6;
+    path.trace = 0.0;
+    s.add(path);
+
+    // the ball
+    let mut ball = Entity::new(
+        format!("{id}.ball"),
+        Shape::Circle { r: 9.0 },
+        pts[0],
+        style::FG,
+    );
+    ball.stroke.fill = true;
+    ball.stroke.outline = false;
+    s.add(ball);
+
+    // sim so `run(id, dur)` flies the ball along the trajectory
+    s.sims.insert(
+        id.clone(),
+        SimData {
+            playback: vec![PlaybackTrack {
+                id: format!("{id}.ball"),
+                prop: Prop::Pos,
+                points: pts,
+            }],
+            states: Vec::new(),
+            energy: Vec::new(),
+            dt,
+            labels: Vec::new(),
+            phase_xy: None,
+            pos_var: None,
+            well: Vec::new(),
+        },
+    );
+    Ok(())
+}
+
 /// Register the physics kit's vocabulary.
 pub fn register(r: &mut Registry) {
     // sims
+    r.ctor("freekick", c_freekick);
     r.ctor("pendulum", c_pendulum);
     r.ctor("spring", c_spring);
     r.ctor("doublependulum", c_doublependulum);

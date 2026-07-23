@@ -640,3 +640,17 @@ hanging pulley carrying 10 kg with the other end anchored to a hatched floor —
 ```
 
 <div class="manic-video" data-video="ex-textbook-tension"></div>
+
+## spinning-cylinder-flow
+
+Potential flow around a spinning cylinder — WHY a spun ball curves. Parallel streamlines
+(uniform flow) and concentric circles (a free vortex) superpose into the asymmetric flow
+around the cylinder: bunched (fast, low-pressure) one side, spread (slow, high-pressure) the
+other → a net Magnus force, `L=ρUΓ`. Every streamline is integrated straight from the
+velocity field with `trajectory` — the asymmetry is computed, not drawn.
+
+```manic
+{{#include ../../examples/spinning-cylinder-flow.manic}}
+```
+
+<div class="manic-video" data-video="ex-spinning-cylinder-flow"></div>

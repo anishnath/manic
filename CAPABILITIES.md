@@ -2645,7 +2645,8 @@ rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
   series-parallel-springs ✅, spring-chain ✅.
 - **T3 · coupled / control (bigger state):** cart-pendulum ✅, cart-pole (open),
   robot-arm ✅, quadrotor (open), brachistochrone ✅, piston ✅, car-suspension ✅,
-  molecule ✅.
+  molecule ✅, ⭐**free-kick** ✅ (RK4 drag + Magnus side-force `κ·spin·(⊥v)` — a
+  spinning ball's banana flight; `freekick` + `run`).
 - **Pulleys / inclines ✅:** pulley/Atwood, block-tackle, compound-pulley,
   incline-pulley, ramp (+forces), incline-bumper, double-incline, loop-track.
 - **T4 · collisions:** newtons-cradle ✅ (event-driven, via `collide_1d`); collide-blocks ✅, bullet-block ✅; billiards (open — 2-D impulse).
@@ -2660,6 +2661,17 @@ rendering (`template("paper")` + `support`/`sticky`) composes over any of them.
 sitting on a *ready, tuned* physics corpus; the double pendulum alone is a
 standout demo; and it visibly *depends on* the shipped calculus/ODE core — the same
 "the diagram is true, not drawn" thesis, applied to motion.
+
+**Fluid flow (potential-flow subset) — reuse, ⬜ no kit needed:** streamlines are the
+integral curves of a velocity field, so `trajectory` traces them directly. The
+spinning-cylinder Magnus explainer (`spinning-cylinder-flow` + the Act-2 inset in
+`creator-free-kicks`) — uniform flow + a doublet + a free vortex superposed — is built
+entirely from `trajectory` + `arrow`/`vector_field` + `hue` (pressure heatmaps); no
+new vocabulary. A dedicated fluid/vortex kit would only add *ergonomic* field-composition
+sugar (`vortex`/`source`/`sink`/`doublet` → the `u,v` field + auto-`streamlines`) plus
+one genuine primitive — `advect` (field-driven particle motion, for *animated* flow that
+static streamlines can't show). Both deferred until a flagship proves the pain. Full
+**navier-stokes** stays a separate future domain.
 
 #### Architecture — "adapt, simulate, connect"
 
