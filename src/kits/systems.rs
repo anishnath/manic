@@ -117,6 +117,67 @@ fn flow_body_shape(shape: FlowShape, size: Vec2) -> (Shape, f32) {
     }
 }
 
+/// C4-model element kinds, selected by string `kind` on `node` **inside a `c4`
+/// container** (so `external` reads as a C4 external system here, and the native
+/// archetype elsewhere — no prefix needed). Each renders as a filled rounded box
+/// carrying a name, a `[Type: technology]` tag, and a description.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum C4Kind {
+    Person,
+    System,
+    Container,
+    Component,
+    External,
+}
+
+const C4_KINDS: &[&str] = &["person", "system", "container", "component", "external"];
+
+fn c4_kind(kind: &str) -> Option<C4Kind> {
+    match kind.to_ascii_lowercase().as_str() {
+        "person" => Some(C4Kind::Person),
+        "system" => Some(C4Kind::System),
+        "container" => Some(C4Kind::Container),
+        "component" => Some(C4Kind::Component),
+        "external" => Some(C4Kind::External),
+        _ => None,
+    }
+}
+
+/// Natural (unscaled) C4 box size — big enough for name + type tag + a wrapped
+/// description line.
+fn c4_box_size() -> Vec2 {
+    Vec2::new(232.0, 138.0)
+}
+
+/// The `[Type]` / `[Type: technology]` tag shown under a C4 element's name.
+fn c4_type_tag(kind: C4Kind, technology: Option<&str>) -> String {
+    let base = match kind {
+        C4Kind::Person => "Person",
+        C4Kind::System => "Software System",
+        C4Kind::Container => "Container",
+        C4Kind::Component => "Component",
+        C4Kind::External => "External System",
+    };
+    match technology {
+        Some(t) if !t.is_empty() => format!("[{base}: {t}]"),
+        _ => format!("[{base}]"),
+    }
+}
+
+/// Line + text colour for a C4 element (drawn outline-style, like Structurizr):
+/// the accent for internal elements, greyed for an external one.
+fn c4_line(kind: C4Kind) -> Color {
+    match kind {
+        C4Kind::External => style::DIM,
+        _ => style::CYAN,
+    }
+}
+
+/// Head-circle radius for a `person` element, atop its box.
+fn c4_head_radius() -> f32 {
+    30.0
+}
+
 /// Friendly short kinds → the canonical reference-notation key in the diagram
 /// catalog. Service names select **artwork only**: they never add routing,
 /// queueing, balancing, broadcast, retry, or persistence semantics. Kinds that
@@ -165,6 +226,9 @@ pub struct ArchitectureData {
     /// [`relayout`] when the natural layout would overflow the frame. `connect`
     /// reads it so port geometry lands on the shrunk cards. 1.0 = fits as-is.
     pub scale: f32,
+    /// True for a `c4` container: node kinds are read as C4 elements
+    /// (person/system/container/component/external) rather than provider/native.
+    c4: bool,
     /// Direct ownership children in declaration order. `nodes` remains the
     /// flattened node catalogue used by selectors such as `shop.nodes`.
     pub children: Vec<String>,
@@ -180,6 +244,8 @@ pub struct SystemNodeData {
     /// `Some` for a flowchart node whose body *is* a shape (diamond, pill, …)
     /// with a centred label and no icon; `None` for an ordinary card node.
     flow: Option<FlowShape>,
+    /// `Some` for a C4 element box (filled rounded rect, multi-line label, no icon).
+    c4: Option<C4Kind>,
 }
 
 #[derive(Debug, Clone)]
@@ -491,6 +557,9 @@ fn grid_shape(n: usize, horizontal: bool) -> (usize, usize) {
 
 fn item_size(scene: &Scene, id: &str, horizontal: bool) -> Vec2 {
     if let Some(node) = scene.system_nodes.get(id) {
+        if node.c4.is_some() {
+            return c4_box_size();
+        }
         return match node.flow {
             Some(shape) => flow_card_size(shape),
             None => card_size(horizontal),
@@ -641,6 +710,12 @@ fn relayout(scene: &mut Scene, architecture: &str) {
     let Some(data) = scene.architectures.get(architecture).cloned() else {
         return;
     };
+    // C4 lays out by element type in tiers (people on top, systems/containers in
+    // the middle, externals below) — the conventional C4 reading.
+    if data.c4 {
+        relayout_c4(scene, architecture);
+        return;
+    }
     // Flowcharts rank by edge direction — a wholly different placement — but reuse
     // the same bounds, scale-to-fit and ports.
     if let LayoutMode::Ranked(dir) = data.mode {
@@ -655,7 +730,9 @@ fn relayout(scene: &mut Scene, architecture: &str) {
         .iter()
         .map(|child| item_size(scene, child, data.horizontal))
         .collect();
-    let gap = 28.0;
+    // C4 boxes are large and joined by labelled relationships, so they need much
+    // more room between them for the edge + its annotation to sit clearly.
+    let gap = if data.c4 { 130.0 } else { 28.0 };
     // main() runs along the architecture's main axis; cross() is perpendicular.
     let main = |s: &Vec2| if data.horizontal { s.x } else { s.y };
     let cross = |s: &Vec2| if data.horizontal { s.y } else { s.x };
@@ -761,6 +838,84 @@ fn relayout(scene: &mut Scene, architecture: &str) {
             label.pos = scaled_center + Vec2::new(0.0, -scaled_size.y * 0.5 + 17.0 * s);
             label.scale = s;
         }
+    }
+}
+
+/// C4 layout: three tiers — people on top, internal systems/containers/components
+/// in the middle, externals below — each a centred row, then scale-to-fit. This
+/// keeps the internal system in the frame centre, so `zoom` focuses it for a
+/// Context→Container reveal. Connections bake from these final positions in
+/// `connect` (architecture-style), so no rewire is needed.
+fn relayout_c4(scene: &mut Scene, architecture: &str) {
+    let Some(data) = scene.architectures.get(architecture).cloned() else {
+        return;
+    };
+    let nodes = data.nodes.clone();
+    if nodes.is_empty() {
+        return;
+    }
+    let bx = c4_box_size();
+    let node_gap = 130.0;
+    let row_gap = 108.0;
+    let head = c4_head_radius() + 8.0; // top overhang so person heads clear the edge
+    let tier_of = |k: Option<C4Kind>| match k {
+        Some(C4Kind::Person) => 0usize,
+        Some(C4Kind::External) => 2usize,
+        _ => 1usize,
+    };
+    let mut tiers: [Vec<usize>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+    for (i, id) in nodes.iter().enumerate() {
+        let k = scene.system_nodes.get(id).and_then(|n| n.c4);
+        tiers[tier_of(k)].push(i);
+    }
+    let usable_w = data.width * FIT_MARGIN;
+    let usable_h = data.height * FIT_MARGIN;
+    // Auto-split: a tier with many entries wraps into balanced sub-rows so it never
+    // runs off the frame (each row holds at most what fits the width at full size);
+    // the tiers stay ordered people → internal → external.
+    let per_row = (((usable_w + node_gap) / (bx.x + node_gap)).floor() as usize).max(1);
+    let mut rows: Vec<Vec<usize>> = Vec::new();
+    for tier in tiers.iter() {
+        if tier.is_empty() {
+            continue;
+        }
+        let n = tier.len();
+        let n_rows = n.div_ceil(per_row);
+        let cols = n.div_ceil(n_rows); // balance the rows
+        let mut i = 0;
+        while i < n {
+            let end = (i + cols).min(n);
+            rows.push(tier[i..end].to_vec());
+            i = end;
+        }
+    }
+    if rows.is_empty() {
+        return;
+    }
+    let row_w: Vec<f32> = rows
+        .iter()
+        .map(|r| r.len() as f32 * bx.x + node_gap * r.len().saturating_sub(1) as f32)
+        .collect();
+    let content_w = row_w.iter().cloned().fold(0.0, f32::max);
+    let content_h =
+        rows.len() as f32 * bx.y + row_gap * rows.len().saturating_sub(1) as f32 + head;
+    let sx = if content_w > 1.0 { usable_w / content_w } else { 1.0 };
+    let sy = if content_h > 1.0 { usable_h / content_h } else { 1.0 };
+    let s = sx.min(sy).min(1.0).max(MIN_SCALE);
+    if let Some(a) = scene.architectures.get_mut(architecture) {
+        a.scale = s;
+    }
+    // Rows top→bottom, each centred; the top row leaves head-room for a person.
+    let mut y = -content_h * 0.5 + head + bx.y * 0.5;
+    for (ri, row) in rows.iter().enumerate() {
+        let mut x = -row_w[ri] * 0.5 + bx.x * 0.5;
+        for &i in row.iter() {
+            let natural = data.center + Vec2::new(x, y);
+            let scaled = data.center + (natural - data.center) * s;
+            place_node(scene, &nodes[i], scaled, data.horizontal, s);
+            x += bx.x + node_gap;
+        }
+        y += bx.y + row_gap;
     }
 }
 
@@ -1243,9 +1398,34 @@ fn rewire_ranked(scene: &mut Scene, architecture: &str, dir: RankDir) {
 /// so the card, icon glyph/image and label shrink together. At `s == 1` this is
 /// the natural placement, unchanged.
 fn place_node(scene: &mut Scene, node_id: &str, center: Vec2, horizontal: bool, s: f32) {
-    let flow = scene.system_nodes.get(node_id).and_then(|node| node.flow);
+    let node_ref = scene.system_nodes.get(node_id);
+    let flow = node_ref.and_then(|node| node.flow);
+    let is_c4 = node_ref.map(|node| node.c4.is_some()).unwrap_or(false);
     if let Some(node) = scene.system_nodes.get_mut(node_id) {
         node.center = center;
+    }
+    // C4 box: a fit-scaled rounded rect with a centred multi-line label, no icon;
+    // a `person` also carries a head circle atop the box.
+    if is_c4 {
+        let base = c4_box_size();
+        let size = base * s;
+        if let Some(card) = scene.get_mut(&format!("{node_id}.card")) {
+            card.pos = center;
+            card.shape = Shape::Rect { w: size.x, h: size.y };
+            card.corner_radius = 10.0 * s;
+            card.scale = 1.0;
+        }
+        if let Some(label) = scene.get_mut(&format!("{node_id}.label")) {
+            label.pos = center;
+            label.scale = s;
+            label.wrap = Some((base.x - 26.0) * s);
+        }
+        if let Some(head) = scene.get_mut(&format!("{node_id}.head")) {
+            let r = c4_head_radius();
+            head.pos = center + Vec2::new(0.0, -(base.y * 0.5 + r * 0.55)) * s;
+            head.scale = s;
+        }
+        return;
     }
     // Flowchart node: the body is a shape whose geometry encodes its size, so we
     // rebuild it at the fit-scaled size (`scale` stays 1 to avoid double-shrink),
@@ -1340,6 +1520,7 @@ fn c_architecture(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             horizontal,
             mode: LayoutMode::Region,
             scale: 1.0,
+            c4: false,
             children: Vec::new(),
             nodes: Vec::new(),
         },
@@ -1411,6 +1592,70 @@ fn c_flowchart(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             horizontal: matches!(dir, Some(RankDir::Right)),
             mode: LayoutMode::Ranked(dir),
             scale: 1.0,
+            c4: false,
+            children: Vec::new(),
+            nodes: Vec::new(),
+        },
+    );
+    Ok(())
+}
+
+/// `c4(id, [level])` — a C4-model diagram canvas (Context / Container / Component).
+/// Reuses the architecture region layout, ports and scale-to-fit; **inside it**,
+/// `node` kinds are read as C4 elements (`person`/`system`/`container`/`component`/
+/// `external`), each a filled box with a name, a `[Type: technology]` tag and a
+/// description. `level` is optional and advisory. Connect elements with `connect`
+/// and label the relationship with `annotate`.
+fn c_c4(scene: &mut Scene, args: &Args) -> Result<(), Error> {
+    args.max(2)?;
+    let id = args.ident(0)?;
+    ensure_system_id_available(scene, &id, args)?;
+    ensure_generated_ids_available(scene, [format!("{id}.frame")], args)?;
+    if args.len() >= 2 {
+        let level = args.ident(1)?.to_ascii_lowercase();
+        if !matches!(
+            level.as_str(),
+            "context" | "container" | "component" | "code" | "system"
+        ) {
+            return Err(Error::new(
+                format!("unknown C4 level `{level}` (use `context`, `container`, or `component`)"),
+                args.span_of(1),
+            ));
+        }
+    }
+    let canvas = scene.canvas();
+    let center = Vec2::new(canvas.x * 0.5, canvas.y * 0.545);
+    let width = canvas.x * 0.92;
+    let height = canvas.y * 0.70;
+    let mut frame = Entity::new(
+        format!("{id}.frame"),
+        Shape::Rect {
+            w: width,
+            h: height,
+        },
+        center,
+        style::PANEL,
+    );
+    frame.opacity = 0.45;
+    frame.stroke = StrokeStyle {
+        fill: true,
+        outline: true,
+        width: 1.5,
+        outline_color: Some(style::DIM),
+    };
+    frame.tags.push(id.clone());
+    frame.z = -10;
+    scene.add(frame);
+    scene.architectures.insert(
+        id,
+        ArchitectureData {
+            center,
+            width,
+            height,
+            horizontal: true,
+            mode: LayoutMode::Region,
+            scale: 1.0,
+            c4: true,
             children: Vec::new(),
             nodes: Vec::new(),
         },
@@ -1449,7 +1694,9 @@ fn add_to_parent(scene: &mut Scene, parent: &str, child: String) {
 /// `node(id, parent, "kind", "label")` — auto-positioned component. `parent`
 /// may be the architecture itself or a previously declared cluster.
 fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
-    args.max(4)?;
+    // (id, parent, "kind", "name/label", [description], [technology]) — the last
+    // two are the C4 box's description + technology (ignored by non-C4 nodes).
+    args.max(6)?;
     let id = args.ident(0)?;
     ensure_system_id_available(scene, &id, args)?;
     ensure_generated_ids_available(
@@ -1458,6 +1705,7 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             format!("{id}.card"),
             format!("{id}.icon"),
             format!("{id}.label"),
+            format!("{id}.head"),
         ],
         args,
     )?;
@@ -1472,12 +1720,27 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     })?;
     let data = &scene.architectures[&architecture];
     let horizontal = data.horizontal;
-    // A kind is a flowchart shape (`decision`/`terminator`/…), a native archetype
-    // (`service`/`database`/…), or a `provider:name` icon from the diagram
-    // catalogue (17 providers). Unresolved kinds error at source.
-    let is_provider = kind.contains(':');
-    let flow = if is_provider { None } else { flow_shape(&kind) };
-    if is_provider && provider_icon(&kind).is_none() {
+    let is_c4 = data.c4;
+    // Inside a `c4` container the kind is a C4 element; otherwise a flowchart shape
+    // (`decision`/…), a native archetype (`service`/…), or a `provider:name` icon.
+    let c4 = if is_c4 { c4_kind(&kind) } else { None };
+    let is_provider = !is_c4 && kind.contains(':');
+    let flow = if is_c4 || is_provider {
+        None
+    } else {
+        flow_shape(&kind)
+    };
+    if is_c4 {
+        if c4.is_none() {
+            return Err(Error::new(
+                format!(
+                    "unknown C4 element kind `{kind}`; inside a `c4` diagram use one of {}",
+                    C4_KINDS.join(", ")
+                ),
+                args.span_of(2),
+            ));
+        }
+    } else if is_provider && provider_icon(&kind).is_none() {
         return Err(Error::new(
             format!(
                 "Systems Kit has no diagram icon for `{kind}`; use a catalogued \
@@ -1486,8 +1749,7 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             ),
             args.span_of(2),
         ));
-    }
-    if !is_provider && flow.is_none() && native_node_icon(&kind).is_none() {
+    } else if !is_provider && flow.is_none() && native_node_icon(&kind).is_none() {
         return Err(Error::new(
             format!(
                 "unknown system node kind `{kind}`; use a flowchart shape ({}), a native \
@@ -1499,7 +1761,54 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
         ));
     }
     let center = data.center;
-    if let Some(shape) = flow {
+    if let Some(k) = c4 {
+        // C4 element: an outline-styled rounded box (coloured border + text,
+        // transparent fill) with a centred multi-line label (name / [Type: tech] /
+        // description) and no icon. A `person` also gets a head: an outlined circle
+        // sitting atop the box. `place_node` rebuilds all of it at the fit scale.
+        let size = c4_box_size();
+        let line = c4_line(k);
+        let mut panel = Entity::new(
+            format!("{id}.card"),
+            Shape::Rect {
+                w: size.x,
+                h: size.y,
+            },
+            center,
+            line,
+        );
+        panel.corner_radius = 10.0;
+        panel.stroke = StrokeStyle {
+            fill: false,
+            outline: true,
+            width: 2.5,
+            outline_color: Some(line),
+        };
+        panel
+            .tags
+            .extend([id.clone(), format!("{architecture}.nodes")]);
+        panel.z = -1;
+        scene.add(panel);
+        if k == C4Kind::Person {
+            let r = c4_head_radius();
+            let mut head = Entity::new(
+                format!("{id}.head"),
+                Shape::Circle { r },
+                center + Vec2::new(0.0, -(size.y * 0.5 + r * 0.55)),
+                line,
+            );
+            head.stroke = StrokeStyle {
+                fill: false,
+                outline: true,
+                width: 2.5,
+                outline_color: Some(line),
+            };
+            head.tags
+                .extend([id.clone(), format!("{architecture}.nodes")]);
+            head.z = -1;
+            scene.add(head);
+        }
+    } else if let Some(shape) = flow {
         // Flowchart node: the body *is* the shape, with a centred label and no
         // icon. Tagged `{id}.card` like any node so relayout/scale-to-fit reuse
         // applies; `place_node` rebuilds its geometry at the fit-scaled size.
@@ -1593,23 +1902,44 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
         }
     }
 
-    let label_size = if flow.is_some() {
-        15.0
+    // For a C4 box the label is `name / [Type: tech] / description`, wrapped to the
+    // box; otherwise it's the plain node label.
+    let (label_content, label_size, label_wrap) = if let Some(k) = c4 {
+        let description = if args.len() > 4 { args.text(4)? } else { String::new() };
+        let technology = if args.len() > 5 { args.text(5)? } else { String::new() };
+        let tag = c4_type_tag(
+            k,
+            if technology.is_empty() {
+                None
+            } else {
+                Some(technology.as_str())
+            },
+        );
+        let mut content = format!("{label}\n{tag}");
+        if !description.is_empty() {
+            content.push('\n');
+            content.push_str(&description);
+        }
+        (content, 15.0, Some(c4_box_size().x - 26.0))
+    } else if flow.is_some() {
+        (label, 15.0, None)
     } else if horizontal {
-        16.0
+        (label, 16.0, None)
     } else {
-        19.0
+        (label, 19.0, None)
     };
+    let label_color = c4.map(c4_line).unwrap_or(style::FG);
     let mut text = Entity::new(
         format!("{id}.label"),
         Shape::Text {
-            content: label,
+            content: label_content,
             size: label_size,
         },
         center,
-        style::FG,
+        label_color,
     );
     text.font = FontKind::MonoBold;
+    text.wrap = label_wrap;
     text.tags
         .extend([id.clone(), format!("{architecture}.nodes")]);
     text.z = 3;
@@ -1622,6 +1952,7 @@ fn c_node(scene: &mut Scene, args: &Args) -> Result<(), Error> {
             center,
             kind,
             flow,
+            c4,
         },
     );
     scene
@@ -1855,6 +2186,53 @@ fn c_connect(scene: &mut Scene, args: &Args) -> Result<(), Error> {
         }
     } else {
         routing
+    };
+    // C4 perimeter routing. In the people-top C4 layout a relationship that spans
+    // *upward* across tiers (e.g. an external system's notification back to the
+    // person on top) would draw straight through the centre, bisecting the diagram
+    // and colliding with the labels there. Bow it out past the box cluster so it
+    // hugs the margin instead — the conventional C4 way to keep the read clear.
+    // Only the bend changes: it stays a Curved edge, so entity ids, the arrow and
+    // the label (which rides the control point) are all unchanged, just swung out.
+    let routing = {
+        let arch_name = scene.system_nodes[&from_nodes[0]].architecture.clone();
+        let arch = &scene.architectures[&arch_name];
+        let single = from_nodes.len() == 1 && to_nodes.len() == 1 && args.len() <= 3;
+        let a = scene.system_nodes[&from_nodes[0]].center;
+        let b = scene.system_nodes[&to_nodes[0]].center;
+        let s = arch.scale;
+        let box_size = c4_box_size() * s;
+        // "Upward" more than a tier (y grows downward, so a higher tier has a
+        // smaller y). One box-height of slack keeps adjacent-tier edges straight.
+        if arch.c4 && single && b.y < a.y - box_size.y * 1.3 {
+            let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
+            for node in scene.system_nodes.values() {
+                if node.architecture == arch_name {
+                    min_x = min_x.min(node.center.x);
+                    max_x = max_x.max(node.center.x);
+                }
+            }
+            let half = box_size.x * 0.5;
+            let clearance = 70.0 * s;
+            let m = (a + b) * 0.5;
+            // Route around whichever side the edge already leans toward.
+            let margin_x = if m.x <= arch.center.x {
+                min_x - half - clearance
+            } else {
+                max_x + half + clearance
+            };
+            let dir = (b - a).normalize_or_zero();
+            let perp = Vec2::new(-dir.y, dir.x);
+            // Choose the bend so the arc's *midpoint* — not just its control point,
+            // which a quadratic bezier only pulls halfway toward — reaches the margin.
+            if perp.x.abs() > 0.05 {
+                ConnectionRouting::Curved(2.0 * (margin_x - m.x) / perp.x)
+            } else {
+                routing
+            }
+        } else {
+            routing
+        }
     };
     let pairs: Vec<(String, String)> = if from_nodes.len() == 1 {
         to_nodes
@@ -2094,7 +2472,14 @@ fn c_connect(scene: &mut Scene, args: &Args) -> Result<(), Error> {
 fn c_annotate(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     args.max(2)?;
     let edge = args.ident(0)?;
-    let text = args.text(1)?;
+    let raw = args.text(1)?;
+    // A relationship label with a technology reads (and fits) best on two lines —
+    // the verb phrase, then the `[tech]` — matching the C4 convention and keeping
+    // the label narrow enough for a tight gap. Only splits an unbroken label.
+    let text = match (raw.contains('\n'), raw.find(" [")) {
+        (false, Some(i)) => format!("{}\n{}", &raw[..i], &raw[i + 1..]),
+        _ => raw,
+    };
     let conn = scene.system_connections.get(&edge).ok_or_else(|| {
         Error::new(
             format!("no connection named `{edge}` to label"),
@@ -2116,13 +2501,48 @@ fn c_annotate(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     let direction = (end - start).normalize_or_zero();
     let perpendicular = Vec2::new(-direction.y, direction.x);
     let pos = control + perpendicular * 18.0 * fit;
+    let size = 15.0 * fit;
     let label_id = format!("{edge}.text");
-    ensure_generated_ids_available(scene, [label_id.clone()], args)?;
+    let bg_id = format!("{edge}.text.bg");
+    ensure_generated_ids_available(scene, [label_id.clone(), bg_id.clone()], args)?;
+    let group = owner.as_ref().map(|arch| format!("{arch}.connections"));
+
+    // A backdrop chip sized to the (monospace) text, so the label reads cleanly
+    // even where it crosses a lane or a box — it masks whatever is behind it.
+    let lines = text.split('\n');
+    let max_chars = lines.clone().map(|l| l.chars().count()).max().unwrap_or(0) as f32;
+    let n_lines = text.split('\n').count().max(1) as f32;
+    let chip_w = max_chars * size * 0.60 + 16.0 * fit;
+    let chip_h = n_lines * size * 1.30 + 8.0 * fit;
+    let mut chip = Entity::new(
+        bg_id.clone(),
+        Shape::Rect {
+            w: chip_w,
+            h: chip_h,
+        },
+        pos,
+        style::PANEL,
+    );
+    chip.corner_radius = 5.0 * fit;
+    chip.opacity = 0.92;
+    chip.stroke = StrokeStyle {
+        fill: true,
+        outline: false,
+        width: 0.0,
+        outline_color: None,
+    };
+    chip.tags.extend([edge.clone(), bg_id]);
+    if let Some(g) = &group {
+        chip.tags.push(g.clone());
+    }
+    chip.z = 5;
+    scene.add(chip);
+
     let mut caption = Entity::new(
         label_id.clone(),
         Shape::Text {
             content: text,
-            size: 15.0 * fit,
+            size,
         },
         pos,
         style::FG,
@@ -2131,8 +2551,8 @@ fn c_annotate(scene: &mut Scene, args: &Args) -> Result<(), Error> {
     caption.tags.extend([edge.clone(), label_id]);
     // Also join the diagram's connection group so revealing/hiding the edges (e.g.
     // switching between split sub-flows) carries the caption with them.
-    if let Some(arch) = owner {
-        caption.tags.push(format!("{arch}.connections"));
+    if let Some(g) = group {
+        caption.tags.push(g);
     }
     caption.z = 6;
     scene.add(caption);
@@ -2526,6 +2946,7 @@ fn v_hotpath(scene: &mut Scene, args: &Args) -> Result<Clip, Error> {
 pub fn register(registry: &mut Registry) {
     registry.ctor("architecture", c_architecture);
     registry.ctor("flowchart", c_flowchart);
+    registry.ctor("c4", c_c4);
     registry.ctor("node", c_node);
     registry.ctor("cluster", c_cluster);
     registry.ctor("connect", c_connect);

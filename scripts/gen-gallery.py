@@ -775,7 +775,11 @@ SECTIONS = [
      "optional, so a diagram auto-fits the canvas and, when it grows dense, scales itself "
      "down as one to stay inside the frame (you never touch a coordinate) — then move "
      "one persistent request through the graph. A flowchart ranks its nodes top-down and "
-     "runs: a token walks the process and takes a branch. Node artwork comes from a string kind "
+     "runs: a token walks the process and takes a branch. It also speaks **C4** — "
+     "`c4(id, level)` with `person`/`system`/`container`/`component` nodes draws Simon "
+     "Brown's model in the conventional outline style, tiers people over internals over "
+     "externals, auto-splits a dense tier into a balanced grid, and zooms from Context to "
+     "Container to Component as a request flows through it. Node artwork comes from a string kind "
      "(`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see "
      "[icon reference & aliases](systems-icons.md)); paths are coloured by relationship. "
      "The kit never infers behaviour — the creator authors it with `route`, `flow`, and "
@@ -809,6 +813,34 @@ SECTIONS = [
     "the perimeter). It first draws box-by-box in flow order, then pairs of commits race the "
     "pipeline in parallel to different outcomes — ship, rollback-to-start, held — twice. All "
     "`flowchart` + `route` + `par`, no coordinates."),
+   ("c4-internet-banking",
+    "C4 Level 1 — System Context: the Internet Banking System in its world. A customer "
+    "(a `person`, drawn as a box with a head), the system itself, and two external systems "
+    "(e-mail, mainframe), joined by labelled relationships. Outline styling, `[Type]` tags "
+    "and people-top tiers, all auto-laid with no coordinates."),
+   ("c4-internet-banking-containers",
+    "C4 Level 2 — Containers: zoom inside the system to a single-page app, an API "
+    "application and a database, each carrying its technology in a `[Container: tech]` tag; "
+    "the mainframe stays external. Same `c4` container, one level down."),
+   ("c4-internet-banking-components",
+    "C4 Level 3 — Components: inside the API application, sign-in and accounts controllers, "
+    "a security component and a mainframe facade — declared so related pairs sit adjacent, "
+    "so the `Uses` and `Reads/writes` edges never cross an intervening box."),
+   ("c4-zoom",
+    "The C4 differentiator — it moves. One diagram zooms from System Context into its "
+    "Containers: `zoom` into the centred system, `fade` the surroundings, then reveal the "
+    "containers — author-composed with `zoom`/`fade`/`show` and `sticky` chrome, no new "
+    "vocabulary."),
+   ("c4-story",
+    "One system, at every altitude — a full end-to-end walkthrough. Context → zoom in → the "
+    "Containers build along a `GET /accounts` request as it travels browser→API→database → "
+    "zoom into the API → the Components build along a sign-in call → zoom back out. The flow "
+    "IS the reveal, led by a moving token."),
+   ("c4-test",
+    "The canonical bigbank Container diagram, translated straight from the Python `diagrams` "
+    "library. Five containers auto-split into a balanced grid, and the long notification edge "
+    "from the e-mail system back to the customer routes around the margin instead of "
+    "bisecting the diagram — dense C4, still readable."),
    ("systems-rabbitmq-consumers",
     "Authored one-of-many delivery: messages 101/102/103 explicitly select different "
     "workers — the kit never infers RabbitMQ or round-robin behaviour."),

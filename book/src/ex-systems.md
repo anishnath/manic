@@ -1,6 +1,6 @@
 # Diagrams
 
-Animated diagrams — not another static boxes-and-arrows generator. Declare an architecture (or a `flowchart`) with auto-positioned nodes and directed connections — geometry is optional, so a diagram auto-fits the canvas and, when it grows dense, scales itself down as one to stay inside the frame (you never touch a coordinate) — then move one persistent request through the graph. A flowchart ranks its nodes top-down and runs: a token walks the process and takes a branch. Node artwork comes from a string kind (`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see [icon reference & aliases](systems-icons.md)); paths are coloured by relationship. The kit never infers behaviour — the creator authors it with `route`, `flow`, and ordinary verbs.
+Animated diagrams — not another static boxes-and-arrows generator. Declare an architecture (or a `flowchart`) with auto-positioned nodes and directed connections — geometry is optional, so a diagram auto-fits the canvas and, when it grows dense, scales itself down as one to stay inside the frame (you never touch a coordinate) — then move one persistent request through the graph. A flowchart ranks its nodes top-down and runs: a token walks the process and takes a branch. It also speaks **C4** — `c4(id, level)` with `person`/`system`/`container`/`component` nodes draws Simon Brown's model in the conventional outline style, tiers people over internals over externals, auto-splits a dense tier into a balanced grid, and zooms from Context to Container to Component as a request flows through it. Node artwork comes from a string kind (`aws:lambda`, `gcp:bigquery`, `onprem:redis`, `k8s:pod` — 17 providers, see [icon reference & aliases](systems-icons.md)); paths are coloured by relationship. The kit never infers behaviour — the creator authors it with `route`, `flow`, and ordinary verbs.
 
 Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
 
@@ -63,6 +63,66 @@ A big pipeline that builds itself, then runs: a 24-node CI/CD flow with 7 decisi
 ```
 
 <div class="manic-video" data-video="ex-complex-flowchart"></div>
+
+## c4-internet-banking
+
+C4 Level 1 — System Context: the Internet Banking System in its world. A customer (a `person`, drawn as a box with a head), the system itself, and two external systems (e-mail, mainframe), joined by labelled relationships. Outline styling, `[Type]` tags and people-top tiers, all auto-laid with no coordinates.
+
+```manic
+{{#include ../../examples/c4-internet-banking.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-internet-banking"></div>
+
+## c4-internet-banking-containers
+
+C4 Level 2 — Containers: zoom inside the system to a single-page app, an API application and a database, each carrying its technology in a `[Container: tech]` tag; the mainframe stays external. Same `c4` container, one level down.
+
+```manic
+{{#include ../../examples/c4-internet-banking-containers.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-internet-banking-containers"></div>
+
+## c4-internet-banking-components
+
+C4 Level 3 — Components: inside the API application, sign-in and accounts controllers, a security component and a mainframe facade — declared so related pairs sit adjacent, so the `Uses` and `Reads/writes` edges never cross an intervening box.
+
+```manic
+{{#include ../../examples/c4-internet-banking-components.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-internet-banking-components"></div>
+
+## c4-zoom
+
+The C4 differentiator — it moves. One diagram zooms from System Context into its Containers: `zoom` into the centred system, `fade` the surroundings, then reveal the containers — author-composed with `zoom`/`fade`/`show` and `sticky` chrome, no new vocabulary.
+
+```manic
+{{#include ../../examples/c4-zoom.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-zoom"></div>
+
+## c4-story
+
+One system, at every altitude — a full end-to-end walkthrough. Context → zoom in → the Containers build along a `GET /accounts` request as it travels browser→API→database → zoom into the API → the Components build along a sign-in call → zoom back out. The flow IS the reveal, led by a moving token.
+
+```manic
+{{#include ../../examples/c4-story.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-story"></div>
+
+## c4-test
+
+The canonical bigbank Container diagram, translated straight from the Python `diagrams` library. Five containers auto-split into a balanced grid, and the long notification edge from the e-mail system back to the customer routes around the margin instead of bisecting the diagram — dense C4, still readable.
+
+```manic
+{{#include ../../examples/c4-test.manic}}
+```
+
+<div class="manic-video" data-video="ex-c4-test"></div>
 
 ## systems-rabbitmq-consumers
 

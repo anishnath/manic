@@ -294,6 +294,12 @@ ex-systems-rabbitmq-consumers|XMR3hm_a01I|One-of-Many Delivery, Authored Not Inf
 ex-microservices-platform|nyywVUsJwsY|Add a Tier, It Re-Fits Itself — Auto-Layout Diagrams in manic
 ex-factorial-flowchart|9Q7QwzN3e3k|A Flowchart That Runs — Ranked Auto-Layout + a Token That Walks the Loop
 ex-complex-flowchart|5iBfClaMyY8|Watch a Big Flowchart Build Itself, Then Run — Auto-Wrap + Parallel Tokens in manic
+ex-c4-internet-banking|MFbQ-H4EZp0|C4 System Context in One Screen — Draw the Whole System's World in manic
+ex-c4-internet-banking-containers|rWOyFI2VrzU|C4 Containers — Zoom Inside the System, Tech Tags and All — manic
+ex-c4-internet-banking-components|i3mNCR2r-h0|C4 Components — Inside One Container, Zero Crossing Edges — manic
+ex-c4-zoom|0GIwQPopfDg|Your C4 Diagram Should MOVE — Zoom From Context Into Containers — manic
+ex-c4-story|lrQ5Q_uEmKQ|One System at Every Altitude — A Complete Animated C4 Walkthrough — manic
+ex-c4-test|W69nePax5L4|The bigbank C4 Diagram, Auto-Laid — Dense Containers That Stay Readable — manic
 ex-aws-three-tier-web-application|3uNmnY6qAII|A Three-Tier AWS App, One Moving Request — manic
 ex-aws-event-processing-clusters-poc|Ljq93V7cmIQ|Event Processing on AWS: Topology to Hot Path — manic
 ex-aws-clustered-web-services|j_NJweoV6iw|Clustered Web Services on AWS, Request & Response — manic

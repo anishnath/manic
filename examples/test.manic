@@ -1,209 +1,175 @@
-title("Pythagorean Identity by Area Rearrangement");
+title("Sum 1 to 10 by Rearranging");
 canvas("16:9");
 template("mono");
 
-let R = 150;
-let theta = 0.72;
-let gx = cx - w * 0.27;
-let gy = cy + 55;
-let xleg = R * cos(theta);
-let yleg = R * sin(theta);
+let rowY = cy - 120;
+let x0 = cx - 279;
+let gap = 62;
+let pairY = cy + 15;
+let px0 = cx - 280;
+let pgap = 140;
 
-let cosS = xleg;
-let sinS = yleg;
-let startY = h - 128;
-let cosL = cx - 145;
-let sinL = cx + 35;
+equation(head, (cx, 72), `1+2+3+\cdots+10`, 54);
+text(rule, (cx, 128), "Use commutative property to reorder, then associative property to group.");
+size(rule, 25);
+color(rule, dim);
 
-let uLeft = cx + 265;
-let uTop = h - 300;
-let hCos = cosS * cosS / R;
-let hSin = sinS * sinS / R;
+equation(eq, (cx, h - 115), `S=1+2+3+4+5+6+7+8+9+10`, 42);
 
-equation(head, (cx, 72), `\sin^2\theta+\cos^2\theta=1`, 54);
-text(narr, (cx, h - 42), "A unit radius turns algebra into area.");
-size(narr, 26);
-color(narr, dim);
+equation(n1, (x0 + 0 * gap, rowY), `1`, 38);
+equation(n2, (x0 + 1 * gap, rowY), `2`, 38);
+equation(n3, (x0 + 2 * gap, rowY), `3`, 38);
+equation(n4, (x0 + 3 * gap, rowY), `4`, 38);
+equation(n5, (x0 + 4 * gap, rowY), `5`, 38);
+equation(n6, (x0 + 5 * gap, rowY), `6`, 38);
+equation(n7, (x0 + 6 * gap, rowY), `7`, 38);
+equation(n8, (x0 + 7 * gap, rowY), `8`, 38);
+equation(n9, (x0 + 8 * gap, rowY), `9`, 38);
+equation(n10, (x0 + 9 * gap, rowY), `10`, 38);
 
-point(O, (gx, gy), "O");
-point(A, (gx + R, gy), "1");
-point(P, (gx + xleg, gy - yleg), "P");
-foot(C, P, O, A);
+equation(p1, (px0 + 24, pairY), `+`, 34);
+equation(p2, (px0 + pgap + 24, pairY), `+`, 34);
+equation(p3, (px0 + 2 * pgap + 24, pairY), `+`, 34);
+equation(p4, (px0 + 3 * pgap + 24, pairY), `+`, 34);
+equation(p5, (px0 + 4 * pgap + 24, pairY), `+`, 34);
 
-circle2(unitCircle, O, A);
-segment(baseCos, O, C);
-segment(heightSin, C, P);
-segment(radiusOne, O, P);
-rightangle(corner, O, C, P);
+equation(e1, (px0 + 24, pairY + 62), `11`, 34);
+equation(e2, (px0 + pgap + 24, pairY + 62), `11`, 34);
+equation(e3, (px0 + 2 * pgap + 24, pairY + 62), `11`, 34);
+equation(e4, (px0 + 3 * pgap + 24, pairY + 62), `11`, 34);
+equation(e5, (px0 + 4 * pgap + 24, pairY + 62), `11`, 34);
 
-equation(cosLab, (gx + xleg / 2, gy + 34), `\cos\theta`, 28);
-equation(sinLab, (gx + xleg + 48, gy - yleg / 2), `\sin\theta`, 28);
-equation(radLab, (gx + xleg / 2 - 20, gy - yleg / 2 - 30), `1`, 30);
-equation(thetaLab, (gx + 42, gy - 20),`\theta`, 28);
+line(l1, (px0 - 12, pairY + 34), (px0 + 60, pairY + 34));
+line(l2, (px0 + pgap - 12, pairY + 34), (px0 + pgap + 60, pairY + 34));
+line(l3, (px0 + 2 * pgap - 12, pairY + 34), (px0 + 2 * pgap + 60, pairY + 34));
+line(l4, (px0 + 3 * pgap - 12, pairY + 34), (px0 + 3 * pgap + 60, pairY + 34));
+line(l5, (px0 + 4 * pgap - 12, pairY + 34), (px0 + 4 * pgap + 60, pairY + 34));
 
-polygon(sqCos, (cosL, startY - cosS), (cosL + cosS, startY - cosS), (cosL + cosS, startY), (cosL, startY), cyan);
-polygon(sqSin, (sinL, startY - sinS), (sinL + sinS, startY - sinS), (sinL + sinS, startY), (sinL, startY), magenta);
+equation(final, (cx, h - 55), `\boxed{55}`, 58);
 
-equation(sqCosLab, (cosL + cosS / 2, startY - cosS / 2), `\cos^2\theta`, 25);
-equation(sqSinLab, (sinL + sinS / 2, startY - sinS / 2), `\sin^2\theta`, 25);
-
-polygon(stripSin, (uLeft, uTop), (uLeft + R, uTop), (uLeft + R, uTop + hSin), (uLeft, uTop + hSin), magenta);
-polygon(stripCos, (uLeft, uTop + hSin), (uLeft + R, uTop + hSin), (uLeft + R, uTop + R), (uLeft, uTop + R), cyan);
-
-line(uTopLine, (uLeft, uTop), (uLeft + R, uTop));
-line(uRightLine, (uLeft + R, uTop), (uLeft + R, uTop + R));
-line(uBottomLine, (uLeft + R, uTop + R), (uLeft, uTop + R));
-line(uLeftLine, (uLeft, uTop + R), (uLeft, uTop));
-tag(uTopLine, unitOutline);
-tag(uRightLine, unitOutline);
-tag(uBottomLine, unitOutline);
-tag(uLeftLine, unitOutline);
-
-equation(unitLab, (uLeft + R / 2, uTop - 34), `1^2`, 32);
-equation(stripSinLab, (uLeft + R / 2, uTop + hSin / 2), `\sin^2\theta`, 24);
-equation(stripCosLab, (uLeft + R / 2, uTop + hSin + hCos / 2), `\cos^2\theta`, 24);
-
-arrow(moveArrowA, (cosL + cosS + 25, startY - cosS / 2), (uLeft - 30, uTop + hSin + hCos / 2));
-arrow(moveArrowB, (sinL + sinS + 20, startY - sinS / 2), (uLeft - 30, uTop + hSin / 2));
-
-equation(theorem, (cx + 235, gy - 115), `(\cos\theta)^2+(\sin\theta)^2=1^2`, 36);
-equation(finalEq, (cx, 150), `\boxed{\cos^2\theta+\sin^2\theta=1}`, 50);
-
-color(unitCircle, dim);
-color(baseCos, cyan);
-color(heightSin, magenta);
-color(radiusOne, gold);
-color(corner, fg);
-color(O.label, dim);
-color(A.label, gold);
-color(P.label, fg);
-color(cosLab, cyan);
-color(sinLab, magenta);
-color(radLab, gold);
-color(thetaLab, fg);
-color(unitOutline, gold);
-color(unitLab, gold);
-color(moveArrowA, dim);
-color(moveArrowB, dim);
-color(theorem, fg);
-color(finalEq, lime);
-
-stroke(unitCircle, 3);
-stroke(baseCos, 5);
-stroke(heightSin, 5);
-stroke(radiusOne, 5);
-stroke(unitOutline, 4);
-stroke(moveArrowA, 3);
-stroke(moveArrowB, 3);
-
-opacity(sqCos, 0.55);
-opacity(sqSin, 0.55);
-opacity(stripCos, 0.55);
-opacity(stripSin, 0.55);
-
-z(unitOutline, 5);
-z(unitLab, 6);
-z(stripSinLab, 6);
-z(stripCosLab, 6);
-
-morph(sqCos, stripCos);
-morph(sqSin, stripSin);
+color(head, cyan);
+color(eq, fg);
+color(n1, cyan);
+color(n10, cyan);
+color(n2, magenta);
+color(n9, magenta);
+color(n3, lime);
+color(n8, lime);
+color(n4, gold);
+color(n7, gold);
+color(n5, orange);
+color(n6, orange);
+color(p1, dim);
+color(p2, dim);
+color(p3, dim);
+color(p4, dim);
+color(p5, dim);
+color(e1, fg);
+color(e2, fg);
+color(e3, fg);
+color(e4, fg);
+color(e5, fg);
+color(l1, dim);
+color(l2, dim);
+color(l3, dim);
+color(l4, dim);
+color(l5, dim);
+color(final, lime);
+stroke(l1, 3);
+stroke(l2, 3);
+stroke(l3, 3);
+stroke(l4, 3);
+stroke(l5, 3);
 
 hidden(head);
-hidden(narr);
-hidden(O);
-hidden(A);
-hidden(P);
-hidden(C);
-untraced(unitCircle);
-untraced(baseCos);
-untraced(heightSin);
-untraced(radiusOne);
-untraced(corner);
-hidden(cosLab);
-hidden(sinLab);
-hidden(radLab);
-hidden(thetaLab);
-hidden(sqCos);
-hidden(sqSin);
-hidden(sqCosLab);
-hidden(sqSinLab);
-hidden(stripCos);
-hidden(stripSin);
-untraced(unitOutline);
-hidden(unitLab);
-hidden(stripSinLab);
-hidden(stripCosLab);
-hidden(moveArrowA);
-hidden(moveArrowB);
-hidden(theorem);
-hidden(finalEq);
+hidden(rule);
+hidden(eq);
+hidden(n1);
+hidden(n2);
+hidden(n3);
+hidden(n4);
+hidden(n5);
+hidden(n6);
+hidden(n7);
+hidden(n8);
+hidden(n9);
+hidden(n10);
+hidden(p1);
+hidden(p2);
+hidden(p3);
+hidden(p4);
+hidden(p5);
+hidden(e1);
+hidden(e2);
+hidden(e3);
+hidden(e4);
+hidden(e5);
+untraced(l1);
+untraced(l2);
+untraced(l3);
+untraced(l4);
+untraced(l5);
+hidden(final);
 
-show(head, 0.7);
-show(narr, 0.6);
+show(head, 0.6);
+show(rule, 0.6);
+show(eq, 0.7);
 
-say(narr, "Start with a point on the unit circle: the radius has length 1.", 0.7);
-par {
-draw(unitCircle, 1.1);
-show(O, 0.5);
-show(A, 0.5);
-show(P, 0.5);
-}
-
-par {
-draw(radiusOne, 0.8);
-show(radLab, 0.5);
-}
-show(thetaLab, 0.5);
-
-say(narr, "Drop the vertical leg. The horizontal and vertical lengths are cosine and sine.", 0.9);
-par {
-show(C, 0.4);
-draw(baseCos, 0.8);
-draw(heightSin, 0.8);
-draw(corner, 0.5);
-}
-par {
-show(cosLab, 0.5);
-show(sinLab, 0.5);
+stagger(0.08) {
+show(n1, 0.25);
+show(n2, 0.25);
+show(n3, 0.25);
+show(n4, 0.25);
+show(n5, 0.25);
+show(n6, 0.25);
+show(n7, 0.25);
+show(n8, 0.25);
+show(n9, 0.25);
+show(n10, 0.25);
 }
 
-say(narr, "Now square those two legs: their areas are cos²θ and sin²θ.", 0.9);
+rewrite(eq, `S=(1+10)+(2+9)+(3+8)+(4+7)+(5+6)`, 0.9);
+
 par {
-show(sqCos, 0.7);
-show(sqSin, 0.7);
-show(sqCosLab, 0.7);
-show(sqSinLab, 0.7);
+move(n1, (px0, pairY), 0.9, smooth);
+move(n10, (px0 + 48, pairY), 0.9, smooth);
+move(n2, (px0 + pgap, pairY), 0.9, smooth);
+move(n9, (px0 + pgap + 48, pairY), 0.9, smooth);
+move(n3, (px0 + 2 * pgap, pairY), 0.9, smooth);
+move(n8, (px0 + 2 * pgap + 48, pairY), 0.9, smooth);
+move(n4, (px0 + 3 * pgap, pairY), 0.9, smooth);
+move(n7, (px0 + 3 * pgap + 48, pairY), 0.9, smooth);
+move(n5, (px0 + 4 * pgap, pairY), 0.9, smooth);
+move(n6, (px0 + 4 * pgap + 48, pairY), 0.9, smooth);
 }
 
-say(narr, "The hypotenuse is the unit radius, so its square has area 1.", 0.8);
 par {
-draw(unitOutline, 0.9);
-show(unitLab, 0.7);
-show(theorem, 0.7);
+show(p1, 0.3);
+show(p2, 0.3);
+show(p3, 0.3);
+show(p4, 0.3);
+show(p5, 0.3);
 }
 
-say(narr, "Rearrange equal areas: the two leg-squares exactly fill the unit square.", 0.9);
 par {
-show(moveArrowA, 0.4);
-show(moveArrowB, 0.4);
-}
-par {
-fade(sqCosLab, 0.35);
-fade(sqSinLab, 0.35);
-fade(moveArrowA, 0.35);
-fade(moveArrowB, 0.35);
-}
-par {
-to(sqCos, morph, 1, 1.25, smooth);
-to(sqSin, morph, 1, 1.25, smooth);
-}
-par {
-show(stripCosLab, 0.5);
-show(stripSinLab, 0.5);
-pulse(unitOutline, 0.8);
+draw(l1, 0.35);
+draw(l2, 0.35);
+draw(l3, 0.35);
+draw(l4, 0.35);
+draw(l5, 0.35);
 }
 
-say(narr, "That filled unit square is the identity: no algebra trick, just conserved area.", 0.8);
-show(finalEq, 0.8);
-pulse(finalEq, 0.9);
+par {
+show(e1, 0.4);
+show(e2, 0.4);
+show(e3, 0.4);
+show(e4, 0.4);
+show(e5, 0.4);
+}
+
+rewrite(eq, `S=11+11+11+11+11`, 0.8);
+rewrite(eq, `S=5\cdot 11`, 0.8);
+rewrite(eq, `S=55`, 0.8);
+
+show(final, 0.6);
+pulse(final, 0.9);

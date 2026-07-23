@@ -402,7 +402,7 @@ reflows and scales the diagram to stay fully in-frame. The dense stress tests
 column-splitting or size tuning — from structure alone. The one user-visible
 promise, delivered: *it just fits.*
 
-### Flowchart Foundation — ✅ Core shipped (sequence diagrams next)
+### Flowchart Foundation — ✅ Core shipped (C4 + sequence diagrams next)
 
 The Diagrams kit does **architecture** and now **flowcharts**; sequence diagrams
 are next. Flowcharts are the highest-demand diagram type — every algorithm,
@@ -513,6 +513,137 @@ form for every node, easy for creators.
   while **reusing the architecture substrate under the hood** (`ArchitectureData`
   + `relayout` + scale-to-fit + ports), so there is no second layout engine — a
   layout *mode* on the shared data, fronted by a clear builtin.
+
+### C4 Model — ✅ Shipped (Context · Container · Component + auto-split + end-to-end animated story)
+
+**Shipped (first draft):** `c4(id, [level])` container (reuses the architecture
+region layout + scale-to-fit); C4 element **kinds on `node`** — `person`/`system`/
+`container`/`component`/`external`, each an **outline-styled** rounded box (coloured
+border + text, transparent fill, Structurizr-look) with **name / `[Type: tech]` /
+description** (`node(id, parent, "kind", "name", [desc], [tech])`); a `person` gets
+the classic **head circle atop the box**; internal elements in the accent colour,
+externals greyed; relationships via `connect` + `annotate` (with a **backdrop chip**
+so labels read over lanes/boxes — a general `annotate` win). **People-top C4
+layout**: three tiers — people on top, internal systems/containers in the centre,
+externals below (`relayout_c4`), which also puts the system dead-centre so `zoom`
+can focus it. **Context→Container zoom** (the animated differentiator) works
+author-composed — two overlapping `c4` diagrams, `zoom` into the centred system +
+`fade` the surroundings, then `zoom` back and `show` the containers (`sticky` chrome
+stays put); no new vocabulary. Relationship labels with a technology **auto-split**
+to two lines (verb / `[tech]`) — the C4 convention, and narrow enough for a tight
+gap. **Tier auto-split** (like flowchart column-wrap): a tier too wide to fit
+wraps into balanced sub-rows (row-major, scale-to-fit) — 4 components fall into a
+clean 2×2, 8 containers into 3-3-1 — so dense levels stay readable without author
+layout math. Declaration order fills the grid row-major, so pairing declarations by
+column (e.g. `signin, accounts` then `security, facade`) turns a 2×2 into two
+crossing-free vertical flows. All three levels ship: `c4-internet-banking.manic`
+(**Context**), `c4-internet-banking-containers.manic` (**Container**),
+`c4-internet-banking-components.manic` (**Component**), and `c4-zoom.manic` (the
+**zoom**). The capstone is **`c4-story.manic`** — a complete end-to-end animated
+walkthrough: Context (pieces arrive) → zoom into the system → the Containers
+**build along the flow** (a `GET /accounts` request leads; each box + its edge +
+label materialises just as the dot arrives: browser → API → database) → zoom into
+the API → the Components **build along the sign-in call** the same way → zoom back
+out to Containers → out to the whole Context. Each drill-down is one continuous
+build led by the moving dot (the flow *is* the reveal, not a separate beat after a
+show-all); the return legs **sequence** the fade-out fully *before* revealing the
+next level (no crossfade jumble) with a pull-back zoom. **Perimeter routing for
+tier-spanning back-edges:** a C4 relationship that runs *upward* across tiers (e.g.
+an external system's notification back to the person on top) would otherwise draw
+straight through the centre and bisect the diagram; it now auto-bows out past the
+box cluster to hug the margin (its label rides out with it), keeping the middle
+readable — the same idea flowcharts use for long feedback loops. Verified on the
+canonical bigbank container diagram (`c4-test.manic`, translated from the Python
+`diagrams` library): the `E-mail System → Customer` edge routes around the side
+instead of cutting through the API/SPA labels. (Implementation note: the
+`annotate` label/chip carry the edge id only as a free tag, so a per-edge reveal
+must `show({edge}.text)`/`show({edge}.text.bg)` explicitly — `show({edge})` alone
+reveals the line but not its separately-added label.) All pass the editor gate. **To refine:**
+within-tier ordering is author-controlled (declaration order = left→right/row-major,
+so keep related boxes adjacent); auto-ordering by adjacency to cut crossings is a
+future nicety. The design below is as shipped.
+
+
+
+The Diagrams kit does **architecture** and **flowcharts**; the **C4 model** (Simon
+Brown's Context → Container → Component → Code) is the standard way software teams
+communicate architecture, and it's the highest-demand *notation* on top of the
+substrate we already have. manic's edge is the same one that makes the flowchart
+run: a C4 diagram here isn't a dead Structurizr/Mermaid picture — **the system box
+zooms open into its containers, a container zooms into its components, and a real
+request flows through it.** Architecture at every altitude, and it *moves*.
+
+**Reuse first — C4 is boxes + labelled relationships + nested boundaries.** That is
+almost exactly the shipped architecture substrate; do **not** rebuild it:
+
+- **Boxes + layout** — `architecture`/`cluster`/`node` with auto-fit, scale-to-fit
+  and ports already draw and place the elements.
+- **Relationships** — `connect` (directed) + `annotate` (the C4 label: a verb
+  phrase + technology, e.g. *"Reads/Writes"* `[SQL/TCP]`) apply unchanged.
+- **Boundaries** — `cluster` is already a labelled, dashed grouping — a C4 system
+  or container boundary.
+- **Runtime story + reveal** — `route`/`flow` move a request through the
+  containers; `step`/`say`/`draw`/camera narrate the walkthrough.
+
+**Genuinely new — kept minimal (and consistent with the flowchart decisions):**
+
+1. **C4 element *kinds* on `node`, not builtins.** Extend `node`'s kind vocabulary
+   with `person`, `system`, `container`, `component`, and `external` (person or
+   system). Each renders as its C4-styled box (a `person` gets a head/actor cap; an
+   `external` is shaded) — selected by string exactly like the flowchart shapes:
+   `node(api, sys, "container", "API")`. **Never a builtin per element.**
+2. **Rich node content.** A C4 box shows three things — **name** (bold), a
+   **`[type: technology]`** tag, and a one-line **description** — where today a node
+   has a single label. This is the one real content addition. (Open: structured
+   optional args `node(id, parent, "container", "API", "Spring Boot", "Handles …")`
+   vs. an encoded multi-line label vs. thin `tech()`/`describe()` verbs.)
+3. **C4 boundary style on `cluster`** — a dashed boundary tagged `[Software System]`
+   / `[Container]`, i.e. a cluster style, not a new grouping primitive.
+4. **The level zoom (the differentiator).** A `system` or `container` box expands to
+   reveal its children — the Context→Container→Component transition, animated. First
+   pass authored with existing `camera`/`show`/`fade`/`draw`; promoted to a helper
+   only if it proves reusable.
+
+**The animation story:** reveal **Context** (people, your system, external systems);
+**zoom** the system box open into its **Containers**, relationships re-drawing;
+optionally zoom a container into its **Components**; then `route` a request through
+the containers ("watch a login travel web-app → API → database"). No static tool
+does the zoom or the flow.
+
+**Structurizr / authoring mapping:** `person` → `node "person"`; `softwareSystem` →
+`"system"`; `container` → `"container"`; `component` → `"component"`; a relationship
+`a -> b "Uses" "HTTPS"` → `connect(ab,a,b)` + `annotate(ab,"Uses [HTTPS]")`;
+`systemBoundary`/`containerBoundary` → `cluster`. Faithful import, no new engine.
+
+**Flagship demo:** the canonical C4 example — an *Internet Banking System* — drawn
+at **Context** (customer · banking system · mainframe · email system) and then
+**Container** level (web app · SPA · mobile app · API · database), with the system
+box zooming from one to the next and a login request flowing through the containers.
+If that reads from one plain prompt, the foundation works.
+
+**Proposed roadmap:** (1) element kinds + rich node content (name/`[type: tech]`/
+description) + boundary style; (2) labelled relationships via `connect`+`annotate`
+(a two-line verb-plus-tech convention); (3) a Context flagship + a Container flagship
+with a request flowing + gallery/prompt docs; (4) the Context→Container **zoom**
+transition; (5) Component level + people-top/externals-around layout tuning.
+
+**Decided (all, for ease of use):**
+- C4 elements are **kinds on `node`** (one authoring form, as with flowchart
+  shapes); relationships/boundaries/layout **reuse `connect`/`annotate`/`cluster`
+  + the architecture substrate** — no second engine.
+- **Rich node content = one call, optional trailing args:**
+  `node(id, parent, "kind", "name", [description], [technology])` (Structurizr's
+  order). Engine composes the box — **name** bold, `[Type: tech]` tag, description
+  below. Degrades to `node(sys, bank, "system", "Internet Banking")`. No new verbs,
+  no encoded labels.
+- **Levels = a `c4(id, [level])` container** (level optional), the flowchart call:
+  clear intent, reuses `ArchitectureData` + region layout + scale-to-fit. The C4
+  element kinds are interpreted **in the context of a `c4` container** (so `external`
+  reads as C4-external there, and the native archetype elsewhere — no prefix needed).
+- **`person` = box-with-head** (Structurizr default) — fills a box with name +
+  description and scales with the layout; not a stick figure.
+- **Level zoom = author-composed first** (`camera`/`show`/`fade`/`draw`); promote to
+  a helper only if one clean pattern recurs (reuse-first).
 
 ### Circuit Kit — recommended next domain exploration
 
