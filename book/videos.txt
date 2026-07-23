@@ -57,10 +57,10 @@ ex-dijkstra|UOjIHugt4o8|Dijkstra's Algorithm, Visualized — manic
 ex-cubic-graphs|Z2nD3nRSFDk|5 Cubic Graphs a Theorem Can't Cover — Animated in manic
 
 # ---- examples: grids — pathfinding & automata ----
-ex-grid-astar|PLACEHOLDER|A* Pathfinding, Animated — Search Over Space in manic
-ex-grid-life|PLACEHOLDER|Conway's Game of Life — A Glider, Built From One Grid in manic
-ex-grid-wfc|PLACEHOLDER|Wave Function Collapse — Watch a Maze Settle Itself in manic
-ex-grid-life-zoo|PLACEHOLDER|Conway's Life Zoo — Still Lifes, Oscillators ex-grid-wfc|PLACEHOLDER|Wave Function Collapse — Watch a Maze Settle Itself in manic Spaceships, Animated in manic
+ex-grid-astar|OZUXKFlUDlc|A* Pathfinding, Animated — Search Over Space in manic
+ex-grid-life|NzGi-U6AOZI|Conway's Game of Life — A Glider, Built From One Grid in manic
+ex-grid-wfc|poYViM3y-KI|Wave Function Collapse — Watch a Maze Settle Itself in manic
+ex-grid-life-zoo|6Rd91KGTZac|Conway's Life Zoo — Still Lifes, Oscillators ex-grid-wfc
 
 # ---- examples: calculus & functions ----
 ex-sine_wave|HSC_hssuHd0|Plotting sin(x) From Scratch — manic
@@ -196,9 +196,9 @@ ex-eigen3|eZpNxcOa_cs|Eigenvectors of a 3×3 Matrix, in 3D — The Invariant Axe
 ex-double-integral3|TttBg-qplrc|The Double Integral, in 3D — Volume as Finer Columns — manic
 ex-multivariable3|Py_dIt_Qfyg|Gradient & Tangent Plane on a 3D Surface — manic
 ex-volume3|EvgfZJTtcAE|A Double Integral Made Solid — Volume Under a Surface — manic
-ex-heightmap3|PLACEHOLDER|Turn Any 2D Grid Into 3D Terrain — the heightmap3 Bridge in manic
-ex-heightmap3-world|PLACEHOLDER|Your Flat Map Is Secretly a 3D World — Grid to Terrain in manic
-ex-noise-terrain|PLACEHOLDER|Fractal Terrain From One Formula — Perlin-style Noise in manic
+ex-heightmap3|CYVVV1kWpDY|Turn Any 2D Grid Into 3D Terrain — the heightmap3 Bridge in manic
+ex-heightmap3-world|0Q1m19TnSLg|Your Flat Map Is Secretly a 3D World — Grid to Terrain in manic
+ex-noise-terrain|UBBaGcfTrPo|Fractal Terrain From One Formula — Perlin-style Noise in manic
 
 # ---- examples: physics — simulations ----
 ex-pendulum|6ThI97u97cg|One Pendulum, Four Views — Motion, Phase, Well & Energy — manic
@@ -285,11 +285,11 @@ ex-quiz-skins|zXoo9_IWEiI|4 Quiz-Short Designs From ONE Line of Code — manic
 ex-creator-v2|cmcE91c2O18|Creator Kit v2 — One Responsive Quiz Across Every Social Format
 ex-perfect-reel|_FAxmFXPEbU|Make a Perfect Math Reel From One Script — manic
 ex-reactive-multiformat|U83NHmhLKpM|One Story, Four Formats — Reframe a Reactive Manic Video
-ex-pascal-triangle|PLACEHOLDER|Why Pascal's Triangle Hides a Fractal — Built From One prod() in manic
-ex-creator-lattice-paths|PLACEHOLDER|How Many Paths Corner to Corner? — Lattice Counting, Animated in manic
-ex-creator-rule90-sierpinski|PLACEHOLDER|Rule 90 Draws Sierpinski’s Triangle — Can You Predict It? — manic
-ex-creator-heightmap-world|PLACEHOLDER|Your Flat Map Is Secretly a 3D World — Grid to Terrain Short in manic
-ex-creator-noise-story|PLACEHOLDER|How Noise Builds Worlds — Random to Perlin to Fractal Terrain in manic
+ex-pascal-triangle|IpXkWAT4vnk|Why Pascal's Triangle Hides a Fractal — Built From One prod() in manic
+ex-creator-lattice-paths|LxfU9VRbZuA|How Many Paths Corner to Corner? — Lattice Counting, Animated in manic
+ex-creator-rule90-sierpinski|lCka4ayXxQ0|Rule 90 Draws Sierpinski’s Triangle — Can You Predict It? — manic
+ex-creator-heightmap-world|xAn1KZhJJik|Your Flat Map Is Secretly a 3D World — Grid to Terrain Short in manic
+ex-creator-noise-story|lZmssQerVNY|How Noise Builds Worlds — Random to Perlin to Fractal Terrain in manic
 ex-parameter-journeys|ui5eqJDyLtk|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
 ex-creator-v2-options-socials|Q32jTgInMrk|Professional Quiz Options + Native Social Icons — manic
 ex-creator-v2-timing|Web996n1Dn4|Control Every Beat of a Quiz Reel — Creator Timing v2
@@ -307,7 +307,7 @@ ex-systems-arrow-patterns|jbjiZwKPh-M|Every Connection Pattern in One Diagram �
 ex-systems-rabbitmq-consumers|XMR3hm_a01I|One-of-Many Delivery, Authored Not Inferred — manic
 ex-microservices-platform|nyywVUsJwsY|Add a Tier, It Re-Fits Itself — Auto-Layout Diagrams in manic
 ex-factorial-flowchart|9Q7QwzN3e3k|A Flowchart That Runs — Ranked Auto-Layout + a Token That Walks the Loop
-ex-complex-flowchart|5iBfClaMyY8|Watch a Big Flowchart Build Itself, Then Run — Auto-Wrap + Parallel Tokens in manic
+ex-complex-flowchart|mdy8Yq6ZjlI|Watch a Big Flowchart Build Itself, Then Run — Auto-Wrap + Parallel Tokens in manic
 ex-c4-internet-banking|MFbQ-H4EZp0|C4 System Context in One Screen — Draw the Whole System's World in manic
 ex-c4-internet-banking-containers|rWOyFI2VrzU|C4 Containers — Zoom Inside the System, Tech Tags and All — manic
 ex-c4-internet-banking-components|i3mNCR2r-h0|C4 Components — Inside One Container, Zero Crossing Edges — manic

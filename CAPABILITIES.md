@@ -853,6 +853,42 @@ Pascal-parity identity.)
    variant (`heightmap3` from a formula, or the grid storing continuous per-cell
    values) would unify the discrete and continuous paths.
 
+### Game-dev / CS explainer cluster — ⬜ Exploring (ECS · FSM)
+
+A coherent set of computer-science / game-dev explainers is emerging on the
+**graph / table / grid / flowchart+route substrate** — same lineage as the algo
+and grid kits, not new science domains. High developer interest, and the moving
+parts (a query sweeping, a state token walking a transition) suit manic's
+"the diagram is TRUE and it MOVES" ethos. Both are **flagship-first, reuse-first**:
+build one representative explainer as a *composition* of existing primitives; only
+extract vocabulary if that story exposes a real ergonomic gap. Neither is scheduled
+(physics domain is next).
+
+- **ECS Kit — Bevy/EnTT-style entity-component-system.** ~80% composition:
+  `table` = the entity×component matrix (the "aha", maps 1:1), `counter` = component
+  values, `recolor`/`flash` = a query lighting up matching rows, `pointer`/`caret` =
+  a system iterating matches, `move` = archetype migration, `flowchart` = the system
+  schedule, `step`/`par` = the frame loop. manic's angle is a *real tiny ECS sim*
+  (true component values, a system that actually iterates), not static boxes.
+  Possible thin vocab (only if a flagship needs it): query-by-signature highlight,
+  archetype spawn/insert/migrate animation. Flagship: "a Movement system queries
+  `Position`+`Velocity` and updates positions over three frames."
+- **Game-State / AI FSM Kit — finite state machines.** ~90% composition, an even
+  tighter fit: `flowchart`/`graph` = states, `connect` = transitions,
+  `annotate(edge, "sees player")` = guards, a `message`/`request` **token on a node =
+  the active state**, **`route(token, edge)` = taking a transition on an event**
+  (and `route` already enforces edge-continuity — you can't teleport to a
+  non-adjacent state, exactly right), self-loop edges = stay-in-state,
+  `counter`/`parameter` = the blackboard (health, distance) driving events. Ethos
+  fit: the creator authors each transition (`route`) — do **not** add an auto-`fire`
+  that *infers* transitions (that would violate "the kit never infers behaviour").
+  Possible thin vocab: a **truthful FSM runner** (given a transition table + event
+  sequence, compute the state trace and animate the token — deterministic, like the
+  physics pre-sim/replay or `hotpath`). Flagship: an enemy AI FSM
+  Idle→Patrol→Chase→Attack→Flee, token walking transitions as a blackboard counter
+  crosses thresholds. **Risk for both:** must show the semantics *moving* (query
+  sweep, guards firing, state token traveling), not read as "a flowchart with a dot."
+
 ## Manic ML kit — active implementation
 
 **Status: ✅ ML1 feed-forward, ML2 learning + exact rollback, ML3 tensor/CNN foundations, ML4
