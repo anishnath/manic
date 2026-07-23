@@ -513,12 +513,17 @@ an expression, write that formula. The whole family lives in one table
 (`named_formula` in `src/kits/math.rs`) — add an arm there and everything else
 derives from it.
 
-Formula strings accept the variable `x` (alias `t`); constants `pi`, `e`, `tau`;
-operators `+ - * / ^` and unary `-`; and the functions `sin`, `cos`, `tan`,
+Formula strings accept up to **three variables** — `x` (alias `t`, `u`), `y`
+(alias `v`, `p`, the second axis used by `surface3`), and `h` (a per-sample value,
+e.g. a `heightmap3` cell's height); constants `pi`, `e`, `tau`; operators
+`+ - * / ^` and unary `-`; the **one-argument** functions `sin`, `cos`, `tan`,
 `asin`, `acos`, `atan`, `sinh`, `cosh`, `tanh`, `exp`, `ln`/`log`, `log10`,
-`log2`, `sqrt`, `abs`, `floor`, `ceil`, `round`, `sign`. Multiplication is
-explicit (`7*x`, not `7x`). Example: `plot(f,(640,384),70,70,"cos(x) +
-0.5*cos(7*x) + (1/7)*cos(14*x)", 7)`.
+`log2`, `sqrt`, `abs`, `floor`, `ceil`, `round`, `sign`; and the **two-argument**
+functions `noise(x,y)` and `fbm(x,y)` (procedural — smooth value noise and
+fractal Brownian motion, both ~`[-1,1]`, deterministic), plus `atan2`, `hypot`,
+`min`, `max`, `mod`. Multiplication is explicit (`7*x`, not `7x`). Examples:
+`plot(f,(640,384),70,70,"cos(x) + 0.5*cos(7*x)", 7)`;
+`surface3(land,"fbm(x*0.9, y*0.9)*2.4",(-4,4),(-4,4),72)` (a fractal landscape).
 
 A `plot` curve renders instantly by default; declare it `untraced(id)` and use
 `draw(id)` to trace it on.
@@ -715,6 +720,35 @@ point(A, (380,560), "A");  point(B, (900,560), "B");  point(C, (640,140), "C");
 segment(ab, A, B);  segment(bc, B, C);  segment(ca, C, A);
 circumcircle(cc, A, B, C);   incircle(ic, A, B, C);   centroid(G, A, B, C);
 foot(F, C, A, B);   segment(alt, C, F);   anglemark(angC, A, C, B);
+```
+
+## The grid kit
+
+A first-class 2-D cell grid — the primitive under **tilemaps**, **spatial
+pathfinding** (space, not `graph`'s topology), **cellular automata**, and
+**Wave Function Collapse**. It extends the algo lineage and reuses its
+conventions: cell addressing matches `matrix`/`table` (`{id}.r{i}c{j}`), the
+pathfinders share `bfs`/`dijkstra`'s colour grammar, and CA/WFC pre-simulate at
+build time then replay with the physics/optics `run`.
+
+| call | draws / does |
+|---|---|
+| `grid(id, (cx,cy), cols, rows, [cellsize])` | an empty grid (default cellsize 48). Cells `{id}.r{i}c{j}`; tags `{id}.cells` / `{id}.row{i}` / `{id}.col{j}`; lines `{id}.h{k}` / `{id}.v{k}` (max 40×40) |
+| `grid(id, "spec", (cx,cy), cols, rows, [cellsize])` | same, seeded from a compact ASCII layout (rows split by `;`): `# . . . ; . . # . ; @ . . *` — `#` wall, `.` open, `@` start, `*` goal |
+| `neighbors(id, "4"\|"8")` | connectivity: 4-directional (default) or 8-directional (diagonals) |
+| `setcell(id, r, c, "kind")` | set one cell's kind — `wall`/`open`/`start`/`goal` (build-time, so a following pathfinder / `evolve` / `collapse` sees it) |
+| `walls(id, "r,c r,c …")` | batch-set several cells to `wall` |
+| `gridbfs(id, start, goal)` | unweighted BFS over open cells (discovered cyan → current magenta → done lime); live `frontier:`/`visited:` readout; shortest route flashes gold. `start`/`goal` are `(col,row)` points |
+| `gridastar(id, start, goal, ["manhattan"\|"euclidean"\|"diagonal"])` | A* search; the settled route is traced as `{id}.path` (a gold polyline you can `draw`) |
+| `evolve(id, "life"\|"B3/S23")` | pre-simulate one cellular-automaton generation (alive = a filled `wall`, 8-neighbourhood); call N times, then `run` (named `evolve`, since `step` is the timeline stage block) |
+| `collapse(id, "tileset", [seed])` | pre-simulate a seeded Wave-Function-Collapse settling (deterministic per seed) |
+| `run(id, [gens], [dur])` | replay the pre-simulated `evolve`/`collapse` frames over `dur` seconds (the physics/optics `run`, dispatched here for a grid) |
+
+```
+grid(g, "@ . . # . ; . . . # . ; . # . . . ; . # . . *", (cx,cy), 5, 4, 70);
+neighbors(g, "4");
+gridastar(g, (0,0), (4,3), manhattan);   // start/goal are (col,row)
+draw(g.path, 1.4);                        // trace the gold route
 ```
 
 ## The ML kit
@@ -1122,6 +1156,7 @@ scrubbable like every other Manic track.
 | `curve3(id, "x(t)", "y(t)", "z(t)", [(t0,t1)])` | parametric 3D curve sampled from three formulas of `t` (default range `0..2π`), drawn as a polyline (thin by default; give it body with `thick`) |
 | `surface3(id, "z(x,y)", (x0,x1), (y0,y1), [res])` | height-field surface `z = f(x,y)` sampled over the x/y rectangle into a `(res+1)²` filled, flat-shaded mesh (default `res` 20) |
 | `param3(id, "x(u,v)", "y(u,v)", "z(u,v)", (u0,u1), (v0,v1), [res])` | **general parametric surface** — three formulas of `u`,`v` sampled into a `(res+1)²` filled, flat-shaded mesh (default `res` 24). Unlike `surface3` it can wrap and close: **tori** (`(R+r·cos v)·cos u`, …), parametric **spheres**, **Möbius strips**, shells |
+| `heightmap3(id, grid, "z(x,y,h)", [size])` | **lift a grid-kit `grid` into a 3D terrain mesh** — a Grid→3D bridge. Reads the grid's per-cell state (`h` = 1 for a filled/`wall` or alive cell, else 0; uses the latest CA/WFC frame if the grid has run one, else its base cells) and evaluates the height formula per cell over `x`/`y` (position across a `size`-wide field, default 6) plus `h`. `"h*1.5"` raises the walls; `"sin(x*2)*cos(y*2)*0.4 + h"` ripples them. The grid kit stays 3D-unaware — the bridge lives here on the 3D side |
 | `gradient3(id, surface, x, y, [color])` | an arrow on a plotted `surface3` at `(x,y)` pointing in the direction of **steepest ascent** (the gradient ∇f), its length growing with the slope — multivariable calculus |
 | `tangentplane3(id, surface, x, y, [color])` | the **plane tangent** to a plotted `surface3` at `(x,y)` (`z = f + fx·(u−x) + fy·(v−y)`), a small translucent patch — the 3D analog of the tangent line |
 | `volume3(id, surface, [res], [color])` | the **volume under** a plotted `surface3` as a `res×res` grid of columns from `z=0` to the surface (a 3D Riemann sum = double integral). Columns `{id}0…` tagged `id` |

@@ -25,6 +25,7 @@
 - [Examples gallery](examples.md)
     - [Algorithms & data structures](ex-algorithms.md)
     - [Graphs](ex-graphs.md)
+    - [Grids — pathfinding & automata](ex-grids.md)
     - [Calculus & functions](ex-calculus.md)
     - [Linear algebra & tables](ex-linalg.md)
     - [Statistics & probability](ex-stats.md)

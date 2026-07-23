@@ -513,6 +513,65 @@ fn c_surface3(s: &mut Scene, a: &Args) -> Result<(), Error> {
     Ok(())
 }
 
+/// `heightmap3(id, grid, "z(x,y,h)", [size])` — bridge a 2-D grid-kit grid into a
+/// 3-D terrain mesh. Reads the grid's per-cell state (`h` = 1 for a filled/`wall`
+/// or alive cell, else 0 — using the latest CA/WFC frame if the grid has run one,
+/// else its base cells) and evaluates the height formula per cell over `x`/`y`
+/// (the cell's position across a `size`-wide field, default 6) plus `h`. So
+/// `"h*1.5"` raises the walls, `"sin(x*2)*cos(y*2)*0.4 + h"` ripples them. The
+/// bridge lives entirely on the 3-D side — the grid kit needs no 3-D awareness.
+fn c_heightmap3(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    use crate::kits::grid::CellKind;
+    use crate::kits::math::expr;
+    let id = a.ident(0)?;
+    let grid_id = a.ident(1)?;
+    let src = a.text(2)?;
+    let f = expr::compile(&src)
+        .map_err(|m| Error::new(format!("in heightmap3 formula: {m}"), a.span_of(2)))?;
+    let size = a.opt_num(3)?.unwrap_or(6.0).max(0.1);
+    let g = s.grids.get(&grid_id).cloned().ok_or_else(|| {
+        Error::new(
+            format!("`{grid_id}` is not a grid — call `grid({grid_id}, ...)` first"),
+            a.span_of(1),
+        )
+    })?;
+    let (cols, rows) = (g.cols, g.rows);
+    // The cell state to lift: the settled CA/WFC frame if one exists, else the base cells.
+    let state = g.frames.last().unwrap_or(&g.kinds);
+    let span = |n: usize, k: usize| {
+        if n <= 1 {
+            0.0
+        } else {
+            (k as f32 / (n - 1) as f32 - 0.5) * size
+        }
+    };
+    let mut pts = Vec::with_capacity(cols * rows);
+    for r in 0..rows {
+        for c in 0..cols {
+            let hv = if state[r * cols + c] == CellKind::Wall {
+                1.0
+            } else {
+                0.0
+            };
+            let (x, y) = (span(cols, c), span(rows, r));
+            let z = f.eval3(x, y, hv);
+            pts.push(vec3(x, y, if z.is_finite() { z } else { 0.0 }));
+        }
+    }
+    let e = Entity3D::new(
+        id,
+        Shape3D::Surface {
+            pts,
+            nu: cols as u32,
+            nv: rows as u32,
+        },
+        Vec3::ZERO,
+        style::CYAN,
+    );
+    s.add_3d(e);
+    Ok(())
+}
+
 /// Fetch a `surface3`'s remembered height field by id, or a clear error.
 fn fetch_surf(s: &Scene, a: &Args, idx: usize) -> Result<SurfaceFn, Error> {
     let src = a.ident(idx)?;
@@ -2569,6 +2628,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("tube3", c_tube3);
     r.ctor("curve3", c_curve3);
     r.ctor("surface3", c_surface3);
+    r.ctor("heightmap3", c_heightmap3);
     r.ctor("param3", c_param3);
     r.ctor("gradient3", c_gradient3);
     r.ctor("tangentplane3", c_tangentplane3);
@@ -3158,6 +3218,37 @@ mod tests {
             }
             other => panic!("expected Surface, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn heightmap3_lifts_a_grid_by_cell_value() {
+        // a 3×2 grid with two walls; heightmap3 raises walls (h=1) by 2, others 0.
+        let src = r##"
+            canvas(1280, 720);
+            camera3((8, -10, 6), (0, 0, 0), 45);
+            grid(g, "# . . ; . . #", (640, 360), 3, 2, 40);
+            heightmap3(land, g, "h*2", 4);
+        "##;
+        let (base, _tl) = crate::parse(src).unwrap().finalize();
+        match &base.get_3d("land").unwrap().shape {
+            Shape3D::Surface { pts, nu, nv } => {
+                assert_eq!((*nu, *nv), (3, 2)); // cols × rows
+                assert_eq!(pts.len(), 6);
+                assert!((pts[0].z - 2.0).abs() < 1e-3, "wall cell (0,0) lifts to 2");
+                assert!(pts[1].z.abs() < 1e-3, "open cell (0,1) stays flat");
+                assert!((pts[5].z - 2.0).abs() < 1e-3, "wall cell (1,2) lifts to 2");
+            }
+            other => panic!("expected Surface, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn expr_third_variable_h_is_independent() {
+        use crate::kits::math::expr;
+        let f = expr::compile("x + 10*y + 100*h").unwrap();
+        assert!((f.eval3(1.0, 2.0, 3.0) - 321.0).abs() < 1e-4);
+        // two-variable eval ignores the third (h defaults to 0)
+        assert!((f.eval(1.0, 2.0) - 21.0).abs() < 1e-4);
     }
 
     #[test]

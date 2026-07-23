@@ -45,6 +45,33 @@ SECTIONS = [
     "LaTeX node labels ($u_i$, $v_i$) and typeset names $G_1..G_5$ — a paper-style\n"
     "figure straight from a theorem statement."),
  ]),
+ dict(slug="grids", title="Grids — pathfinding & automata", intro=(
+     "A first-class 2-D cell grid — the one primitive under tilemaps, spatial "
+     "pathfinding (space, not `graph`'s topology), cellular automata and Wave "
+     "Function Collapse. Cells address like `matrix`/`table` (`{id}.r{i}c{j}`); "
+     "seed a maze from a compact `# . @ *` ASCII string; the pathfinders reuse the "
+     "algo kit's exact colour grammar (discovered cyan → current magenta → done "
+     "lime), and generation pre-simulates at build time then replays with `run`."),
+   sub=SUB, items=[
+   ("grid-astar",
+    "A* over a seeded ASCII maze: open cells flood by f-score (frontier cyan → "
+    "current magenta), a live frontier/visited readout counts up, and the shortest "
+    "route traces out in gold as `{id}.path`. `neighbors` picks 4- or 8-connectivity."),
+   ("grid-life",
+    "Conway's Game of Life: a glider seeded with `setcell`, then `evolve` pre-"
+    "simulates six generations at build time (alive = a filled cell, Conway's "
+    "B3/S23) and `run` replays them — the glider walks diagonally across the grid."),
+   ("grid-wfc",
+    "Wave Function Collapse: `collapse` pre-simulates a seeded, neighbour-"
+    "constrained settling row by row, then `run` replays the grid resolving from "
+    "empty into a finished maze — deterministic, so the same seed always settles "
+    "the same way."),
+   ("grid-life-zoo",
+    "Conway's Life's whole taxonomy — a still life (Block), an oscillator (Blinker) and a\n"
+    "spaceship (Glider) — three grids seeded with `setcell`, `evolve`d eight generations and\n"
+    "`run` in parallel: the Block holds, the Blinker flips, the Glider walks. The famous\n"
+    "pattern zoo, entirely in the grid kit."),
+ ]),
  dict(slug="calculus", title="Calculus & functions", intro="", sub=SUB, items=[
    ("calculus-demo",
     "The flagship: two big ideas on one curve. A tangent slides along a bell curve\n"
@@ -639,6 +666,34 @@ SECTIONS = [
     "One visible parameter drives a quadratic plot, its live tangent and slope, a geometric\n"
     "position, scale and a derived numeric readout. Named steps animate only the value; `bind`\n"
     "keeps every representation continuous and the source reflows across all four formats."),
+   ("pascal-triangle",
+    "A non-quiz Creator v2 Short built entirely from the computation layer: each cell's\n"
+    "binomial coefficient is a `prod` reduction, the triangle reveals row by row, the\n"
+    "sum-of-two-parents rule is highlighted, and colouring the odd cells uncovers Sierpinski's\n"
+    "triangle — all inside a branded 9:16 shorts frame with creator identity, socials and an\n"
+    "end card (no grid kit needed: the triangle is triangular)."),
+   ("creator-lattice-paths",
+    "The rectangular cousin of Pascal, on a real grid-kit lattice: 'how many ways from corner\n"
+    "to corner moving only right and down?' Every cell's path-count is a `prod` reduction\n"
+    "(C(i+j,i)), the same above-plus-left rule is highlighted, the far corner holds the total,\n"
+    "and one actual monotone path is traced with a `spline`. Blueprint template, and a\n"
+    "different typewriter beat — the question erases and retypes itself into the answer."),
+   ("creator-rule90-sierpinski",
+    "A QUIZ-style Short: Rule 90 (each new cell = its two upper neighbours XOR'd) draws\n"
+    "Sierpinski's triangle from a single dot — because XOR of two parents is exactly Pascal's\n"
+    "triangle mod 2 (a cell is lit iff C(n,k) is odd). The gasket is the quiz's media (fit with\n"
+    "`figure`), building as you're asked to predict it, then the correct card and the reason\n"
+    "reveal. Full Creator v2 quiz: question, options, think timer, explanation and end card."),
+   ("creator-heightmap-world",
+    "The Grid→3D bridge as a Short: a grid-kit WFC map settles in 2D, then the SAME grid rises\n"
+    "into 3D terrain via `heightmap3` — the camera pulls back to reveal the whole world, rotates,\n"
+    "then flies in low over the peaks. One grid, two dimensions, inside a 9:16 creator frame with\n"
+    "typed hook, socials and end card."),
+   ("creator-noise-story",
+    "How Noise Builds Worlds — a Short walking procedural noise from 1D to fractal: raw `rand(x)`\n"
+    "(jagged) vs smooth `noise(x)` (Perlin), then `noise(x,y)` tilting from a flat field into a 3D\n"
+    "surface, then `fbm` stacking octaves into fractal terrain. Every visual is one formula in the\n"
+    "shared expression engine — the arc that motivated adding `rand`/`noise`/`fbm`."),
    ("creator-v2-options-socials",
     "The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D\n"
     "cards, uniform correct-state spacing, and native YouTube/X/web identity lockups."),
@@ -767,6 +822,20 @@ SECTIONS = [
    ("volume3",
     "The volume under a surface represented as solid 3D Riemann-sum columns, turning a\n"
     "double integral into visible geometry."),
+   ("heightmap3",
+    "The Grid Kit → 3D bridge: `heightmap3(land, grid, \"z(x,y,h)\")` lifts a 2-D grid's per-cell\n"
+    "state into a surface3-style terrain mesh. A seeded Wave Function Collapse settles a map,\n"
+    "then its walls rise into an island terrain a camera orbits — the grid kit stays entirely\n"
+    "3D-unaware."),
+   ("heightmap3-world",
+    "The creative payoff: a grid-kit WFC map settles in 2-D, then the very same grid lifts into\n"
+    "a 3-D world as the camera tilts down — one grid, two dimensions. `h` (the cell value) is a\n"
+    "third formula variable added to the expression engine for exactly this."),
+   ("noise-terrain",
+    "Procedural generation from a single formula: `noise(x,y)` and `fbm(x,y)` (fractal Brownian\n"
+    "motion) are now formula functions beside sin/cos, so `surface3(land, \"fbm(x*0.9,y*0.9)*2.4\")`\n"
+    "sculpts an organic fractal landscape the camera tours — no new kit, just two functions the\n"
+    "shared expression evaluator now understands."),
  ]),
  dict(slug="systems", title="Diagrams", intro=(
      "Animated diagrams — not another static boxes-and-arrows generator. Declare an "

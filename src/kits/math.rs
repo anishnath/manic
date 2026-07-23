@@ -90,6 +90,7 @@ pub(crate) mod expr {
         Num(f32),
         Var,
         VarY,
+        VarZ,
         Neg(Box<Node>),
         Add(Box<Node>, Box<Node>),
         Sub(Box<Node>, Box<Node>),
@@ -97,21 +98,31 @@ pub(crate) mod expr {
         Div(Box<Node>, Box<Node>),
         Pow(Box<Node>, Box<Node>),
         Call(fn(f32) -> f32, Box<Node>),
+        Call2(fn(f32, f32) -> f32, Box<Node>, Box<Node>),
     }
 
     impl Node {
+        /// Two-variable evaluation (`x`, `y`) — the common case (plots, surfaces).
         pub fn eval(&self, x: f32, y: f32) -> f32 {
+            self.eval3(x, y, 0.0)
+        }
+        /// Three-variable evaluation. The third variable `h` lets a formula
+        /// reference a per-sample value alongside its `x`/`y` position — e.g. a
+        /// grid cell's height in `heightmap3`. Two-variable formulas ignore it.
+        pub fn eval3(&self, x: f32, y: f32, h: f32) -> f32 {
             match self {
                 Node::Num(n) => *n,
                 Node::Var => x,
                 Node::VarY => y,
-                Node::Neg(a) => -a.eval(x, y),
-                Node::Add(a, b) => a.eval(x, y) + b.eval(x, y),
-                Node::Sub(a, b) => a.eval(x, y) - b.eval(x, y),
-                Node::Mul(a, b) => a.eval(x, y) * b.eval(x, y),
-                Node::Div(a, b) => a.eval(x, y) / b.eval(x, y),
-                Node::Pow(a, b) => a.eval(x, y).powf(b.eval(x, y)),
-                Node::Call(f, a) => f(a.eval(x, y)),
+                Node::VarZ => h,
+                Node::Neg(a) => -a.eval3(x, y, h),
+                Node::Add(a, b) => a.eval3(x, y, h) + b.eval3(x, y, h),
+                Node::Sub(a, b) => a.eval3(x, y, h) - b.eval3(x, y, h),
+                Node::Mul(a, b) => a.eval3(x, y, h) * b.eval3(x, y, h),
+                Node::Div(a, b) => a.eval3(x, y, h) / b.eval3(x, y, h),
+                Node::Pow(a, b) => a.eval3(x, y, h).powf(b.eval3(x, y, h)),
+                Node::Call(f, a) => f(a.eval3(x, y, h)),
+                Node::Call2(f, a, b) => f(a.eval3(x, y, h), b.eval3(x, y, h)),
             }
         }
     }
@@ -137,8 +148,75 @@ pub(crate) mod expr {
             "ceil" => f32::ceil,
             "round" => f32::round,
             "sign" => f32::signum,
+            "rand" => rand1 as fn(f32) -> f32,
             _ => return None,
         })
+    }
+
+    /// Deterministic pseudo-random value in [-1, 1] hashed from `x` — raw,
+    /// UN-smoothed randomness (white noise), the counterpoint to `noise`/`fbm`.
+    /// Same `x` always gives the same value.
+    pub fn rand1(x: f32) -> f32 {
+        let mut h = x.to_bits().wrapping_mul(2654435761);
+        h ^= h >> 15;
+        h = h.wrapping_mul(2246822519);
+        h ^= h >> 13;
+        (h & 0xff_ffff) as f32 / 0xff_ffff as f32 * 2.0 - 1.0
+    }
+
+    /// Two-argument formula functions. `noise`/`fbm` are the procedural-generation
+    /// primitives (smooth value noise + fractal Brownian motion, both in ~[-1,1]);
+    /// the rest are ordinary two-arg maths any formula might want.
+    fn func2(name: &str) -> Option<fn(f32, f32) -> f32> {
+        Some(match name {
+            "noise" => value_noise as fn(f32, f32) -> f32,
+            "fbm" => fbm,
+            "atan2" => f32::atan2,
+            "hypot" => f32::hypot,
+            "min" => f32::min,
+            "max" => f32::max,
+            "mod" => |a: f32, b: f32| a.rem_euclid(b),
+            _ => return None,
+        })
+    }
+
+    /// Deterministic hash of an integer lattice point → [0, 1).
+    fn hash2(xi: i32, yi: i32) -> f32 {
+        let mut h = (xi.wrapping_mul(374761393))
+            .wrapping_add(yi.wrapping_mul(668265263)) as u32;
+        h = (h ^ (h >> 13)).wrapping_mul(1274126177);
+        ((h ^ (h >> 16)) & 0xff_ffff) as f32 / 0xff_ffff as f32
+    }
+
+    /// Smooth (C²) value noise sampled on the integer lattice, mapped to [-1, 1].
+    /// Deterministic — the same (x, y) always gives the same value.
+    pub fn value_noise(x: f32, y: f32) -> f32 {
+        let (x0, y0) = (x.floor(), y.floor());
+        let (xf, yf) = (x - x0, y - y0);
+        let (xi, yi) = (x0 as i32, y0 as i32);
+        let smoother = |t: f32| t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+        let (u, v) = (smoother(xf), smoother(yf));
+        let n00 = hash2(xi, yi);
+        let n10 = hash2(xi + 1, yi);
+        let n01 = hash2(xi, yi + 1);
+        let n11 = hash2(xi + 1, yi + 1);
+        let a = n00 + (n10 - n00) * u;
+        let b = n01 + (n11 - n01) * u;
+        (a + (b - a) * v) * 2.0 - 1.0
+    }
+
+    /// Fractal Brownian motion — five octaves of `value_noise`, each double the
+    /// frequency and half the amplitude. Organic, terrain-like; roughly [-1, 1].
+    pub fn fbm(x: f32, y: f32) -> f32 {
+        let mut sum = 0.0;
+        let mut amp = 0.5;
+        let mut freq = 1.0;
+        for _ in 0..5 {
+            sum += amp * value_noise(x * freq, y * freq);
+            freq *= 2.0;
+            amp *= 0.5;
+        }
+        sum
     }
 
     struct Parser<'a> {
@@ -305,6 +383,18 @@ pub(crate) mod expr {
             if self.peek() == Some(b'(') {
                 self.i += 1;
                 let arg = self.expr()?;
+                self.ws();
+                // two-argument call: `name(a, b)` — noise/fbm/atan2/hypot/min/max/mod
+                if self.peek() == Some(b',') {
+                    self.i += 1;
+                    let arg2 = self.expr()?;
+                    if !self.eat(b')') {
+                        return Err(format!("expected `)` after `{id}(…, …`"));
+                    }
+                    let f = func2(&id)
+                        .ok_or_else(|| format!("unknown two-argument function `{id}`"))?;
+                    return Ok(Node::Call2(f, Box::new(arg), Box::new(arg2)));
+                }
                 if !self.eat(b')') {
                     return Err(format!("expected `)` after `{id}(`"));
                 }
@@ -314,6 +404,7 @@ pub(crate) mod expr {
             match id.as_str() {
                 "x" | "t" | "u" => Ok(Node::Var),
                 "y" | "v" | "p" => Ok(Node::VarY),
+                "h" => Ok(Node::VarZ), // third variable — a per-sample value (e.g. heightmap3 cell height)
                 "pi" => Ok(Node::Num(std::f32::consts::PI)),
                 "e" => Ok(Node::Num(std::f32::consts::E)),
                 "tau" => Ok(Node::Num(std::f32::consts::TAU)),
@@ -363,6 +454,34 @@ pub(crate) mod expr {
         fn implicit_multiplication_still_parses() {
             // `2x`, `pi*t`, `sin(x)y`, `3(x+1)` are all valid
             assert!(compile("2x + pi*t + sin(x)y + 3(x+1)").is_ok());
+        }
+
+        #[test]
+        fn two_argument_functions_parse_and_eval() {
+            // noise / fbm / atan2 / hypot / min / max / mod
+            assert!(compile("noise(x, y)").is_ok());
+            assert!(compile("fbm(x*0.5, y*0.5)").is_ok());
+            assert_eq!(compile("hypot(x, y)").unwrap().eval(3.0, 4.0), 5.0);
+            assert_eq!(compile("min(x, y)").unwrap().eval(3.0, 4.0), 3.0);
+            assert_eq!(compile("max(x, y)").unwrap().eval(3.0, 4.0), 4.0);
+            assert_eq!(compile("mod(x, y)").unwrap().eval(7.0, 3.0), 1.0);
+            // arity is enforced: a 2-arg name called with one arg is unknown-as-1-arg
+            assert!(compile("noise(x)").is_err());
+            // and a 1-arg name with two args is unknown-as-2-arg
+            assert!(compile("sin(x, y)").is_err());
+        }
+
+        #[test]
+        fn value_noise_is_deterministic_and_bounded() {
+            let n = compile("noise(x, y)").unwrap();
+            // same input → same output
+            assert_eq!(n.eval(1.7, 2.3), n.eval(1.7, 2.3));
+            // stays in [-1, 1] across a sweep
+            for i in 0..50 {
+                let t = i as f32 * 0.37;
+                let v = n.eval(t, t * 1.3);
+                assert!((-1.0..=1.0).contains(&v), "noise out of range: {v}");
+            }
         }
     }
 }

@@ -267,3 +267,41 @@ double integral into visible geometry.
 ```
 
 <div class="manic-video" data-video="ex-volume3"></div>
+
+## heightmap3
+
+The Grid Kit → 3D bridge: `heightmap3(land, grid, "z(x,y,h)")` lifts a 2-D grid's per-cell
+state into a surface3-style terrain mesh. A seeded Wave Function Collapse settles a map,
+then its walls rise into an island terrain a camera orbits — the grid kit stays entirely
+3D-unaware.
+
+```manic
+{{#include ../../examples/heightmap3.manic}}
+```
+
+<div class="manic-video" data-video="ex-heightmap3"></div>
+
+## heightmap3-world
+
+The creative payoff: a grid-kit WFC map settles in 2-D, then the very same grid lifts into
+a 3-D world as the camera tilts down — one grid, two dimensions. `h` (the cell value) is a
+third formula variable added to the expression engine for exactly this.
+
+```manic
+{{#include ../../examples/heightmap3-world.manic}}
+```
+
+<div class="manic-video" data-video="ex-heightmap3-world"></div>
+
+## noise-terrain
+
+Procedural generation from a single formula: `noise(x,y)` and `fbm(x,y)` (fractal Brownian
+motion) are now formula functions beside sin/cos, so `surface3(land, "fbm(x*0.9,y*0.9)*2.4")`
+sculpts an organic fractal landscape the camera tours — no new kit, just two functions the
+shared expression evaluator now understands.
+
+```manic
+{{#include ../../examples/noise-terrain.manic}}
+```
+
+<div class="manic-video" data-video="ex-noise-terrain"></div>

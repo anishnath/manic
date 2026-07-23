@@ -199,8 +199,9 @@ ranking is:
 | 3 | **Chemistry Reaction Kit** | Atoms, bonds, balancing, electron movement, molecular geometry, equilibrium, acids/bases, energy diagrams, and reaction mechanisms. | Strong fit with particles, rewrite, paths, and 3D; notation and chemical correctness require careful design. |
 | 4 | **Biology Systems Kit** | Cells, DNA→RNA→protein, mitosis, neurons, circulation, immunity, transport, and pathways. | Very broad audience, but organic visuals may eventually need an asset/illustration strategy. |
 | 5 | **Anatomy Kit** | Heart, lungs, digestion, muscles, joints, kidneys, and clinical education. | High educational value but strongly asset-dependent; defer until Manic has a deliberate organic-visual strategy. |
+| ✅ | **Grid Kit** (CS / computational — distinct lineage) | Tilemaps, spatial pathfinding, cellular automata, and Wave Function Collapse — the 2D cell grid underneath games, procedural generation, and "search over space" explainers. | **SHIPPED** — a first-class cell grid beside the shipped `array`/`graph`/`matrix`/`table`, composed over the existing algo/stateful/pre-sim machinery (zero core changes). See the **Grid Kit** section below. |
 
-### Systems / Architecture Kit — ✅ V2 foundation complete
+### Systems / Architecture Kit — ✅ DONE (V2 foundation complete; further hardening deferred to future)
 
 **Expansion gate (P0) — cleared:** the deterministic text + glyph engine now
 ships with advanced shaping, technical-symbol fallback, multilingual script
@@ -208,7 +209,7 @@ faces, one cached measure/draw layout, checked render sessions, and parity
 goldens. Systems, Flowchart, and Sequence Diagram work can build on that shared
 foundation without spreading missing-glyph or layout instability.
 
-#### Foundation hardening — active, in dependency order
+#### Foundation hardening — deferred (foundation is complete and shipping; the rows below are FUTURE options, revisited only as real needs arise — not active work)
 
 The shipped V2 story surface stays `architecture`, `cluster`, `node`,
 `connect`, `message`, `route`, and `hotpath`. Hardening is internal or additive;
@@ -402,10 +403,10 @@ reflows and scales the diagram to stay fully in-frame. The dense stress tests
 column-splitting or size tuning — from structure alone. The one user-visible
 promise, delivered: *it just fits.*
 
-### Flowchart Foundation — ✅ Core shipped (C4 + sequence diagrams next)
+### Flowchart Foundation — ✅ DONE (C4 also shipped; sequence diagrams deferred to future)
 
-The Diagrams kit does **architecture** and now **flowcharts**; sequence diagrams
-are next. Flowcharts are the highest-demand diagram type — every algorithm,
+The Diagrams kit does **architecture**, **flowcharts**, and **C4**; sequence
+diagrams are a future option, revisited as needed. Flowcharts are the highest-demand diagram type — every algorithm,
 process, decision tree, and onboarding explainer is a flowchart — and manic's
 edge is that the chart *runs*: a token walks the process and takes a branch,
 instead of a static Mermaid picture.
@@ -514,7 +515,7 @@ form for every node, easy for creators.
   + `relayout` + scale-to-fit + ports), so there is no second layout engine — a
   layout *mode* on the shared data, fronted by a clear builtin.
 
-### C4 Model — ✅ Shipped (Context · Container · Component + auto-split + end-to-end animated story)
+### C4 Model — ✅ DONE (Context · Container · Component + auto-split + perimeter routing + end-to-end animated story)
 
 **Shipped (first draft):** `c4(id, [level])` container (reuses the architecture
 region layout + scale-to-fit); C4 element **kinds on `node`** — `person`/`system`/
@@ -558,10 +559,11 @@ canonical bigbank container diagram (`c4-test.manic`, translated from the Python
 instead of cutting through the API/SPA labels. (Implementation note: the
 `annotate` label/chip carry the edge id only as a free tag, so a per-edge reveal
 must `show({edge}.text)`/`show({edge}.text.bg)` explicitly — `show({edge})` alone
-reveals the line but not its separately-added label.) All pass the editor gate. **To refine:**
-within-tier ordering is author-controlled (declaration order = left→right/row-major,
-so keep related boxes adjacent); auto-ordering by adjacency to cut crossings is a
-future nicety. The design below is as shipped.
+reveals the line but not its separately-added label.) All pass the editor gate.
+**Future (deferred — revisited only as needs arise):** auto-ordering tier nodes by
+adjacency to cut crossings, and sequence diagrams. For now within-tier ordering is
+author-controlled (declaration order = left→right/row-major, so keep related boxes
+adjacent). The design below is as shipped.
 
 
 
@@ -674,6 +676,182 @@ current falling, and truthful plots/equations, with the Director guiding the
 viewer from the physical circuit to the graphs and final time-constant insight.
 Only after that representative story exposes genuine gaps should production
 vocabulary be chosen.
+
+### Grid Kit — ✅ DONE (Tiers 1–4 shipped: construction · mutation · pathfinding · generation)
+
+**Shipped** (`src/kits/grid.rs`, `scene.grids`; examples `grid-astar.manic`,
+`grid-life.manic`, `grid-wfc.manic`; 7 unit tests + editor gate). Surface as
+built: `grid` (empty or ASCII-seeded), `neighbors`, `setcell`, `walls`, `gridbfs`,
+`gridastar` (manhattan/euclidean/diagonal), `evolve` (CA generation — **renamed
+from the planned `step`, which is the core timeline-stage block**), `collapse`
+(seeded WFC-style settling), and the physics/optics `run` (dispatched to grid
+replay in `v_play`). Cell addressing (`{id}.r{i}c{j}`, `{id}.lines`), the
+pathfinding colour grammar (cyan→magenta→lime + gold path), and the pre-simulate/
+`run`-replay pattern all reuse existing conventions — no core changes. The 40×40
+readability cap fails at `manic check`. Note: `collapse` ships as a **simplified,
+seeded, neighbour-constrained settling** (deterministic and WFC-flavoured, one
+frame per row) rather than a full arbitrary-tileset propagation — a future
+refinement if a real tileset story demands it. The design below is as shipped.
+
+A first-class **2D cell grid** — the one primitive underneath **tilemaps**,
+**pathfinding-on-space** (as opposed to `graph`'s pathfinding-on-topology),
+**cellular automata**, and **Wave Function Collapse**. It is a *computational* kit,
+not a science domain: it extends the shipped algo lineage (`array`, `graph`,
+`matrix`, `table`) with the one structure those four applications all share.
+
+**Reuse first — the grid is a stateful cell matrix, most of which already exists.**
+The design deliberately borrows conventions so a viewer (and an author) who has
+learned one kit already knows this one:
+
+- **Cell addressing = `matrix`/`table` exactly.** Cells are `{id}.r{i}c{j}`; tags
+  `{id}.cells`, `{id}.row{i}`, `{id}.col{j}`; grid lines `{id}.h{k}` / `{id}.v{k}`
+  reuse `table`'s line convention. Ordinary `flash`/`recolor`/`pulse` keep working
+  on any single cell for free — nothing grid-specific is needed there.
+- **Mutation = `array`'s stateful verbs.** `setcell` recolours+retags one cell the
+  same way `swap`/`compare` mutate an `array` slot — it rides the existing
+  `MutVerbFn` + `Scene.occ` machinery (the shipped stateful-structures substrate),
+  no new timeline semantics.
+- **Pathfinding mirrors the algo kit's colour grammar.** `gridbfs`/`gridastar`
+  reuse `bfs`/`dijkstra`'s exact states — discovered **cyan** → current
+  **magenta** → done **lime**, with a live `frontier:`/`visited:` readout — so a
+  viewer who has seen one pathfinding explainer recognises the visual grammar in
+  the other, even though one is graph-topological and the other spatial.
+- **Generation reuses the physics/optics "pre-simulate, then `run()`" pattern.**
+  Cellular automata and WFC are computed deterministically at build time, then
+  replayed with the *same* `run()` verb the physics/optics kits already use for
+  "replay a pre-computed deterministic process" — no new replay vocabulary.
+- **Seeded layouts reuse `tensor`'s quoted-grid convention** (rows split by `;`).
+
+**Proposed surface** (not yet accepted vocabulary — validated against a flagship
+story first, per the kit-expansion discipline):
+
+*Construction*
+
+| call | draws |
+|---|---|
+| `grid(id, (cx,cy), cols, rows, [cellsize])` | an empty grid of cells (default cellsize 48px). Cells `{id}.r{i}c{j}`; tags `{id}.cells`/`{id}.row{i}`/`{id}.col{j}`; lines `{id}.h{k}`/`{id}.v{k}` |
+| `grid(id, "spec", (cx,cy), cols, rows, [cellsize])` | same, seeded from a compact ASCII layout (rows split by `;`): `"# . . . ; . . # . ; @ . . *"` — `#` wall, `.` open, `@` start, `*` goal |
+| `neighbors(id, "4"\|"8")` | connectivity mode — 4-directional (default) or 8-directional (diagonals allowed) |
+
+*Mutation (stateful, like `array`'s `swap`)*
+
+| call | does |
+|---|---|
+| `setcell(id, r, c, "kind")` | recolours + retags one cell — `kind` ∈ `wall`/`open`/`start`/`goal` |
+| `walls(id, "r,c r,c …")` | batch-set several cells to `wall` in one call |
+
+*Pathfinding — the spatial sibling of `bfs`/`dijkstra`*
+
+| call | animates |
+|---|---|
+| `gridbfs(id, start, goal)` | unweighted BFS over open cells; algo-kit colour states + live `frontier:`/`visited:` readout |
+| `gridastar(id, start, goal, ["manhattan"\|"euclidean"\|"diagonal"])` | A* with the given heuristic; frontier cells shade by f-score, the settled route traces in gold as `{id}.path` |
+
+*Generation — pre-simulated, deterministic (like the physics sims)*
+
+| call | does |
+|---|---|
+| `step(id, "life"\|"B3/S23")` | one cellular-automaton generation; `"life"` is Conway's classic ruleset, or supply a raw Golly-style birth/survival rulestring |
+| `collapse(id, "tileset", [seed])` | pre-simulates a full Wave Function Collapse propagation at build time (seeded ⇒ deterministic, like `montecarlo`/`clt`) |
+| `run(id, [gens], [dur])` | replays the pre-simulated CA generations / WFC settling steps over `dur` seconds — the same `run()` the physics & optics kits use |
+
+```manic
+grid(g, "@ . . # . ; . . . # . ; . # . . . ; . # . . *", (cx,cy), 5, 4, 70);
+neighbors(g, "4");
+gridastar(g, (0,0), (4,3), manhattan);
+draw(g.path, 1.4);
+```
+
+```manic
+grid(life, (cx,cy), 20, 20, 28);
+setcell(life, 5,5, open); setcell(life, 5,6, open); setcell(life, 5,7, open);  // a blinker
+step(life, "life"); step(life, "life"); step(life, "life");
+run(life, 3, 4.0);
+```
+
+**Guardrail** (matching the ML/tensor kits' philosophy): cap grid size (≈ 40×40
+cells) so an oversized explainer **fails clearly at `manic check`** rather than
+rendering an unreadable wall of cells.
+
+**Flagship acceptance stories** (choose vocabulary only after these expose real
+gaps): (1) **A\* through a maze** — seed a wall layout, watch the frontier shade
+by f-score and the gold path trace out; (2) **Conway's Life** — a blinker and a
+glider replayed with `run()`; (3) **WFC settle** — a small tileset collapsing
+deterministically from a seed. If all three read cleanly on the reused
+addressing/colour/replay conventions above, the surface is right; if not, the gaps
+name the missing vocabulary.
+
+**Sequencing:** parked as a future candidate — high-reuse and low-risk, but not
+scheduled ahead of the current roadmap (physics domain next); the owner picks when
+it lands.
+
+**Natural extension — ✅ DONE: `heightmap3(id, grid, "z(x,y,h)", [size])`
+(a Grid→3D bridge).** Reads a 2-D grid's per-cell state (`h` = 1 for a filled/`wall`
+or alive cell, else 0; latest CA/WFC frame if the grid has run one, else its base
+cells) and emits a `surface3`-style terrain mesh, evaluating the height formula per
+cell over its `x`/`y` position plus `h` — so `"h*1.7"` raises the walls and a
+`collapse` seed becomes island terrain. The architectural point held: the bridge
+lives entirely on the **3D side** (`c_heightmap3` in `three.rs` reads `GridData` and
+produces a `Shape3D::Surface`, reusing surface3's mesh + automatic camera/lighting),
+so the **Grid Kit kept zero 3D awareness**. Examples: `heightmap3.manic` (WFC island
+terrain + orbit) and `heightmap3-world.manic` (a WFC map settles in 2-D, then the
+same grid rises into a 3-D world as the camera tilts). **Engine gap filled along the
+way:** the formula evaluator (`kits::math::expr`) was 2-variable only (`x`, `y`); it
+now has a third variable `h` via `eval3(x,y,h)` (`eval(x,y)` delegates, so every
+existing plot/surface formula is unchanged) — this is what lets a per-cell value ride
+the formula, and it's reusable by any future multi-variable formula need.
+
+**Procedural generation — ✅ DONE as formula functions, NOT a new kit.** Considered a
+"Procedural Gen Kit (noise + cellular automata)"; concluded CA is already first-class
+(grid `evolve` = 2D life-like rules — the whole Conway pattern zoo of still lifes /
+oscillators / spaceships, see `grid-life-zoo.manic`; `collapse` = WFC-style), so a
+new kit would duplicate it. The one genuine gap was **noise**. Filled it reuse-first
+by adding **two-argument formula functions** to `expr` (the evaluator only had
+one-arg functions): `noise(x,y)` (smooth deterministic value noise) and `fbm(x,y)`
+(fractal Brownian motion), plus `atan2`/`hypot`/`min`/`max`/`mod` for free. Because
+they live in the shared formula evaluator, procedural content now works **everywhere
+a formula does** — `surface3` (fractal landscapes, `noise-terrain.manic`),
+`heightmap3` (organic terrain), `plot`, `bind` — with zero new kit surface. Also
+added **`rand(x)`** (raw un-smoothed pseudo-random — the jagged counterpoint to
+`noise`), so a formula can show white-noise vs smooth-noise (the 1D→2D→fractal story
+`creator-noise-story.manic`). (1D elementary/Wolfram CA as a named `elementary(id,
+rule)` grid builtin remains a small open option; Rule 90 is currently done via the
+Pascal-parity identity.)
+
+**Engine gaps found while building the noise story — ⬜ flagged, not yet filled:**
+1. **Noise/`rand`/`fbm` are formula-string only, not in the computation layer**
+   (`let`/`for` use a *separate*, richer evaluator with comparisons/logic but no
+   `noise`). So you can't compute a per-cell noise value in a loop (e.g. to seed a
+   grid's heights, or drive per-entity opacity/position/`hue` from noise). Fixing
+   means unifying the two evaluators or exposing `noise`/`fbm`/`rand` to the
+   computation layer.
+   **Decision — deliberately DEFERRED (larger regression), revisit later.** The
+   computation layer lives in a different crate (`manic-lang/expand.rs`) and its
+   `ExprKind::Call` handles only *one* argument, while `noise`/`fbm` are two-arg and
+   their implementations live in the engine crate (`kits::math::expr`). Closing this
+   would mean adding 2-arg call support to `expand.rs` **and** duplicating (or
+   relocating) the noise functions into `manic-lang` — a cross-crate change touching
+   the parser/evaluator used by the browser editor, i.e. real regression surface. Not
+   worth it for now. **Consequence we accept:** the noise story's 2-D beat
+   (`creator-noise-story.manic`) uses the honest `surface3`-tilt (it plots *real*
+   noise via the formula engine) rather than a flat grayscale *noise* texture; a
+   true per-cell grayscale noise field (img_7-left) — `hue(cell,0,0,noise(i,j))` in a
+   loop — must wait for this gap to be closed. The `hue` coloring itself already
+   works (gap #2); only the noise-in-`let` piece is missing. Revisit when a story
+   genuinely needs a computed per-cell noise field.
+2. ~~No per-entity computed/continuous colour~~ **— RESOLVED (was not a gap).**
+   `color()` is palette-only, BUT **`hue(id, deg, sat, light)` sets any HSL colour
+   from numbers**: grayscale via `hue(id, 0, 0, value)` (saturation 0, lightness =
+   the scalar) and rainbow heatmaps via `hue(id, value*300, 0.9, 0.55)`. Proven with
+   a per-cell field rendered both ways. So a scalar field *can* be shaded as a
+   grayscale texture or heatmap today — the coloring mechanism exists. (The only
+   reason the noise story still used a `surface3` tilt for the 2-D field is gap #1:
+   driving the lightness from *noise per cell* needs noise in the computation layer;
+   a field from any `let`/`for`-expressible function — sin/cos/etc. — works now.)
+3. **`heightmap3` lifts a discrete grid (binary cells), not a continuous field** —
+   noise terrain has to go through `surface3`, not `heightmap3`. A field-sampling
+   variant (`heightmap3` from a formula, or the grid storing continuous per-cell
+   values) would unify the discrete and continuous paths.
 
 ## Manic ML kit — active implementation
 

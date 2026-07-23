@@ -7,6 +7,7 @@
 
 pub mod algo;
 pub mod brand;
+pub mod grid;
 pub mod creator;
 pub mod diagram_icons;
 pub mod geo;
@@ -38,6 +39,7 @@ pub fn default_registry() -> Registry {
     ml_transformer::register(&mut r);
     ml_decode::register(&mut r);
     algo::register(&mut r);
+    grid::register(&mut r);
     geo::register(&mut r);
     brand::register(&mut r);
     three::register(&mut r);

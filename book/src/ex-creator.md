@@ -39,6 +39,74 @@ keeps every representation continuous and the source reflows across all four for
 
 <div class="manic-video" data-video="ex-parameter-journeys"></div>
 
+## pascal-triangle
+
+A non-quiz Creator v2 Short built entirely from the computation layer: each cell's
+binomial coefficient is a `prod` reduction, the triangle reveals row by row, the
+sum-of-two-parents rule is highlighted, and colouring the odd cells uncovers Sierpinski's
+triangle — all inside a branded 9:16 shorts frame with creator identity, socials and an
+end card (no grid kit needed: the triangle is triangular).
+
+```manic
+{{#include ../../examples/pascal-triangle.manic}}
+```
+
+<div class="manic-video" data-video="ex-pascal-triangle"></div>
+
+## creator-lattice-paths
+
+The rectangular cousin of Pascal, on a real grid-kit lattice: 'how many ways from corner
+to corner moving only right and down?' Every cell's path-count is a `prod` reduction
+(C(i+j,i)), the same above-plus-left rule is highlighted, the far corner holds the total,
+and one actual monotone path is traced with a `spline`. Blueprint template, and a
+different typewriter beat — the question erases and retypes itself into the answer.
+
+```manic
+{{#include ../../examples/creator-lattice-paths.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-lattice-paths"></div>
+
+## creator-rule90-sierpinski
+
+A QUIZ-style Short: Rule 90 (each new cell = its two upper neighbours XOR'd) draws
+Sierpinski's triangle from a single dot — because XOR of two parents is exactly Pascal's
+triangle mod 2 (a cell is lit iff C(n,k) is odd). The gasket is the quiz's media (fit with
+`figure`), building as you're asked to predict it, then the correct card and the reason
+reveal. Full Creator v2 quiz: question, options, think timer, explanation and end card.
+
+```manic
+{{#include ../../examples/creator-rule90-sierpinski.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-rule90-sierpinski"></div>
+
+## creator-heightmap-world
+
+The Grid→3D bridge as a Short: a grid-kit WFC map settles in 2D, then the SAME grid rises
+into 3D terrain via `heightmap3` — the camera pulls back to reveal the whole world, rotates,
+then flies in low over the peaks. One grid, two dimensions, inside a 9:16 creator frame with
+typed hook, socials and end card.
+
+```manic
+{{#include ../../examples/creator-heightmap-world.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-heightmap-world"></div>
+
+## creator-noise-story
+
+How Noise Builds Worlds — a Short walking procedural noise from 1D to fractal: raw `rand(x)`
+(jagged) vs smooth `noise(x)` (Perlin), then `noise(x,y)` tilting from a flat field into a 3D
+surface, then `fbm` stacking octaves into fractal terrain. Every visual is one formula in the
+shared expression engine — the arc that motivated adding `rand`/`noise`/`fbm`.
+
+```manic
+{{#include ../../examples/creator-noise-story.manic}}
+```
+
+<div class="manic-video" data-video="ex-creator-noise-story"></div>
+
 ## creator-v2-options-socials
 
 The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D

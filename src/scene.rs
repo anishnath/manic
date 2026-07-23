@@ -204,6 +204,10 @@ pub struct Scene {
     pub system_nodes: HashMap<String, crate::kits::systems::SystemNodeData>,
     pub system_clusters: HashMap<String, crate::kits::systems::SystemClusterData>,
     pub system_connections: HashMap<String, crate::kits::systems::ConnectionData>,
+    /// Build-time state for grid-kit cell grids (layout, cell kinds, connectivity,
+    /// and pre-simulated CA/WFC replay frames). Cells themselves are ordinary 2-D
+    /// entities; this only backs mutation, pathfinding and `run` replay.
+    pub grids: HashMap<String, crate::kits::grid::GridData>,
     /// Latest semantic node occupied by each Systems message. `route` uses this
     /// build-time state to reject discontinuous stories instead of teleporting.
     pub system_message_locations: HashMap<String, String>,
