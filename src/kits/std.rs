@@ -13,8 +13,8 @@ use crate::lang::ast::ExprKind;
 use crate::lang::diag::Error;
 use crate::lang::lower::{apply_dur_ease, resolve_color, resolve_easing, Args, Registry};
 use crate::primitives::{
-    BoundProperty, Counter, Entity, FontKind, Link, Parameter, ParameterBinding, ParameterMap,
-    Shape, StrokeStyle,
+    BoundProperty, Counter, Entity, FontKind, Gradient, GradientKind, Link, Parameter,
+    ParameterBinding, ParameterMap, Shape, StrokeStyle,
 };
 use crate::scene::{EquationState, ParticleGroup, PendingEquationPart, Scene};
 use crate::style;
@@ -1384,6 +1384,205 @@ fn m_dashed(s: &mut Scene, a: &Args) -> Result<(), Error> {
         ));
     }
     e.dash = Some((dash, gap));
+    Ok(())
+}
+
+/// `gradient(id_or_tag, c1, c2, ..., [mode])` — a multi-stop gradient (≥2
+/// evenly spaced palette colors) on the entity's primary paint. Modes:
+/// omitted = along the path for path-like strokes, linear top→bottom for
+/// fills; a number = linear at that angle in degrees (0 = left→right,
+/// 90 = top→bottom); `radial` = centre→edge; `along` = explicit arc-length
+/// stroke gradient; `"speed"` = color a time-sampled trajectory by its true
+/// local speed; `"curvature"` = color any path by its local curvature. The
+/// color is computed, not painted: an along-path stroke reads its own true
+/// arc position, a vertical linear gradient over a plot is its height, and a
+/// speed gradient is the physics. Stops stay template-aware like every flat
+/// palette color.
+fn m_gradient(s: &mut Scene, a: &Args) -> Result<(), Error> {
+    let id = a.ident(0)?;
+
+    // colors: at least two, collected greedily; the first non-color argument
+    // (a number, `radial`/`along`, or a "quantity" string) is the mode and
+    // must be last.
+    let mut stops = vec![
+        resolve_color(&a.ident(1)?, a.span_of(1))?,
+        resolve_color(&a.ident(2)?, a.span_of(2))?,
+    ];
+    let mut next = 3;
+    while let Some(e) = a.exprs.get(next) {
+        match &e.kind {
+            ExprKind::Ident(w) => match resolve_color(w, e.span) {
+                Ok(c) => {
+                    stops.push(c);
+                    next += 1;
+                }
+                Err(_) => break,
+            },
+            _ => break,
+        }
+    }
+
+    enum Mode {
+        Auto,
+        Angle(f32),
+        Radial,
+        Along,
+        Speed,
+        Curvature,
+    }
+    let mode = match a.exprs.get(next) {
+        None => Mode::Auto,
+        Some(e) => {
+            if a.exprs.len() > next + 1 {
+                return Err(Error::new(
+                    "the gradient mode must be the last argument",
+                    a.exprs[next + 1].span,
+                ));
+            }
+            match &e.kind {
+                ExprKind::Num(n) => Mode::Angle(*n),
+                ExprKind::Ident(w) if w == "radial" => Mode::Radial,
+                ExprKind::Ident(w) if w == "along" => Mode::Along,
+                ExprKind::Str(q) if q == "speed" => Mode::Speed,
+                ExprKind::Str(q) if q == "curvature" => Mode::Curvature,
+                ExprKind::Str(q) => {
+                    return Err(Error::new(
+                        format!("unknown gradient quantity `\"{q}\"` (try \"speed\" or \"curvature\")"),
+                        e.span,
+                    ))
+                }
+                _ => {
+                    return Err(Error::new(
+                        "gradient stops must be palette colors; the optional last argument is \
+                         an angle in degrees, `radial`, `along`, or a quantity string \
+                         (\"speed\"/\"curvature\")",
+                        e.span,
+                    ))
+                }
+            }
+        }
+    };
+
+    let is_path_like = |shape: &Shape| {
+        matches!(
+            shape,
+            Shape::Line { .. }
+                | Shape::Arrow { .. }
+                | Shape::Curve { .. }
+                | Shape::Coil { .. }
+                | Shape::Polyline { .. }
+        )
+    };
+    let is_fillable = |shape: &Shape| {
+        matches!(
+            shape,
+            Shape::Circle { .. }
+                | Shape::Rect { .. }
+                | Shape::Polygon { .. }
+                | Shape::Arc { .. }
+                | Shape::Region { .. }
+        )
+    };
+
+    let mut matched = false;
+    for e in &mut s.entities {
+        if e.id != id && !e.tags.iter().any(|t| t == &id) {
+            continue;
+        }
+        matched = true;
+        let path_like = is_path_like(&e.shape);
+        let fillable = is_fillable(&e.shape);
+        if !path_like && !fillable {
+            return Err(Error::new(
+                format!(
+                    "`{}` can't take a gradient — it works on shapes (circle, rect, \
+                     polygon, sector, region) and path strokes (line, arrow, curve, \
+                     coil, polyline/plot, arc), not text/images/equations",
+                    e.id
+                ),
+                a.span_of(0),
+            ));
+        }
+        // A filled shape paints its fill; everything else paints the stroke.
+        let paints_fill = fillable && e.stroke.fill;
+        let kind = match mode {
+            Mode::Auto => {
+                if paints_fill {
+                    GradientKind::Linear(90.0)
+                } else {
+                    GradientKind::Along
+                }
+            }
+            Mode::Angle(deg) => GradientKind::Linear(deg),
+            Mode::Radial => {
+                if !paints_fill {
+                    return Err(Error::new(
+                        format!("`radial` needs a filled shape — `{}` paints a stroke", e.id),
+                        a.span_of(next),
+                    ));
+                }
+                GradientKind::Radial
+            }
+            Mode::Along => {
+                if paints_fill {
+                    return Err(Error::new(
+                        format!(
+                            "`along` follows a path stroke — `{}` is filled; use an \
+                             angle or `radial` instead",
+                            e.id
+                        ),
+                        a.span_of(next),
+                    ));
+                }
+                GradientKind::Along
+            }
+            Mode::Speed => {
+                if paints_fill {
+                    return Err(Error::new(
+                        format!("\"speed\" colors a path stroke — `{}` is filled", e.id),
+                        a.span_of(next),
+                    ));
+                }
+                // Speed is only true when points are uniformly sampled in
+                // time; on a purely geometric path it would be a lie.
+                if !e.time_sampled {
+                    return Err(Error::new(
+                        format!(
+                            "`{}` has no time parameterisation — speed is undefined on a \
+                             purely geometric path. \"speed\" works on pre-simulated \
+                             physics trajectories (a sim's `.path`, a `freekick` arc); \
+                             use `along` or \"curvature\" here",
+                            e.id
+                        ),
+                        a.span_of(next),
+                    ));
+                }
+                GradientKind::Speed
+            }
+            Mode::Curvature => {
+                if paints_fill {
+                    return Err(Error::new(
+                        format!("\"curvature\" colors a path stroke — `{}` is filled", e.id),
+                        a.span_of(next),
+                    ));
+                }
+                GradientKind::Curvature
+            }
+        };
+        e.gradient = Some(Gradient {
+            stops: stops.clone(),
+            kind,
+        });
+    }
+    if !matched {
+        if s.get_3d(&id).is_some() {
+            return Err(Error::new(
+                format!("`gradient` is 2D-only — it can't address the 3D entity `{id}`"),
+                a.span_of(0),
+            ));
+        }
+        return Err(Error::new(format!("no entity named `{id}`"), a.span_of(0)));
+    }
     Ok(())
 }
 
@@ -3663,6 +3862,7 @@ pub fn register(r: &mut Registry) {
     r.ctor("wrap", m_wrap);
     r.ctor("stroke", m_stroke);
     r.ctor("dashed", m_dashed);
+    r.ctor("gradient", m_gradient);
     r.ctor("glow", m_glow);
     r.ctor("z", m_z);
     r.ctor("tag", m_tag);
@@ -3717,12 +3917,146 @@ pub fn register(r: &mut Registry) {
 mod tests {
     use macroquad::prelude::Vec2;
 
-    use crate::primitives::Shape;
+    use crate::primitives::{GradientKind, Shape};
 
     use super::{
         equation_part_area, equation_parts_can_match, match_equation_parts,
         prefer_local_side_dissolve,
     };
+
+    #[test]
+    fn gradient_auto_mode_follows_the_primary_paint() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             circle(disc,(400,360),80);\n\
+             line(path,(100,600),(1100,200));\n\
+             gradient(disc,cyan,magenta);\n\
+             gradient(path,blue,gold);",
+        )
+        .unwrap();
+        let (base, _) = movie.finalize();
+        // a filled shape defaults to a linear top→bottom fill
+        let g = base.get("disc").unwrap().gradient.clone().unwrap();
+        assert_eq!(g.kind, GradientKind::Linear(90.0));
+        // a path stroke defaults to arc-length coloring
+        let g = base.get("path").unwrap().gradient.clone().unwrap();
+        assert_eq!(g.kind, GradientKind::Along);
+        assert_eq!(g.stops, vec![crate::style::BLUE, crate::style::GOLD]);
+    }
+
+    #[test]
+    fn gradient_explicit_modes_and_tag_broadcast() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             circle(sun,(640,360),120);\n\
+             rect(sky,(640,360),1200,600);\n\
+             tag(sun,scene); tag(sky,scene);\n\
+             gradient(scene,gold,red,radial);\n\
+             gradient(sky,cyan,void,270);",
+        )
+        .unwrap();
+        let (base, _) = movie.finalize();
+        assert_eq!(
+            base.get("sun").unwrap().gradient.clone().unwrap().kind,
+            GradientKind::Radial
+        );
+        // the later per-id call overrides the tag broadcast
+        assert_eq!(
+            base.get("sky").unwrap().gradient.clone().unwrap().kind,
+            GradientKind::Linear(270.0)
+        );
+    }
+
+    #[test]
+    fn gradient_takes_variadic_stops_with_a_trailing_mode() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             plot(f,(640,360),80,120,sin,6);\n\
+             gradient(f,blue,cyan,lime,gold,270);",
+        )
+        .unwrap();
+        let (base, _) = movie.finalize();
+        let g = base.get("f").unwrap().gradient.clone().unwrap();
+        assert_eq!(g.stops.len(), 4);
+        assert_eq!(g.kind, GradientKind::Linear(270.0));
+        // mode must be last
+        assert!(crate::parse(
+            "canvas(1280,720);\nline(l,(0,0),(100,100));\ngradient(l,blue,270,gold);"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn gradient_speed_requires_a_time_sampled_path() {
+        // a physics trajectory is pre-simulated at uniform timesteps → truthful
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             pendulum(p,(640,200),1,60);\n\
+             gradient(p.path,blue,gold,\"speed\");",
+        )
+        .unwrap();
+        let (base, _) = movie.finalize();
+        assert!(base.get("p.path").unwrap().time_sampled);
+        assert_eq!(
+            base.get("p.path").unwrap().gradient.clone().unwrap().kind,
+            GradientKind::Speed
+        );
+        // a purely geometric spline has no time parameterisation
+        assert!(crate::parse(
+            "canvas(1280,720);\n\
+             spline(s,(100,600),(400,200),(700,600));\n\
+             gradient(s,blue,gold,\"speed\");"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn gradient_curvature_works_on_any_path() {
+        let movie = crate::parse(
+            "canvas(1280,720);\n\
+             spline(s,(100,600),(400,200),(700,600));\n\
+             gradient(s,dim,magenta,\"curvature\");",
+        )
+        .unwrap();
+        let (base, _) = movie.finalize();
+        assert_eq!(
+            base.get("s").unwrap().gradient.clone().unwrap().kind,
+            GradientKind::Curvature
+        );
+    }
+
+    #[test]
+    fn gradient_rejects_unsupported_targets_and_modes() {
+        // text can't take a gradient
+        assert!(crate::parse(
+            "canvas(1280,720);\ntext(t,(640,360),\"hi\");\ngradient(t,cyan,magenta);"
+        )
+        .is_err());
+        // `along` is stroke-only
+        assert!(crate::parse(
+            "canvas(1280,720);\ncircle(c,(640,360),50);\ngradient(c,cyan,magenta,along);"
+        )
+        .is_err());
+        // `radial` needs a fill
+        assert!(crate::parse(
+            "canvas(1280,720);\nline(l,(0,0),(100,100));\ngradient(l,cyan,magenta,radial);"
+        )
+        .is_err());
+        // unknown mode word / quantity
+        assert!(crate::parse(
+            "canvas(1280,720);\ncircle(c,(640,360),50);\ngradient(c,cyan,magenta,sideways);"
+        )
+        .is_err());
+        assert!(crate::parse(
+            "canvas(1280,720);\nline(l,(0,0),(100,100));\ngradient(l,cyan,magenta,\"warp\");"
+        )
+        .is_err());
+        // "speed"/"curvature" are stroke-only
+        assert!(crate::parse(
+            "canvas(1280,720);\ncircle(c,(640,360),50);\ngradient(c,cyan,magenta,\"curvature\");"
+        )
+        .is_err());
+    }
 
     #[test]
     fn parameter_drives_properties_readouts_and_native_widget_purely() {

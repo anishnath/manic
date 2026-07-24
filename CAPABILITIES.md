@@ -14,6 +14,8 @@ Status vocabulary used throughout this ledger:
 - **⬜ Future** — accepted gap, not yet scheduled or promised as vocabulary.
 - **🅿️ Parked** — deliberately deferred because correctness, scope, or teaching
   cost currently outweighs creator value.
+- **🔍 Review** — newly identified requirement awaiting an accept/park/reject
+  decision; not yet an accepted gap.
 
 The creator roadmap and the **Active work queue** below are authoritative.
 Detailed benchmark/domain sections retain evidence and design context; they do
@@ -112,6 +114,107 @@ not an instruction to implement everything.
 | P2 | ⬜ | **Nonlinear remapping** — `travel(entity,path,…)` now ships for move-along-path; the remaining work is deforming grids/curves through a general authored map. | Extends the shipped path motion into advanced transformation stories without multiplying vocabulary. |
 | P3 | ⬜ | **Typography/look extensions** — after P0 text correctness, selectable bundled branding fonts and an optional chalkboard/sketch renderer. | Broadens creator identity without confusing style choice with glyph reliability. |
 | P3 | ⬜ | **3D V3 solid sections** — one generic solid-section/projection bridge that creates cut pieces and exposed faces while preserving their identities; V2 continues to use exact authored `param3` sections. | Extends textbook cutaway and cross-section stories beyond authored spheres without adding a boolean-node vocabulary. |
+
+### Under review — untracked engine requirements (audit 2026-07)
+
+A July 2026 gap audit compared this ledger against the engine source and found
+six requirements that were absent from the document entirely — not shipped, not
+🟡, not ⬜, not 🅿️. They are recorded here **under review**: each needs an
+accept/park/reject decision and, if accepted, a priority slot in the active
+work queue above. None is scheduled yet. (Audio playback/sync and video
+embedding stay deliberate non-goals per `GOAL.md`/`ROADMAP.md` — marker export
+plus post-production own them — and are not part of this list.)
+
+| # | Status | Requirement | Why it matters / evidence |
+|---:|---|---|---|
+| 1 | 🔍 Review | **Vector asset import (SVG)** — the only 2D asset door is raster `image()` (PNG/JPG); there is no way to bring a logo, icon set, mascot, or scientific illustration in as scalable vector geometry. | This is the unnamed "asset/illustration strategy" over which the Anatomy and Biology kits are deferred and the Map kit's Path B stalls. Every current SVG mention in the docs is defensive ("no SVG needed"). Imported vectors should become ordinary path entities (`draw`/`morph`/`fill`-able), not textures. |
+| 2 | 🔍 Review | **Clipping / masking primitive** — the render path has no clip, scissor, stencil, or mask (verified in `src/`; the only "mask" is the transformer's causal mask). | No reveal-through-a-window, magnifier/lens inset, region wipe, crop-to-panel, or masked transition. Every peer motion engine treats this as foundational; manic currently fakes reveals with per-entity `draw`/`fade` only. |
+| 3 | ✅ Accepted → shipped | **Gradient paint** — accepted from review and shipped 2026-07; see [Gradient paint — ✅ Shipped](#gradient-paint--✅-shipped-2026-07-accepted-from-review) below. One word `gradient(id_or_tag, c1, c2, ..., [mode])` covers along-path stroke gradients, linear/radial fills, multi-stop ramps, and quantity-driven shading (`"speed"` on physics trajectories, `"curvature"` on any path). | Unblocks coloring a curve by its real height/arc position/speed (classic explainer moves), depth cues, and richer brand identity. Stops stay template-aware; linear fills render exactly (affine per-vertex, subdividing for multi-stop), honoring "true, not drawn". |
+| 4 | 🔍 Review | **Alpha-channel video export** — `--png --alpha` already ships for stills, but recordings are opaque mp4/gif only; no transparent WebM/ProRes 4444 overlay render. | The standard way creators layer an animation over their own footage in an editor. Natural companion to the deliberate no-audio stance ("post-production's job") — the overlay handoff is currently impossible. |
+| 5 | 🔍 Review | **Subtitle file export (SRT/VTT)** — `caption`/`karaoke` already compute word-level timing and `markers.json` exports beats, yet no subtitle sidecar is written. | Burned-in captions without an SRT/VTT file block platform captioning and accessibility on Reels/Shorts/YouTube. Small step: the timeline already owns the exact timing data. |
+| 6 | 🔍 Review | **Creator extensibility beyond macros** — every kit and builtin is compiled-in Rust; `def` macros only compose existing vocabulary. No user-defined kit/plugin/data-driven builtin mechanism exists, and the ledger never states whether that is a goal or a non-goal. | "Community remix inputs" is listed under future creator support, but remixing is impossible past the built-in vocabulary. Even an explicit **rejection** (curated-only vocabulary) should be recorded so the boundary is deliberate. |
+
+Suggested review order: #1 and #2 are true engine-architecture gaps that the
+existing roadmap (Anatomy/Biology kits, Director framing, brand identity)
+eventually collides with; #3 is the cheapest; #4 and #5 are pipeline features
+over data the timeline already has; #6 may resolve to a documented non-goal.
+
+### Gradient paint — ✅ Shipped (2026-07, accepted from review)
+
+Review item #3 above, accepted and shipped. It also absorbs the Motion
+Graphics V2 professional-polish bullet `gradient(path, from, to)` — one
+design serves strokes, fills, multi-stop ramps, and quantity shading instead
+of four vocabularies. Acceptance stories:
+
+- `examples/gradient.manic` — the paint demo (radial well, three-stop height-
+  colored plot, curvature spline, speed-colored free kick, arc-length arrow).
+- `examples/gradient-fastest-descent.manic` — Bernoulli 1696 as a 16:9 3B1B
+  story (height speedometer + curvature reveal).
+- `examples/gradient-fastest-descent-shorts.manic` / `gradient-pendulum-shorts.manic`
+  — branded 9:16 cuts of the brachistochrone and Galileo's chandelier, told
+  through `"curvature"` / `"speed"`.
+
+All verified rendering identically-structured under the default and `paper`
+templates (every stop retints through the palette).
+
+**Thesis fit.** The gradient is computed, not painted: on a stroke it maps the
+path's true arc-length position to color, so a warm-to-cool curve reads its own
+parameterisation; a vertical linear gradient over a plot's bounds *is* its
+height; a `"speed"` gradient on a physics trajectory *is* the simulation
+(segment length per uniform timestep), and `"curvature"` *is* the geometry
+(Menger curvature per point). Two-stop linear gradients are affine in
+position, so per-vertex mesh interpolation renders them exactly; multi-stop
+fills subdivide triangles until every stop resolves — no approximation baked
+into the look.
+
+**Surface — one word, no new kit (everything after the colors optional):**
+
+- `gradient(id_or_tag, c1, c2, ...)` — two or more evenly spaced palette
+  stops. Auto mode: path-like strokes (line, arrow, curve, coil,
+  polyline/plot, plain arc) color **along the path** by arc length; fillable
+  shapes (circle, rect, polygon, sector/annulus, boolean region) get a
+  **linear** top→bottom fill.
+- `gradient(..., angle)` — linear at `angle` degrees (0 = left→right,
+  90 = top→bottom, consistent with `rot`'s screen sense). On a stroke,
+  positions project onto the axis over the entity's bounds —
+  `gradient(f, blue, cyan, gold, 270)` colors a plot by its real height.
+- `gradient(..., radial)` — radial from center to edge (fills only).
+- `gradient(..., "speed")` — color a stroke by its true local speed,
+  slowest stop first, normalised over the path's own range. Only allowed on
+  time-sampled paths (a physics sim's `.path`, a `freekick` trajectory —
+  entities the physics kit marks as uniformly sampled in time); on a purely
+  geometric spline or plot it is a **build error**, because speed there would
+  be a lie.
+- `gradient(..., "curvature")` — color any stroke by how hard it bends,
+  straightest stop first. Pure geometry, defined on every path.
+- Tag broadcast works like every other modifier; unsupported targets (text,
+  images, equations, 3D) and mode/paint mismatches (quantity modes on fills,
+  `radial` on strokes) fail at build time with a source span.
+
+**Guarantees — all verified:**
+
+1. Stop colors resolve through the shared palette vocabulary and remap
+   under every `--template`, exactly like flat colors.
+2. Composes with `trace` (a half-drawn curve shows the true start of its
+   gradient — position mapping is absolute, never renormalised), `dashed`,
+   `glow`, and arrowheads (the head takes the tip color, including under
+   quantity modes).
+3. `Timeline::apply(base, t)` stays pure — the gradient is entity data set at
+   build time, like `dashed`; no per-frame accumulating state.
+4. Native/backend/WASM catalogs stay in lockstep (registry ↔ catalog test);
+   existing files render byte-identically when no `gradient` call is present.
+   Gradient sampling math (multi-stop interpolation hits middle stops
+   exactly), speed/curvature parameter extraction, fill subdivision, mode/
+   target validation, tag broadcast, and auto-mode selection are unit-tested;
+   the full Rust suite and shipped-example editor checks pass.
+
+**Deliberately later — animated gradient endpoints.** `recolor` on a
+gradiented entity keeps its gradient; the stops themselves don't animate. The
+working recipe is a crossfade: build two copies of the entity with the two
+gradients and cross-`fade`/`show` them — truthful, available today, and it
+covers the known stories. A first-class design (which stop does `recolor`
+target? does a gradient→gradient tween interpolate stops pairwise?) waits for
+a flagship that proves the need.
 
 ### Future creator support
 
@@ -1484,6 +1587,9 @@ Only after the continuity foundation is stable:
 - **`gradient(path, from, to)`** — arclength-based colour on stroked paths, so a
   creator does not split one curve into several plots to obtain a professional
   warm-to-cool stroke. It must compose with trace, dash, glow, and flow.
+  **✅ Shipped (2026-07):** absorbed into the accepted [Gradient
+  paint](#gradient-paint--✅-shipped-2026-07-accepted-from-review) work,
+  which covers strokes *and* linear/radial fills with one word.
 - **`trail(entity, seconds, [color])`** — deterministic recent motion history
   sampled from the resolved timeline, useful for a cursor, projectile, orbit,
   vehicle, or graph marker.

@@ -112,11 +112,12 @@ begins. They take the entity name first, then a value:
 | `color(id, c)` | fill / stroke colour | `color(sun, cyan);` |
 | `stroke(id, w)` | line thickness | `stroke(sun, 4);` |
 | `dashed(id, [dash], [gap])` | dashed path (defaults 16/10 px) | `dashed(curve, 18, 10);` |
+| `gradient(id, c1, c2, ..., [mode])` | multi-stop gradient: along a path stroke, a linear (angle°) / `radial` fill, or a computed `"speed"`/`"curvature"` quantity on strokes | `gradient(wave, blue, cyan, gold, 270);` |
 | `size(id, n)` | text size | `size(cap, 30);` |
 | `glow(id, n)` | neon halo strength | `glow(sun, 8);` |
 | `opacity(id, 0..1)` | transparency | `opacity(sun, 0.5);` |
 | `filled(id)` / `outlined(id)` | turn fill / outline on | `filled(box);` |
-| `hue(id, deg)` | colour by an angle (0–360) — for gradients & loops | `hue(seg, 200);` |
+| `hue(id, deg)` | colour by an angle (0–360) — per-entity colour in loops | `hue(seg, 200);` |
 | `z(id, n)` | draw order (higher = on top) | `z(box, 5);` |
 | `sticky(id)` | pin to the screen so it stays put through a `cam`/`zoom` (a HUD) | `sticky(caption);` |
 

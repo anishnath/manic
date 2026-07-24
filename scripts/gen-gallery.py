@@ -488,6 +488,11 @@ SECTIONS = [
     "The elevation recipe on a RACE, told with KINETIC TYPOGRAPHY: `wordpop` pops the\n"
     "question in, `karaoke` sweeps a highlight across the four path names as the curves\n"
     "sketch on, then `flash`/`glow` crown the cycloid — a third, distinct elevation style."),
+   ("gradient-fastest-descent",
+    "Bernoulli 1696, told THROUGH gradients: four wires race from A to B, each wearing a\n"
+    "3-stop vertical speedometer (`v = √(2gΔh)` — depth IS speed), then the cycloid's secret\n"
+    "is revealed by a `\"curvature\"` gradient — it bends hardest at the start. A 16:9 3B1B-\n"
+    "style story; companion Short is `gradient-fastest-descent-shorts`."),
    ("textbook-pulley",
     "A physics-TEXTBOOK figure, manic style: the `template(\"paper\")` white page, a hatched\n"
     "`support` ceiling, a green pulley wheel, and outlined labelled mass boxes — the classic\n"
@@ -586,6 +591,11 @@ SECTIONS = [
    ("conics", "Ellipse, parabola, hyperbola."),
  ]),
  dict(slug="transforms", title="Transforms & morphing", intro="", sub=SUB, items=[
+   ("gradient",
+    "Gradient paint, the acceptance demo: one word `gradient(id, c1, c2, …, [mode])` covers\n"
+    "a radial well, a three-stop height-colored plot, a spline colored by `\"curvature\"`, an\n"
+    "RK4 free kick colored by `\"speed\"`, and an arc-length arrow whose head takes the tip\n"
+    "color. The color is computed, not painted — and every stop stays template-aware."),
    ("motion-graphics-v2",
     "The generic Motion Graphics V2 acceptance scene: one persistent marker carries an attached\n"
     "label along a path, becomes a declared visual blueprint, releases the label, gathers the\n"
@@ -708,6 +718,16 @@ SECTIONS = [
     "spinning cylinder: uniform flow + a free vortex superpose (integrated live with `trajectory`)\n"
     "into an asymmetric flow — faster one side, slower the other — the pressure difference that IS\n"
     "the Magnus force. Physics proven, then explained, in one branded 9:16 story."),
+   ("gradient-fastest-descent-shorts",
+    "The brachistochrone as a branded 9:16 Short: four height-colored wires race under gravity,\n"
+    "the cycloid wins, then a `\"curvature\"` gradient reveals why — it bends hardest at the start.\n"
+    "Creator chrome (`socials` + end card) mirrors `creator-free-kicks`; companion 16:9 cut is\n"
+    "`gradient-fastest-descent`."),
+   ("gradient-pendulum-shorts",
+    "Galileo's chandelier as a Short told THROUGH a `\"speed\"` gradient: an RK4 pendulum swings,\n"
+    "then its arc is colored by true local speed — gold floods the bottom, blue pools at the tips.\n"
+    "The color IS the simulation (`gradient(p.path, blue, cyan, gold, \"speed\")`), not a painted\n"
+    "trail. Hook → reveal → energy law → prove-on-the-arc → end card."),
    ("creator-v2-options-socials",
     "The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D\n"
     "cards, uniform correct-state spacing, and native YouTube/X/web identity lockups."),

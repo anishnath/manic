@@ -2,6 +2,19 @@
 
 Each block is the whole file — copy it into `x.manic` and run `manic x.manic` (live) or `--record out` (video).
 
+## gradient
+
+Gradient paint, the acceptance demo: one word `gradient(id, c1, c2, …, [mode])` covers
+a radial well, a three-stop height-colored plot, a spline colored by `"curvature"`, an
+RK4 free kick colored by `"speed"`, and an arc-length arrow whose head takes the tip
+color. The color is computed, not painted — and every stop stays template-aware.
+
+```manic
+{{#include ../../examples/gradient.manic}}
+```
+
+<div class="manic-video" data-video="ex-gradient"></div>
+
 ## motion-graphics-v2
 
 The generic Motion Graphics V2 acceptance scene: one persistent marker carries an attached

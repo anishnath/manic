@@ -854,16 +854,26 @@ pub fn c_socials(s: &mut Scene, a: &Args) -> Result<(), Error> {
                 &prof.handle
             };
             if !meta.is_empty() {
+                // Signature taglines are a full sentence ("Turn plain text…");
+                // DIM + 19px disappears on dark shorts. Use a brighter muted FG,
+                // a touch more size, and wrap into the footer so nothing clips.
+                let tagline = signature && !prof.tagline.is_empty();
                 let mut sub = Entity::new(
                     format!("{id}.handle"),
                     Shape::Text {
                         content: meta.clone(),
-                        size: (19.0 * ui).clamp(15.0, 25.0),
+                        size: (if tagline { 22.0 } else { 19.0 } * ui)
+                            .clamp(15.0, if tagline { 28.0 } else { 25.0 }),
                     },
                     Vec2::new(tx, at.y + if signature { 24.0 * ui } else { 25.0 * ui }),
-                    style::DIM,
+                    if tagline { style::FG } else { style::DIM },
                 );
                 sub.align = Align::Left;
+                if tagline {
+                    sub.opacity = 0.78;
+                    let right = at.x + regions.footer.size.x * 0.48;
+                    sub.wrap = Some((right - tx).max(120.0));
+                }
                 sub.tags = tags();
                 s.add(sub);
             }
@@ -3665,15 +3675,18 @@ pub fn c_endcard(s: &mut Scene, a: &Args) -> Result<(), Error> {
         prof.website.clone()
     };
     if !meta.is_empty() {
+        // Same readability pass as the signature footer tagline: FG at reduced
+        // opacity stays template-aware and reads on dark end cards.
         let mut sub = Entity::new(
             format!("{id}.end.meta"),
             Shape::Text {
                 content: meta,
-                size: (24.0 * ui).clamp(17.0, 31.0),
+                size: (26.0 * ui).clamp(18.0, 33.0),
             },
             Vec2::new(center.x, center.y + panel_size.y * 0.10),
-            style::DIM,
+            style::FG,
         );
+        sub.opacity = 0.78;
         sub.wrap = Some(panel_size.x * 0.72);
         add_end_part(s, sub, &tag);
     }
@@ -3728,6 +3741,7 @@ pub fn register(r: &mut Registry) {
 #[cfg(test)]
 mod tests {
     use crate::primitives::Shape;
+    use crate::style;
 
     /// `creator(...)` stores a profile (no drawables); `socials(...)` reads it and
     /// draws a footer of icons + handle, tagged for animation.
@@ -3749,6 +3763,34 @@ mod tests {
             "creator+socials should validate: {:?}",
             m.validate().err()
         );
+    }
+
+    /// Signature footers show the tagline (underscores → spaces) as readable
+    /// wrapped FG text — not a near-invisible DIM whisper under the logo.
+    #[test]
+    fn signature_footer_tagline_is_readable() {
+        let m = crate::parse(
+            "canvas(\"9:16\");\n\
+             creator(me, \"@manic name=Manic tagline=Turn_plain_text_into_amazing_math_videos \
+              footer=signature accent=cyan\");\n\
+             socials(me);\n",
+        )
+        .unwrap();
+        let (base, _) = m.finalize();
+        let sub = base.get("me.handle").expect("signature tagline entity");
+        match &sub.shape {
+            Shape::Text { content, size } => {
+                assert_eq!(content, "Turn plain text into amazing math videos");
+                assert!(*size >= 17.0, "tagline too small to read: {size}");
+            }
+            other => panic!("expected text tagline, got {other:?}"),
+        }
+        assert!(
+            (sub.color.r - style::FG.r).abs() < 1e-4,
+            "tagline should use FG (readable), not DIM"
+        );
+        assert!(sub.opacity > 0.6 && sub.opacity < 1.0);
+        assert!(sub.wrap.is_some_and(|w| w > 100.0), "long tagline must wrap");
     }
 
     /// `quiz` + `option` lay out the question, cards, countdown + correct

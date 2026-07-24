@@ -329,6 +329,14 @@ pub fn catalog() -> Vec<BuiltinSpec> {
                 ("gap", Num, O),
             ],
         ),
+        // variadic colour stops + optional trailing mode — see `m_gradient`
+        spec(
+            "gradient",
+            Ctor,
+            "std",
+            "multi-stop gradient on the primary paint: gradient(id, c1, c2, ..., [mode]) — along a path stroke by arc length, a linear (angle°) / radial fill, or a computed \"speed\"/\"curvature\" quantity on strokes",
+            &[],
+        ),
         spec(
             "glow",
             Ctor,

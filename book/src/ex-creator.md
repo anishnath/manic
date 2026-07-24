@@ -123,6 +123,32 @@ the Magnus force. Physics proven, then explained, in one branded 9:16 story.
 
 <div class="manic-video" data-video="ex-creator-free-kicks"></div>
 
+## gradient-fastest-descent-shorts
+
+The brachistochrone as a branded 9:16 Short: four height-colored wires race under gravity,
+the cycloid wins, then a `"curvature"` gradient reveals why — it bends hardest at the start.
+Creator chrome (`socials` + end card) mirrors `creator-free-kicks`; companion 16:9 cut is
+`gradient-fastest-descent`.
+
+```manic
+{{#include ../../examples/gradient-fastest-descent-shorts.manic}}
+```
+
+<div class="manic-video" data-video="ex-gradient-fastest-descent-shorts"></div>
+
+## gradient-pendulum-shorts
+
+Galileo's chandelier as a Short told THROUGH a `"speed"` gradient: an RK4 pendulum swings,
+then its arc is colored by true local speed — gold floods the bottom, blue pools at the tips.
+The color IS the simulation (`gradient(p.path, blue, cyan, gold, "speed")`), not a painted
+trail. Hook → reveal → energy law → prove-on-the-arc → end card.
+
+```manic
+{{#include ../../examples/gradient-pendulum-shorts.manic}}
+```
+
+<div class="manic-video" data-video="ex-gradient-pendulum-shorts"></div>
+
 ## creator-v2-options-socials
 
 The asset-free v2.4 review scene: collision-safe question hierarchy, professional A/B/C/D

@@ -23,8 +23,8 @@ recolor(sun, magenta, 0.5);   // animate to a new palette colour
 
 ## Any colour, by hue
 
-For a *computed* colour — a gradient, or one per item in a loop — use `hue`,
-which takes an angle from 0 to 360:
+For a *computed* colour — one per item in a loop — use `hue`, which takes an
+angle from 0 to 360:
 
 ```manic
 hue(sun, 200);              // a fixed hue
@@ -34,6 +34,27 @@ for i in 0..24 {
 ```
 
 That's how the [rainbow-ring loop](language-layer.md) gets its colours.
+
+## Gradient paint — computed, not painted
+
+For a colour that *reads a quantity*, use `gradient`. One word covers multi-stop
+ramps on fills and strokes; the mode (optional) picks the truth:
+
+```manic
+gradient(wave, blue, cyan, gold, 270);   // height of a plot
+gradient(path, magenta, cyan);           // arc length along a stroke
+gradient(well, panel, void, radial);     // centre → edge on a fill
+gradient(p.path, blue, cyan, gold, "speed");      // true local speed (physics traj.)
+gradient(swoop, dim, magenta, "curvature");       // how hard a path bends
+```
+
+Stops are palette names (≥2, evenly spaced) and stay template-aware.
+`"speed"` only works on pre-simulated physics trajectories; `"curvature"` works
+on any path. See the Modifiers table in [Shapes](shapes.md), and the demos
+[gradient](ex-transforms.md#gradient),
+[gradient-fastest-descent](ex-physics.md#gradient-fastest-descent), and the
+shorts [gradient-fastest-descent-shorts](ex-creator.md#gradient-fastest-descent-shorts) /
+[gradient-pendulum-shorts](ex-creator.md#gradient-pendulum-shorts).
 
 ## Glow
 

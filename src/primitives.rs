@@ -130,6 +130,45 @@ impl Default for StrokeStyle {
     }
 }
 
+/// How a [`Gradient`]'s color stops map onto an entity's geometry.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GradientKind {
+    /// Color by true arc-length position along a path-like stroke: the first
+    /// stop at the tail, the last at the head. The mapping is absolute over
+    /// the full path, so a partially traced curve shows the start of its
+    /// gradient.
+    Along,
+    /// Linear gradient across the entity's drawn bounds, along an axis at
+    /// this angle in degrees (screen sense, like `rot`: 0 = left→right,
+    /// 90 = top→bottom).
+    Linear(f32),
+    /// Radial gradient: first stop at the centre of the drawn bounds, last at
+    /// the farthest edge.
+    Radial,
+    /// Color a stroke by its true local speed. Only meaningful on paths whose
+    /// points are uniformly sampled in time ([`Entity::time_sampled`], e.g. a
+    /// physics trajectory) — then segment length *is* speed. Normalised over
+    /// the path's own min…max so the slowest point takes the first stop and
+    /// the fastest the last.
+    Speed,
+    /// Color a stroke by its local curvature (Menger, pure geometry — defined
+    /// on any path). Normalised over the path's own min…max: straightest
+    /// takes the first stop, tightest the last.
+    Curvature,
+}
+
+/// A multi-stop gradient on the entity's primary paint (the fill when
+/// `StrokeStyle::fill` is on, otherwise the stroke). Stops (≥2) are evenly
+/// spaced over the gradient parameter. Set by the `gradient` modifier at
+/// build time — plain entity data, so `Timeline::apply` stays pure. Stops
+/// hold neon palette colors and are template-remapped at draw time exactly
+/// like flat colors.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Gradient {
+    pub stops: Vec<Color>,
+    pub kind: GradientKind,
+}
+
 /// Makes a line/arrow's endpoints track two other entities: `pos` follows
 /// `from`, the shape's `to` follows `to`, each trimmed inward by `trim` px
 /// (so it meets node borders). Resolved every frame in
@@ -267,6 +306,15 @@ pub struct Entity {
     /// If set, an HSL hue angle (degrees) that drives `color`; animatable via
     /// [`crate::timeline::Prop::Hue`] for colour cycling.
     pub hue: Option<f32>,
+    /// If set, a multi-stop gradient over the primary paint (see
+    /// [`Gradient`]). While present it wins over `color` for that paint;
+    /// `recolor`/`hue` animation affects only non-gradiented paint.
+    pub gradient: Option<Gradient>,
+    /// True when this path's points are uniformly sampled in time (physics
+    /// trajectories from the pre-simulated states). Gates the truthful
+    /// `gradient(..., "speed")` coloring — on a purely geometric path, speed
+    /// is undefined and requesting it is a build error.
+    pub time_sampled: bool,
     /// If set, a live numeric readout: the `Shape::Text` content is
     /// `prefix + value + suffix`. Animate `value` via
     /// [`crate::timeline::Prop::Value`] and the text updates each frame.
@@ -746,6 +794,8 @@ impl Entity {
             deps: Vec::new(),
             derive: None,
             hue: None,
+            gradient: None,
+            time_sampled: false,
             counter: None,
             parameter: None,
             morph: None,

@@ -2022,6 +2022,7 @@ fn c_pendulum(s: &mut Scene, a: &Args) -> Result<(), Error> {
     arc.stroke.width = 2.0;
     arc.opacity = 0.35;
     arc.tags = core_tags();
+    arc.time_sampled = true;
     s.add(arc);
 
     // rod: pivot → bob
@@ -2296,6 +2297,7 @@ fn c_spring(s: &mut Scene, a: &Args) -> Result<(), Error> {
     path.stroke.width = 2.0;
     path.opacity = 0.3;
     path.tags = core_tags();
+    path.time_sampled = true;
     s.add(path);
 
     let (energy_series, overlay_tracks) = add_overlays(
@@ -2394,6 +2396,7 @@ fn c_doublependulum(s: &mut Scene, a: &Args) -> Result<(), Error> {
     trail.stroke.width = 2.0;
     trail.opacity = 0.6;
     trail.tags = core_tags();
+    trail.time_sampled = true;
     s.add(trail);
     // pivot
     let mut pivot = Entity::new(
@@ -2557,6 +2560,7 @@ fn c_springpendulum(s: &mut Scene, a: &Args) -> Result<(), Error> {
     trail.stroke.width = 2.0;
     trail.opacity = 0.35;
     trail.tags = core_tags();
+    trail.time_sampled = true;
     s.add(trail);
     let mut spring = Entity::new(
         format!("{id}.spring"),
@@ -2681,6 +2685,7 @@ fn c_kapitza(s: &mut Scene, a: &Args) -> Result<(), Error> {
     trail.stroke.width = 2.0;
     trail.opacity = 0.3;
     trail.tags = core_tags();
+    trail.time_sampled = true;
     s.add(trail);
     let mut rod = Entity::new(
         format!("{id}.rod"),
@@ -2959,6 +2964,7 @@ fn c_comparependulum(s: &mut Scene, a: &Args) -> Result<(), Error> {
     ta.stroke.width = 2.0;
     ta.opacity = 0.25;
     ta.tags = core_tags();
+    ta.time_sampled = true;
     s.add(ta);
     let mut tb = Entity::new(
         format!("{id}.pathB"),
@@ -2969,6 +2975,7 @@ fn c_comparependulum(s: &mut Scene, a: &Args) -> Result<(), Error> {
     tb.stroke.width = 2.0;
     tb.opacity = 0.25;
     tb.tags = core_tags();
+    tb.time_sampled = true;
     s.add(tb);
     let mut pivot = Entity::new(
         format!("{id}.pivot"),
@@ -3133,6 +3140,7 @@ fn c_springincline(s: &mut Scene, a: &Args) -> Result<(), Error> {
     trail.stroke.width = 2.0;
     trail.opacity = 0.3;
     trail.tags = core_tags();
+    trail.time_sampled = true;
     s.add(trail);
     let mut spring = Entity::new(
         format!("{id}.spring"),
@@ -3370,6 +3378,7 @@ fn sim_spring_like<S: Sim, F: Fn(&[f32]) -> (f32, f32)>(
     trail.stroke.width = 2.0;
     trail.opacity = 0.3;
     trail.tags = core_tags();
+    trail.time_sampled = true;
     s.add(trail);
     let mut coil = Entity::new(
         format!("{id}.spring"),
@@ -4206,6 +4215,7 @@ fn c_robotarm(s: &mut Scene, a: &Args) -> Result<(), Error> {
     trail.stroke.width = 2.0;
     trail.opacity = 0.4;
     trail.tags = ct();
+    trail.time_sampled = true;
     s.add(trail);
     let mut tgt = Entity::new(
         format!("{id}.target"),
@@ -7701,6 +7711,7 @@ fn c_freekick(s: &mut Scene, a: &Args) -> Result<(), Error> {
     path.stroke.fill = false;
     path.glow = 0.6;
     path.trace = 0.0;
+    path.time_sampled = true;
     s.add(path);
 
     // the ball

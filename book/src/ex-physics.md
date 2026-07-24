@@ -617,6 +617,19 @@ sketch on, then `flash`/`glow` crown the cycloid — a third, distinct elevation
 
 <div class="manic-video" data-video="ex-brachistochrone-annotated"></div>
 
+## gradient-fastest-descent
+
+Bernoulli 1696, told THROUGH gradients: four wires race from A to B, each wearing a
+3-stop vertical speedometer (`v = √(2gΔh)` — depth IS speed), then the cycloid's secret
+is revealed by a `"curvature"` gradient — it bends hardest at the start. A 16:9 3B1B-
+style story; companion Short is `gradient-fastest-descent-shorts`.
+
+```manic
+{{#include ../../examples/gradient-fastest-descent.manic}}
+```
+
+<div class="manic-video" data-video="ex-gradient-fastest-descent"></div>
+
 ## textbook-pulley
 
 A physics-TEXTBOOK figure, manic style: the `template("paper")` white page, a hatched

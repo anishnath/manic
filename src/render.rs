@@ -286,15 +286,421 @@ fn halo(c: Color, opacity: f32, g: f32) -> Color {
     Color::new(c.r, c.g, c.b, (opacity * 0.18 * g).clamp(0.0, 1.0))
 }
 
-/// Filled rounded rectangle as a non-overlapping triangle fan. Avoiding layered
-/// bars/circles matters for translucent UI fills: overlapping alpha would show
-/// as darker discs at every corner.
-fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
-    let r = r.clamp(0.0, w.min(h) / 2.0);
-    if r <= 0.5 {
-        draw_rectangle(x, y, w, h, color);
+// ---- gradient paint --------------------------------------------------------
+
+/// An [`crate::primitives::Gradient`] resolved into physical space: stops
+/// template-remapped and opacity-baked, bounds taken from the geometry being
+/// drawn. Sampling is a pure function of position (+ a precomputed parameter
+/// for `Along`/`Speed`/`Curvature`), so gradients stay deterministic and
+/// scrub-safe.
+struct GradPaint {
+    stops: Vec<Color>,
+    kind: crate::primitives::GradientKind,
+    min: Vec2,
+    max: Vec2,
+    /// True farthest distance from the bounds centre to the geometry, so a
+    /// radial gradient's last stop lands exactly on the drawn rim (a circle's
+    /// bounding-box corner would overshoot it by √2).
+    rmax: f32,
+}
+
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    let t = t.clamp(0.0, 1.0);
+    Color::new(
+        a.r + (b.r - a.r) * t,
+        a.g + (b.g - a.g) * t,
+        a.b + (b.b - a.b) * t,
+        a.a + (b.a - a.a) * t,
+    )
+}
+
+/// Piecewise-linear sample of evenly spaced color stops at `t ∈ [0, 1]`.
+fn sample_stops(stops: &[Color], t: f32) -> Color {
+    match stops.len() {
+        0 => Color::new(1.0, 1.0, 1.0, 1.0),
+        1 => stops[0],
+        n => {
+            let x = t.clamp(0.0, 1.0) * (n - 1) as f32;
+            let i = (x.floor() as usize).min(n - 2);
+            lerp_color(stops[i], stops[i + 1], x - i as f32)
+        }
+    }
+}
+
+impl GradPaint {
+    /// Resolve an authored gradient against the active template and the
+    /// physical bounds of the geometry it paints. `alpha` is the paint's
+    /// overall opacity (fill: `opacity * trace`; stroke: `opacity`).
+    fn resolve(
+        g: &crate::primitives::Gradient,
+        tpl: &style::Template,
+        alpha: f32,
+        pts: &[Vec2],
+    ) -> Self {
+        let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
+        let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for p in pts {
+            min = min.min(*p);
+            max = max.max(*p);
+        }
+        let c = (min + max) * 0.5;
+        let rmax = pts
+            .iter()
+            .map(|p| (*p - c).length())
+            .fold(0.0_f32, f32::max)
+            .max(1e-4);
+        GradPaint {
+            stops: g
+                .stops
+                .iter()
+                .map(|&c| style::with_opacity(tpl.palette.remap(c), alpha))
+                .collect(),
+            kind: g.kind,
+            min,
+            max,
+            rmax,
+        }
+    }
+
+    /// Same gradient, halo-toned for the glow pass.
+    fn halo(&self, opacity: f32, g: f32) -> Self {
+        GradPaint {
+            stops: self.stops.iter().map(|&c| halo(c, opacity, g)).collect(),
+            kind: self.kind,
+            min: self.min,
+            max: self.max,
+            rmax: self.rmax,
+        }
+    }
+
+    /// Gradient parameter (0..1) from physical position — only meaningful for
+    /// the position-driven kinds (`Linear`/`Radial`).
+    fn param_of(&self, pos: Vec2) -> f32 {
+        use crate::primitives::GradientKind::*;
+        match self.kind {
+            Linear(angle) => {
+                let a = angle.to_radians();
+                let axis = Vec2::new(a.cos(), a.sin());
+                // project the bounds onto the axis to normalise
+                let corners = [
+                    self.min,
+                    Vec2::new(self.max.x, self.min.y),
+                    self.max,
+                    Vec2::new(self.min.x, self.max.y),
+                ];
+                let dots: Vec<f32> = corners.iter().map(|c| c.dot(axis)).collect();
+                let lo = dots.iter().cloned().fold(f32::INFINITY, f32::min);
+                let hi = dots.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+                if hi - lo < 1e-4 {
+                    0.0
+                } else {
+                    (pos.dot(axis) - lo) / (hi - lo)
+                }
+            }
+            Radial => {
+                let c = (self.min + self.max) * 0.5;
+                (pos - c).length() / self.rmax
+            }
+            _ => 0.0,
+        }
+    }
+
+    /// Color at physical position `pos`; `t_path` is the precomputed path
+    /// parameter for the path-driven kinds (`Along` = arc-length fraction,
+    /// `Speed`/`Curvature` = the normalised quantity). Absolute over the full
+    /// path, so a half-traced curve shows the true start of its gradient.
+    fn at(&self, pos: Vec2, t_path: f32) -> Color {
+        use crate::primitives::GradientKind::*;
+        let t = match self.kind {
+            Along | Speed | Curvature => t_path,
+            Linear(_) | Radial => self.param_of(pos),
+        };
+        sample_stops(&self.stops, t)
+    }
+}
+
+/// Per-point normalised parameter (0..1) for the quantity-driven stroke
+/// kinds. The quantity is computed from the path itself, then normalised over
+/// its own min…max — the visual truth of the gradient.
+///
+/// - `Speed`: segment length per step. Truthful only when points are
+///   uniformly time-sampled (a physics trajectory); the DSL layer enforces
+///   that before the entity ever reaches the renderer.
+/// - `Curvature`: Menger curvature through each interior point — pure
+///   geometry, defined on any path.
+fn quantity_params(pts: &[Vec2], kind: crate::primitives::GradientKind) -> Option<Vec<f32>> {
+    use crate::primitives::GradientKind::*;
+    let n = pts.len();
+    if n < 2 {
+        return None;
+    }
+    let mut q: Vec<f32> = match kind {
+        Speed => {
+            let seg: Vec<f32> = pts.windows(2).map(|w| (w[1] - w[0]).length()).collect();
+            (0..n)
+                .map(|i| {
+                    if i == 0 {
+                        seg[0]
+                    } else if i == n - 1 {
+                        seg[n - 2]
+                    } else {
+                        (seg[i - 1] + seg[i]) * 0.5
+                    }
+                })
+                .collect()
+        }
+        Curvature => {
+            let menger = |a: Vec2, b: Vec2, c: Vec2| -> f32 {
+                let (ab, bc, ca) = ((b - a).length(), (c - b).length(), (a - c).length());
+                let denom = ab * bc * ca;
+                if denom < 1e-6 {
+                    return 0.0;
+                }
+                let cross = (b - a).perp_dot(c - b);
+                (2.0 * cross.abs()) / denom
+            };
+            (0..n)
+                .map(|i| {
+                    let j = i.clamp(1, n.saturating_sub(2).max(1));
+                    if n < 3 {
+                        0.0
+                    } else {
+                        menger(pts[j - 1], pts[j], pts[j + 1])
+                    }
+                })
+                .collect()
+        }
+        _ => return None,
+    };
+    let lo = q.iter().cloned().fold(f32::INFINITY, f32::min);
+    let hi = q.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+    if hi - lo > 1e-6 {
+        for v in &mut q {
+            *v = (*v - lo) / (hi - lo);
+        }
+    } else {
+        // constant quantity → uniformly the first stop (no variation to show)
+        for v in &mut q {
+            *v = 0.0;
+        }
+    }
+    Some(q)
+}
+
+/// Path parameter at arc-length fraction `frac`, interpolating a per-point
+/// parameter array (used to color a gradient arrowhead at its traced tip).
+fn param_at_frac(pts: &[Vec2], params: &[f32], frac: f32) -> f32 {
+    let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+    let mut budget = total * frac.clamp(0.0, 1.0);
+    for (i, w) in pts.windows(2).enumerate() {
+        let seg = (w[1] - w[0]).length();
+        if seg <= 0.0 {
+            continue;
+        }
+        if budget <= seg {
+            return params[i] + (params[i + 1] - params[i]) * (budget / seg);
+        }
+        budget -= seg;
+    }
+    *params.last().unwrap_or(&1.0)
+}
+
+/// Gradient counterpart of [`draw_styled_path`]: walks the polyline with the
+/// same arc-length budget and dash pattern, but colors each short step from
+/// the gradient. Steps are capped so straight segments (a plain `line`) still
+/// blend smoothly. For `Speed`/`Curvature` the color follows the per-point
+/// quantity computed from the path itself.
+fn draw_grad_path(pts: &[Vec2], frac: f32, width: f32, gp: &GradPaint, dash: Option<(f32, f32)>) {
+    if pts.len() < 2 || frac <= 0.0 {
         return;
     }
+    let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+    if total <= 0.0 {
+        return;
+    }
+    if let Some((on, off)) = dash {
+        if on <= 0.0 || off <= 0.0 {
+            return;
+        }
+    }
+    let params = quantity_params(pts, gp.kind);
+    let mut budget = total * frac.min(1.0);
+    let mut dist = 0.0_f32;
+    let mut drawing = true;
+    let mut pattern_left = dash.map(|(on, _)| on).unwrap_or(f32::INFINITY);
+    const STEP: f32 = 6.0;
+
+    for (i, w) in pts.windows(2).enumerate() {
+        if budget <= 1e-4 {
+            break;
+        }
+        let delta = w[1] - w[0];
+        let seg_len = delta.length();
+        if seg_len <= 0.0 {
+            continue;
+        }
+        let dir = delta / seg_len;
+        let mut at = w[0];
+        let mut walked = 0.0_f32;
+        let mut seg_left = seg_len.min(budget);
+        budget -= seg_left;
+
+        while seg_left > 1e-4 {
+            let step = seg_left.min(pattern_left).min(STEP);
+            let next = at + dir * step;
+            if drawing {
+                let t = match &params {
+                    Some(q) => {
+                        let f = (walked + step * 0.5) / seg_len;
+                        q[i] + (q[i + 1] - q[i]) * f
+                    }
+                    None => (dist + step * 0.5) / total,
+                };
+                let c = gp.at((at + next) * 0.5, t);
+                draw_line(at.x, at.y, next.x, next.y, width, c);
+            }
+            at = next;
+            dist += step;
+            walked += step;
+            seg_left -= step;
+            if let Some((on, off)) = dash {
+                pattern_left -= step;
+                if pattern_left <= 1e-4 {
+                    drawing = !drawing;
+                    pattern_left = if drawing { on } else { off };
+                }
+            }
+        }
+    }
+}
+
+/// Gradient counterpart of [`draw_stroke_path`]: the arrowhead takes the
+/// gradient's color at the traced tip.
+fn draw_grad_stroke_path(
+    pts: &[Vec2],
+    frac: f32,
+    width: f32,
+    gp: &GradPaint,
+    arrow: bool,
+    dash: Option<(f32, f32)>,
+) {
+    if !arrow {
+        draw_grad_path(pts, frac, width, gp, dash);
+        return;
+    }
+    let total: f32 = pts.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+    let drawn = total * frac;
+    if drawn < 1.0 {
+        return;
+    }
+    let (tip, dir) = path_point(pts, frac);
+    let head_len = (10.0 + width * 2.5).min(drawn);
+    let body_frac = frac * (1.0 - head_len / drawn.max(1e-3)).max(0.0);
+    draw_grad_path(pts, body_frac, width, gp, dash);
+    let tip_t = match quantity_params(pts, gp.kind) {
+        Some(q) => param_at_frac(pts, &q, frac),
+        None => frac,
+    };
+    draw_head(tip, dir, width, gp.at(tip, tip_t));
+}
+
+/// Fill triangles with per-vertex gradient colors via a mesh. Two-stop linear
+/// gradients are affine in position, so vertex interpolation reproduces them
+/// exactly; with more stops (or radial fills over long edges) triangles are
+/// subdivided until each spans a small slice of the gradient, so middle stops
+/// can't vanish inside one big triangle. Chunked to stay under macroquad's
+/// per-drawcall vertex budget.
+fn draw_tris_grad(tris: &[[Vec2; 3]], gp: &GradPaint) {
+    let subdivided;
+    let tris: &[[Vec2; 3]] = if gp.stops.len() > 2 {
+        subdivided = subdivide_tris(tris, gp);
+        &subdivided
+    } else {
+        tris
+    };
+    for chunk in tris.chunks(1000) {
+        let mut vertices = Vec::with_capacity(chunk.len() * 3);
+        let mut indices: Vec<u16> = Vec::with_capacity(chunk.len() * 3);
+        for t in chunk {
+            let i0 = vertices.len() as u16;
+            for p in t {
+                vertices.push(Vertex::new(p.x, p.y, 0.0, 0.0, 0.0, gp.at(*p, 0.0)));
+            }
+            indices.extend_from_slice(&[i0, i0 + 1, i0 + 2]);
+        }
+        draw_mesh(&Mesh {
+            vertices,
+            indices,
+            texture: None,
+        });
+    }
+}
+
+/// Split triangles (longest edge at the midpoint) until each spans at most a
+/// quarter of one stop interval of the gradient parameter, with a depth cap
+/// so degenerate geometry can't explode the mesh.
+fn subdivide_tris(tris: &[[Vec2; 3]], gp: &GradPaint) -> Vec<[Vec2; 3]> {
+    let max_span = 0.25 / (gp.stops.len().max(2) - 1) as f32;
+    let mut out = Vec::with_capacity(tris.len() * 4);
+    let mut stack: Vec<([Vec2; 3], u8)> = tris.iter().map(|t| (*t, 0u8)).collect();
+    while let Some((t, depth)) = stack.pop() {
+        let ps = [gp.param_of(t[0]), gp.param_of(t[1]), gp.param_of(t[2])];
+        let span = ps.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
+            - ps.iter().cloned().fold(f32::INFINITY, f32::min);
+        if span <= max_span || depth >= 6 {
+            out.push(t);
+            continue;
+        }
+        // split the longest edge
+        let lens = [
+            (t[1] - t[0]).length(),
+            (t[2] - t[1]).length(),
+            (t[0] - t[2]).length(),
+        ];
+        let e = if lens[0] >= lens[1] && lens[0] >= lens[2] {
+            0
+        } else if lens[1] >= lens[2] {
+            1
+        } else {
+            2
+        };
+        let (a, b, c) = (t[e], t[(e + 1) % 3], t[(e + 2) % 3]);
+        let m = (a + b) * 0.5;
+        stack.push(([a, m, c], depth + 1));
+        stack.push(([m, b, c], depth + 1));
+    }
+    out
+}
+
+/// Triangle fan from `center` over a ring of perimeter points.
+fn fan_tris(center: Vec2, ring: &[Vec2]) -> Vec<[Vec2; 3]> {
+    let n = ring.len();
+    (0..n)
+        .map(|i| [center, ring[i], ring[(i + 1) % n]])
+        .collect()
+}
+
+/// Insert intermediate points so no ring edge exceeds `max_step` — keeps
+/// radial fan fills smooth on shapes with long straight edges (rects,
+/// polygons).
+fn subdivide_ring(ring: &[Vec2], max_step: f32) -> Vec<Vec2> {
+    let mut out = Vec::with_capacity(ring.len() * 2);
+    let n = ring.len();
+    for i in 0..n {
+        let a = ring[i];
+        let b = ring[(i + 1) % n];
+        out.push(a);
+        let len = (b - a).length();
+        let extra = (len / max_step).floor() as usize;
+        for k in 1..=extra {
+            out.push(a.lerp(b, k as f32 / (extra + 1) as f32));
+        }
+    }
+    out
+}
+
+/// Perimeter ring of a rounded rectangle (open — first point not repeated).
+fn rounded_rect_pts(x: f32, y: f32, w: f32, h: f32, r: f32) -> Vec<Vec2> {
     let mut pts = Vec::with_capacity(36);
     for (cx, cy, a0) in [
         (x + w - r, y + r, -90.0_f32),
@@ -307,6 +713,19 @@ fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
             pts.push(Vec2::new(cx + r * a.cos(), cy + r * a.sin()));
         }
     }
+    pts
+}
+
+/// Filled rounded rectangle as a non-overlapping triangle fan. Avoiding layered
+/// bars/circles matters for translucent UI fills: overlapping alpha would show
+/// as darker discs at every corner.
+fn draw_rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
+    let r = r.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.5 {
+        draw_rectangle(x, y, w, h, color);
+        return;
+    }
+    let pts = rounded_rect_pts(x, y, w, h, r);
     let c = Vec2::new(x + w * 0.5, y + h * 0.5);
     for i in 0..pts.len() {
         draw_triangle(c, pts[i], pts[(i + 1) % pts.len()], color);
@@ -687,10 +1106,23 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
         Shape::Circle { r } => {
             let r = r * e.scale * k;
             if e.stroke.fill {
-                draw_circle(p.x, p.y, r, fill);
+                if let Some(g) = &e.gradient {
+                    let ring = circle_pts(p, r, 64);
+                    let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &ring);
+                    draw_tris_grad(&fan_tris(p, &ring[..ring.len() - 1]), &gp);
+                } else {
+                    draw_circle(p.x, p.y, r, fill);
+                }
             }
             if e.stroke.outline {
-                if trace >= 1.0 {
+                if let (Some(g), false) = (&e.gradient, e.stroke.fill) {
+                    let ring = circle_pts(p, r, 64);
+                    let gp = GradPaint::resolve(g, tpl, e.opacity, &ring);
+                    if glow_on {
+                        draw_grad_path(&ring, trace, width * 3.0, &gp.halo(e.opacity, glow), None);
+                    }
+                    draw_grad_path(&ring, trace, width, &gp, None);
+                } else if trace >= 1.0 {
                     if glow_on {
                         draw_circle_lines(p.x, p.y, r, width * 3.0, halo(outline, e.opacity, glow));
                     }
@@ -706,13 +1138,44 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 let (x, y) = (p.x - w / 2.0, p.y - h / 2.0);
                 let rr = (e.corner_radius * e.scale * k).clamp(0.0, w.min(h) / 2.0);
                 if e.stroke.fill {
-                    if rr > 0.5 {
+                    if let Some(g) = &e.gradient {
+                        let ring = if rr > 0.5 {
+                            rounded_rect_pts(x, y, w, h, rr)
+                        } else {
+                            vec![
+                                Vec2::new(x, y),
+                                Vec2::new(x + w, y),
+                                Vec2::new(x + w, y + h),
+                                Vec2::new(x, y + h),
+                            ]
+                        };
+                        let ring = subdivide_ring(&ring, (w.min(h) / 4.0).max(8.0));
+                        let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &ring);
+                        draw_tris_grad(&fan_tris(Vec2::new(x + w * 0.5, y + h * 0.5), &ring), &gp);
+                    } else if rr > 0.5 {
                         draw_rounded_rect(x, y, w, h, rr, fill);
                     } else {
                         draw_rectangle(x, y, w, h, fill);
                     }
                 }
-                if e.stroke.outline {
+                if let (Some(g), false, true) = (&e.gradient, e.stroke.fill, e.stroke.outline) {
+                    let mut ring = if rr > 0.5 {
+                        rounded_rect_pts(x, y, w, h, rr)
+                    } else {
+                        vec![
+                            Vec2::new(x, y),
+                            Vec2::new(x + w, y),
+                            Vec2::new(x + w, y + h),
+                            Vec2::new(x, y + h),
+                        ]
+                    };
+                    ring.push(ring[0]);
+                    let gp = GradPaint::resolve(g, tpl, e.opacity, &ring);
+                    if glow_on {
+                        draw_grad_path(&ring, trace, width * 3.0, &gp.halo(e.opacity, glow), None);
+                    }
+                    draw_grad_path(&ring, trace, width * 2.0, &gp, None);
+                } else if e.stroke.outline {
                     if trace >= 1.0 {
                         if glow_on {
                             if rr > 0.5 {
@@ -763,30 +1226,65 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     corner(-hw, hh),
                 ];
                 if e.stroke.fill {
-                    draw_triangle(cs[0], cs[1], cs[2], fill);
-                    draw_triangle(cs[0], cs[2], cs[3], fill);
+                    if let Some(g) = &e.gradient {
+                        let ring = subdivide_ring(&cs, (w.min(h) / 4.0).max(8.0));
+                        let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &ring);
+                        draw_tris_grad(&fan_tris(p, &ring), &gp);
+                    } else {
+                        draw_triangle(cs[0], cs[1], cs[2], fill);
+                        draw_triangle(cs[0], cs[2], cs[3], fill);
+                    }
                 }
                 if e.stroke.outline {
                     let closed = [cs[0], cs[1], cs[2], cs[3], cs[0]];
-                    if glow_on {
-                        draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
+                    if let (Some(g), false) = (&e.gradient, e.stroke.fill) {
+                        let gp = GradPaint::resolve(g, tpl, e.opacity, &closed);
+                        if glow_on {
+                            draw_grad_path(
+                                &closed,
+                                trace,
+                                width * 3.0,
+                                &gp.halo(e.opacity, glow),
+                                None,
+                            );
+                        }
+                        draw_grad_path(&closed, trace, width, &gp, None);
+                    } else {
+                        if glow_on {
+                            draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
+                        }
+                        draw_path(&closed, trace, width, outline);
                     }
-                    draw_path(&closed, trace, width, outline);
                 }
             }
         }
         Shape::Line { to } => {
             let q = rot_pt(view.xform(*to), p, rad);
-            if glow_on {
-                draw_styled_path(
-                    &[p, q],
-                    trace,
-                    width * e.scale * 3.0,
-                    halo(stroke_c, e.opacity, glow),
-                    dash,
-                );
+            if let Some(g) = &e.gradient {
+                let pts = [p, q];
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &pts);
+                if glow_on {
+                    draw_grad_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_grad_path(&pts, trace, width * e.scale, &gp, dash);
+            } else {
+                if glow_on {
+                    draw_styled_path(
+                        &[p, q],
+                        trace,
+                        width * e.scale * 3.0,
+                        halo(stroke_c, e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_styled_path(&[p, q], trace, width * e.scale, stroke_c, dash);
             }
-            draw_styled_path(&[p, q], trace, width * e.scale, stroke_c, dash);
             // a tangent/normal carries a contact dot at the touch point (the
             // segment's midpoint, since the segment is centred on it)
             if matches!(
@@ -805,46 +1303,90 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
         Shape::Coil { to, turns } => {
             let q = rot_pt(view.xform(*to), p, rad);
             let pts = coil_points(p, q, *turns);
-            if glow_on {
-                draw_styled_path(
-                    &pts,
-                    trace,
-                    width * e.scale * 3.0,
-                    halo(stroke_c, e.opacity, glow),
-                    dash,
-                );
+            if let Some(g) = &e.gradient {
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &pts);
+                if glow_on {
+                    draw_grad_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_grad_path(&pts, trace, width * e.scale, &gp, dash);
+            } else {
+                if glow_on {
+                    draw_styled_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        halo(stroke_c, e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_styled_path(&pts, trace, width * e.scale, stroke_c, dash);
             }
-            draw_styled_path(&pts, trace, width * e.scale, stroke_c, dash);
         }
         Shape::Arrow { to } => {
             let pts = [p, rot_pt(view.xform(*to), p, rad)];
-            if glow_on {
-                draw_stroke_path(
-                    &pts,
-                    trace,
-                    width * e.scale * 3.0,
-                    halo(stroke_c, e.opacity, glow),
-                    true,
-                    dash,
-                );
+            if let Some(g) = &e.gradient {
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &pts);
+                if glow_on {
+                    draw_grad_stroke_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        true,
+                        dash,
+                    );
+                }
+                draw_grad_stroke_path(&pts, trace, width * e.scale, &gp, true, dash);
+            } else {
+                if glow_on {
+                    draw_stroke_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        halo(stroke_c, e.opacity, glow),
+                        true,
+                        dash,
+                    );
+                }
+                draw_stroke_path(&pts, trace, width * e.scale, stroke_c, true, dash);
             }
-            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, true, dash);
         }
         Shape::Curve { ctrl, to, arrow } => {
             let ctrl_p = rot_pt(view.xform(*ctrl), p, rad);
             let to_p = rot_pt(view.xform(*to), p, rad);
             let pts = bezier_pts(p, ctrl_p, to_p, 32);
-            if glow_on {
-                draw_stroke_path(
-                    &pts,
-                    trace,
-                    width * e.scale * 3.0,
-                    halo(stroke_c, e.opacity, glow),
-                    *arrow,
-                    dash,
-                );
+            if let Some(g) = &e.gradient {
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &pts);
+                if glow_on {
+                    draw_grad_stroke_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        *arrow,
+                        dash,
+                    );
+                }
+                draw_grad_stroke_path(&pts, trace, width * e.scale, &gp, *arrow, dash);
+            } else {
+                if glow_on {
+                    draw_stroke_path(
+                        &pts,
+                        trace,
+                        width * e.scale * 3.0,
+                        halo(stroke_c, e.opacity, glow),
+                        *arrow,
+                        dash,
+                    );
+                }
+                draw_stroke_path(&pts, trace, width * e.scale, stroke_c, *arrow, dash);
             }
-            draw_stroke_path(&pts, trace, width * e.scale, stroke_c, *arrow, dash);
         }
         Shape::Polygon { pts } => {
             if pts.len() < 3 {
@@ -858,17 +1400,33 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 }
             }
             if e.stroke.fill {
-                for i in 1..phys.len() - 1 {
-                    draw_triangle(phys[0], phys[i], phys[i + 1], fill);
+                if let Some(g) = &e.gradient {
+                    let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &phys);
+                    let tris: Vec<[Vec2; 3]> = (1..phys.len() - 1)
+                        .map(|i| [phys[0], phys[i], phys[i + 1]])
+                        .collect();
+                    draw_tris_grad(&tris, &gp);
+                } else {
+                    for i in 1..phys.len() - 1 {
+                        draw_triangle(phys[0], phys[i], phys[i + 1], fill);
+                    }
                 }
             }
             if e.stroke.outline {
                 let mut closed = phys.clone();
                 closed.push(phys[0]);
-                if glow_on {
-                    draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
+                if let (Some(g), false) = (&e.gradient, e.stroke.fill) {
+                    let gp = GradPaint::resolve(g, tpl, e.opacity, &closed);
+                    if glow_on {
+                        draw_grad_path(&closed, trace, width * 3.0, &gp.halo(e.opacity, glow), None);
+                    }
+                    draw_grad_path(&closed, trace, width, &gp, None);
+                } else {
+                    if glow_on {
+                        draw_path(&closed, trace, width * 3.0, halo(outline, e.opacity, glow));
+                    }
+                    draw_path(&closed, trace, width, outline);
                 }
-                draw_path(&closed, trace, width, outline);
             }
         }
         Shape::Polyline { pts } => {
@@ -882,16 +1440,30 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     *q = rot_pt(*q, c, rad);
                 }
             }
-            if glow_on {
-                draw_styled_path(
-                    &phys,
-                    trace,
-                    width * e.scale * 3.0,
-                    halo(stroke_c, e.opacity, glow),
-                    dash,
-                );
+            if let Some(g) = &e.gradient {
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &phys);
+                if glow_on {
+                    draw_grad_path(
+                        &phys,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_grad_path(&phys, trace, width * e.scale, &gp, dash);
+            } else {
+                if glow_on {
+                    draw_styled_path(
+                        &phys,
+                        trace,
+                        width * e.scale * 3.0,
+                        halo(stroke_c, e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_styled_path(&phys, trace, width * e.scale, stroke_c, dash);
             }
-            draw_styled_path(&phys, trace, width * e.scale, stroke_c, dash);
         }
         Shape::Arc {
             r,
@@ -915,7 +1487,21 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
             let solid = ri <= 0.5;
 
             if e.stroke.fill {
-                if solid {
+                if let Some(g) = &e.gradient {
+                    let mut tris: Vec<[Vec2; 3]> = Vec::with_capacity(n * 2);
+                    if solid {
+                        for i in 0..n {
+                            tris.push([p, outer[i], outer[i + 1]]);
+                        }
+                    } else {
+                        for i in 0..n {
+                            tris.push([inner_pts[i], outer[i], outer[i + 1]]);
+                            tris.push([inner_pts[i], outer[i + 1], inner_pts[i + 1]]);
+                        }
+                    }
+                    let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &outer);
+                    draw_tris_grad(&tris, &gp);
+                } else if solid {
                     for i in 0..n {
                         draw_triangle(p, outer[i], outer[i + 1], fill);
                     }
@@ -956,6 +1542,19 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                         draw_path(&inner_pts, trace, width, outline);
                     }
                 }
+            } else if let Some(g) = &e.gradient {
+                // plain arc with a gradient stroke
+                let gp = GradPaint::resolve(g, tpl, e.opacity, &outer);
+                if glow_on {
+                    draw_grad_path(
+                        &outer,
+                        trace,
+                        width * e.scale * 3.0,
+                        &gp.halo(e.opacity, glow),
+                        dash,
+                    );
+                }
+                draw_grad_path(&outer, trace, width * e.scale, &gp, dash);
             } else {
                 // plain arc: just the outer curve, no radii
                 if glow_on {
@@ -985,8 +1584,18 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 view.xform(w)
             };
             if e.stroke.fill {
-                for t in tris {
-                    draw_triangle(place(t[0]), place(t[1]), place(t[2]), fill);
+                if let Some(g) = &e.gradient {
+                    let placed: Vec<[Vec2; 3]> = tris
+                        .iter()
+                        .map(|t| [place(t[0]), place(t[1]), place(t[2])])
+                        .collect();
+                    let flat: Vec<Vec2> = placed.iter().flatten().copied().collect();
+                    let gp = GradPaint::resolve(g, tpl, e.opacity * trace, &flat);
+                    draw_tris_grad(&placed, &gp);
+                } else {
+                    for t in tris {
+                        draw_triangle(place(t[0]), place(t[1]), place(t[2]), fill);
+                    }
                 }
             }
             if e.stroke.outline {
@@ -996,10 +1605,18 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                     }
                     let mut phys: Vec<Vec2> = ring.iter().map(|&q| place(q)).collect();
                     phys.push(phys[0]);
-                    if glow_on {
-                        draw_path(&phys, trace, width * 3.0, halo(outline, e.opacity, glow));
+                    if let (Some(g), false) = (&e.gradient, e.stroke.fill) {
+                        let gp = GradPaint::resolve(g, tpl, e.opacity, &phys);
+                        if glow_on {
+                            draw_grad_path(&phys, trace, width * 3.0, &gp.halo(e.opacity, glow), None);
+                        }
+                        draw_grad_path(&phys, trace, width, &gp, None);
+                    } else {
+                        if glow_on {
+                            draw_path(&phys, trace, width * 3.0, halo(outline, e.opacity, glow));
+                        }
+                        draw_path(&phys, trace, width, outline);
                     }
-                    draw_path(&phys, trace, width, outline);
                 }
             }
         }
@@ -1430,4 +2047,146 @@ pub fn draw_page_chrome(
 /// Clear the active render target to the template background.
 pub fn clear_page_background(tpl: &style::Template) {
     clear_background(tpl.palette.bg);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{lerp_color, quantity_params, sample_stops, subdivide_tris, GradPaint};
+    use crate::primitives::GradientKind;
+    use macroquad::prelude::{Color, Vec2};
+
+    const A: Color = Color::new(0.0, 0.0, 0.0, 1.0);
+    const B: Color = Color::new(1.0, 1.0, 1.0, 1.0);
+
+    fn gp(kind: GradientKind) -> GradPaint {
+        // bounds 200×400 centred at (200,400); rmax = the far corner, as if
+        // the geometry were the bounds rectangle itself
+        GradPaint {
+            stops: vec![A, B],
+            kind,
+            min: Vec2::new(100.0, 200.0),
+            max: Vec2::new(300.0, 600.0),
+            rmax: (Vec2::new(300.0, 600.0) - Vec2::new(200.0, 400.0)).length(),
+        }
+    }
+
+    #[test]
+    fn along_maps_arc_length_exactly() {
+        let g = gp(GradientKind::Along);
+        assert_eq!(g.at(Vec2::ZERO, 0.0), A);
+        assert_eq!(g.at(Vec2::ZERO, 1.0), B);
+        assert!((g.at(Vec2::ZERO, 0.5).r - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn linear_projects_onto_the_axis_over_the_bounds() {
+        // 0° = left→right over x ∈ [100, 300]
+        let g = gp(GradientKind::Linear(0.0));
+        assert!((g.at(Vec2::new(100.0, 400.0), 0.0).r - 0.0).abs() < 1e-5);
+        assert!((g.at(Vec2::new(300.0, 400.0), 0.0).r - 1.0).abs() < 1e-5);
+        assert!((g.at(Vec2::new(200.0, 400.0), 0.0).r - 0.5).abs() < 1e-5);
+        // 90° = top→bottom over y ∈ [200, 600] (screen y grows downward)
+        let g = gp(GradientKind::Linear(90.0));
+        assert!((g.at(Vec2::new(200.0, 200.0), 0.0).r - 0.0).abs() < 1e-5);
+        assert!((g.at(Vec2::new(200.0, 600.0), 0.0).r - 1.0).abs() < 1e-5);
+        // 270° runs the same axis in reverse: bottom→top
+        let g = gp(GradientKind::Linear(270.0));
+        assert!((g.at(Vec2::new(200.0, 600.0), 0.0).r - 0.0).abs() < 1e-4);
+        assert!((g.at(Vec2::new(200.0, 200.0), 0.0).r - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn radial_runs_centre_to_farthest_corner() {
+        let g = gp(GradientKind::Radial);
+        let c = Vec2::new(200.0, 400.0);
+        assert!((g.at(c, 0.0).r - 0.0).abs() < 1e-5);
+        // a corner of the bounds is the farthest point → exactly `to`
+        assert!((g.at(Vec2::new(300.0, 600.0), 0.0).r - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn lerp_clamps_out_of_range() {
+        assert_eq!(lerp_color(A, B, -1.0), A);
+        assert_eq!(lerp_color(A, B, 2.0), B);
+    }
+
+    #[test]
+    fn multi_stop_sampling_hits_middle_stops_exactly() {
+        let mid = Color::new(0.5, 0.0, 0.5, 1.0);
+        let stops = [A, mid, B];
+        assert_eq!(sample_stops(&stops, 0.0), A);
+        assert_eq!(sample_stops(&stops, 0.5), mid);
+        assert_eq!(sample_stops(&stops, 1.0), B);
+        // quarter point = halfway into the first interval
+        assert!((sample_stops(&stops, 0.25).r - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn speed_params_follow_segment_lengths() {
+        // time-uniform points: long segments = fast, short = slow
+        let pts = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0), // fast
+            Vec2::new(12.0, 0.0), // slow
+            Vec2::new(22.0, 0.0), // fast
+        ];
+        let q = quantity_params(&pts, GradientKind::Speed).unwrap();
+        assert_eq!(q.len(), 4);
+        assert!((q[0] - 1.0).abs() < 1e-5, "first segment is the fastest");
+        assert!(q[1] < q[0] && q[2] < q[3], "interior slows then speeds up");
+        assert!((q[3] - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn curvature_params_peak_at_the_bend() {
+        // an L-shaped path: the corner point has all the curvature
+        let pts = [
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(20.0, 0.0),
+            Vec2::new(20.0, 10.0),
+            Vec2::new(20.0, 20.0),
+        ];
+        let q = quantity_params(&pts, GradientKind::Curvature).unwrap();
+        let peak = q
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.total_cmp(b.1))
+            .unwrap()
+            .0;
+        assert_eq!(peak, 2, "corner point carries the max curvature");
+        assert!((q[1] - 0.0).abs() < 1e-5, "straight run is flat");
+        // constant quantity (straight line) → all zeros, no fake variation
+        let line = [Vec2::new(0.0, 0.0), Vec2::new(5.0, 0.0), Vec2::new(10.0, 0.0)];
+        let q = quantity_params(&line, GradientKind::Curvature).unwrap();
+        assert!(q.iter().all(|&v| v == 0.0));
+    }
+
+    #[test]
+    fn multi_stop_fills_subdivide_until_stops_resolve() {
+        // one huge triangle spanning the whole gradient axis would swallow the
+        // middle stop of a 3-stop fill without subdivision
+        let g = GradPaint {
+            stops: vec![A, Color::new(0.5, 0.0, 0.5, 1.0), B],
+            kind: GradientKind::Linear(0.0),
+            min: Vec2::new(0.0, 0.0),
+            max: Vec2::new(800.0, 400.0),
+            rmax: 1.0,
+        };
+        let tri = [[
+            Vec2::new(0.0, 0.0),
+            Vec2::new(800.0, 0.0),
+            Vec2::new(0.0, 400.0),
+        ]];
+        let out = subdivide_tris(&tri, &g);
+        assert!(out.len() > 8, "the spanning triangle must split");
+        let max_span = 0.25 / 2.0;
+        for t in &out {
+            let ps = [g.param_of(t[0]), g.param_of(t[1]), g.param_of(t[2])];
+            let span = ps.iter().cloned().fold(f32::NEG_INFINITY, f32::max)
+                - ps.iter().cloned().fold(f32::INFINITY, f32::min);
+            // depth cap allows slight overshoot; spans must be near the target
+            assert!(span <= max_span + 1e-3, "tri span {span} too wide");
+        }
+    }
 }
