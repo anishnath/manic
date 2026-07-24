@@ -1867,7 +1867,7 @@ updates, and the full shipped-example regression are part of this release.
   `caption` (word-by-word text row + `karaoke`/`wordpop` verbs);
   modifiers (`hidden`, `untraced`, `cursor` (typewriter `_` on text), `color`,
   `hue` (HSL, computable per-entity), `outline`/`outlined`/`filled`, `size`,
-  `stroke`, `dashed` (generic dash/gap pattern for path-like entities), `glow`,
+  `stroke`, `dashed` (dash/gap on paths *and* outlined circles — open markers that don't hide crossings), `glow`,
   `z`, `rot`, `opacity`, `bold`, `display`, `label` [offset],
   `tag`); verbs (`show`, `fade`, `move`, `shift`, `grow`, `draw`, `erase`,
   `type`, `say`, `recolor`, `flash`, `pulse`, `shake`, `scale`, `rotate`,
@@ -3648,8 +3648,8 @@ Colour & Style, Creator formats, the Reel gold path, and the introduction link
 back to the same guide.
 
 **Runtime palette shipped.** Each template carries a `style::Palette` (bg/fg/cyan/
-magenta/lime/gold/red/orange/blue/dim/panel). Constructors emit semantic named
-colours, and the renderer
+magenta/lime/gold/red/orange/blue/teal/violet/coral/indigo/mint/dim/panel).
+Constructors emit semantic named colours, and the renderer
 **remaps** each palette colour to the active template's at draw time
 (`Palette::remap`, in `draw_entity`), so `--template` retints **content** too,
 while bespoke colours (`hue`, explicit RGB) pass through. Templates: `plain`

@@ -61,18 +61,19 @@ color(title, cyan);
 ```
 
 ### 5. `unknown colour` — use the palette (or `hue`)
-Only the named palette colours work — no `red`, no `#ff0000`.
+Only the named palette colours work — no `#ff0000`.
 
 ```manic
-# ❌  unknown colour `red`
-color(dot, red);
+# ❌  unknown colour `chartreuse`
+color(dot, chartreuse);
 # ✅  a palette colour…
-color(dot, magenta);
+color(dot, coral);
 # ✅  …or a computed one, 0–360
 hue(dot, 210);
 ```
 
-Palette: `cyan  magenta  lime  gold  fg  dim  void  panel`.
+Palette: `cyan  magenta  lime  gold  red  orange  blue  teal  violet  coral
+indigo  mint  fg  dim  void  panel`.
 
 ### 6. `stroke is 2D-only` — a 2D styler on a 3D shape
 Some styling is 2D-only. On 3D shapes use the 3D equivalent.

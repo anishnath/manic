@@ -112,6 +112,15 @@ SECTIONS = [
    ("spline",
     "Interpolation: one smooth curve drawn through a scattered set of points — it\n"
     "passes through every knot exactly."),
+   ("sqrt-tanx",
+    "√(tan θ) by pure geometry — a 3B1B-style proof: on the unit circle, tan θ is the\n"
+    "vertical tangent length; Euclid's geometric mean (semicircle on diameter 1+a,\n"
+    "altitude at 1) turns that length into √(tan θ). Then the curve itself, painted\n"
+    "teal → violet → coral. Uses the expanded semantic palette."),
+   ("integral-sqrt-tanx",
+    "Integrate √(tan P): substitute P = t + π/4, read A(t) from the circle x²+y²=2 and\n"
+    "H(t) from the hyperbola x²−y²=2, then dA−dH recovers the integrand. Outline-only\n"
+    "angle marks — no filled discs hiding the construction."),
    ("trajectory",
     "A phase portrait: three paths flowing under a differential system, each\n"
     "spiralling into the sink at the origin."),
@@ -621,6 +630,12 @@ SECTIONS = [
    ("transforms", "Apply a 2x2 matrix (ApplyMatrix) to a group."),
    ("transform_copy", "Duplicate an entity, then transform the copy."),
    ("morph", "A sampled-point shape morph from A to B."),
+   ("shapes-howto",
+    "SHAPECRAFT — Manic shape power in one film: outlined vs filled (the axes trap),\n"
+    "the cast with particles/`travel`, the full palette that `become`s squares then triangles,\n"
+    "spin-wound `morph`, then one coral disc that splits into four independent colours,\n"
+    "reunites as one fill, and moves — beside two-colour boolean regions (A−B / B−A / A∩B).\n"
+    "Docs-in-motion for the Shapes chapter."),
  ]),
  dict(slug="text", title="Text & UI", intro="", sub=SUB, items=[
    ("typewriter", "Text revealed character by character."),

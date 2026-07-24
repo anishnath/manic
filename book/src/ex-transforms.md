@@ -106,3 +106,17 @@ A sampled-point shape morph from A to B.
 ```
 
 <div class="manic-video" data-video="ex-morph"></div>
+
+## shapes-howto
+
+SHAPECRAFT — Manic shape power in one film: outlined vs filled (the axes trap),
+the cast with particles/`travel`, the full palette that `become`s squares then triangles,
+spin-wound `morph`, then one coral disc that splits into four independent colours,
+reunites as one fill, and moves — beside two-colour boolean regions (A−B / B−A / A∩B).
+Docs-in-motion for the Shapes chapter.
+
+```manic
+{{#include ../../examples/shapes-howto.manic}}
+```
+
+<div class="manic-video" data-video="ex-shapes-howto"></div>

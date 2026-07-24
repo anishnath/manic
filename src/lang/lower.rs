@@ -301,6 +301,11 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
         "red" | "crimson" => style::RED,
         "orange" => style::ORANGE,
         "blue" | "azure" => style::BLUE,
+        "teal" | "turquoise" => style::TEAL,
+        "violet" | "purple" => style::VIOLET,
+        "coral" | "salmon" => style::CORAL,
+        "indigo" => style::INDIGO,
+        "mint" | "seafoam" => style::MINT,
         "dim" | "gray" | "grey" => style::DIM,
         "panel" => style::PANEL,
         // `rainbow` is a per-element spectrum used by bar builtins (histogram,
@@ -309,7 +314,8 @@ pub fn resolve_color(name: &str, span: Span) -> Result<Color, Error> {
         other => {
             return Err(Error::new(
                 format!(
-                    "unknown color `{other}` (try: fg, cyan, magenta, lime, gold, red, orange, blue, dim, panel, void)"
+                    "unknown color `{other}` (try: fg, cyan, magenta, lime, gold, red, orange, \
+                     blue, teal, violet, coral, indigo, mint, dim, panel, void)"
                 ),
                 span,
             ))

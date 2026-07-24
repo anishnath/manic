@@ -1355,7 +1355,8 @@ fn m_stroke(s: &mut Scene, a: &Args) -> Result<(), Error> {
 /// `dashed(id, [dash], [gap])` — render a path-like entity with a repeating
 /// dash/gap pattern in logical pixels (defaults 16/10). This is deliberately a
 /// base Manic modifier: plots use it, but so do links, trajectories, arrows,
-/// curves, splines, coils, and plain arcs.
+/// curves, splines, coils, plain arcs, and outlined circles (textbook open
+/// markers that don't hide crossings underneath).
 fn m_dashed(s: &mut Scene, a: &Args) -> Result<(), Error> {
     let id = a.ident(0)?;
     let dash = a.opt_num(1)?.unwrap_or(16.0);
@@ -1377,6 +1378,7 @@ fn m_dashed(s: &mut Scene, a: &Args) -> Result<(), Error> {
             | Shape::Coil { .. }
             | Shape::Polyline { .. }
             | Shape::Arc { .. }
+            | Shape::Circle { .. }
     ) {
         return Err(Error::new(
             format!("`{id}` is not a path-like entity"),
@@ -3923,6 +3925,41 @@ mod tests {
         equation_part_area, equation_parts_can_match, match_equation_parts,
         prefer_local_side_dissolve,
     };
+
+    #[test]
+    fn integral_contact_marker_is_open_dashed() {
+        let src = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/integral-sqrt-tanx.manic"
+        ));
+        let movie = crate::parse(src).expect("example parses");
+        let (base, _) = movie.finalize();
+        let c = base.get("C").expect("C");
+        assert!(!c.stroke.fill, "C must be outlined (no fill)");
+        assert!(c.stroke.outline, "C must have outline");
+        assert_eq!(c.dash, Some((3.5, 2.8)));
+        let circ = base.get("circ").expect("circ");
+        assert!(!circ.stroke.fill, "construction circle must not be filled");
+    }
+
+    #[test]
+    fn dashed_works_on_outlined_circles() {
+        let movie = crate::parse(
+            "canvas(800,600);\n\
+             circle(mark,(400,300),12);\n\
+             outlined(mark); dashed(mark,4,3);",
+        )
+        .expect("outlined circles are path-like for dashed");
+        let (base, _) = movie.finalize();
+        let e = base.get("mark").unwrap();
+        assert!(!e.stroke.fill, "outlined must clear the default circle fill");
+        assert_eq!(e.dash, Some((4.0, 3.0)));
+        // rects stay non-path-like for dashed
+        assert!(crate::parse(
+            "canvas(800,600); rect(r,(400,300),40,40); dashed(r,4,3);"
+        )
+        .is_err());
+    }
 
     #[test]
     fn gradient_auto_mode_follows_the_primary_paint() {

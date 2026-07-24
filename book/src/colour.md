@@ -11,10 +11,16 @@ roles are:
 |---|---|---|---|
 | `cyan` | electric blue | `gold` | warm amber |
 | `magenta` | hot pink | `red` | warm red |
-| `lime` | green | `orange` | orange |
-| `blue` | true blue (≠ cyan) | `dim` | muted grey-violet |
-| `void` | the background | `fg` | near-white (default text) |
-| `panel` | dark fill | | |
+| `lime` | acid green | `orange` | orange |
+| `blue` | true blue (≠ cyan) | `teal` | cyan–green |
+| `violet` | true purple | `coral` | soft warm red-orange |
+| `indigo` | deep blue–violet | `mint` | soft cool green |
+| `dim` | muted grey-violet | `fg` | near-white (default text) |
+| `void` | the background | `panel` | dark fill |
+
+Aliases: `pink`/`accent` → magenta · `green` → lime · `yellow`/`amber` → gold ·
+`purple` → violet · `turquoise` → teal · `salmon` → coral · `seafoam` → mint ·
+`azure` → blue · `crimson` → red · `gray`/`grey` → dim · `white` → fg · `bg` → void.
 
 ```manic
 color(sun, cyan);

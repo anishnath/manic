@@ -96,13 +96,15 @@ Constructors and timeline may be written in any order.
      any `<var><fn>` shape (`acos`/`asin`/`atan` ARE real, but `xcos`, `ksin`,
      `rtan` are not — write `x*cos`, `k*sin`, `r*tan`).
 4. **Colors are a fixed palette**: `fg`, `void`, `cyan`, `magenta`, `lime`,
-   `gold`, `red`, `orange`, `blue`, `dim`, `panel`. No hex/RGB and no other names.
-   For a computed/per-item colour use `hue(id, degrees)` (0–360). For a colour
-   that *reads a quantity* (height, arc length, speed, curvature) use
-   `gradient(id, c1, c2, …, [mode])` — multi-stop, template-aware; modes:
-   omitted / angle° / `radial` / `"speed"` (physics trajectories only) /
-   `"curvature"`. See `examples/gradient.manic` and the brachistochrone /
-   pendulum gradient shorts.
+   `gold`, `red`, `orange`, `blue`, `teal`, `violet`, `coral`, `indigo`, `mint`,
+   `dim`, `panel` (aliases: `pink`→magenta, `green`→lime, `yellow`/`amber`→gold,
+   `purple`→violet, `turquoise`→teal, `salmon`→coral, `seafoam`→mint, …). No
+   hex/RGB and no other names. For a computed/per-item colour use
+   `hue(id, degrees)` (0–360). For a colour that *reads a quantity* (height,
+   arc length, speed, curvature) use `gradient(id, c1, c2, …, [mode])` —
+   multi-stop, template-aware; modes: omitted / angle° / `radial` / `"speed"`
+   (physics trajectories only) / `"curvature"`. See `examples/gradient.manic`
+   and the brachistochrone / pendulum gradient shorts.
 5. **Real math → `equation(...)`; `text(...)` stays ordinary shaped text.**
    `text`/`say`/captions use deterministic embedded fonts—never request or
    invent a font name. Unicode fallback, combining marks, bidi/RTL, Arabic,
@@ -178,6 +180,17 @@ Constructors and timeline may be written in any order.
     `label(id,"…")` modifier; a `foot`/`midpoint`/intersection point has NO label.
     Don't `hidden`/`show`/`color` a part on spec — if you didn't create it, don't
     touch it.
+13. **Fill vs outline — constructions must not hide the truth.** `circle` /
+    `rect` / `polygon` / `sector` / `annulus` / `pie` **default to filled**
+    (often filled+outlined). A filled disc/sector on top of axes or construction
+    lines hides what's underneath — even at low opacity. **`outline(id, color)`
+    only recolors the rim and leaves the fill ON** — to drop the fill you must
+    call **`outlined(id)`**. Paths (`line`/`arrow`/`arc`/`curve`/`coil`/`ellipse`
+    as polyline/`brace`) are stroke-only — fill flags do nothing useful on them.
+    `dot` is fill-only by default. For contact points on a crossing use an
+    **open dashed ring** (`circle` + `outlined` + `dashed`), not `dot`. Reserve
+    solid fills for backdrop wells and intentional subjects. See
+    `examples/shapes-howto.manic` (SHAPECRAFT).
 
 ---
 
@@ -219,20 +232,20 @@ endpoints (use responsive `w`/`h` expressions for positions) ·
 `{id}` + `{id}.words`; `show(id)`/`draw(id)`/`hidden(id)` broadcast over the whole
 caption; or animate with `karaoke(id,[delay],[color])` = highlight in sequence,
 or `hidden(id)` then `wordpop(id,[delay])` = pop each in) ·
-`dot(id,(x,y),[r])` · `circle(id,(x,y),r)` · `rect(id,(x,y),w,h)` ·
+`dot(id,(x,y),[r])` (filled disc — hides crossings; for textbook contacts use an outlined+dashed circle instead) · `circle(id,(x,y),r)` (**defaults filled+outlined**) · `rect(id,(x,y),w,h)` (**defaults filled+outlined**) ·
 `particles(id,container,count,[radius],[seed],["random|grid|ring"])` creates persistent
 seeded dots inside a circle/rectangle (`grid` is rectangular; `ring` is circular) ·
 `image(id,(x,y),"asset:manic-logo.png"|"path",[w],[h])` a raster image (PNG/JPG) from a documented bundled URI or provisioned file, centred, w×h px (default 300 square; h defaults to w) — loaded once at render start, animates like any entity; missing ordinary file → placeholder box, missing `asset:` → error (engine-only, no browser preview) ·
 `equation(id,(x,y),`latex`,[size])` typeset a **LaTeX math** string (real fractions/roots/exponents/Greek, KaTeX-grade) centred, `size` = em height px (default 48); LaTeX goes in **backticks** so `\`-commands survive; takes the template colour (`color`/`recolor` work), while `\textcolor{cyan}{...}` colors individual terms semantically; `show`/`fade`/`move`/`scale` animate it (image, so no `draw`). E.g. `` equation(f,(cx,320),`\int_0^1 x^2\,dx=\tfrac13`,60) `` ·
-`line(id,(x1,y1),(x2,y2))` · `polygon(id,(x1,y1),(x2,y2),(x3,y3),...,[color])` filled region (≥3 pts) · `arrow(id,(x1,y1),(x2,y2))` · `support(id,(cx,cy),[len],["dir"])` a hatched fixed support (wall/ceiling/floor) for mechanics diagrams; `"dir"` = open side `"down"`(ceiling, default)/`"up"`(floor)/`"left"`/`"right"`; pair with `template("paper")` for a textbook look ·
-`brace(id,(x1,y1),(x2,y2),[depth])` · `bracelabel(id,(x1,y1),(x2,y2),"s",[depth])`
-· booleans `union/intersect/difference/exclusion(id, a, b)`.
+`line(id,(x1,y1),(x2,y2))` (stroke only) · `polygon(id,(x1,y1),(x2,y2),(x3,y3),...,[color])` filled region (≥3 pts; **defaults filled+outlined**) · `arrow(id,(x1,y1),(x2,y2))` (stroke only; arrowhead is a filled tip — stop short of open markers) · `support(id,(cx,cy),[len],["dir"])` a hatched fixed support (wall/ceiling/floor) for mechanics diagrams; `"dir"` = open side `"down"`(ceiling, default)/`"up"`(floor)/`"left"`/`"right"`; pair with `template("paper")` for a textbook look ·
+`brace(id,(x1,y1),(x2,y2),[depth])` (stroke only) · `bracelabel(id,(x1,y1),(x2,y2),"s",[depth])`
+· booleans `union/intersect/difference/exclusion(id, a, b)` (filled regions).
 
 ### Modifiers (t=0; first arg = target id or a tag)
 `hidden` · `untraced` · `cursor(id)` (typewriter `_` on text) · `sticky(id)` (pin to screen so it stays fixed through `cam`/`zoom` — HUD captions/counters) · `opacity(id,n)` · `color(id,name)` ·
-`hue(id,deg,[sat],[light])` · `outlined` · `filled` · `outline(id,name)` ·
+`hue(id,deg,[sat],[light])` · `outlined(id)` (no fill, rim on — **required for math constructions**) · `filled(id)` (fill on, rim off) · `outline(id,name)` (**rim colour only; does NOT drop fill**) ·
 `size(id,n)` (text) · `stroke(id,n)` · `dashed(id,[dash],[gap])` (path-like
-entities; 16/10 px defaults) · `gradient(id,c1,c2,...,[mode])` (multi-stop
+entities **and outlined circles**; 16/10 px defaults — use on open contact rings) · `gradient(id,c1,c2,...,[mode])` (multi-stop
 gradient, 2+ evenly spaced palette colours, on the primary paint: no mode =
 along a path stroke by TRUE arc length, or a linear top→bottom fill on filled
 shapes; a number = linear angle in degrees (0 = left→right, 90 = top→bottom) —

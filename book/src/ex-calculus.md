@@ -166,6 +166,31 @@ passes through every knot exactly.
 
 <div class="manic-video" data-video="ex-spline"></div>
 
+## sqrt-tanx
+
+√(tan θ) by pure geometry — a 3B1B-style proof: on the unit circle, tan θ is the
+vertical tangent length; Euclid's geometric mean (semicircle on diameter 1+a,
+altitude at 1) turns that length into √(tan θ). Then the curve itself, painted
+teal → violet → coral. Uses the expanded semantic palette.
+
+```manic
+{{#include ../../examples/sqrt-tanx.manic}}
+```
+
+<div class="manic-video" data-video="ex-sqrt-tanx"></div>
+
+## integral-sqrt-tanx
+
+Integrate √(tan P): substitute P = t + π/4, read A(t) from the circle x²+y²=2 and
+H(t) from the hyperbola x²−y²=2, then dA−dH recovers the integrand. Outline-only
+angle marks — no filled discs hiding the construction.
+
+```manic
+{{#include ../../examples/integral-sqrt-tanx.manic}}
+```
+
+<div class="manic-video" data-video="ex-integral-sqrt-tanx"></div>
+
 ## trajectory
 
 A phase portrait: three paths flowing under a differential system, each

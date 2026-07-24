@@ -9,12 +9,20 @@ Each line below is the whole call — copy it and tweak the numbers.
 
 | shape | write | draws |
 |---|---|---|
-| **circle** | `circle(sun, (cx, cy), 90);` | a circle, radius 90, at the centre |
-| **rect** | `rect(box, (cx, cy), 200, 120);` | a rectangle 200 wide, 120 tall |
-| **line** | `line(edge, (100, 100), (400, 300));` | a line from point to point |
-| **arrow** | `arrow(v, (100, 400), (400, 400));` | a line with an arrowhead at the end |
-| **dot** | `dot(p, (cx, cy), 8);` | a small filled dot, radius 8 |
+| **circle** | `circle(sun, (cx, cy), 90);` | a circle, radius 90 — **filled + outlined by default** |
+| **rect** | `rect(box, (cx, cy), 200, 120);` | a rectangle — **filled + outlined by default** |
+| **line** | `line(edge, (100, 100), (400, 300));` | a line from point to point (stroke only) |
+| **arrow** | `arrow(v, (100, 400), (400, 400));` | a line with an arrowhead at the end (stroke only) |
+| **dot** | `dot(p, (cx, cy), 8);` | a small **filled** disc (no outline) — hides crossings |
 | **text** | `text(cap, (cx, 640), "hello");` | a text label anchored at a point |
+
+Plus composites: `polygon` / `sector` / `annulus` / `pie` (filled by default),
+`arc` / `brace` / `ellipse` (stroke only), and boolean regions
+(`union` / `intersect` / …).
+
+**▶ See it play:** [SHAPECRAFT](ex-transforms.md#shapes-howto) — fill vs
+`outlined`, the cast, palette → `become`, spin-wound `morph`, a disc that
+**splits into four colours → reunites → moves**, and two-colour booleans.
 
 ### Ordinary text is portable and shaped automatically
 
@@ -111,7 +119,7 @@ begins. They take the entity name first, then a value:
 |---|---|---|
 | `color(id, c)` | fill / stroke colour | `color(sun, cyan);` |
 | `stroke(id, w)` | line thickness | `stroke(sun, 4);` |
-| `dashed(id, [dash], [gap])` | dashed path (defaults 16/10 px) | `dashed(curve, 18, 10);` |
+| `dashed(id, [dash], [gap])` | dashed path *or* outlined circle (defaults 16/10 px) | `dashed(mark, 4, 3);` |
 | `gradient(id, c1, c2, ..., [mode])` | multi-stop gradient: along a path stroke, a linear (angle°) / `radial` fill, or a computed `"speed"`/`"curvature"` quantity on strokes | `gradient(wave, blue, cyan, gold, 270);` |
 | `size(id, n)` | text size | `size(cap, 30);` |
 | `glow(id, n)` | neon halo strength | `glow(sun, 8);` |
@@ -121,6 +129,17 @@ begins. They take the entity name first, then a value:
 | `z(id, n)` | draw order (higher = on top) | `z(box, 5);` |
 | `sticky(id)` | pin to the screen so it stays put through a `cam`/`zoom` (a HUD) | `sticky(caption);` |
 
+> **Textbook diagrams:** prefer `outlined` (or a thin `arc`) for angle marks and
+> "regions of interest." A `filled` disc or sector sitting *on top of* axes and
+> construction lines hides what's underneath — even at low opacity. Reserve solid
+> fills for backdrop wells *behind* the diagram, not overlays.
+>
+> `circle` defaults to **filled + outlined** (neon UI). For math constructions
+> always pair `outlined(id)` — `outline(id, color)` alone only recolors the rim
+> and leaves the fill on. Contact points that land on crossings should be
+> **open / dashed rings** (`outlined` + `dashed`), not `dot` — a solid marker
+> paints over the intersection you are trying to show.
+
 And two that decide *how a shape first appears*:
 
 | modifier | pairs with | gives |
@@ -129,6 +148,7 @@ And two that decide *how a shape first appears*:
 | `untraced(id)` | `draw(id)` | a **draw-on** (pen tracing the outline) |
 
 > **Colours are a fixed palette:** `fg`, `void`, `cyan`, `magenta`, `lime`,
+> `gold`, `red`, `orange`, `blue`, `teal`, `violet`, `coral`, `indigo`, `mint`,
 > `dim`, `panel`. For a computed colour (say, one per item in a loop) use
 > `hue(id, degrees)`. More in [Colour & style](colour.md).
 

@@ -2995,8 +2995,8 @@ pub fn catalog() -> Vec<BuiltinSpec> {
 
 /// Palette colour names (the only colours the DSL accepts).
 pub const COLORS: &[&str] = &[
-    "fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "dim", "panel",
-    "rainbow",
+    "fg", "void", "cyan", "magenta", "lime", "gold", "red", "orange", "blue", "teal",
+    "violet", "coral", "indigo", "mint", "dim", "panel", "rainbow",
 ];
 
 /// Easing names accepted where a `[ease]` argument is allowed.

@@ -72,6 +72,8 @@ ex-tangent|D9PHslz3e2U|The Tangent Line, Sliding Along a Curve — manic
 ex-analysis|SLennxNy6v4|Slope, Tangent, Area & Integral on One Curve — manic
 ex-newton|R7wwwW-_tP4|Newton's Method, Chasing a Root — manic
 ex-spline|luCo9NmmbaA|A Smooth Curve Through Any Points — manic
+ex-sqrt-tanx|1Xsd54pS67Y|√(tan θ) Is a Length — Pure Geometry Proof in manic
+ex-integral-sqrt-tanx|w-JWXioSe0c|Integrate √(tan P) — Circle Minus Hyperbola — manic
 ex-trajectory|-QeYAZ2GHVQ|Phase Portrait: Flowing Into a Spiral — manic
 ex-calculus-demo|UrOdi_iLt_k|Calculus in One Scene: the Derivative & the Integral — manic
 ex-reactive-integral|MRq5QHnHQxI|Integration by Parts as One Continuous Equation — manic
@@ -143,13 +145,14 @@ ex-nine_point|haZ7x-91B6c|The Nine-Point Circle — manic
 ex-conics|x3vqdu40MTc|Ellipse, Parabola, Hyperbola — manic
 
 # ---- examples: transforms & morphing ----
-ex-gradient|PLACEHOLDER|Gradient Paint — The Color Is Computed, Not Painted — manic
+ex-gradient|S7XXwCyj_PY|Gradient Paint — The Color Is Computed, Not Painted — manic
 ex-reactive-math-journey|UQvB8Ev1mHY|From 1 + 1 to a PhD — The Journey of Mathematics — manic
 ex-reactive-math-notation|D0a0IEm3T-w|13 Scientific Worlds, One Reactive Equation — manic
 ex-quadratic-formula-continuity|3R4zdNEf6bo|The Quadratic Formula, Rewritten Without Cuts — manic
 ex-transforms|PnUfeUvkYHM|Apply a Matrix to Anything — manic
 ex-transform_copy|KSnLLXpooo0|Copy + Transform — manic
 ex-morph|Y6kpE-ZT-T8|Morph One Shape Into Another — manic
+ex-shapes-howto|cs9t5amsW00|SHAPECRAFT — Split, Recolour, Reunite & Move Shapes in manic
 
 # ---- examples: text & UI ----
 ex-typewriter|mdlHwoCvv-U|Typewriter Text in manic
@@ -234,7 +237,7 @@ ex-brachistochrone|OPSfmGeBBYA|Brachistochrone — The Cycloid Wins — manic
 ex-spring-annotated|5amfSFeyqrQ|Anatomy of a Spring — Hooke's Law & SHM — manic
 ex-pulley-annotated|eYnYAFH3xZA|The Atwood Machine — Guided Lesson — manic
 ex-brachistochrone-annotated|RTdB8CFjkug|Brachistochrone Race — Guided Lesson — manic
-ex-gradient-fastest-descent|PLACEHOLDER|The Fastest Descent — Color Is the Speedometer — manic
+ex-gradient-fastest-descent|MhJc5AhXpOA|The Fastest Descent — Color Is the Speedometer — manic
 ex-block-tackle|ISakDSlDD_k|Block & Tackle — Compound Pulley Mechanical Advantage — manic
 ex-textbook-pulley|GneVjPiFTsI|Textbook Pulley Figure — Paper Style — manic
 ex-textbook-tension|pAj6lWNuLNs|Textbook Tension Figure — 60/30 Ropes — manic
@@ -294,8 +297,8 @@ ex-creator-rule90-sierpinski|lCka4ayXxQ0|Rule 90 Draws Sierpinski’s Triangle �
 ex-creator-heightmap-world|xAn1KZhJJik|Your Flat Map Is Secretly a 3D World — Grid to Terrain Short in manic
 ex-creator-noise-story|lZmssQerVNY|How Noise Builds Worlds — Random to Perlin to Fractal Terrain in manic
 ex-creator-free-kicks|Z_G4L66Mo-U|Roberto Carlos' Banana Kick — the Magnus Effect, Computed and Explained in manic
-ex-gradient-fastest-descent-shorts|PLACEHOLDER|Shortest Path — or Fastest? — Brachistochrone Short Told Through Gradients — manic
-ex-gradient-pendulum-shorts|PLACEHOLDER|Where Is a Pendulum FASTEST? — Speed Gradient Short — manic
+ex-gradient-fastest-descent-shorts|CHZvJnb4lPo|Shortest Path — or Fastest? — Brachistochrone Short Told Through Gradients — manic
+ex-gradient-pendulum-shorts|y4tMcc5ufgQ|Where Is a Pendulum FASTEST? — Speed Gradient Short — manic
 ex-parameter-journeys|ui5eqJDyLtk|One Parameter, Many Worlds — Reactive Visual Journeys in Manic
 ex-creator-v2-options-socials|Q32jTgInMrk|Professional Quiz Options + Native Social Icons — manic
 ex-creator-v2-timing|Web996n1Dn4|Control Every Beat of a Quiz Reel — Creator Timing v2

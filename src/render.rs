@@ -1115,20 +1115,33 @@ pub fn draw_entity(e: &Entity, fonts: &Fonts, view: &View, tpl: &style::Template
                 }
             }
             if e.stroke.outline {
+                let ring = circle_pts(p, r, 64);
                 if let (Some(g), false) = (&e.gradient, e.stroke.fill) {
-                    let ring = circle_pts(p, r, 64);
                     let gp = GradPaint::resolve(g, tpl, e.opacity, &ring);
                     if glow_on {
-                        draw_grad_path(&ring, trace, width * 3.0, &gp.halo(e.opacity, glow), None);
+                        draw_grad_path(
+                            &ring,
+                            trace,
+                            width * 3.0,
+                            &gp.halo(e.opacity, glow),
+                            dash,
+                        );
                     }
-                    draw_grad_path(&ring, trace, width, &gp, None);
+                    draw_grad_path(&ring, trace, width, &gp, dash);
+                } else if dash.is_some() {
+                    // dashed rim — textbook open markers; never use the solid
+                    // circle_lines path or the dash would vanish after draw-on
+                    if glow_on {
+                        draw_styled_path(&ring, trace, width * 3.0, halo(outline, e.opacity, glow), dash);
+                    }
+                    draw_styled_path(&ring, trace, width, outline, dash);
                 } else if trace >= 1.0 {
                     if glow_on {
                         draw_circle_lines(p.x, p.y, r, width * 3.0, halo(outline, e.opacity, glow));
                     }
                     draw_circle_lines(p.x, p.y, r, width, outline);
                 } else {
-                    draw_path(&circle_pts(p, r, 64), trace, width, outline);
+                    draw_path(&ring, trace, width, outline);
                 }
             }
         }

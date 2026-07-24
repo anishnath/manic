@@ -35,9 +35,10 @@ Useful aliases are `monochrome`, `blackwhite`, `black-white`, and `bw` for
 <div class="manic-video" data-video="template-mono"></div>
 
 Named colours remain meaningful under mono. `fg`, `dim`, `panel`, `cyan`,
-`magenta`, `lime`, `gold`, `red`, `orange`, and `blue` are mapped to deliberately
-different greys instead of collapsing to identical white. This preserves
-hierarchy and correct-answer contrast while keeping the export monochrome.
+`magenta`, `lime`, `gold`, `red`, `orange`, `blue`, `teal`, `violet`, `coral`,
+`indigo`, and `mint` are mapped to deliberately different greys instead of
+collapsing to identical white. This preserves hierarchy and correct-answer
+contrast while keeping the export monochrome.
 
 Use named colours for template-aware work:
 

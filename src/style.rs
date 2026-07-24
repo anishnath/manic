@@ -25,6 +25,16 @@ pub const RED: Color = Color::new(0.95, 0.27, 0.32, 1.0);
 pub const ORANGE: Color = Color::new(1.0, 0.55, 0.16, 1.0);
 /// True blue — distinct from the structural cyan (e.g. gravity vectors, water).
 pub const BLUE: Color = Color::new(0.36, 0.52, 1.0, 1.0);
+/// Teal — cyan-green bridge (ocean, mid-cool accent). Distinct from cyan/lime.
+pub const TEAL: Color = Color::new(0.05, 0.78, 0.72, 1.0);
+/// Violet — true purple. Distinct from magenta (hot pink) and indigo (deep).
+pub const VIOLET: Color = Color::new(0.58, 0.32, 0.98, 1.0);
+/// Coral — soft warm red-orange. Distinct from red, orange, and magenta.
+pub const CORAL: Color = Color::new(1.0, 0.48, 0.42, 1.0);
+/// Indigo — deep blue-violet. Distinct from blue and violet.
+pub const INDIGO: Color = Color::new(0.35, 0.28, 0.85, 1.0);
+/// Mint — soft cool green. Distinct from acid lime.
+pub const MINT: Color = Color::new(0.55, 0.95, 0.75, 1.0);
 /// De-emphasised muted slate-violet for annotations, indices, rules.
 pub const DIM: Color = Color::new(0.42, 0.40, 0.56, 1.0);
 /// Slightly lifted panel fill (nodes, cells, section cards) over the void.
@@ -45,6 +55,11 @@ pub struct Palette {
     pub red: Color,
     pub orange: Color,
     pub blue: Color,
+    pub teal: Color,
+    pub violet: Color,
+    pub coral: Color,
+    pub indigo: Color,
+    pub mint: Color,
     pub dim: Color,
     pub panel: Color,
 }
@@ -62,6 +77,11 @@ impl Palette {
             red: RED,
             orange: ORANGE,
             blue: BLUE,
+            teal: TEAL,
+            violet: VIOLET,
+            coral: CORAL,
+            indigo: INDIGO,
+            mint: MINT,
             dim: DIM,
             panel: PANEL,
         }
@@ -80,6 +100,12 @@ impl Palette {
             red: Color::new(0.58, 0.58, 0.58, 1.0),
             orange: Color::new(0.76, 0.76, 0.76, 1.0),
             blue: Color::new(0.72, 0.72, 0.72, 1.0),
+            // five new roles — spaced between existing greys so hierarchy holds
+            teal: Color::new(0.80, 0.80, 0.80, 1.0),
+            violet: Color::new(0.62, 0.62, 0.62, 1.0),
+            coral: Color::new(0.66, 0.66, 0.66, 1.0),
+            indigo: Color::new(0.52, 0.52, 0.52, 1.0),
+            mint: Color::new(0.91, 0.91, 0.91, 1.0),
             dim: Color::new(0.43, 0.43, 0.43, 1.0),
             panel: Color::new(0.075, 0.075, 0.075, 1.0),
         }
@@ -97,6 +123,11 @@ impl Palette {
             red: RED,
             orange: ORANGE,
             blue: BLUE,
+            teal: Color::new(0.0, 0.45, 0.48, 1.0),
+            violet: Color::new(0.42, 0.18, 0.65, 1.0),
+            coral: Color::new(0.85, 0.32, 0.28, 1.0),
+            indigo: Color::new(0.28, 0.22, 0.55, 1.0),
+            mint: Color::new(0.20, 0.55, 0.42, 1.0),
             dim: Color::new(0.55, 0.54, 0.58, 1.0),
             panel: Color::new(0.89, 0.88, 0.83, 1.0),
         }
@@ -114,6 +145,11 @@ impl Palette {
             red: RED,
             orange: ORANGE,
             blue: BLUE,
+            teal: Color::new(0.45, 0.85, 0.82, 1.0),
+            violet: Color::new(0.75, 0.60, 1.0, 1.0),
+            coral: Color::new(1.0, 0.55, 0.50, 1.0),
+            indigo: Color::new(0.55, 0.55, 0.95, 1.0),
+            mint: Color::new(0.55, 0.90, 0.75, 1.0),
             dim: Color::new(0.45, 0.58, 0.80, 1.0),
             panel: Color::new(0.10, 0.18, 0.34, 1.0),
         }
@@ -133,6 +169,11 @@ impl Palette {
             red: RED,
             orange: ORANGE,
             blue: BLUE,
+            teal: Color::new(0.25, 0.70, 0.68, 1.0),
+            violet: Color::new(0.55, 0.42, 0.90, 1.0),
+            coral: Color::new(0.92, 0.48, 0.42, 1.0),
+            indigo: Color::new(0.42, 0.40, 0.78, 1.0),
+            mint: Color::new(0.42, 0.82, 0.68, 1.0),
             dim: Color::new(0.46, 0.52, 0.64, 1.0),
             panel: Color::new(0.075, 0.098, 0.145, 1.0),
         }
@@ -155,6 +196,11 @@ impl Palette {
             (neon.red, self.red),
             (neon.orange, self.orange),
             (neon.blue, self.blue),
+            (neon.teal, self.teal),
+            (neon.violet, self.violet),
+            (neon.coral, self.coral),
+            (neon.indigo, self.indigo),
+            (neon.mint, self.mint),
             (neon.dim, self.dim),
             (neon.panel, self.panel),
         ] {
@@ -310,12 +356,41 @@ mod template_tests {
     fn mono_remaps_every_named_semantic_colour_to_greyscale() {
         let mono = Palette::mono();
         for source in [
-            VOID, FG, CYAN, MAGENTA, LIME, GOLD, RED, ORANGE, BLUE, DIM, PANEL,
+            VOID, FG, CYAN, MAGENTA, LIME, GOLD, RED, ORANGE, BLUE, TEAL, VIOLET,
+            CORAL, INDIGO, MINT, DIM, PANEL,
         ] {
             let mapped = mono.remap(source);
             assert!((mapped.r - mapped.g).abs() < 0.0001);
             assert!((mapped.g - mapped.b).abs() < 0.0001);
         }
+    }
+
+    #[test]
+    fn new_hues_are_distinct_neon_roles_and_remap() {
+        // must not collide with an existing neon constant within remap tolerance
+        let neon = Palette::neon();
+        let roles = [
+            neon.bg, neon.fg, neon.cyan, neon.magenta, neon.lime, neon.gold, neon.red,
+            neon.orange, neon.blue, neon.teal, neon.violet, neon.coral, neon.indigo,
+            neon.mint, neon.dim, neon.panel,
+        ];
+        for (i, a) in roles.iter().enumerate() {
+            for (j, b) in roles.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                let close = (a.r - b.r).abs() < 0.004
+                    && (a.g - b.g).abs() < 0.004
+                    && (a.b - b.b).abs() < 0.004;
+                assert!(!close, "palette roles {i} and {j} collide");
+            }
+        }
+        let paper = Palette::paper();
+        assert!((paper.remap(TEAL).r - paper.teal.r).abs() < 1e-4);
+        assert!((paper.remap(VIOLET).r - paper.violet.r).abs() < 1e-4);
+        assert!((paper.remap(CORAL).r - paper.coral.r).abs() < 1e-4);
+        assert!((paper.remap(INDIGO).r - paper.indigo.r).abs() < 1e-4);
+        assert!((paper.remap(MINT).r - paper.mint.r).abs() < 1e-4);
     }
 }
 

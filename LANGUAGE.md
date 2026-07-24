@@ -185,18 +185,18 @@ address.
 | `bind(parameter, target, property, "formula")` | connect live parameter `p` to `x`, `y`, `opacity`, `scale`, `angle`, `hue`, `value`, `trace`, or a plot `formula`. A plot formula also has coordinate `x` |
 | `bind(parameter, target, property, from, to)` | linearly map the parameter's declared min/max to responsive output endpoints; ideal for positions using `w`/`h`/`cx`/`cy` |
 | `caption(id, "some words", (x,y), [size], [color])` | lays words out in a centred row as `{id}.w0…` (tagged bare `{id}` + `{id}.words`); `show`/`draw`/`hidden(id)` broadcast over the whole caption, or animate with `karaoke`/`wordpop` |
-| `dot(id, (x,y), [r])` | small filled cyan dot, radius `r` (default 6) |
-| `circle(id, (x,y), r)` | node: dark panel fill, glowing cyan ring |
-| `rect(id, (x,y), w, h)` | rectangle, same node styling |
+| `dot(id, (x,y), [r])` | small **filled** cyan disc, radius `r` (default 6). Hides crossings — for textbook contact points use an outlined + dashed `circle` instead |
+| `circle(id, (x,y), r)` | circle; **defaults filled + outlined** (neon panel fill, cyan rim). For constructions: `outlined(id)` |
+| `rect(id, (x,y), w, h)` | rectangle; **defaults filled + outlined** (same neon styling). For constructions: `outlined(id)` |
 | `particles(id, container, count, [radius], [seed], ["layout"])` | a deterministic group of small dots inside a `circle` or `rect`; `layout` is `"random"` (default), `"grid"` (rectangle), or `"ring"` (circle). Children are `{id}.p0…` and the bare id addresses the group. The id supplies the meaning—`bubbles`, `dust`, `stars`, `data`, etc. |
 | `image(id, (x,y), "asset:name.png" \| "path", [w], [h])` | a **raster image** (PNG/JPG) from a documented production-bundled `asset:` URI or provisioned file path, centred at `(x,y)`, `w`×`h` px (default 300 square; `h` defaults to `w`). Loaded once at render start; animates like any entity (`show`/`move`/`fade`/`spin`/…). A missing ordinary file draws a crossed placeholder; a missing bundled URI is an error. (Engine-only — the browser editor knows the builtin but won't preview the raster.) |
 | `equation(id, (x,y), \`latex\`, [size])` | typeset a **LaTeX math** string (real fractions, roots, exponents, Greek, big operators — KaTeX-grade, via RaTeX) centred at `(x,y)`; `size` is the em height in px (default 48). Put the LaTeX in **backticks** (a raw string) so `\`-commands survive: `` equation(q, (cx,cy), `x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}`) ``. Color individual terms with standard LaTeX and Manic palette names: `` `\textcolor{magenta}{\mathrm{slope}}=\textcolor{cyan}{x}` ``; semantic colors follow the active template and uncolored terms use its foreground. Ordinary single-color equations still follow `color`/`recolor`. It's an image → `show`/`fade`/`move`/`scale` animate it, but not `draw` (trace); use `rewrite` below for a continuous step-by-step derivation. Fonts are baked in (self-contained). **Inline shorthand:** wrap math in `` `$…$` `` inside any `text`/`caption`/kit label and it auto-typesets, taking the entity colour — no `equation` call. Works for a WHOLE label (`` text(l,(x,y),`$E=mc^2$`) ``, `` option(q,`$\tfrac12$`) ``, `` point(A,(x,y),`$\alpha$`) ``) **and for MIXED text+math on one line** (`` text(t,(x,y),`The area is $\pi r^2$ units`) ``) — plain words and inline formulas baseline-aligned, and **mixed lines wrap** at word boundaries (math stays inline). Plain strings (no `$`) are unchanged; a literal `$` is `\$`. (Inline math is an image: `show`/`fade`/`move` animate it, not typewriter/`trace`.) |
-| `line(id, (x1,y1), (x2,y2))` | a straight line |
+| `line(id, (x1,y1), (x2,y2))` | a straight line (**stroke only** — fill flags ignored) |
 | `link(id, from, to, [bend])` | a line that stays attached to two moving entities; it meets circle/rectangle boundaries automatically. `bend=0` is straight, positive/negative values bow to opposite sides. |
 | `support(id, (cx,cy), [len], ["dir"])` | a **hatched fixed support** (wall / ceiling / floor) for mechanics diagrams — a baseline `{id}.line` + diagonal hatch ticks `{id}.tick{i}`. `"dir"` is the OPEN side: `"down"` (ceiling, default), `"up"` (floor), `"left"`/`"right"` (walls). Tagged bare `{id}` + `{id}.parts`. Pairs with `template("paper")` for a textbook look |
-| `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a filled polygon through ≥ 3 points (a trailing colour word is optional). Filled with a matching outline; drop `opacity(id, 0.2)` for a translucent region, or `outline(id)` for edges only. Tagged `id`. |
-| `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point |
-| `brace(id, (x1,y1), (x2,y2), [depth])` | a curly brace spanning the two points, bulging `depth` px to one side (default 22; negative flips the side) |
+| `polygon(id, (x1,y1), (x2,y2), (x3,y3), …, [color])` | a polygon through ≥ 3 points (optional trailing colour). **Defaults filled + outlined**; use `outlined(id)` for edges only, or `opacity(id, 0.2)` for a translucent region. Tagged `id`. |
+| `arrow(id, (x1,y1), (x2,y2))` | a line with an arrowhead at the second point (**stroke**; the head is a small filled tip — stop short of open contact markers) |
+| `brace(id, (x1,y1), (x2,y2), [depth])` | a curly brace spanning the two points, bulging `depth` px to one side (default 22; negative flips the side) (**stroke only**) |
 | `bracelabel(id, (x1,y1), (x2,y2), "text", [depth])` (alias `bracetext`) | a brace with a text label centred just beyond its cusp; child `{id}.label` |
 
 ### Modifiers (apply to an existing entity, at t = 0)
@@ -212,13 +212,13 @@ Each takes the target id as the first argument.
 | `rot(id, deg)` | start rotated by `deg` degrees |
 | `opacity(id, n)` | explicit starting opacity 0..1 |
 | `color(id, name)` | fill / primary color |
-| `outlined(id)` | outline only (no fill) |
-| `filled(id)` | fill only (no outline) |
-| `outline(id, name)` | outline color (and turn the outline on) |
+| `outlined(id)` | **no fill**, rim on — required for constructions over axes |
+| `filled(id)` | fill on, **rim off** |
+| `outline(id, name)` | set rim **colour** and turn the rim on — **does not drop fill** (common trap: `outline(circ, teal)` still paints a solid disc) |
 | `hue(id, deg, [sat], [light])` | set the color from an HSL hue in degrees (sat 1.0, light 0.6 by default) — computable, so `hue(bar{i}, 360*i/n)` gives each looped entity its own color |
 | `size(id, n)` | text size (text entities only) |
 | `stroke(id, n)` | stroke / outline width in px |
-| `dashed(id, [dash], [gap])` | repeat a dash/gap pattern on a path-like entity (defaults 16/10 px); works on plots, lines, links, arrows, curves, splines, coils, and arcs |
+| `dashed(id, [dash], [gap])` | dash/gap on path-like entities **and outlined circles** (defaults 16/10 px); plots, lines, links, arrows, curves, splines, coils, arcs, and open contact rings |
 | `gradient(id, c1, c2, ..., [mode])` | a **multi-stop gradient** (2+ palette colors, evenly spaced) on the primary paint — computed, not painted. No mode: path-like strokes color **along the path** by true arc length (first stop at the tail); filled shapes get a **linear** top→bottom fill. A number = linear at that angle in degrees (0 = left→right, 90 = top→bottom) over the entity's bounds — `gradient(f, blue, cyan, gold, 270)` colors a plot by its real height; `radial` = centre→edge (filled shapes); `"speed"` colors a **pre-simulated physics trajectory** (a sim's `.path`, a `freekick` arc) by its true local speed (slowest = first stop, fastest = last — a build error on purely geometric paths, where speed is undefined); `"curvature"` colors **any path** by how hard it bends (straightest = first stop, tightest = last; Menger curvature, normalised over the path). Colors stay template-aware. Composes with `trace` (a half-drawn curve shows the true start of its gradient), `dashed`, `glow`, and arrowheads (the head takes the tip color). First arg may be a tag. 2D shapes/strokes only (not text/images/equations); quantity modes are stroke-only |
 | `glow(id, n)` | neon halo intensity (0 = crisp, 1 = default) |
 | `z(id, n)` | draw order (higher = on top) |
@@ -499,10 +499,15 @@ entities named `{id}.x`, `{id}.tN`, etc.
 | `arrowfield(id, (cx,cy), halfw, halfh, field, [n])` | a grid of arrows sampling a named vector `field`, coloured by magnitude (cyan→lime→magenta); `n` arrows across |
 | `matrix(id, "a b; c d", (cx,cy), [cellw], [cellh])` | a bracketed matrix (rows split by `;`, entries by space **or comma** — so no comma inside an entry, and every row must have the same number of entries); entry `{id}.r{i}c{j}`, tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`, brackets `{id}.lbrack`/`{id}.rbrack` |
 | `table(id, "a b; c d", (cx,cy), [cellw], [cellh], [col-labels], [row-labels])` (aliases `mathtable`/`decimaltable`/`integertable`) | a ruled grid of single-token entries (rows split by `;`, cells by space **or comma** — so no comma inside a cell like `(0,0)`, and every row must have the same number of cells); body cell `{id}.r{i}c{j}` (tags `{id}.row{i}` / `{id}.col{j}` / `{id}.entries`); optional header strings add a top label row (`{id}.collabel{j}`) / left label column (`{id}.rowlabel{i}`), tagged `{id}.labels`; grid lines `{id}.h{k}` / `{id}.v{k}`, tagged `{id}.hlines` / `{id}.vlines` / `{id}.lines` |
-| `arc(id, (cx,cy), r, start, sweep)` | a circular arc line (angles in degrees) |
-| `sector(id, (cx,cy), r, start, sweep)` | a filled pie slice |
-| `annulus(id, (cx,cy), outer, inner)` | a filled ring between two radii |
-| `pie(id, (cx,cy), r, n)` | a circle cut into `n` equal filled sectors, each addressable as `{id}0 … {id}{n-1}` (tag `id`) |
+| `arc(id, (cx,cy), r, start, sweep)` | a circular arc line (angles in degrees; **stroke** unless used as a filled sector) |
+| `sector(id, (cx,cy), r, start, sweep)` | a pie slice; **defaults filled + outlined**. Use `outlined(id)` for an angle mark that doesn't hide the diagram |
+| `annulus(id, (cx,cy), outer, inner)` | a ring between two radii; **defaults filled + outlined** |
+| `pie(id, (cx,cy), r, n)` | a circle cut into `n` equal **filled** sectors, each addressable as `{id}0 … {id}{n-1}` (tag `id`); `color`/`recolor` each slice independently |
+
+**Fillable vs stroke-only.** `filled` / `outlined` only paint on closed shapes
+(`circle`, `rect`, `polygon`, `sector`, `annulus`, `pie` slices, boolean
+regions, `area`/`band`). Paths (`line`, `arrow`, `curve`, `coil`, `brace`,
+polyline/`ellipse`) ignore fill. See `examples/shapes-howto.manic`.
 
 Named `plot` functions (`fn`): `sin`, `cos`, `tan`, `asin` (`arcsin`), `acos`
 (`arccos`), `atan` (`arctan`), `parabola` (`sq`, `square`),
@@ -1279,7 +1284,8 @@ difference(bite, sq, cr, lime);   // the square with a circular bite removed
 `fg` (foreground / `white`) · `void` (`bg`) · `cyan` · `magenta` (`pink`,
 `accent`) · `lime` (`green`) · `gold` (`amber`, `yellow`) · `red` (`crimson`) ·
 `orange` · `blue` (`azure`, a true blue — distinct from `cyan`) ·
-`dim` (`gray`, `grey`) · `panel`.
+`teal` (`turquoise`) · `violet` (`purple`) · `coral` (`salmon`) · `indigo` ·
+`mint` (`seafoam`) · `dim` (`gray`, `grey`) · `panel`.
 
 ## Easings
 
